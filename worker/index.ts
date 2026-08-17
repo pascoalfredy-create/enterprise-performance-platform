@@ -27,16 +27,20 @@ async function ensureSetupSchema(db: D1Database) {
     db.prepare("CREATE TABLE IF NOT EXISTS platform_users (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, role TEXT NOT NULL, organization_id TEXT, status TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS employees (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, employee_number TEXT NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL, organization_id TEXT NOT NULL, job_title TEXT NOT NULL, hire_date TEXT NOT NULL, status TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, actor TEXT NOT NULL, summary TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS financial_dimensions (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS dimension_members (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, dimension_id TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, parent_id TEXT, status TEXT NOT NULL)"),
   ]);
 }
 async function setupSnapshot(db: D1Database) {
-  const [organizations, users, employees, audit] = await Promise.all([
+  const [organizations, users, employees, audit, dimensions, dimensionMembers] = await Promise.all([
     db.prepare("SELECT * FROM organizations WHERE tenant_id=? ORDER BY created_at").bind(TENANT).all(),
     db.prepare("SELECT * FROM platform_users WHERE tenant_id=? ORDER BY created_at").bind(TENANT).all(),
     db.prepare("SELECT * FROM employees WHERE tenant_id=? ORDER BY created_at DESC").bind(TENANT).all(),
     db.prepare("SELECT * FROM audit_events WHERE tenant_id=? ORDER BY created_at DESC LIMIT 8").bind(TENANT).all(),
+    db.prepare("SELECT d.*, COUNT(m.id) AS member_count FROM financial_dimensions d LEFT JOIN dimension_members m ON m.dimension_id=d.id AND m.tenant_id=d.tenant_id WHERE d.tenant_id=? GROUP BY d.id ORDER BY d.created_at").bind(TENANT).all(),
+    db.prepare("SELECT * FROM dimension_members WHERE tenant_id=? ORDER BY dimension_id, parent_id, code").bind(TENANT).all(),
   ]);
-  return { organizations: organizations.results, users: users.results, employees: employees.results, audit: audit.results };
+  return { organizations: organizations.results, users: users.results, employees: employees.results, audit: audit.results, dimensions: dimensions.results, dimensionMembers: dimensionMembers.results };
 }
 async function setupApi(request: Request, db: D1Database) {
   try {
@@ -61,6 +65,17 @@ async function setupApi(request: Request, db: D1Database) {
       if (await db.prepare("SELECT id FROM employees WHERE tenant_id=? AND employee_number=?").bind(TENANT,body.employeeNumber.trim().toUpperCase()).first()) return Response.json({error:"O número de colaborador já existe."},{status:409});
       summary=`Colaborador ${body.firstName.trim()} ${body.lastName.trim()} criado`;
       await db.prepare("INSERT INTO employees (id,tenant_id,employee_number,first_name,last_name,organization_id,job_title,hire_date,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(recordId,TENANT,body.employeeNumber.trim().toUpperCase(),body.firstName.trim(),body.lastName.trim(),body.organizationId,body.jobTitle?.trim()||"Por definir",body.hireDate,"Ativo",created).run();
+    } else if (body.type === "dimension") {
+      if (!body.name?.trim() || !body.code?.trim()) return Response.json({error:"Nome e código são obrigatórios."},{status:400});
+      if (await db.prepare("SELECT id FROM financial_dimensions WHERE tenant_id=? AND code=?").bind(TENANT,body.code.trim().toUpperCase()).first()) return Response.json({error:"Já existe uma dimensão com este código."},{status:409});
+      summary=`Dimensão ${body.name.trim()} criada`;
+      await db.prepare("INSERT INTO financial_dimensions (id,tenant_id,code,name,description,status,created_at) VALUES (?,?,?,?,?,?,?)").bind(recordId,TENANT,body.code.trim().toUpperCase(),body.name.trim(),body.description?.trim()||"Dimensão configurável","Ativa",created).run();
+    } else if (body.type === "dimensionMember") {
+      if (!body.dimensionId || !body.name?.trim() || !body.code?.trim()) return Response.json({error:"Dimensão, nome e código são obrigatórios."},{status:400});
+      if (await db.prepare("SELECT id FROM dimension_members WHERE tenant_id=? AND dimension_id=? AND code=?").bind(TENANT,body.dimensionId,body.code.trim().toUpperCase()).first()) return Response.json({error:"Este código já existe na dimensão."},{status:409});
+      if (body.parentId && !(await db.prepare("SELECT id FROM dimension_members WHERE tenant_id=? AND dimension_id=? AND id=?").bind(TENANT,body.dimensionId,body.parentId).first())) return Response.json({error:"O membro superior não pertence à dimensão."},{status:400});
+      summary=`Membro ${body.name.trim()} adicionado à dimensão`;
+      await db.prepare("INSERT INTO dimension_members (id,tenant_id,dimension_id,code,name,parent_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(recordId,TENANT,body.dimensionId,body.code.trim().toUpperCase(),body.name.trim(),body.parentId||null,"Ativo",created).run();
     } else return Response.json({error:"Operação não suportada."},{status:400});
     await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),TENANT,"CREATE",body.type,recordId,actor,summary,created).run();
     return Response.json(await setupSnapshot(db),{status:201});
