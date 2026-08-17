@@ -14,9 +14,10 @@ const colaboradores = [
 const modulos = ["Visão geral","Planeamento","Operações","Análises","Relatórios","Controlo","Administração"];
 
 export default function Home(){
- const [modulo,setModulo]=useState("Visão geral"),[pesquisa,setPesquisa]=useState(""),[painel,setPainel]=useState(false),[sessao,setSessao]=useState<{name:string;email:string;role:string;tenantId:string;permissions:string[]}|null>(null);
+ const [modulo,setModulo]=useState("Visão geral"),[pesquisa,setPesquisa]=useState(""),[painel,setPainel]=useState(false),[sessao,setSessao]=useState<{name:string;email:string;role:string;tenantId:string;tenantName:string;permissions:string[];tenants:Array<{id:string;name:string;role:string}>}|null>(null);
  const lista=useMemo(()=>colaboradores.filter(x=>x.join(" ").toLowerCase().includes(pesquisa.toLowerCase())),[pesquisa]);
  useEffect(()=>{fetch("/api/session").then(r=>r.json()).then(x=>{if(x.email)setSessao(x)})},[]);
+ const mudarTenant=(tenantId:string)=>{document.cookie=`ep_tenant=${encodeURIComponent(tenantId)}; Path=/; SameSite=Lax`;window.location.reload()};
  const pode=(m:string)=>m==="Administração"?sessao?.permissions.includes("setup:write"):m==="Controlo"?sessao?.permissions.includes("integrity:read"):true;
  return <div className="site">
   <header className="topo">
@@ -24,7 +25,7 @@ export default function Home(){
    <nav aria-label="Navegação principal">{modulos.filter(pode).map(x=><button key={x} className={modulo===x?"selecionado":""} onClick={()=>setModulo(x)}>{x}</button>)}</nav>
    <div className="acoes"><button className="pesquisa-global">⌕ <span>Pesquisar</span><kbd>⌘K</kbd></button><button className="notificacao">◌<i/></button><button className="perfil" title={sessao?.email}><b>{(sessao?.name||"Utilizador").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</b><span>{sessao?.name||"A autenticar…"}<small>{sessao?.role||"Sessão protegida"}</small></span>⌄</button></div>
   </header>
-  <div className="subnav"><div className="empresa"><span>DH</span><p><small>Empresa atual</small><b>Demo Holdings⌄</b></p></div><div className="atalhos"><button className="ativo">Resumo</button><button>Desempenho</button><button>Pessoas</button><button>Atividades</button></div><button className="ajuda">? Ajuda</button></div>
+  <div className="subnav"><div className="empresa"><span>{(sessao?.tenantName||"EP").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</span><label><small>Empresa atual</small><select aria-label="Empresa atual" value={sessao?.tenantId||""} onChange={e=>mudarTenant(e.target.value)} disabled={!sessao}>{sessao?.tenants.map(t=><option key={t.id} value={t.id}>{t.name} · {t.role}</option>)}</select></label></div><div className="atalhos"><button className="ativo">Resumo</button><button>Desempenho</button><button>Pessoas</button><button>Atividades</button></div><button className="ajuda">? Ajuda</button></div>
   <main>
    {modulo==="Administração"?<ConfiguracaoReal/>:modulo==="Planeamento"?<PerformanceControl/>:modulo==="Operações"?<PayrollFoundation/>:modulo==="Análises"?<WorkforceCost/>:modulo==="Relatórios"?<ManagementReport/>:modulo==="Controlo"?<><IntegrityCenter onNavigate={setModulo}/><ApiContract/></>:modulo==="Visão geral"?<ExecutiveDashboard onNavigate={setModulo}/>:<>
    <section className="boas-vindas"><div><span className="etiqueta">SEGUNDA-FEIRA, 17 DE AGOSTO</span><h1>Boa tarde, Pascoal.</h1><p>Aqui está o que precisa da sua atenção e como a organização está a evoluir.</p></div><div className="botoes"><button className="secundario">↥ Exportar visão</button><button className="primario" onClick={()=>setPainel(true)}>＋ Criar atividade</button></div></section>

@@ -19,6 +19,18 @@ test("cross-tenant access fails closed",()=>{
  assert.equal(belongsToTenant("tenant-a","tenant-a"),true);
  assert.equal(belongsToTenant("tenant-b","tenant-a"),false);
 });
+test("tenant context is selected from an authenticated membership",()=>{
+ assert.doesNotMatch(source,/const TENANT\s*=/);
+ assert.match(source,/const selectedTenant=/);
+ assert.match(source,/memberships\.results\.find/);
+ assert.match(source,/O tenant solicitado não pertence ao utilizador autenticado/);
+});
+test("every vertical slice receives the resolved tenant",()=>{
+ for(const api of ["setupApi","performanceApi","payrollApi","workforceApi","dashboardApi","managementReportApi","integrityApi"]){
+  assert.match(source,new RegExp(`${api}\\(request, env\\.DB,tenantId\\)`));
+ }
+ assert.match(source,/CREATE TABLE IF NOT EXISTS tenants/);
+});
 test("permission checks fail closed",()=>{
  assert.equal(hasPermission(["reports:write"],"reports:write"),true);
  assert.equal(hasPermission(["reports:write"],"payroll:write"),false);
