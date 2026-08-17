@@ -1,4 +1,4 @@
-import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 const base = { id: text("id").primaryKey(), tenantId: text("tenant_id").notNull(), createdAt: text("created_at").notNull() };
 export const organizations = sqliteTable("organizations", { ...base, code: text("code").notNull(), name: text("name").notNull(), kind: text("kind").notNull(), currency: text("currency").notNull(), status: text("status").notNull() });
@@ -7,3 +7,5 @@ export const employees = sqliteTable("employees", { ...base, employeeNumber: tex
 export const auditEvents = sqliteTable("audit_events", { ...base, action: text("action").notNull(), entityType: text("entity_type").notNull(), entityId: text("entity_id").notNull(), actor: text("actor").notNull(), summary: text("summary").notNull() });
 export const financialDimensions = sqliteTable("financial_dimensions", { ...base, code: text("code").notNull(), name: text("name").notNull(), description: text("description").notNull(), status: text("status").notNull() });
 export const dimensionMembers = sqliteTable("dimension_members", { ...base, dimensionId: text("dimension_id").notNull(), code: text("code").notNull(), name: text("name").notNull(), parentId: text("parent_id"), status: text("status").notNull() });
+export const budgetVersions = sqliteTable("budget_versions", { ...base, name: text("name").notNull(), fiscalYear: integer("fiscal_year").notNull(), status: text("status").notNull(), approvedAt: text("approved_at") });
+export const performanceEntries = sqliteTable("performance_entries", { ...base, organizationId: text("organization_id").notNull(), period: text("period").notNull(), scenario: text("scenario").notNull(), versionId: text("version_id"), currency: text("currency").notNull(), lineCode: text("line_code").notNull(), lineName: text("line_name").notNull(), dimensionMemberId: text("dimension_member_id"), amountMinor: integer("amount_minor").notNull(), source: text("source").notNull() });
