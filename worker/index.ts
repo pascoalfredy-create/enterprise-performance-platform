@@ -31,6 +31,11 @@ async function ensureSetupSchema(db: D1Database) {
     db.prepare("CREATE TABLE IF NOT EXISTS dimension_members (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, dimension_id TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, parent_id TEXT, status TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS budget_versions (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, name TEXT NOT NULL, fiscal_year INTEGER NOT NULL, status TEXT NOT NULL, approved_at TEXT)"),
     db.prepare("CREATE TABLE IF NOT EXISTS performance_entries (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, organization_id TEXT NOT NULL, period TEXT NOT NULL, scenario TEXT NOT NULL, version_id TEXT, currency TEXT NOT NULL, line_code TEXT NOT NULL, line_name TEXT NOT NULL, dimension_member_id TEXT, amount_minor INTEGER NOT NULL, source TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS salary_profiles (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, employee_id TEXT NOT NULL, currency TEXT NOT NULL, periodicity TEXT NOT NULL, base_minor INTEGER NOT NULL, effective_from TEXT NOT NULL, effective_to TEXT, dimension_member_id TEXT, status TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS payroll_components (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL, method TEXT NOT NULL, value_minor INTEGER, rate_bps INTEGER, calculation_order INTEGER NOT NULL, status TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS payroll_assignments (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, employee_id TEXT NOT NULL, component_id TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS payroll_runs (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, period TEXT NOT NULL, currency TEXT NOT NULL, status TEXT NOT NULL, employee_count INTEGER NOT NULL, gross_minor INTEGER NOT NULL, deduction_minor INTEGER NOT NULL, employer_minor INTEGER NOT NULL, net_minor INTEGER NOT NULL, closed_at TEXT)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS payroll_run_lines (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, run_id TEXT NOT NULL, employee_id TEXT NOT NULL, base_minor INTEGER NOT NULL, gross_minor INTEGER NOT NULL, deduction_minor INTEGER NOT NULL, employer_minor INTEGER NOT NULL, net_minor INTEGER NOT NULL, calculation_hash TEXT NOT NULL, input_snapshot TEXT NOT NULL)"),
   ]);
 }
 async function setupSnapshot(db: D1Database) {
@@ -120,6 +125,43 @@ async function performanceApi(request:Request,db:D1Database){
  }catch(error){return Response.json({error:error instanceof Error?error.message:"Erro de processamento."},{status:500})}
 }
 
+async function payrollSnapshot(db:D1Database){
+ const [profiles,components,runs,employees,members,audit]=await Promise.all([
+  db.prepare("SELECT p.*, e.first_name||' '||e.last_name AS employee_name, e.employee_number, m.name AS dimension_member_name FROM salary_profiles p JOIN employees e ON e.id=p.employee_id LEFT JOIN dimension_members m ON m.id=p.dimension_member_id WHERE p.tenant_id=? ORDER BY p.created_at DESC").bind(TENANT).all(),
+  db.prepare("SELECT c.*, e.first_name||' '||e.last_name AS employee_name FROM payroll_components c LEFT JOIN payroll_assignments a ON a.component_id=c.id AND a.tenant_id=c.tenant_id LEFT JOIN employees e ON e.id=a.employee_id WHERE c.tenant_id=? ORDER BY c.calculation_order,c.code").bind(TENANT).all(),
+  db.prepare("SELECT * FROM payroll_runs WHERE tenant_id=? ORDER BY period DESC,created_at DESC LIMIT 12").bind(TENANT).all(),
+  db.prepare("SELECT id,employee_number,first_name,last_name FROM employees WHERE tenant_id=? AND status='Ativo' ORDER BY first_name,last_name").bind(TENANT).all(),
+  db.prepare("SELECT m.id,m.name,m.code,d.name AS dimension_name FROM dimension_members m JOIN financial_dimensions d ON d.id=m.dimension_id WHERE m.tenant_id=? AND m.status='Ativo' ORDER BY d.name,m.code").bind(TENANT).all(),
+  db.prepare("SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('salaryProfile','payrollComponent','payrollRun') ORDER BY created_at DESC LIMIT 6").bind(TENANT).all(),
+ ]);return {profiles:profiles.results,components:components.results,runs:runs.results,employees:employees.results,members:members.results,audit:audit.results};
+}
+async function sha256(value:string){const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,"0")).join("")}
+async function payrollApi(request:Request,db:D1Database){
+ try{await ensureSetupSchema(db);if(request.method==="GET")return Response.json(await payrollSnapshot(db));if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
+ const body=await request.json() as Record<string,string>,created=new Date().toISOString(),recordId=uid(),actor=request.headers.get("x-openai-user-email")||"utilizador autenticado";let summary="",action="CREATE";
+ if(body.type==="salaryProfile"){
+  if(!body.employeeId||!body.currency?.match(/^[A-Za-z]{3}$/)||!/^\d{4}-\d{2}-\d{2}$/.test(body.effectiveFrom||""))return Response.json({error:"Colaborador, moeda e vigência são obrigatórios."},{status:400});
+  if(await db.prepare("SELECT id FROM salary_profiles WHERE tenant_id=? AND employee_id=? AND status='Ativo'").bind(TENANT,body.employeeId).first())return Response.json({error:"O colaborador já possui um perfil salarial ativo."},{status:409});
+  const base=parseMinor(body.baseAmount);summary="Perfil salarial criado";await db.prepare("INSERT INTO salary_profiles (id,tenant_id,employee_id,currency,periodicity,base_minor,effective_from,effective_to,dimension_member_id,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(recordId,TENANT,body.employeeId,body.currency.toUpperCase(),body.periodicity||"Mensal",base,body.effectiveFrom,body.effectiveTo||null,body.dimensionMemberId||null,"Ativo",created).run();
+ }else if(body.type==="payrollComponent"){
+  if(!body.employeeId||!body.code?.trim()||!body.name?.trim()||!['Earning','Deduction','EmployerCost'].includes(body.category)||!['Fixed','Percentage'].includes(body.method))return Response.json({error:"Preencha colaborador, código, nome, categoria e método."},{status:400});
+  if(await db.prepare("SELECT id FROM payroll_components WHERE tenant_id=? AND code=?").bind(TENANT,body.code.trim().toUpperCase()).first())return Response.json({error:"Já existe um componente com este código."},{status:409});
+  const value=body.method==="Fixed"?parseMinor(body.value):null,rate=body.method==="Percentage"?Math.round(Number(body.value.replace(",","."))*100):null;if(rate!==null&&(!Number.isInteger(rate)||rate<0||rate>100000))return Response.json({error:"Percentagem inválida."},{status:400});
+  summary=`Componente ${body.name.trim()} criado`;await db.batch([db.prepare("INSERT INTO payroll_components (id,tenant_id,code,name,category,method,value_minor,rate_bps,calculation_order,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(recordId,TENANT,body.code.trim().toUpperCase(),body.name.trim(),body.category,body.method,value,rate,Number(body.calculationOrder)||100,"Ativo",created),db.prepare("INSERT INTO payroll_assignments (id,tenant_id,employee_id,component_id,created_at) VALUES (?,?,?,?,?)").bind(uid(),TENANT,body.employeeId,recordId,created)]);
+ }else if(body.type==="generatePayrollRun"){
+  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(body.period||"")||!body.currency?.match(/^[A-Za-z]{3}$/))return Response.json({error:"Período e moeda são obrigatórios."},{status:400});
+  if(await db.prepare("SELECT id FROM payroll_runs WHERE tenant_id=? AND period=? AND currency=?").bind(TENANT,body.period,body.currency.toUpperCase()).first())return Response.json({error:"Já existe um processamento para este período e moeda."},{status:409});
+  const profiles=await db.prepare("SELECT p.*,e.id AS employee_id FROM salary_profiles p JOIN employees e ON e.id=p.employee_id WHERE p.tenant_id=? AND p.status='Ativo' AND p.currency=? AND p.effective_from<=? AND (p.effective_to IS NULL OR p.effective_to>=?) AND e.status='Ativo'").bind(TENANT,body.currency.toUpperCase(),`${body.period}-31`,`${body.period}-01`).all<Record<string,unknown>>();if(!profiles.results.length)return Response.json({error:"Não existem perfis salariais elegíveis."},{status:409});
+  let grossTotal=0,dedTotal=0,employerTotal=0,netTotal=0;const statements=[] as D1PreparedStatement[];
+  for(const p of profiles.results){const employeeId=String(p.employee_id),base=Number(p.base_minor),comps=await db.prepare("SELECT c.* FROM payroll_components c JOIN payroll_assignments a ON a.component_id=c.id WHERE a.tenant_id=? AND a.employee_id=? AND c.status='Ativo' ORDER BY c.calculation_order,c.code").bind(TENANT,employeeId).all<Record<string,unknown>>();let gross=base,deductions=0,employer=0;const inputs=[] as Record<string,unknown>[];for(const c of comps.results){const amount=c.method==="Fixed"?Number(c.value_minor):Math.trunc((base*Number(c.rate_bps)+5000)/10000);if(c.category==="Earning")gross+=amount;else if(c.category==="Deduction")deductions+=amount;else employer+=amount;inputs.push({code:c.code,category:c.category,method:c.method,amountMinor:amount})}const net=gross-deductions,snapshot=JSON.stringify({employeeId,baseMinor:base,components:inputs});const hash=await sha256(snapshot);grossTotal+=gross;dedTotal+=deductions;employerTotal+=employer;netTotal+=net;statements.push(db.prepare("INSERT INTO payroll_run_lines (id,tenant_id,run_id,employee_id,base_minor,gross_minor,deduction_minor,employer_minor,net_minor,calculation_hash,input_snapshot,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(uid(),TENANT,recordId,employeeId,base,gross,deductions,employer,net,hash,snapshot,created));}
+  statements.unshift(db.prepare("INSERT INTO payroll_runs (id,tenant_id,period,currency,status,employee_count,gross_minor,deduction_minor,employer_minor,net_minor,closed_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(recordId,TENANT,body.period,body.currency.toUpperCase(),"Rascunho",profiles.results.length,grossTotal,dedTotal,employerTotal,netTotal,null,created));await db.batch(statements);summary=`Payroll ${body.period} calculado para ${profiles.results.length} colaborador(es)`;
+ }else if(body.type==="transitionPayrollRun"){
+  const run=await db.prepare("SELECT status,period FROM payroll_runs WHERE id=? AND tenant_id=?").bind(body.runId,TENANT).first<{status:string,period:string}>();if(!run)return Response.json({error:"Processamento não encontrado."},{status:404});const next:{[key:string]:string}={Rascunho:"Validado",Validado:"Aprovado",Aprovado:"Fechado"};if(!next[run.status])return Response.json({error:"O processamento já está fechado."},{status:409});await db.prepare("UPDATE payroll_runs SET status=?,closed_at=? WHERE id=? AND tenant_id=?").bind(next[run.status],next[run.status]==="Fechado"?created:null,body.runId,TENANT).run();summary=`Payroll ${run.period}: ${next[run.status]}`;action=next[run.status].toUpperCase();
+ }else return Response.json({error:"Operação não suportada."},{status:400});
+ await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),TENANT,action,body.type==="transitionPayrollRun"?"payrollRun":body.type,body.runId||recordId,actor,summary,created).run();return Response.json(await payrollSnapshot(db),{status:201});
+ }catch(error){return Response.json({error:error instanceof Error?error.message:"Erro de payroll."},{status:500})}
+}
+
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
 // To route SVGs through the optimizer (with security headers), set
@@ -132,6 +174,7 @@ const worker = {
 
     if (url.pathname === "/api/setup") return setupApi(request, env.DB);
     if (url.pathname === "/api/performance") return performanceApi(request, env.DB);
+    if (url.pathname === "/api/payroll") return payrollApi(request, env.DB);
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
