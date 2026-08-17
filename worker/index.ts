@@ -3,6 +3,7 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import { percentageAmount, variance, workforceTotal } from "../lib/deterministic";
 import { hasPermission } from "../lib/security";
+import { openApiDocument } from "../lib/openapi";
 
 interface Env {
   ASSETS: Fetcher;
@@ -234,21 +235,23 @@ async function integrityApi(request:Request,db:D1Database){try{await ensureSetup
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    const apiPath=url.pathname.replace(/^\/api\/v1(?=\/|$)/,"/api");
 
-    if (url.pathname.startsWith("/api/")) {
+    if (apiPath.startsWith("/api/")) {
       const security=await securityContext(request,env.DB);if(security instanceof Response)return security;
-      if(url.pathname==="/api/session")return Response.json(security);
-      const write=request.method!=="GET",required:Permission|null=url.pathname==="/api/setup"&&write?"setup:write":url.pathname==="/api/performance"&&write?"performance:write":url.pathname==="/api/payroll"&&write?"payroll:write":url.pathname==="/api/workforce"&&write?"workforce:write":url.pathname==="/api/management-reports"&&write?"reports:write":url.pathname==="/api/integrity"?"integrity:read":null;
+      if(apiPath==="/api/session")return Response.json(security);
+      if(apiPath==="/api/openapi.json")return Response.json(openApiDocument,{headers:{"cache-control":"public, max-age=300"}});
+      const write=request.method!=="GET",required:Permission|null=apiPath==="/api/setup"&&write?"setup:write":apiPath==="/api/performance"&&write?"performance:write":apiPath==="/api/payroll"&&write?"payroll:write":apiPath==="/api/workforce"&&write?"workforce:write":apiPath==="/api/management-reports"&&write?"reports:write":apiPath==="/api/integrity"?"integrity:read":null;
       if(required&&!hasPermission(security.permissions,required))return denied(required);
     }
 
-    if (url.pathname === "/api/setup") return setupApi(request, env.DB);
-    if (url.pathname === "/api/performance") return performanceApi(request, env.DB);
-    if (url.pathname === "/api/payroll") return payrollApi(request, env.DB);
-    if (url.pathname === "/api/workforce") return workforceApi(request, env.DB);
-    if (url.pathname === "/api/dashboard") return dashboardApi(request, env.DB);
-    if (url.pathname === "/api/management-reports") return managementReportApi(request, env.DB);
-    if (url.pathname === "/api/integrity") return integrityApi(request, env.DB);
+    if (apiPath === "/api/setup") return setupApi(request, env.DB);
+    if (apiPath === "/api/performance") return performanceApi(request, env.DB);
+    if (apiPath === "/api/payroll") return payrollApi(request, env.DB);
+    if (apiPath === "/api/workforce") return workforceApi(request, env.DB);
+    if (apiPath === "/api/dashboard") return dashboardApi(request, env.DB);
+    if (apiPath === "/api/management-reports") return managementReportApi(request, env.DB);
+    if (apiPath === "/api/integrity") return integrityApi(request, env.DB);
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];

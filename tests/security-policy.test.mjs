@@ -4,7 +4,8 @@ import fs from "node:fs";
 import {belongsToTenant,hasPermission} from "../lib/security.ts";
 const source=fs.readFileSync(new URL("../worker/index.ts",import.meta.url),"utf8");
 test("all product APIs pass through server-side security context",()=>{
- assert.match(source,/url\.pathname\.startsWith\("\/api\/"\)/);
+ assert.match(source,/const apiPath=url\.pathname\.replace/);
+ assert.match(source,/apiPath\.startsWith\("\/api\/"\)/);
  assert.match(source,/securityContext\(request,env\.DB\)/);
 });
 test("write permissions are explicit per domain",()=>{
