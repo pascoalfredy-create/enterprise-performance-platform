@@ -13,13 +13,15 @@ const colaboradores = [
 const modulos = ["Visão geral","Planeamento","Operações","Análises","Relatórios","Controlo","Administração"];
 
 export default function Home(){
- const [modulo,setModulo]=useState("Visão geral"),[pesquisa,setPesquisa]=useState(""),[painel,setPainel]=useState(false);
+ const [modulo,setModulo]=useState("Visão geral"),[pesquisa,setPesquisa]=useState(""),[painel,setPainel]=useState(false),[sessao,setSessao]=useState<{name:string;email:string;role:string;tenantId:string;permissions:string[]}|null>(null);
  const lista=useMemo(()=>colaboradores.filter(x=>x.join(" ").toLowerCase().includes(pesquisa.toLowerCase())),[pesquisa]);
+ useEffect(()=>{fetch("/api/session").then(r=>r.json()).then(x=>{if(x.email)setSessao(x)})},[]);
+ const pode=(m:string)=>m==="Administração"?sessao?.permissions.includes("setup:write"):m==="Controlo"?sessao?.permissions.includes("integrity:read"):true;
  return <div className="site">
   <header className="topo">
    <div className="marca"><b>EP</b><span>Enterprise Performance</span></div>
-   <nav aria-label="Navegação principal">{modulos.map(x=><button key={x} className={modulo===x?"selecionado":""} onClick={()=>setModulo(x)}>{x}</button>)}</nav>
-   <div className="acoes"><button className="pesquisa-global">⌕ <span>Pesquisar</span><kbd>⌘K</kbd></button><button className="notificacao">◌<i/></button><button className="perfil"><b>PF</b><span>Pascoal Frederico<small>Administrador</small></span>⌄</button></div>
+   <nav aria-label="Navegação principal">{modulos.filter(pode).map(x=><button key={x} className={modulo===x?"selecionado":""} onClick={()=>setModulo(x)}>{x}</button>)}</nav>
+   <div className="acoes"><button className="pesquisa-global">⌕ <span>Pesquisar</span><kbd>⌘K</kbd></button><button className="notificacao">◌<i/></button><button className="perfil" title={sessao?.email}><b>{(sessao?.name||"Utilizador").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</b><span>{sessao?.name||"A autenticar…"}<small>{sessao?.role||"Sessão protegida"}</small></span>⌄</button></div>
   </header>
   <div className="subnav"><div className="empresa"><span>DH</span><p><small>Empresa atual</small><b>Demo Holdings⌄</b></p></div><div className="atalhos"><button className="ativo">Resumo</button><button>Desempenho</button><button>Pessoas</button><button>Atividades</button></div><button className="ajuda">? Ajuda</button></div>
   <main>
