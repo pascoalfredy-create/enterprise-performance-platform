@@ -43,6 +43,13 @@
       "when": 1786990662145,
       "tag": "0005_late_katie_power",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1787014800000,
+      "tag": "0006_core_data_hardening",
+      "breakpoints": true
     }
   ]
 }
