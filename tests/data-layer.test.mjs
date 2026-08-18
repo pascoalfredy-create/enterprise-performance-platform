@@ -93,7 +93,28 @@ test("database failures are translated into stable API responses",()=>{
  assert.equal(classifyDataError(new Error("issued report is immutable"),"fallback").code,"IMMUTABLE_RECORD");
  assert.equal(classifyDataError(new Error("organization outside tenant"),"fallback").status,403);
  assert.equal(classifyDataError(new Error("invalid payroll run"),"fallback").status,422);
+ assert.equal(classifyDataError(new Error("budget version is not open"),"fallback").code,"INVALID_STATE");
  assert.deepEqual(classifyDataError(new Error("socket unavailable"),"Mensagem segura"),{status:500,code:"INTERNAL_ERROR",message:"Mensagem segura"});
+});
+
+test("employee contract lifecycle controls payroll eligibility",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Pendente')");
+ db.exec("INSERT INTO employee_contracts VALUES ('c1','t1','now','e1','CTR-001','Sem termo','2026-01-01',NULL,'Tempo inteiro',2400,NULL,'Rascunho',NULL,NULL)");
+ assert.equal(db.prepare("SELECT status FROM employees WHERE id='e1'").get().status,"Pendente");
+ db.exec("UPDATE employee_contracts SET status='Ativo',activated_at='now' WHERE id='c1'");
+ assert.equal(db.prepare("SELECT status FROM employees WHERE id='e1'").get().status,"Ativo");
+ assert.throws(()=>db.exec("INSERT INTO employee_contracts VALUES ('c2','t1','now','e1','CTR-002','Prazo','2026-02-01',NULL,'Tempo inteiro',2400,NULL,'Ativo','now',NULL)"),/invalid employee contract/);
+ db.exec("UPDATE employee_contracts SET status='Terminado',end_date='2026-12-31',ended_at='now' WHERE id='c1'");
+ assert.equal(db.prepare("SELECT status FROM employees WHERE id='e1'").get().status,"Inativo");
+ db.close();
+});
+
+test("payroll selection requires an active effective contract",()=>{
+ assert.match(worker,/JOIN employee_contracts c ON c\.employee_id=e\.id/);
+ assert.match(worker,/c\.status='Ativo'/);
+ assert.match(worker,/c\.start_date<=\?/);
+ assert.match(worker,/c\.end_date IS NULL OR c\.end_date>=\?/);
 });
 
 test("workflow transitions are sequential and protected by database state",()=>{

@@ -9,7 +9,7 @@ test("all product APIs pass through server-side security context",()=>{
  assert.match(source,/securityContext\(request,env\.DB\)/);
 });
 test("write permissions are explicit per domain",()=>{
- for(const permission of ["setup:write","performance:write","payroll:write","workforce:write","reports:write"])assert.match(source,new RegExp(permission));
+ for(const permission of ["setup:write","hcm:read","hcm:write","performance:write","payroll:write","workforce:write","reports:write"])assert.match(source,new RegExp(permission));
 });
 test("anonymous and non-member access are rejected",()=>{
  assert.match(source,/Autenticação necessária/);
@@ -32,6 +32,7 @@ test("every vertical slice receives the resolved tenant",()=>{
  assert.match(source,/workforceApi\(request, env\.DB,tenantId,organizationId\)/);
  assert.match(source,/dashboardApi\(request, env\.DB,tenantId,organizationId\)/);
  assert.match(source,/managementReportApi\(request, env\.DB,tenantId,organizationId\)/);
+ assert.match(source,/hcmApi\(request,env\.DB,tenantId,organizationId\)/);
  assert.match(source,/integrityApi\(request, env\.DB,tenantId,organizationId\)/);
  assert.match(source,/CREATE TABLE IF NOT EXISTS tenants/);
 });
