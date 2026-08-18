@@ -26,9 +26,11 @@ test("tenant context is selected from an authenticated membership",()=>{
  assert.match(source,/O tenant solicitado não pertence ao utilizador autenticado/);
 });
 test("every vertical slice receives the resolved tenant",()=>{
- for(const api of ["setupApi","performanceApi","payrollApi","workforceApi","dashboardApi","managementReportApi","integrityApi"]){
+ for(const api of ["payrollApi","workforceApi","dashboardApi","managementReportApi","integrityApi"]){
   assert.match(source,new RegExp(`${api}\\(request, env\\.DB,tenantId\\)`));
  }
+ assert.match(source,/setupApi\(request, env\.DB,tenantId,organizationId\)/);
+ assert.match(source,/performanceApi\(request, env\.DB,tenantId,organizationId\)/);
  assert.match(source,/CREATE TABLE IF NOT EXISTS tenants/);
 });
 test("tenant provisioning is atomic and grants only the creator administration",()=>{
@@ -54,6 +56,14 @@ test("invitation tokens are single-use, expiring and identity-bound",()=>{
  assert.match(source,/Este convite pertence a outro utilizador autenticado/);
  assert.match(source,/UPDATE invitation_tokens SET used_at=/);
  assert.match(source,/apiPath==="\/api\/invitations\/accept"/);
+});
+test("organization scope is enforced and unsupported engines fail closed",()=>{
+ assert.match(source,/organizationId:user\.organization_id/);
+ assert.match(source,/\(\? IS NULL OR e\.organization_id=\?\)/);
+ assert.match(source,/\(\? IS NULL OR organization_id=\?\)/);
+ assert.match(source,/Este motor ainda não suporta execução segura por âmbito organizacional/);
+ assert.match(source,/A operação financeira está fora do âmbito organizacional autorizado/);
+ assert.match(source,/A administração da estrutura exige âmbito de todo o tenant/);
 });
 test("permission checks fail closed",()=>{
  assert.equal(hasPermission(["reports:write"],"reports:write"),true);
