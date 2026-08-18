@@ -62,6 +62,24 @@ test("reference migration protects every vertical-slice boundary",()=>{
   assert.match(referenceMigration,new RegExp(phrase));
 });
 
+test("concurrency guards prevent duplicate business operations",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Ativo')");
+ db.exec("INSERT INTO salary_profiles VALUES ('s1','t1','now','e1','AOA','Mensal',100,'2026-01-01',NULL,NULL,'Ativo')");
+ assert.throws(()=>db.exec("INSERT INTO salary_profiles VALUES ('s2','t1','now','e1','AOA','Mensal',200,'2026-02-01',NULL,NULL,'Ativo')"),/UNIQUE constraint failed/);
+ db.exec("INSERT INTO management_reports VALUES ('m1','t1','now',1,'Gestão','Executivo','2026-08','AOA',NULL,'Emitido','{}','hash','cfo@test.local')");
+ assert.throws(()=>db.exec("INSERT INTO management_reports VALUES ('m2','t1','now',1,'Duplicado','Executivo','2026-08','AOA',NULL,'Emitido','{}','hash','cfo@test.local')"),/UNIQUE constraint failed/);
+ db.close();
+});
+
+test("audit trail cannot be rewritten or deleted",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO audit_events VALUES ('a1','t1','now','CREATE','employee','e1','admin@test.local','created')");
+ assert.throws(()=>db.exec("UPDATE audit_events SET summary='changed' WHERE id='a1'"),/audit event is immutable/);
+ assert.throws(()=>db.exec("DELETE FROM audit_events WHERE id='a1'"),/audit event is immutable/);
+ db.close();
+});
+
 function migratedDatabase(){
  const db=new DatabaseSync(":memory:"),directory=new URL("../drizzle/",import.meta.url);
  for(const file of readdirSync(directory).filter(name=>/^\d{4}.*\.sql$/.test(name)).sort())
