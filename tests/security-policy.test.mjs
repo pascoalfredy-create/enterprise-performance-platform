@@ -26,11 +26,13 @@ test("tenant context is selected from an authenticated membership",()=>{
  assert.match(source,/O tenant solicitado não pertence ao utilizador autenticado/);
 });
 test("every vertical slice receives the resolved tenant",()=>{
- for(const api of ["payrollApi","workforceApi","dashboardApi","managementReportApi","integrityApi"]){
+ for(const api of ["dashboardApi","managementReportApi","integrityApi"]){
   assert.match(source,new RegExp(`${api}\\(request, env\\.DB,tenantId\\)`));
  }
  assert.match(source,/setupApi\(request, env\.DB,tenantId,organizationId\)/);
  assert.match(source,/performanceApi\(request, env\.DB,tenantId,organizationId\)/);
+ assert.match(source,/payrollApi\(request, env\.DB,tenantId,organizationId\)/);
+ assert.match(source,/workforceApi\(request, env\.DB,tenantId,organizationId\)/);
  assert.match(source,/CREATE TABLE IF NOT EXISTS tenants/);
 });
 test("tenant provisioning is atomic and grants only the creator administration",()=>{
@@ -64,6 +66,14 @@ test("organization scope is enforced and unsupported engines fail closed",()=>{
  assert.match(source,/Este motor ainda não suporta execução segura por âmbito organizacional/);
  assert.match(source,/A operação financeira está fora do âmbito organizacional autorizado/);
  assert.match(source,/A administração da estrutura exige âmbito de todo o tenant/);
+});
+test("payroll and workforce preserve organization scope end to end",()=>{
+ assert.match(source,/CREATE TABLE IF NOT EXISTS payroll_run_scopes/);
+ assert.match(source,/INSERT INTO payroll_run_scopes/);
+ assert.match(source,/s\.organization_id=\?/);
+ assert.match(source,/Colaborador fora do âmbito autorizado/);
+ assert.match(source,/Payroll Run fechado não encontrado no âmbito autorizado/);
+ assert.match(source,/e\.organization_id=\?/);
 });
 test("permission checks fail closed",()=>{
  assert.equal(hasPermission(["reports:write"],"reports:write"),true);

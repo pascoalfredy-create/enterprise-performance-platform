@@ -20,7 +20,7 @@ export default function Home(){
  useEffect(()=>{const token=new URLSearchParams(window.location.search).get("invite");if(!token)return;fetch("/api/v1/invitations/accept",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token})}).then(async r=>({ok:r.ok,body:await r.json()})).then(({ok,body})=>{if(!ok){setInviteStatus(body.error||"Não foi possível aceitar o convite.");return}document.cookie=`ep_tenant=${encodeURIComponent(body.tenantId)}; Path=/; SameSite=Lax`;window.history.replaceState({},"","/");window.location.reload()})},[]);
  const mudarTenant=(tenantId:string)=>{document.cookie=`ep_tenant=${encodeURIComponent(tenantId)}; Path=/; SameSite=Lax`;window.location.reload()};
  async function criarTenant(e:FormEvent<HTMLFormElement>){e.preventDefault();setTenantSaving(true);setTenantError("");const payload=Object.fromEntries(new FormData(e.currentTarget).entries());const res=await fetch("/api/v1/tenants",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});const body=await res.json();setTenantSaving(false);if(!res.ok){setTenantError(body.error||"Não foi possível criar a empresa.");return}mudarTenant(body.tenantId)}
- const pode=(m:string)=>sessao?.organizationId?["Planeamento"].includes(m):m==="Administração"?sessao?.permissions.includes("setup:write"):m==="Controlo"?sessao?.permissions.includes("integrity:read"):true;
+ const pode=(m:string)=>sessao?.organizationId?["Planeamento","Operações","Análises"].includes(m):m==="Administração"?sessao?.permissions.includes("setup:write"):m==="Controlo"?sessao?.permissions.includes("integrity:read"):true;
  return <div className="site">
   {inviteStatus&&<div className="invite-feedback">{inviteStatus}</div>}
   <header className="topo">
