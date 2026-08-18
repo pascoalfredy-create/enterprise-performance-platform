@@ -39,6 +39,13 @@ test("tenant provisioning is atomic and grants only the creator administration",
  assert.match(source,/Tenant \$\{name\} criado com organização principal/);
  assert.match(source,/apiPath==="\/api\/tenants"/);
 });
+test("membership lifecycle preserves tenant administration",()=>{
+ for(const action of ["activate","resend","cancel","changeRole","remove"])assert.match(source,new RegExp(`action===\\"${action}\\"`));
+ assert.match(source,/Não pode remover ou cancelar o seu próprio acesso/);
+ assert.match(source,/A empresa deve manter pelo menos um Administrador ativo/);
+ assert.match(source,/SET status='Removido'/);
+ assert.match(source,/body\.type==="userAction"/);
+});
 test("permission checks fail closed",()=>{
  assert.equal(hasPermission(["reports:write"],"reports:write"),true);
  assert.equal(hasPermission(["reports:write"],"payroll:write"),false);

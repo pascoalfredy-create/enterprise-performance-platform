@@ -100,6 +100,19 @@ async function setupApi(request: Request, db: D1Database,tenantId:string) {
       if (await db.prepare("SELECT id FROM platform_users WHERE tenant_id=? AND lower(email)=lower(?)").bind(tenantId,body.email.trim()).first()) return Response.json({error:"Este email já tem acesso ou convite."},{status:409});
       summary=`Convite enviado a ${body.email.trim()}`;
       await db.prepare("INSERT INTO platform_users (id,tenant_id,name,email,role,organization_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(recordId,tenantId,body.name.trim(),body.email.trim().toLowerCase(),body.role||"Gestor",body.organizationId||null,"Convite enviado",created).run();
+    } else if (body.type === "userAction") {
+      const target=await db.prepare("SELECT * FROM platform_users WHERE id=? AND tenant_id=?").bind(body.userId,tenantId).first<Record<string,unknown>>();
+      if(!target)return Response.json({error:"Associação de utilizador não encontrada."},{status:404});
+      const action=body.action,targetEmail=String(target.email),targetRole=String(target.role),targetStatus=String(target.status),validRoles=["Administrador","Financeiro","Recursos Humanos","Gestor","Leitura"];
+      if(["remove","cancel"].includes(action)&&targetEmail.toLowerCase()===actor.toLowerCase())return Response.json({error:"Não pode remover ou cancelar o seu próprio acesso."},{status:409});
+      const removesAdmin=targetRole==="Administrador"&&targetStatus==="Ativo"&&(action==="remove"||(action==="changeRole"&&body.role!=="Administrador"));
+      if(removesAdmin){const admins=await db.prepare("SELECT COUNT(*) n FROM platform_users WHERE tenant_id=? AND role='Administrador' AND status='Ativo'").bind(tenantId).first<Record<string,unknown>>();if(Number(admins?.n||0)<=1)return Response.json({error:"A empresa deve manter pelo menos um Administrador ativo."},{status:409})}
+      if(action==="activate"){if(targetStatus==="Ativo")return Response.json({error:"O acesso já está ativo."},{status:409});await db.prepare("UPDATE platform_users SET status='Ativo' WHERE id=? AND tenant_id=?").bind(body.userId,tenantId).run();summary=`Acesso de ${targetEmail} ativado`;
+      }else if(action==="resend"){if(targetStatus==="Ativo")return Response.json({error:"Um acesso ativo não requer reenvio."},{status:409});await db.prepare("UPDATE platform_users SET status='Convite enviado',created_at=? WHERE id=? AND tenant_id=?").bind(created,body.userId,tenantId).run();summary=`Convite reenviado a ${targetEmail}`;
+      }else if(action==="cancel"){if(targetStatus==="Ativo")return Response.json({error:"Remova o acesso ativo em vez de cancelar o convite."},{status:409});await db.prepare("UPDATE platform_users SET status='Cancelado' WHERE id=? AND tenant_id=?").bind(body.userId,tenantId).run();summary=`Convite de ${targetEmail} cancelado`;
+      }else if(action==="changeRole"){if(!validRoles.includes(body.role))return Response.json({error:"Função inválida."},{status:400});await db.prepare("UPDATE platform_users SET role=? WHERE id=? AND tenant_id=?").bind(body.role,body.userId,tenantId).run();summary=`Função de ${targetEmail} alterada para ${body.role}`;
+      }else if(action==="remove"){await db.prepare("UPDATE platform_users SET status='Removido' WHERE id=? AND tenant_id=?").bind(body.userId,tenantId).run();summary=`Acesso de ${targetEmail} removido`;
+      }else return Response.json({error:"Ação de utilizador não suportada."},{status:400});
     } else if (body.type === "employee") {
       if (!body.employeeNumber?.trim() || !body.firstName?.trim() || !body.lastName?.trim() || !body.organizationId || !body.hireDate) return Response.json({error:"Preencha todos os campos obrigatórios."},{status:400});
       if (await db.prepare("SELECT id FROM employees WHERE tenant_id=? AND employee_number=?").bind(tenantId,body.employeeNumber.trim().toUpperCase()).first()) return Response.json({error:"O número de colaborador já existe."},{status:409});
@@ -117,7 +130,7 @@ async function setupApi(request: Request, db: D1Database,tenantId:string) {
       summary=`Membro ${body.name.trim()} adicionado à dimensão`;
       await db.prepare("INSERT INTO dimension_members (id,tenant_id,dimension_id,code,name,parent_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(recordId,tenantId,body.dimensionId,body.code.trim().toUpperCase(),body.name.trim(),body.parentId||null,"Ativo",created).run();
     } else return Response.json({error:"Operação não suportada."},{status:400});
-    await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,"CREATE",body.type,recordId,actor,summary,created).run();
+    await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,body.type==="userAction"?String(body.action||"UPDATE").toUpperCase():"CREATE",body.type,body.type==="userAction"?body.userId:recordId,actor,summary,created).run();
     return Response.json(await setupSnapshot(db,tenantId),{status:201});
   } catch(error) { return Response.json({error:error instanceof Error?error.message:"Erro de persistência."},{status:500}); }
 }
