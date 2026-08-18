@@ -8,6 +8,7 @@ export const openApiDocument={
  tags:["Identity","Setup","Performance","Payroll","Workforce","Reporting","Control"].map(name=>({name})),
  paths:{
   "/session":{get:read("Current security context","Identity")},
+  "/tenants":{get:read("List authenticated tenant memberships","Identity"),post:write("Create tenant and root organization","Identity","setup:write")},
   "/setup":{get:read("Read organizations users employees and dimensions","Setup"),post:write("Write setup","Setup","setup:write")},
   "/performance":{get:{...read("Read Actual and Budget","Performance"),parameters:[{$ref:"#/components/parameters/Period"},{$ref:"#/components/parameters/Currency"},{$ref:"#/components/parameters/Version"}]},post:write("Create or approve performance","Performance","performance:write")},
   "/payroll":{get:read("Read payroll foundation","Payroll"),post:write("Configure calculate or transition payroll","Payroll","payroll:write")},

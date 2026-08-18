@@ -32,6 +32,24 @@ const actorEmail=(request:Request)=>request.headers.get("oai-authenticated-user-
 const selectedTenant=(request:Request)=>request.headers.get("x-tenant-id")||request.headers.get("X-Tenant-Id")||request.headers.get("cookie")?.match(/(?:^|;\s*)ep_tenant=([^;]+)/)?.[1]||"";
 async function securityContext(request:Request,db:D1Database):Promise<SecurityContext|Response>{await ensureSetupSchema(db);const email=actorEmail(request);if(!email)return Response.json({error:"Autenticação necessária."},{status:401});let memberships=await db.prepare("SELECT u.*,COALESCE(t.name,u.tenant_id) tenant_name FROM platform_users u LEFT JOIN tenants t ON t.id=u.tenant_id WHERE lower(u.email)=lower(?) AND u.status='Ativo' ORDER BY u.created_at").bind(email).all<Record<string,unknown>>();if(!memberships.results.length){const total=await db.prepare("SELECT COUNT(*) n FROM platform_users").first<Record<string,unknown>>();if(Number(total?.n||0)===0){const name=request.headers.get("oai-authenticated-user-full-name")||"Administrador inicial",created=new Date().toISOString(),id=uid();await db.batch([db.prepare("INSERT OR IGNORE INTO tenants (id,created_at,name,slug,status) VALUES (?,?,?,?,?)").bind(DEFAULT_TENANT,created,"Demo Holdings","demo-holdings","Ativo"),db.prepare("INSERT INTO platform_users (id,tenant_id,created_at,name,email,role,organization_id,status) VALUES (?,?,?,?,?,?,?,?)").bind(id,DEFAULT_TENANT,created,name,email,"Administrador",null,"Ativo"),db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),DEFAULT_TENANT,created,"BOOTSTRAP","platformUser",id,email,"Administrador inicial associado ao tenant")]);memberships={results:[{id,name,email,role:"Administrador",tenant_id:DEFAULT_TENANT,tenant_name:"Demo Holdings"}],success:true,meta:{}}}else return Response.json({error:"O utilizador autenticado não possui membership ativa."},{status:403})}const requested=decodeURIComponent(selectedTenant(request));const user=(requested?memberships.results.find(x=>String(x.tenant_id)===requested):memberships.results[0]);if(!user)return Response.json({error:"O tenant solicitado não pertence ao utilizador autenticado."},{status:403});const role=String(user.role),permissions=rolePermissions[role]||[],tenants=memberships.results.map(x=>({id:String(x.tenant_id),name:String(x.tenant_name),role:String(x.role)}));return{email,name:String(user.name||email),role,tenantId:String(user.tenant_id),tenantName:String(user.tenant_name),permissions,tenants}}
 const denied=(permission:Permission)=>Response.json({error:`Permissão necessária: ${permission}`},{status:403});
+async function tenantsApi(request:Request,db:D1Database,security:SecurityContext){
+ try{
+  await ensureSetupSchema(db);
+  if(request.method==="GET")return Response.json({tenants:security.tenants,currentTenantId:security.tenantId});
+  if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
+  const body=await request.json() as Record<string,string>,name=body.name?.trim(),slug=body.slug?.trim().toLowerCase(),currency=body.currency?.trim().toUpperCase();
+  if(!name||!slug?.match(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)||!currency?.match(/^[A-Z]{3}$/))return Response.json({error:"Nome, identificador e moeda ISO são obrigatórios."},{status:400});
+  if(await db.prepare("SELECT id FROM tenants WHERE slug=?").bind(slug).first())return Response.json({error:"Este identificador de empresa já está em uso."},{status:409});
+  const tenantId=uid(),membershipId=uid(),organizationId=uid(),created=new Date().toISOString();
+  await db.batch([
+   db.prepare("INSERT INTO tenants (id,created_at,name,slug,status) VALUES (?,?,?,?,?)").bind(tenantId,created,name,slug,"Ativo"),
+   db.prepare("INSERT INTO platform_users (id,tenant_id,created_at,name,email,role,organization_id,status) VALUES (?,?,?,?,?,?,?,?)").bind(membershipId,tenantId,created,security.name,security.email,"Administrador",organizationId,"Ativo"),
+   db.prepare("INSERT INTO organizations (id,tenant_id,created_at,code,name,kind,currency,status) VALUES (?,?,?,?,?,?,?,?)").bind(organizationId,tenantId,created,"ROOT",name,"Empresa",currency,"Ativa"),
+   db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,created,"CREATE","tenant",tenantId,security.email,`Tenant ${name} criado com organização principal`),
+  ]);
+  return Response.json({tenantId,tenantName:name,role:"Administrador"},{status:201});
+ }catch(error){return Response.json({error:error instanceof Error?error.message:"Erro ao criar empresa."},{status:500})}
+}
 async function ensureSetupSchema(db: D1Database) {
   await db.batch([
     db.prepare("CREATE TABLE IF NOT EXISTS tenants (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, status TEXT NOT NULL)"),
@@ -245,9 +263,10 @@ const worker = {
       const security=await securityContext(request,env.DB);if(security instanceof Response)return security;
       if(apiPath==="/api/session")return Response.json(security);
       if(apiPath==="/api/openapi.json")return Response.json(openApiDocument,{headers:{"cache-control":"public, max-age=300"}});
-      const write=request.method!=="GET",required:Permission|null=apiPath==="/api/setup"&&write?"setup:write":apiPath==="/api/performance"&&write?"performance:write":apiPath==="/api/payroll"&&write?"payroll:write":apiPath==="/api/workforce"&&write?"workforce:write":apiPath==="/api/management-reports"&&write?"reports:write":apiPath==="/api/integrity"?"integrity:read":null;
+      const write=request.method!=="GET",required:Permission|null=(apiPath==="/api/setup"||apiPath==="/api/tenants")&&write?"setup:write":apiPath==="/api/performance"&&write?"performance:write":apiPath==="/api/payroll"&&write?"payroll:write":apiPath==="/api/workforce"&&write?"workforce:write":apiPath==="/api/management-reports"&&write?"reports:write":apiPath==="/api/integrity"?"integrity:read":null;
       if(required&&!hasPermission(security.permissions,required))return denied(required);
       const tenantId=security.tenantId;
+      if (apiPath === "/api/tenants") return tenantsApi(request,env.DB,security);
       if (apiPath === "/api/setup") return setupApi(request, env.DB,tenantId);
       if (apiPath === "/api/performance") return performanceApi(request, env.DB,tenantId);
       if (apiPath === "/api/payroll") return payrollApi(request, env.DB,tenantId);

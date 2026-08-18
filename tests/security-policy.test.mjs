@@ -31,6 +31,14 @@ test("every vertical slice receives the resolved tenant",()=>{
  }
  assert.match(source,/CREATE TABLE IF NOT EXISTS tenants/);
 });
+test("tenant provisioning is atomic and grants only the creator administration",()=>{
+ assert.match(source,/async function tenantsApi/);
+ assert.match(source,/INSERT INTO tenants/);
+ assert.match(source,/INSERT INTO platform_users/);
+ assert.match(source,/INSERT INTO organizations/);
+ assert.match(source,/Tenant \$\{name\} criado com organização principal/);
+ assert.match(source,/apiPath==="\/api\/tenants"/);
+});
 test("permission checks fail closed",()=>{
  assert.equal(hasPermission(["reports:write"],"reports:write"),true);
  assert.equal(hasPermission(["reports:write"],"payroll:write"),false);
