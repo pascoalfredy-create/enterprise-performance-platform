@@ -9,6 +9,7 @@ export const openApiDocument={
  paths:{
   "/session":{get:read("Current security context","Identity")},
   "/tenants":{get:read("List authenticated tenant memberships","Identity"),post:write("Create tenant and root organization","Identity","setup:write")},
+  "/invitations/accept":{post:{summary:"Accept a single-use tenant invitation",tags:["Identity"],security:[{workspaceAuth:[]}],requestBody:{required:true,content:{"application/json":{schema:{type:"object",required:["token"],properties:{token:{type:"string",pattern:"^epi_"}}}}}},responses:{"200":{description:"Membership activated"},...errors}}},
   "/setup":{get:read("Read organizations users employees and dimensions","Setup"),post:write("Write setup","Setup","setup:write")},
   "/performance":{get:{...read("Read Actual and Budget","Performance"),parameters:[{$ref:"#/components/parameters/Period"},{$ref:"#/components/parameters/Currency"},{$ref:"#/components/parameters/Version"}]},post:write("Create or approve performance","Performance","performance:write")},
   "/payroll":{get:read("Read payroll foundation","Payroll"),post:write("Configure calculate or transition payroll","Payroll","payroll:write")},

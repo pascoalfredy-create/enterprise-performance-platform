@@ -46,6 +46,15 @@ test("membership lifecycle preserves tenant administration",()=>{
  assert.match(source,/SET status='Removido'/);
  assert.match(source,/body\.type==="userAction"/);
 });
+test("invitation tokens are single-use, expiring and identity-bound",()=>{
+ assert.match(source,/CREATE TABLE IF NOT EXISTS invitation_tokens/);
+ assert.match(source,/tokenHash=await sha256\(token\)/);
+ assert.match(source,/used_at IS NULL AND i\.revoked_at IS NULL/);
+ assert.match(source,/Este convite expirou/);
+ assert.match(source,/Este convite pertence a outro utilizador autenticado/);
+ assert.match(source,/UPDATE invitation_tokens SET used_at=/);
+ assert.match(source,/apiPath==="\/api\/invitations\/accept"/);
+});
 test("permission checks fail closed",()=>{
  assert.equal(hasPermission(["reports:write"],"reports:write"),true);
  assert.equal(hasPermission(["reports:write"],"payroll:write"),false);
