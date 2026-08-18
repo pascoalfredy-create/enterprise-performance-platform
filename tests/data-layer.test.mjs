@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
+import { classifyDataError } from "../lib/api-error.ts";
 
 const migration=readFileSync(new URL("../drizzle/0006_core_data_hardening.sql",import.meta.url),"utf8");
 const referenceMigration=readFileSync(new URL("../drizzle/0007_tenant_reference_integrity.sql",import.meta.url),"utf8");
@@ -86,3 +87,11 @@ function migratedDatabase(){
   db.exec(readFileSync(new URL(file,directory),"utf8").replaceAll("--> statement-breakpoint",""));
  return db;
 }
+
+test("database failures are translated into stable API responses",()=>{
+ assert.deepEqual(classifyDataError(new Error("UNIQUE constraint failed: reports.number"),"fallback"),{status:409,code:"CONFLICT",message:"O registo já existe ou a operação foi concluída em paralelo. Atualize os dados e confirme o resultado."});
+ assert.equal(classifyDataError(new Error("issued report is immutable"),"fallback").code,"IMMUTABLE_RECORD");
+ assert.equal(classifyDataError(new Error("organization outside tenant"),"fallback").status,403);
+ assert.equal(classifyDataError(new Error("invalid payroll run"),"fallback").status,422);
+ assert.deepEqual(classifyDataError(new Error("socket unavailable"),"Mensagem segura"),{status:500,code:"INTERNAL_ERROR",message:"Mensagem segura"});
+});
