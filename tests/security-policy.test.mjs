@@ -26,13 +26,13 @@ test("tenant context is selected from an authenticated membership",()=>{
  assert.match(source,/O tenant solicitado não pertence ao utilizador autenticado/);
 });
 test("every vertical slice receives the resolved tenant",()=>{
- for(const api of ["dashboardApi","managementReportApi","integrityApi"]){
-  assert.match(source,new RegExp(`${api}\\(request, env\\.DB,tenantId\\)`));
- }
  assert.match(source,/setupApi\(request, env\.DB,tenantId,organizationId\)/);
  assert.match(source,/performanceApi\(request, env\.DB,tenantId,organizationId\)/);
  assert.match(source,/payrollApi\(request, env\.DB,tenantId,organizationId\)/);
  assert.match(source,/workforceApi\(request, env\.DB,tenantId,organizationId\)/);
+ assert.match(source,/dashboardApi\(request, env\.DB,tenantId,organizationId\)/);
+ assert.match(source,/managementReportApi\(request, env\.DB,tenantId,organizationId\)/);
+ assert.match(source,/integrityApi\(request, env\.DB,tenantId,organizationId\)/);
  assert.match(source,/CREATE TABLE IF NOT EXISTS tenants/);
 });
 test("tenant provisioning is atomic and grants only the creator administration",()=>{
@@ -59,11 +59,10 @@ test("invitation tokens are single-use, expiring and identity-bound",()=>{
  assert.match(source,/UPDATE invitation_tokens SET used_at=/);
  assert.match(source,/apiPath==="\/api\/invitations\/accept"/);
 });
-test("organization scope is enforced and unsupported engines fail closed",()=>{
+test("organization scope is enforced and unauthorized writes fail closed",()=>{
  assert.match(source,/organizationId:user\.organization_id/);
  assert.match(source,/\(\? IS NULL OR e\.organization_id=\?\)/);
  assert.match(source,/\(\? IS NULL OR organization_id=\?\)/);
- assert.match(source,/Este motor ainda não suporta execução segura por âmbito organizacional/);
  assert.match(source,/A operação financeira está fora do âmbito organizacional autorizado/);
  assert.match(source,/A administração da estrutura exige âmbito de todo o tenant/);
 });
@@ -74,6 +73,13 @@ test("payroll and workforce preserve organization scope end to end",()=>{
  assert.match(source,/Colaborador fora do âmbito autorizado/);
  assert.match(source,/Payroll Run fechado não encontrado no âmbito autorizado/);
  assert.match(source,/e\.organization_id=\?/);
+});
+test("dashboard reports and integrity preserve organization scope",()=>{
+ assert.match(source,/CREATE TABLE IF NOT EXISTS management_report_scopes/);
+ assert.match(source,/INSERT INTO management_report_scopes/);
+ assert.match(source,/parameters:\{period,currency,organizationId/);
+ assert.match(source,/async function dashboardApi\(request:Request,db:D1Database,tenantId:string,organizationId:string\|null=null\)/);
+ assert.match(source,/async function integrityApi\(request:Request,db:D1Database,tenantId:string,organizationId:string\|null=null\)/);
 });
 test("permission checks fail closed",()=>{
  assert.equal(hasPermission(["reports:write"],"reports:write"),true);
