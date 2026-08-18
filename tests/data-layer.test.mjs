@@ -95,3 +95,24 @@ test("database failures are translated into stable API responses",()=>{
  assert.equal(classifyDataError(new Error("invalid payroll run"),"fallback").status,422);
  assert.deepEqual(classifyDataError(new Error("socket unavailable"),"Mensagem segura"),{status:500,code:"INTERNAL_ERROR",message:"Mensagem segura"});
 });
+
+test("workflow transitions are sequential and protected by database state",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa')");
+ db.exec("INSERT INTO budget_versions VALUES ('b1','t1','now','Budget 2027',2027,'Rascunho',NULL)");
+ assert.throws(()=>db.exec("UPDATE budget_versions SET status='Fechado' WHERE id='b1'"),/invalid budget transition/);
+ db.exec("UPDATE budget_versions SET status='Aprovado',approved_at='now' WHERE id='b1'");
+ assert.throws(()=>db.exec("INSERT INTO performance_entries (id,tenant_id,created_at,organization_id,period,scenario,version_id,currency,line_code,line_name,amount_minor,source) VALUES ('p1','t1','now','o1','2027-01','Budget','b1','AOA','REV','Receita',100,'Manual')"),/budget version is not open/);
+ db.exec("INSERT INTO payroll_runs VALUES ('r1','t1','now','2026-08','AOA','Rascunho',0,0,0,0,0,NULL)");
+ assert.throws(()=>db.exec("UPDATE payroll_runs SET status='Aprovado' WHERE id='r1'"),/invalid payroll transition/);
+ db.exec("UPDATE payroll_runs SET status='Validado' WHERE id='r1'; UPDATE payroll_runs SET status='Aprovado' WHERE id='r1'; UPDATE payroll_runs SET status='Fechado',closed_at='now' WHERE id='r1'");
+ assert.equal(db.prepare("SELECT status FROM payroll_runs WHERE id='r1'").get().status,"Fechado");
+ db.close();
+});
+
+test("API state changes use compare-and-set updates",()=>{
+ assert.match(worker,/status='Rascunho'\"\)\.bind\(created,body\.versionId,tenantId\)/);
+ assert.match(worker,/AND status=\?\"\)\.bind\(next\[run\.status\]/);
+ assert.match(worker,/transition\.meta\.changes/);
+ assert.match(worker,/approval\.meta\.changes/);
+});
