@@ -93,6 +93,14 @@ test("operational readiness is derived by engine and reports fail closed",()=>{
  assert.match(source,/O relatório exige Actual, uma versão Budget aprovada/);
  assert.match(source,/apiPath === "\/api\/readiness"/);
 });
+test("payslip issuance is closed-run only idempotent and auditable",()=>{
+ assert.match(source,/body\.type==="issuePayslips"/);
+ assert.match(source,/r\.status='Fechado'/);
+ assert.match(source,/SELECT COUNT\(\*\) n FROM payroll_payslips/);
+ assert.match(source,/documentType:"PAYSLIP"/);
+ assert.match(source,/entity_type,entity_id/);
+ assert.match(source,/payroll:read/);
+});
 test("membership lifecycle preserves tenant administration",()=>{
  for(const action of ["activate","resend","cancel","changeRole","remove"])assert.match(source,new RegExp(`action===\\"${action}\\"`));
  assert.match(source,/Não pode remover ou cancelar o seu próprio acesso/);

@@ -58,6 +58,16 @@ test("closed payroll and issued management reports are immutable",()=>{
  db.close();
 });
 
+test("payslips require closed payroll and remain immutable",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Ativo'); INSERT INTO payroll_runs VALUES ('r1','t1','now','2026-08','AOA','Rascunho',1,100,10,5,90,NULL); INSERT INTO payroll_run_lines VALUES ('l1','t1','now','r1','e1',80,100,10,5,90,'calc','{}')");
+ assert.throws(()=>db.exec("INSERT INTO payroll_payslips VALUES ('p1','t1','r1','l1','e1','PS-1','2026-08','AOA',100,10,5,90,'{}','hash','Emitido','now')"),/payslip requires closed payroll/);
+ db.exec("UPDATE payroll_runs SET status='Validado' WHERE id='r1'; UPDATE payroll_runs SET status='Aprovado' WHERE id='r1'; UPDATE payroll_runs SET status='Fechado',closed_at='now' WHERE id='r1'; INSERT INTO payroll_payslips VALUES ('p1','t1','r1','l1','e1','PS-1','2026-08','AOA',100,10,5,90,'{}','hash','Emitido','now')");
+ assert.throws(()=>db.exec("UPDATE payroll_payslips SET net_minor=91 WHERE id='p1'"),/issued payslip is immutable/);
+ assert.throws(()=>db.exec("DELETE FROM payroll_payslips WHERE id='p1'"),/issued payslip is immutable/);
+ db.close();
+});
+
 test("reference migration protects every vertical-slice boundary",()=>{
  for(const phrase of ["organization outside tenant","dimension reference outside tenant","performance reference outside tenant","salary reference outside tenant","payroll assignment outside tenant","payroll scope outside tenant","payroll line outside tenant","workforce reference outside tenant","report version outside tenant","report scope outside tenant"])
   assert.match(referenceMigration,new RegExp(phrase));

@@ -17,7 +17,7 @@ export const openApiDocument={
   "/setup":{get:read("Read organizations users employees and dimensions","Setup"),post:write("Write setup","Setup","setup:write")},
   "/hcm":{get:{...read("Read employee master and contracts","HCM"),"x-permission":"hcm:read"},post:write("Create or transition employee contracts","HCM","hcm:write")},
   "/performance":{get:{...read("Read Actual and Budget","Performance"),parameters:[{$ref:"#/components/parameters/Period"},{$ref:"#/components/parameters/Currency"},{$ref:"#/components/parameters/Version"}]},post:write("Create or approve performance","Performance","performance:write")},
-  "/payroll":{get:read("Read payroll foundation","Payroll"),post:write("Configure calculate or transition payroll","Payroll","payroll:write")},
+  "/payroll":{get:{...read("Read payroll foundation and issued payslips","Payroll"),"x-permission":"payroll:read"},post:write("Configure calculate transition or issue payroll documents","Payroll","payroll:write")},
   "/workforce":{get:read("Read workforce cost","Workforce"),post:write("Post closed payroll to workforce","Workforce","workforce:write")},
   "/dashboard":{get:read("Read executive dashboard","Reporting")},
   "/management-reports":{get:read("Read report versions","Reporting"),post:write("Generate immutable management report","Reporting","reports:write")},
