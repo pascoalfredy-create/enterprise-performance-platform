@@ -82,6 +82,11 @@ test("module access is enforced from active entitlements",()=>{
  assert.match(source,/moduleRequired/);
  assert.match(source,/Módulo não contratado/);
 });
+test("session exposes deterministic tenant onboarding readiness",()=>{
+ assert.match(source,/onboarding:\{organizations:number;users:number;employees:number;dimensions:number;complete:boolean\}/);
+ assert.match(source,/SELECT COUNT\(\*\) n FROM financial_dimensions/);
+ assert.match(source,/onboarding\.complete=onboarding\.organizations>0/);
+});
 test("membership lifecycle preserves tenant administration",()=>{
  for(const action of ["activate","resend","cancel","changeRole","remove"])assert.match(source,new RegExp(`action===\\"${action}\\"`));
  assert.match(source,/Não pode remover ou cancelar o seu próprio acesso/);
