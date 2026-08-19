@@ -1,0 +1,9 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const page=fs.readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
+const client=fs.readFileSync(new URL("../lib/api-client.ts",import.meta.url),"utf8");
+test("browser API client propagates identity and selected tenant",()=>{assert.match(client,/Bearer \$\{token\}/);assert.match(client,/x-tenant-id/);assert.match(client,/ep_active_tenant/)});
+test("portal navigation is driven by entitlements",()=>{for(const code of ["ANALYTICS_REPORTING","FINANCE_FP&A","HCM","PAYROLL","WORKFORCE_PLANNING","CORE"])assert.match(page,new RegExp(code));assert.match(page,/sessao\?\.modules\.includes/)});
+test("portal no longer creates tenants outside commerce",()=>{assert.doesNotMatch(page,/api\/v1\/tenants/);assert.doesNotMatch(page,/Criar nova empresa/)});
+test("people workspace uses the audited HCM contract API",()=>{assert.match(page,/function PeopleWorkspace/);assert.match(page,/api\/v1\/hcm/);assert.match(page,/activateContract/);assert.match(page,/endContract/)});
