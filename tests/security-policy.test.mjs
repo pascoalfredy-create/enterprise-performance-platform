@@ -64,13 +64,23 @@ test("every vertical slice receives the resolved tenant",()=>{
  assert.match(source,/integrityApi\(request, env\.DB,tenantId,organizationId\)/);
  assert.match(source,/CREATE TABLE IF NOT EXISTS tenants/);
 });
-test("tenant provisioning is atomic and grants only the creator administration",()=>{
- assert.match(source,/async function tenantsApi/);
+test("paid tenant provisioning is atomic and grants only purchased modules",()=>{
+ assert.match(source,/async function provisionTenantApi/);
+ assert.match(source,/payment_status!=="Confirmado"/);
+ assert.match(source,/c\.account_id=\?/);
  assert.match(source,/INSERT INTO tenants/);
  assert.match(source,/INSERT INTO platform_users/);
  assert.match(source,/INSERT INTO organizations/);
- assert.match(source,/Tenant \$\{name\} criado com organização principal/);
- assert.match(source,/apiPath==="\/api\/tenants"/);
+ assert.match(source,/INSERT INTO subscriptions/);
+ assert.match(source,/INSERT INTO module_entitlements/);
+ assert.match(source,/tenant\.provisioned/);
+ assert.match(source,/apiPath==="\/api\/commerce\/provision"/);
+ assert.match(source,/A criação de empresas exige checkout e pagamento confirmado/);
+});
+test("module access is enforced from active entitlements",()=>{
+ assert.match(source,/SELECT module_code FROM module_entitlements WHERE tenant_id=\? AND status='Ativo'/);
+ assert.match(source,/moduleRequired/);
+ assert.match(source,/Módulo não contratado/);
 });
 test("membership lifecycle preserves tenant administration",()=>{
  for(const action of ["activate","resend","cancel","changeRole","remove"])assert.match(source,new RegExp(`action===\\"${action}\\"`));

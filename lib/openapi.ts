@@ -8,11 +8,12 @@ export const openApiDocument={
  tags:["Identity","Setup","HCM","Performance","Payroll","Workforce","Reporting","Control"].map(name=>({name})),
  paths:{
   "/session":{get:read("Current security context","Identity")},
-  "/tenants":{get:read("List authenticated tenant memberships","Identity"),post:write("Create tenant and root organization","Identity","setup:write")},
+  "/tenants":{get:read("List authenticated tenant memberships","Identity")},
   "/invitations/accept":{post:{summary:"Accept a single-use tenant invitation",tags:["Identity"],security:[{bearerAuth:[]}],requestBody:{required:true,content:{"application/json":{schema:{type:"object",required:["token"],properties:{token:{type:"string",pattern:"^epi_"}}}}}},responses:{"200":{description:"Membership activated"},...errors}}},
   "/commerce/checkout":{get:read("Read latest authenticated checkout draft","Identity"),post:write("Create idempotent server-priced checkout draft","Identity","commerce:checkout")},
   "/commerce/payment-intent":{post:write("Create test payment intent from persisted checkout","Identity","commerce:checkout")},
   "/commerce/test-confirmation":{post:write("Confirm test payment as Platform Owner","Identity","commerce:test-confirm")},
+  "/commerce/provision":{post:write("Provision one tenant from an owned confirmed payment","Identity","commerce:provision")},
   "/setup":{get:read("Read organizations users employees and dimensions","Setup"),post:write("Write setup","Setup","setup:write")},
   "/hcm":{get:{...read("Read employee master and contracts","HCM"),"x-permission":"hcm:read"},post:write("Create or transition employee contracts","HCM","hcm:write")},
   "/performance":{get:{...read("Read Actual and Budget","Performance"),parameters:[{$ref:"#/components/parameters/Period"},{$ref:"#/components/parameters/Currency"},{$ref:"#/components/parameters/Version"}]},post:write("Create or approve performance","Performance","performance:write")},
