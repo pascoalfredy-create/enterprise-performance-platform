@@ -5,6 +5,7 @@ import "./dashboard.css";
 import "./report.css";
 import "./integrity.css";
 import "./api-contract.css";
+import "./module-nav.css";
 
 const colaboradores = [
   ["Ana Manuel","EMP-001","Serviços Corporativos","Gestora Financeira","Ativo"],
@@ -12,35 +13,36 @@ const colaboradores = [
   ["Elisa Rocha","EMP-003","Pessoas e Cultura","Parceira de RH","Pendente"],
   ["David Kim","EMP-004","Serviços Corporativos","Analista de FP&A","Ativo"],
 ];
-const navegacao = [
- {label:"Visão geral",module:"ANALYTICS_REPORTING"},
- {label:"Planeamento",module:"FINANCE_FP&A"},
- {label:"Pessoas",module:"HCM"},
- {label:"Operações",module:"PAYROLL"},
- {label:"Análises",module:"WORKFORCE_PLANNING"},
- {label:"Relatórios",module:"ANALYTICS_REPORTING"},
- {label:"Controlo",module:"CORE"},
- {label:"Administração",module:"CORE"},
+type ModuleItem={label:string;target?:string;document?:boolean;future?:boolean};
+const moduleCatalog:Array<{code:string;name:string;icon:string;items:ModuleItem[]}>= [
+ {code:"CORE",name:"Administração",icon:"⌂",items:[{label:"Organização",target:"Administração"},{label:"Utilizadores e RBAC",target:"Administração"},{label:"Dimensões financeiras",target:"Administração"},{label:"Registo de auditoria",target:"Controlo",document:true}]},
+ {code:"FINANCE_FP&A",name:"Finance & FP&A",icon:"◫",items:[{label:"Actual e Budget",target:"Planeamento"},{label:"Versões orçamentais",target:"Planeamento",document:true},{label:"Forecast e cenários",future:true},{label:"Plano de negócios",future:true}]},
+ {code:"HCM",name:"HCM",icon:"♙",items:[{label:"Employee Master",target:"Administração"},{label:"Contratos",target:"Pessoas"},{label:"Recrutamento e onboarding",future:true},{label:"Assiduidade e ausências",future:true},{label:"Documentos do colaborador",future:true,document:true}]},
+ {code:"PAYROLL",name:"Payroll",icon:"▤",items:[{label:"Perfis salariais",target:"Operações"},{label:"Componentes",target:"Operações"},{label:"Payroll Runs",target:"Operações"},{label:"Payslips",future:true,document:true},{label:"Payment batches",future:true,document:true}]},
+ {code:"WORKFORCE_PLANNING",name:"Workforce Planning",icon:"◌",items:[{label:"Workforce Cost",target:"Análises"},{label:"Headcount plan",future:true},{label:"Mapa de custos",target:"Análises",document:true}]},
+ {code:"PERFORMANCE_MANAGEMENT",name:"Performance Management",icon:"◎",items:[{label:"Objetivos",future:true},{label:"Avaliações",future:true},{label:"Planos de desenvolvimento",future:true,document:true}]},
+ {code:"ANALYTICS_REPORTING",name:"Analytics & Reporting",icon:"▥",items:[{label:"Dashboard executivo",target:"Visão geral"},{label:"Management Reports",target:"Relatórios",document:true},{label:"Templates de reporte",target:"Relatórios",document:true}]},
+ {code:"WORKFLOW",name:"Workflow",icon:"⇄",items:[{label:"Tarefas e aprovações",future:true},{label:"Histórico de decisões",future:true,document:true}]},
+ {code:"INTEGRATIONS",name:"Integration Hub",icon:"⌁",items:[{label:"Fontes de dados",future:true},{label:"Mappings",future:true},{label:"Logs de integração",future:true,document:true}]},
 ];
 
 export default function Home(){
- const [modulo,setModulo]=useState("Visão geral"),[pesquisa,setPesquisa]=useState(""),[painel,setPainel]=useState(false),[inviteStatus,setInviteStatus]=useState(""),[sessionError,setSessionError]=useState(""),[sessao,setSessao]=useState<{name:string;email:string;role:string;tenantId:string;tenantName:string;organizationId:string|null;organizationName:string|null;permissions:string[];modules:string[];tenants:Array<{id:string;name:string;role:string}>}|null>(null);
+ const [modulo,setModulo]=useState("Visão geral"),[openDomain,setOpenDomain]=useState("ANALYTICS_REPORTING"),[pesquisa,setPesquisa]=useState(""),[painel,setPainel]=useState(false),[inviteStatus,setInviteStatus]=useState(""),[sessionError,setSessionError]=useState(""),[sessao,setSessao]=useState<{name:string;email:string;role:string;tenantId:string;tenantName:string;organizationId:string|null;organizationName:string|null;permissions:string[];modules:string[];tenants:Array<{id:string;name:string;role:string}>}|null>(null);
  const lista=useMemo(()=>colaboradores.filter(x=>x.join(" ").toLowerCase().includes(pesquisa.toLowerCase())),[pesquisa]);
  useEffect(()=>{apiFetch("/api/session").then(async r=>({ok:r.ok,body:await r.json()})).then(({ok,body})=>{if(ok&&body.email){setSessao(body);localStorage.setItem("ep_active_tenant",body.tenantId);if(body.organizationId)setModulo(body.modules.includes("FINANCE_FP&A")?"Planeamento":body.modules.includes("HCM")?"Pessoas":"Administração");return}setSessionError(body.error||"Inicie sessão para entrar na plataforma.")}).catch(()=>setSessionError("Não foi possível validar a sessão."))},[]);
  useEffect(()=>{const token=new URLSearchParams(window.location.search).get("invite");if(!token)return;apiFetch("/api/v1/invitations/accept",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token})}).then(async r=>({ok:r.ok,body:await r.json()})).then(({ok,body})=>{if(!ok){setInviteStatus(body.error||"Não foi possível aceitar o convite.");return}document.cookie=`ep_tenant=${encodeURIComponent(body.tenantId)}; Path=/; SameSite=Lax`;localStorage.setItem("ep_active_tenant",body.tenantId);window.history.replaceState({},"","/");window.location.reload()})},[]);
  const mudarTenant=(tenantId:string)=>{document.cookie=`ep_tenant=${encodeURIComponent(tenantId)}; Path=/; SameSite=Lax`;localStorage.setItem("ep_active_tenant",tenantId);window.location.reload()};
- const pode=(item:{label:string;module:string})=>Boolean(sessao?.modules.includes(item.module))&&(item.label!=="Administração"||(!sessao?.organizationId&&sessao?.permissions.includes("setup:write")))&&(item.label!=="Controlo"||sessao?.permissions.includes("integrity:read"));
  if(sessionError)return <main className="portal-gate"><div><b>EP</b><small>ACESSO À PLATAFORMA</small><h1>A sua sessão não está disponível</h1><p>{sessionError}</p><a href="/entrar">Entrar novamente →</a></div></main>;
  if(!sessao)return <main className="portal-gate"><div><b>EP</b><small>A VALIDAR IDENTIDADE E EMPRESA</small><h1>A preparar o seu espaço</h1><p>Estamos a confirmar membership, subscrição, módulos e âmbito organizacional.</p><i/></div></main>;
  return <div className="site">
   {inviteStatus&&<div className="invite-feedback">{inviteStatus}</div>}
   <header className="topo">
    <div className="marca"><b>EP</b><span>Enterprise Performance</span></div>
-   <nav aria-label="Navegação principal">{navegacao.filter(pode).map(x=><button key={x.label} className={modulo===x.label?"selecionado":""} onClick={()=>setModulo(x.label)}>{x.label}</button>)}</nav>
+   <div className="product-context"><small>ESPAÇO DE TRABALHO</small><b>{modulo}</b></div>
    <div className="acoes"><button className="pesquisa-global">⌕ <span>Pesquisar</span><kbd>⌘K</kbd></button><button className="notificacao">◌<i/></button><button className="perfil" title={sessao?.email}><b>{(sessao?.name||"Utilizador").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</b><span>{sessao?.name||"A autenticar…"}<small>{sessao?.role||"Sessão protegida"}</small></span>⌄</button></div>
   </header>
    <div className="subnav"><div className="empresa"><span>{(sessao.tenantName||"EP").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</span><label><small>{sessao.organizationName?`Âmbito · ${sessao.organizationName}`:"Empresa atual · Todo o tenant"}</small><select aria-label="Empresa atual" value={sessao.tenantId} onChange={e=>mudarTenant(e.target.value)}>{sessao.tenants.map(t=><option key={t.id} value={t.id}>{t.name} · {t.role}</option>)}</select></label><em className="module-count">{sessao.modules.length} módulos ativos</em></div><div className="atalhos"><button className="ativo">Resumo</button><button>Desempenho</button><button>Pessoas</button><button>Atividades</button></div><button className="ajuda">? Ajuda</button></div>
-  <main>
+  <div className="workspace-layout"><aside className="module-sidebar"><header><small>MÓDULOS CONTRATADOS</small><span>{sessao.modules.length} ativos</span></header><button className={modulo==="Visão geral"?"module-home active":"module-home"} onClick={()=>setModulo("Visão geral")}><i>⌂</i><span><b>Início</b><small>Visão executiva</small></span></button><nav aria-label="Módulos e submódulos">{moduleCatalog.filter(domain=>sessao.modules.includes(domain.code)).map(domain=>{const open=openDomain===domain.code;return <section key={domain.code} className={open?"domain open":"domain"}><button className="domain-title" onClick={()=>setOpenDomain(open?"":domain.code)}><i>{domain.icon}</i><span>{domain.name}</span><em>{open?"−":"+"}</em></button>{open&&<div className="domain-items">{domain.items.map(item=><button key={item.label} disabled={item.future} className={item.target===modulo?"active":""} onClick={()=>item.target&&setModulo(item.target)}><span>{item.document?"▧":"·"} {item.label}</span>{item.future?<em>Em preparação</em>:item.document?<em>Documento</em>:null}</button>)}</div>}</section>})}</nav><footer><b>Catálogo governado</b><p>Os módulos e documentos dependem da subscrição, RBAC e âmbito organizacional.</p></footer></aside><main className="module-content">
    {modulo==="Administração"?<ConfiguracaoReal/>:modulo==="Planeamento"?<PerformanceControl/>:modulo==="Pessoas"?<PeopleWorkspace/>:modulo==="Operações"?<PayrollFoundation/>:modulo==="Análises"?<WorkforceCost/>:modulo==="Relatórios"?<ManagementReport/>:modulo==="Controlo"?<><IntegrityCenter onNavigate={setModulo}/><ApiContract/></>:modulo==="Visão geral"?<ExecutiveDashboard onNavigate={setModulo}/>:<>
    <section className="boas-vindas"><div><span className="etiqueta">SEGUNDA-FEIRA, 17 DE AGOSTO</span><h1>Boa tarde, Pascoal.</h1><p>Aqui está o que precisa da sua atenção e como a organização está a evoluir.</p></div><div className="botoes"><button className="secundario">↥ Exportar visão</button><button className="primario" onClick={()=>setPainel(true)}>＋ Criar atividade</button></div></section>
    <section className="filtros"><div><label>Período<select><option>Agosto 2026</option><option>Julho 2026</option></select></label><label>Cenário<select><option>Realizado</option><option>Orçamento</option><option>Previsão</option></select></label><label>Versão<select><option>Versão de trabalho 3</option></select></label><label>Moeda<select><option>Moeda de reporte</option></select></label></div><span>Atualizado há 2 minutos</span></section>
@@ -51,7 +53,7 @@ export default function Home(){
    </section>
    <section className="cartao equipa"><div className="cab-equipa"><Cabecalho sobre="ORGANIZAÇÃO E PESSOAS" titulo="Acompanhar a equipa" acao="Abrir módulo de Pessoas"/><div><label>⌕<input value={pesquisa} onChange={e=>setPesquisa(e.target.value)} placeholder="Pesquisar colaborador"/></label><button className="primario" onClick={()=>setPainel(true)}>＋ Novo colaborador</button></div></div><div className="lista">{lista.map(x=><article key={x[1]}><i>{x[0].split(" ").map(y=>y[0]).join("").slice(0,2)}</i><div><b>{x[0]}</b><span>{x[3]}</span></div><p>{x[2]}<small>{x[1]}</small></p><em className={x[4]==="Ativo"?"ok":"pendente"}>{x[4]}</em><button>•••</button></article>)}</div><footer><span>A mostrar {lista.length} de {colaboradores.length} colaboradores</span><button>Ver diretório completo →</button></footer></section>
    </>}
-  </main>
+  </main></div>
   {painel&&<div className="overlay" onClick={()=>setPainel(false)}><aside className="painel" onClick={e=>e.stopPropagation()}><header><div><small>PESSOAS</small><h2>Novo colaborador</h2></div><button onClick={()=>setPainel(false)}>×</button></header><div className="form"><p>Registe os dados essenciais. Contrato e processamento salarial serão tratados nos respetivos fluxos.</p><label>Número do colaborador<input placeholder="EMP-005"/></label><div><label>Nome<input/></label><label>Apelido<input/></label></div><label>Unidade organizacional<select><option>Serviços Corporativos</option><option>Operações</option></select></label><label>Data de admissão<input type="date"/></label><aside><b>✓ Auditoria ativa</b><p>O utilizador, a data, o contexto e os dados submetidos serão registados.</p></aside></div><footer><button className="secundario" onClick={()=>setPainel(false)}>Cancelar</button><button className="primario" onClick={()=>setPainel(false)}>Criar colaborador</button></footer></aside></div>}
  </div>
 }
