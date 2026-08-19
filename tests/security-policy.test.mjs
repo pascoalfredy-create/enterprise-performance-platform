@@ -15,6 +15,14 @@ test("anonymous and non-member access are rejected",()=>{
  assert.match(source,/Autenticação necessária/);
  assert.match(source,/não possui membership ativa/);
 });
+test("Supabase bearer sessions are verified server-side before API access",()=>{
+ assert.match(source,/async function authenticateApiRequest/);
+ assert.match(source,/\/auth\/v1\/user/);
+ assert.match(source,/Sessão inválida ou expirada/);
+ assert.match(source,/Confirme o e-mail antes de continuar/);
+ assert.match(source,/x-ep-verified-user-email/);
+ assert.match(source,/authenticateApiRequest\(request,env\)/);
+});
 test("cross-tenant access fails closed",()=>{
  assert.equal(belongsToTenant("tenant-a","tenant-a"),true);
  assert.equal(belongsToTenant("tenant-b","tenant-a"),false);

@@ -9,6 +9,8 @@ import { classifyDataError } from "../lib/api-error";
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
+  NEXT_PUBLIC_SUPABASE_URL?: string;
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -29,7 +31,24 @@ type Permission="setup:write"|"hcm:read"|"hcm:write"|"performance:write"|"payrol
 type TenantOption={id:string;name:string;role:string};
 type SecurityContext={email:string;name:string;role:string;tenantId:string;tenantName:string;organizationId:string|null;organizationName:string|null;permissions:Permission[];tenants:TenantOption[]};
 const rolePermissions:Record<string,Permission[]>={Administrador:["setup:write","hcm:read","hcm:write","performance:write","payroll:write","workforce:write","reports:write","integrity:read"],Financeiro:["performance:write","workforce:write","reports:write","integrity:read"],"Recursos Humanos":["hcm:read","hcm:write","payroll:write"],Gestor:["hcm:read","reports:write"],Leitura:[]};
-const actorEmail=(request:Request)=>request.headers.get("oai-authenticated-user-email")||request.headers.get("x-openai-user-email")||(new URL(request.url).hostname==="terminal.local"?"admin@preview.local":"");
+const workspaceEmail=(request:Request)=>request.headers.get("oai-authenticated-user-email")||request.headers.get("x-openai-user-email")||"";
+const actorEmail=(request:Request)=>request.headers.get("x-ep-verified-user-email")||workspaceEmail(request)||(new URL(request.url).hostname==="terminal.local"?"admin@preview.local":"");
+async function authenticateApiRequest(request:Request,env:Env):Promise<Request|Response>{
+  if(workspaceEmail(request))return request;
+  const authorization=request.headers.get("authorization")||"";
+  if(!authorization.startsWith("Bearer "))return Response.json({error:"Autenticação necessária."},{status:401});
+  if(!env.NEXT_PUBLIC_SUPABASE_URL||!env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)return Response.json({error:"O serviço de identidade não está configurado."},{status:503});
+  let response:Response;
+  try{response=await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user`,{headers:{apikey:env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,authorization}})}catch{return Response.json({error:"Não foi possível validar a identidade."},{status:503})}
+  if(!response.ok)return Response.json({error:"Sessão inválida ou expirada."},{status:401});
+  const user=await response.json() as {email?:string;email_confirmed_at?:string;user_metadata?:Record<string,unknown>};
+  if(!user.email||!user.email_confirmed_at)return Response.json({error:"Confirme o e-mail antes de continuar."},{status:403});
+  const headers=new Headers(request.headers);
+  headers.set("x-ep-verified-user-email",user.email.toLowerCase());
+  const name=String(user.user_metadata?.display_name||user.email);
+  headers.set("x-ep-verified-user-name",name);
+  return new Request(request,{headers});
+}
 const selectedTenant=(request:Request)=>request.headers.get("x-tenant-id")||request.headers.get("X-Tenant-Id")||request.headers.get("cookie")?.match(/(?:^|;\s*)ep_tenant=([^;]+)/)?.[1]||"";
 async function securityContext(request:Request,db:D1Database):Promise<SecurityContext|Response>{await ensureSetupSchema(db);const email=actorEmail(request);if(!email)return Response.json({error:"Autenticação necessária."},{status:401});let memberships=await db.prepare("SELECT u.*,COALESCE(t.name,u.tenant_id) tenant_name,o.name organization_name FROM platform_users u LEFT JOIN tenants t ON t.id=u.tenant_id LEFT JOIN organizations o ON o.id=u.organization_id AND o.tenant_id=u.tenant_id WHERE lower(u.email)=lower(?) AND u.status='Ativo' ORDER BY u.created_at").bind(email).all<Record<string,unknown>>();if(!memberships.results.length){const total=await db.prepare("SELECT COUNT(*) n FROM platform_users").first<Record<string,unknown>>();if(Number(total?.n||0)===0){const name=request.headers.get("oai-authenticated-user-full-name")||"Administrador inicial",created=new Date().toISOString(),id=uid();await db.batch([db.prepare("INSERT OR IGNORE INTO tenants (id,created_at,name,slug,status) VALUES (?,?,?,?,?)").bind(DEFAULT_TENANT,created,"Demo Holdings","demo-holdings","Ativo"),db.prepare("INSERT INTO platform_users (id,tenant_id,created_at,name,email,role,organization_id,status) VALUES (?,?,?,?,?,?,?,?)").bind(id,DEFAULT_TENANT,created,name,email,"Administrador",null,"Ativo"),db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),DEFAULT_TENANT,created,"BOOTSTRAP","platformUser",id,email,"Administrador inicial associado ao tenant")]);memberships={results:[{id,name,email,role:"Administrador",tenant_id:DEFAULT_TENANT,tenant_name:"Demo Holdings",organization_id:null,organization_name:null}],success:true,meta:{}}}else return Response.json({error:"O utilizador autenticado não possui membership ativa."},{status:403})}const requested=decodeURIComponent(selectedTenant(request));const user=(requested?memberships.results.find(x=>String(x.tenant_id)===requested):memberships.results[0]);if(!user)return Response.json({error:"O tenant solicitado não pertence ao utilizador autenticado."},{status:403});const role=String(user.role),permissions=rolePermissions[role]||[],tenants=memberships.results.map(x=>({id:String(x.tenant_id),name:String(x.tenant_name),role:String(x.role)}));return{email,name:String(user.name||email),role,tenantId:String(user.tenant_id),tenantName:String(user.tenant_name),organizationId:user.organization_id?String(user.organization_id):null,organizationName:user.organization_name?String(user.organization_name):null,permissions,tenants}}
 const denied=(permission:Permission)=>Response.json({error:`Permissão necessária: ${permission}`},{status:403});
@@ -298,6 +317,7 @@ const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const apiPath=url.pathname.replace(/^\/api\/v1(?=\/|$)/,"/api");
+    if(apiPath.startsWith("/api/")){const authenticated=await authenticateApiRequest(request,env);if(authenticated instanceof Response)return authenticated;request=authenticated}
     if(apiPath==="/api/invitations/accept")return invitationApi(request,env.DB);
 
     if (apiPath.startsWith("/api/")) {
