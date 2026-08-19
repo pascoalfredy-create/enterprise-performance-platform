@@ -35,6 +35,14 @@ test("checkout is server-priced idempotent and precedes tenant provisioning",()=
  assert.match(source,/checkout\.draft_created/);
  assert.match(source,/apiPath==="\/api\/commerce\/checkout"/);
 });
+test("test payment confirmation is segregated from customer checkout",()=>{
+ assert.match(source,/async function paymentIntentApi/);
+ assert.match(source,/provider:\"PROXYPAY_TEST\"/);
+ assert.match(source,/async function testConfirmationApi/);
+ assert.match(source,/role='Platform Owner'/);
+ assert.match(source,/payment\.confirmed/);
+ assert.match(source,/status='Pendente'/);
+});
 test("cross-tenant access fails closed",()=>{
  assert.equal(belongsToTenant("tenant-a","tenant-a"),true);
  assert.equal(belongsToTenant("tenant-b","tenant-a"),false);

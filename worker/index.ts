@@ -73,6 +73,45 @@ async function commerceCheckoutApi(request:Request,db:D1Database){
   return Response.json({checkout:{id,account_id:account.id,catalog_version:CATALOG_VERSION,bundle_code:bundle.code,billing_interval:interval,requested_users:users,requested_employees:employees,currency:"AOA",amount_minor:calculated.totalMinor,status:"Rascunho",expires_at:expires,created_at:created},idempotent:false},{status:201});
  }catch(error){return apiFailure(error,"Não foi possível preparar o checkout.")}
 }
+async function commerceAccount(request:Request,db:D1Database){const email=actorEmail(request).toLowerCase(),subject=request.headers.get("x-ep-verified-user-sub")||`workspace:${email}`;return db.prepare("SELECT * FROM commerce_accounts WHERE identity_subject=? AND email_normalized=? AND status='Ativa'").bind(subject,email).first<Record<string,unknown>>()}
+async function paymentIntentApi(request:Request,db:D1Database){
+ try{
+  if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
+  const account=await commerceAccount(request,db);if(!account)return Response.json({error:"Conta comercial ativa não encontrada."},{status:403});
+  const body=await request.json() as {checkoutId?:string};if(!body.checkoutId)return Response.json({error:"Checkout obrigatório."},{status:400});
+  const checkout=await db.prepare("SELECT * FROM checkout_sessions WHERE id=? AND account_id=? AND status IN ('Rascunho','Aguarda pagamento')").bind(body.checkoutId,account.id).first<Record<string,unknown>>();if(!checkout)return Response.json({error:"Checkout válido não encontrado."},{status:404});
+  if(String(checkout.expires_at)<=new Date().toISOString())return Response.json({error:"O checkout expirou. Crie um novo rascunho."},{status:410});
+  const existing=await db.prepare("SELECT p.*,i.invoice_number,i.status invoice_status,i.tax_status FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id WHERE i.checkout_id=?").bind(checkout.id).first();if(existing)return Response.json({payment:existing,idempotent:true});
+  const invoiceId=uid(),paymentId=uid(),created=new Date().toISOString(),expires=String(checkout.expires_at),reference=`TEST-${paymentId.replaceAll("-","").slice(0,12).toUpperCase()}`,invoiceNumber=`TEST-${invoiceId.replaceAll("-","").slice(0,10).toUpperCase()}`,amount=Number(checkout.amount_minor);
+  await db.batch([
+   db.prepare("INSERT INTO billing_invoices (id,checkout_id,account_id,invoice_number,currency,subtotal_minor,tax_minor,tax_status,total_minor,status,due_at,paid_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(invoiceId,checkout.id,account.id,invoiceNumber,"AOA",amount,0,"Pendente configuração",amount,"Aguarda pagamento",expires,null,created),
+   db.prepare("INSERT INTO payment_intents (id,invoice_id,provider,provider_reference,amount_minor,currency,status,expires_at,confirmed_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(paymentId,invoiceId,"PROXYPAY_TEST",reference,amount,"AOA","Pendente",expires,null,created),
+   db.prepare("UPDATE checkout_sessions SET status='Aguarda pagamento',updated_at=? WHERE id=? AND account_id=? AND status='Rascunho'").bind(created,checkout.id,account.id),
+   db.prepare("INSERT INTO commerce_audit_events (id,account_id,event_type,entity_type,entity_id,summary,evidence_hash,occurred_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),account.id,"payment.test_intent_created","payment_intent",paymentId,`Intenção de teste ${reference} criada`,await sha256(`${paymentId}|${amount}|AOA|${created}`),created),
+  ]);
+  return Response.json({payment:{id:paymentId,invoice_id:invoiceId,invoice_number:invoiceNumber,provider:"PROXYPAY_TEST",provider_reference:reference,amount_minor:amount,currency:"AOA",status:"Pendente",tax_status:"Pendente configuração",expires_at:expires},idempotent:false},{status:201});
+ }catch(error){return apiFailure(error,"Não foi possível preparar a intenção de pagamento.")}
+}
+async function testConfirmationApi(request:Request,db:D1Database){
+ try{
+  if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
+  const email=actorEmail(request).toLowerCase(),subject=request.headers.get("x-ep-verified-user-sub")||`workspace:${email}`,operator=await db.prepare("SELECT * FROM operator_users WHERE email_normalized=? AND role='Platform Owner' AND status='Ativo'").bind(email).first<Record<string,unknown>>();
+  if(!operator)return Response.json({error:"A confirmação de teste exige Platform Owner."},{status:403});
+  if(operator.identity_subject&&operator.identity_subject!==subject)return Response.json({error:"A identidade do operador não corresponde ao registo aprovado."},{status:403});
+  if(!operator.identity_subject)await db.prepare("UPDATE operator_users SET identity_subject=?,updated_at=? WHERE id=? AND identity_subject IS NULL").bind(subject,new Date().toISOString(),operator.id).run();
+  const body=await request.json() as {paymentId?:string};const payment=await db.prepare("SELECT p.*,i.account_id,i.status invoice_status FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id WHERE p.id=?").bind(body.paymentId||"").first<Record<string,unknown>>();if(!payment)return Response.json({error:"Intenção de pagamento não encontrada."},{status:404});
+  if(payment.status==="Confirmado")return Response.json({payment:{...payment},idempotent:true});
+  if(payment.status!=="Pendente")return Response.json({error:"O estado atual não permite confirmação."},{status:409});
+  const now=new Date().toISOString(),externalEventId=`test-confirm:${payment.id}`,payloadHash=await sha256(`${externalEventId}|${payment.amount_minor}|${now}`);
+  const transition=await db.prepare("UPDATE payment_intents SET status='Confirmado',confirmed_at=? WHERE id=? AND status='Pendente'").bind(now,payment.id).run();if(!Number(transition.meta.changes||0))return Response.json({error:"O pagamento foi alterado em paralelo."},{status:409});
+  await db.batch([
+   db.prepare("UPDATE billing_invoices SET status='Paga',paid_at=? WHERE id=? AND status='Aguarda pagamento'").bind(now,payment.invoice_id),
+   db.prepare("INSERT INTO billing_events (id,provider,external_event_id,event_type,payload_hash,status,received_at,processed_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),"PROXYPAY_TEST",externalEventId,"payment.confirmed",payloadHash,"Processado",now,now),
+   db.prepare("INSERT INTO commerce_audit_events (id,account_id,event_type,entity_type,entity_id,summary,evidence_hash,occurred_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),payment.account_id,"payment.test_confirmed","payment_intent",String(payment.id),`Pagamento de teste confirmado por ${email}`,payloadHash,now),
+  ]);
+  return Response.json({payment:{id:payment.id,status:"Confirmado",confirmed_at:now},idempotent:false});
+ }catch(error){return apiFailure(error,"Não foi possível confirmar o pagamento de teste.")}
+}
 const selectedTenant=(request:Request)=>request.headers.get("x-tenant-id")||request.headers.get("X-Tenant-Id")||request.headers.get("cookie")?.match(/(?:^|;\s*)ep_tenant=([^;]+)/)?.[1]||"";
 async function securityContext(request:Request,db:D1Database):Promise<SecurityContext|Response>{await ensureSetupSchema(db);const email=actorEmail(request);if(!email)return Response.json({error:"Autenticação necessária."},{status:401});let memberships=await db.prepare("SELECT u.*,COALESCE(t.name,u.tenant_id) tenant_name,o.name organization_name FROM platform_users u LEFT JOIN tenants t ON t.id=u.tenant_id LEFT JOIN organizations o ON o.id=u.organization_id AND o.tenant_id=u.tenant_id WHERE lower(u.email)=lower(?) AND u.status='Ativo' ORDER BY u.created_at").bind(email).all<Record<string,unknown>>();if(!memberships.results.length){const total=await db.prepare("SELECT COUNT(*) n FROM platform_users").first<Record<string,unknown>>();if(Number(total?.n||0)===0){const name=request.headers.get("oai-authenticated-user-full-name")||"Administrador inicial",created=new Date().toISOString(),id=uid();await db.batch([db.prepare("INSERT OR IGNORE INTO tenants (id,created_at,name,slug,status) VALUES (?,?,?,?,?)").bind(DEFAULT_TENANT,created,"Demo Holdings","demo-holdings","Ativo"),db.prepare("INSERT INTO platform_users (id,tenant_id,created_at,name,email,role,organization_id,status) VALUES (?,?,?,?,?,?,?,?)").bind(id,DEFAULT_TENANT,created,name,email,"Administrador",null,"Ativo"),db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),DEFAULT_TENANT,created,"BOOTSTRAP","platformUser",id,email,"Administrador inicial associado ao tenant")]);memberships={results:[{id,name,email,role:"Administrador",tenant_id:DEFAULT_TENANT,tenant_name:"Demo Holdings",organization_id:null,organization_name:null}],success:true,meta:{}}}else return Response.json({error:"O utilizador autenticado não possui membership ativa."},{status:403})}const requested=decodeURIComponent(selectedTenant(request));const user=(requested?memberships.results.find(x=>String(x.tenant_id)===requested):memberships.results[0]);if(!user)return Response.json({error:"O tenant solicitado não pertence ao utilizador autenticado."},{status:403});const role=String(user.role),permissions=rolePermissions[role]||[],tenants=memberships.results.map(x=>({id:String(x.tenant_id),name:String(x.tenant_name),role:String(x.role)}));return{email,name:String(user.name||email),role,tenantId:String(user.tenant_id),tenantName:String(user.tenant_name),organizationId:user.organization_id?String(user.organization_id):null,organizationName:user.organization_name?String(user.organization_name):null,permissions,tenants}}
 const denied=(permission:Permission)=>Response.json({error:`Permissão necessária: ${permission}`},{status:403});
@@ -349,6 +388,8 @@ const worker = {
     if(apiPath.startsWith("/api/")){const authenticated=await authenticateApiRequest(request,env);if(authenticated instanceof Response)return authenticated;request=authenticated}
     if(apiPath==="/api/invitations/accept")return invitationApi(request,env.DB);
     if(apiPath==="/api/commerce/checkout")return commerceCheckoutApi(request,env.DB);
+    if(apiPath==="/api/commerce/payment-intent")return paymentIntentApi(request,env.DB);
+    if(apiPath==="/api/commerce/test-confirmation")return testConfirmationApi(request,env.DB);
 
     if (apiPath.startsWith("/api/")) {
       const security=await securityContext(request,env.DB);if(security instanceof Response)return security;
