@@ -1,0 +1,7 @@
+"use client";
+import Link from "next/link";
+import { FormEvent, useState } from "react";
+import { AuthShell } from "../auth-shell";
+import { signIn, storeSession } from "../../lib/supabase-browser";
+
+export default function Entrar(){const [busy,setBusy]=useState(false),[message,setMessage]=useState("");async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setMessage("");const f=new FormData(e.currentTarget);const result=await signIn(String(f.get("email")||""),String(f.get("password")||""));setBusy(false);if(!result.ok){setMessage(result.message||"");return}storeSession(result.data||{});window.location.assign("/onboarding/modulos")}return <AuthShell><Link href="/">← Voltar ao site</Link><header><small>ÁREA SEGURA</small><h2>Bem-vindo novamente</h2><p>Entre para continuar a configuração da sua empresa e dos módulos contratados.</p></header><form className="auth-form" onSubmit={submit}><label>E-mail<input name="email" type="email" required autoComplete="email"/></label><label>Palavra-passe<input name="password" type="password" required autoComplete="current-password"/></label>{message&&<p className="auth-feedback">{message}</p>}<button className="auth-button" disabled={busy}>{busy?"A validar…":"Entrar"}</button></form><p className="auth-footer"><Link href="/recuperar">Esqueceu a palavra-passe?</Link></p><p className="auth-footer">Ainda não tem conta? <Link href="/registar">Criar conta</Link></p></AuthShell>}
