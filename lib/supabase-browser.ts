@@ -1,15 +1,22 @@
 export type AuthResult = { ok: boolean; message?: string; data?: Record<string, unknown> };
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
+let runtimeConfig: { url: string; key: string } | null = null;
 
-function configured() {
-  return Boolean(url && key);
+async function config() {
+  if (runtimeConfig) return runtimeConfig;
+  const buildUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const buildKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
+  if (buildUrl && buildKey) return (runtimeConfig = { url: buildUrl, key: buildKey });
+  const response = await fetch("/api/auth/config", { headers: { accept: "application/json" } });
+  if (!response.ok) throw new Error("identity_config_unavailable");
+  const data = await response.json() as { url?: string; publishableKey?: string };
+  if (!data.url || !data.publishableKey) throw new Error("identity_config_invalid");
+  return (runtimeConfig = { url: data.url, key: data.publishableKey });
 }
 
 async function request(path: string, init: RequestInit = {}): Promise<AuthResult> {
-  if (!configured()) return { ok: false, message: "O serviço de identidade ainda não está configurado neste ambiente." };
   try {
+    const { url, key } = await config();
     const response = await fetch(`${url}/auth/v1${path}`, {
       ...init,
       headers: { apikey: key, "content-type": "application/json", ...(init.headers || {}) },

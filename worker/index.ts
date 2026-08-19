@@ -317,6 +317,11 @@ const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const apiPath=url.pathname.replace(/^\/api\/v1(?=\/|$)/,"/api");
+    if(apiPath==="/api/auth/config"){
+      if(request.method!=="GET")return Response.json({error:"Método não permitido."},{status:405});
+      if(!env.NEXT_PUBLIC_SUPABASE_URL||!env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)return Response.json({error:"O serviço de identidade não está configurado."},{status:503});
+      return Response.json({url:env.NEXT_PUBLIC_SUPABASE_URL,publishableKey:env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY},{headers:{"cache-control":"public, max-age=300"}});
+    }
     if(apiPath.startsWith("/api/")){const authenticated=await authenticateApiRequest(request,env);if(authenticated instanceof Response)return authenticated;request=authenticated}
     if(apiPath==="/api/invitations/accept")return invitationApi(request,env.DB);
 

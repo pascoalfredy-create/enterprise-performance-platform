@@ -23,6 +23,11 @@ test("Supabase bearer sessions are verified server-side before API access",()=>{
  assert.match(source,/x-ep-verified-user-email/);
  assert.match(source,/authenticateApiRequest\(request,env\)/);
 });
+test("browser receives only the public identity configuration at runtime",()=>{
+ assert.match(source,/apiPath==="\/api\/auth\/config"/);
+ assert.match(source,/publishableKey:env\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+ assert.doesNotMatch(source,/service_role/);
+});
 test("cross-tenant access fails closed",()=>{
  assert.equal(belongsToTenant("tenant-a","tenant-a"),true);
  assert.equal(belongsToTenant("tenant-b","tenant-a"),false);
