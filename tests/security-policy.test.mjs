@@ -87,6 +87,12 @@ test("session exposes deterministic tenant onboarding readiness",()=>{
  assert.match(source,/SELECT COUNT\(\*\) n FROM financial_dimensions/);
  assert.match(source,/onboarding\.complete=onboarding\.organizations>0/);
 });
+test("operational readiness is derived by engine and reports fail closed",()=>{
+ assert.match(source,/async function readinessApi/);
+ for(const field of ["active_contracts","salary_profiles","approved_budgets","comparable_scenarios","closed_payroll","workforce_postings"])assert.match(source,new RegExp(field));
+ assert.match(source,/O relatório exige Actual, uma versão Budget aprovada/);
+ assert.match(source,/apiPath === "\/api\/readiness"/);
+});
 test("membership lifecycle preserves tenant administration",()=>{
  for(const action of ["activate","resend","cancel","changeRole","remove"])assert.match(source,new RegExp(`action===\\"${action}\\"`));
  assert.match(source,/Não pode remover ou cancelar o seu próprio acesso/);

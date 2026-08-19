@@ -9,3 +9,4 @@ test("contracted modules expose governed submodules and documents",()=>{assert.m
 test("portal no longer creates tenants outside commerce",()=>{assert.doesNotMatch(page,/api\/v1\/tenants/);assert.doesNotMatch(page,/Criar nova empresa/)});
 test("people workspace uses the audited HCM contract API",()=>{assert.match(page,/function PeopleWorkspace/);assert.match(page,/api\/v1\/hcm/);assert.match(page,/activateContract/);assert.match(page,/endContract/)});
 test("new tenants are guided by real onboarding state without illustrative company data",()=>{assert.match(page,/TenantOnboarding/);assert.match(page,/body\.onboarding\?\.complete/);assert.doesNotMatch(page,/Ana Manuel/);assert.doesNotMatch(page,/8,42 M USD/)});
+test("portal exposes deterministic readiness and next action per engine",()=>{assert.match(page,/function EngineReadiness/);assert.match(page,/api\/v1\/readiness/);assert.match(page,/Preparação dos motores/);assert.match(page,/Próxima ação/)});

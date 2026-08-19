@@ -21,6 +21,7 @@ export const openApiDocument={
   "/workforce":{get:read("Read workforce cost","Workforce"),post:write("Post closed payroll to workforce","Workforce","workforce:write")},
   "/dashboard":{get:read("Read executive dashboard","Reporting")},
   "/management-reports":{get:read("Read report versions","Reporting"),post:write("Generate immutable management report","Reporting","reports:write")},
+  "/readiness":{get:read("Evaluate operational prerequisites by contracted engine","Control")},
   "/integrity":{get:{...read("Run vertical slice controls","Control"),"x-permission":"integrity:read"}},
   "/openapi.json":{get:{summary:"OpenAPI document",tags:["Control"],responses:{"200":{description:"OpenAPI 3.1 document"}}}},
  },
