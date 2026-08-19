@@ -10,6 +10,8 @@
 
 **Gate:** nenhuma integração é construída sem estas decisões.
 
+**Decisão técnica proposta:** ver `C0_LAUNCH_DECISION_RECORD.md`. Identidade recomendada: Supabase Auth. Billing Angola recomendado: adapter ProxyPay, condicionado a proposta, sandbox e contratação bancária. Política comercial e preços permanecem pendentes de aprovação.
+
 ## Sprint C1 — Identity pública
 
 - Landing pública e registo.
