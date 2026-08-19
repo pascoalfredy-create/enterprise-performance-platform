@@ -1,6 +1,16 @@
 # C1 — Plano de implementação da identidade pública
 
-**Estado:** preparado; bloqueado apenas por provisionamento do Identity Provider e autorização de publicação pública.
+**Estado:** em execução; provider dedicado e fundação de dados concluídos. A publicação pública continua sujeita a autorização explícita.
+
+## Progresso em 19 de agosto de 2026
+
+- Projeto Supabase dedicado criado: `enterprise-performance-platform-auth` (`puynkxhrwynchchlhubg`).
+- Região: `eu-west-1`; estado validado como `ACTIVE_HEALTHY`.
+- Migração `identity_foundation` aplicada com `accounts`, `account_phones`, `consents` e `identity_audit_events`.
+- Projeção automática de novos utilizadores de `auth.users` implementada por gatilhos.
+- RLS e privilégios por coluna aplicados; campos de estado, verificação e auditoria não são alteráveis pelo cliente.
+- Migração `identity_security_hardening` aplicada; verificador de segurança Supabase sem alertas.
+- Pendente: cliente web, formulários, URLs de redirecionamento, testes end-to-end e criação controlada do Owner.
 
 ## Situação verificada
 
