@@ -5,6 +5,7 @@ import { percentageAmount, variance, workforceTotal } from "../lib/deterministic
 import { hasPermission } from "../lib/security";
 import { openApiDocument } from "../lib/openapi";
 import { classifyDataError } from "../lib/api-error";
+import { bundles, CATALOG_VERSION, subscriptionTotal, type BillingInterval, type BundleCode } from "../lib/commercial-catalog";
 
 interface Env {
   ASSETS: Fetcher;
@@ -34,9 +35,8 @@ const rolePermissions:Record<string,Permission[]>={Administrador:["setup:write",
 const workspaceEmail=(request:Request)=>request.headers.get("oai-authenticated-user-email")||request.headers.get("x-openai-user-email")||"";
 const actorEmail=(request:Request)=>request.headers.get("x-ep-verified-user-email")||workspaceEmail(request)||(new URL(request.url).hostname==="terminal.local"?"admin@preview.local":"");
 async function authenticateApiRequest(request:Request,env:Env):Promise<Request|Response>{
-  if(workspaceEmail(request))return request;
   const authorization=request.headers.get("authorization")||"";
-  if(!authorization.startsWith("Bearer "))return Response.json({error:"Autenticação necessária."},{status:401});
+  if(!authorization.startsWith("Bearer "))return workspaceEmail(request)?request:Response.json({error:"Autenticação necessária."},{status:401});
   if(!env.NEXT_PUBLIC_SUPABASE_URL||!env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)return Response.json({error:"O serviço de identidade não está configurado."},{status:503});
   let response:Response;
   try{response=await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user`,{headers:{apikey:env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,authorization}})}catch{return Response.json({error:"Não foi possível validar a identidade."},{status:503})}
@@ -45,9 +45,33 @@ async function authenticateApiRequest(request:Request,env:Env):Promise<Request|R
   if(!user.email||!user.email_confirmed_at)return Response.json({error:"Confirme o e-mail antes de continuar."},{status:403});
   const headers=new Headers(request.headers);
   headers.set("x-ep-verified-user-email",user.email.toLowerCase());
+  headers.set("x-ep-verified-user-sub",String((user as {id?:string}).id||user.email.toLowerCase()));
   const name=String(user.user_metadata?.display_name||user.email);
   headers.set("x-ep-verified-user-name",name);
   return new Request(request,{headers});
+}
+async function commerceCheckoutApi(request:Request,db:D1Database){
+ try{
+  const email=actorEmail(request).toLowerCase(),identitySubject=request.headers.get("x-ep-verified-user-sub")||`workspace:${email}`;
+  if(!email)return Response.json({error:"Autenticação necessária."},{status:401});
+  let account=await db.prepare("SELECT * FROM commerce_accounts WHERE identity_subject=?").bind(identitySubject).first<Record<string,unknown>>();
+  if(!account){const id=uid(),now=new Date().toISOString();await db.prepare("INSERT INTO commerce_accounts (id,identity_subject,email_normalized,status,created_at,updated_at) VALUES (?,?,?,?,?,?)").bind(id,identitySubject,email,"Ativa",now,now).run();account={id,identity_subject:identitySubject,email_normalized:email,status:"Ativa"}}
+  if(account.status!=="Ativa")return Response.json({error:"A conta comercial não está ativa."},{status:403});
+  if(request.method==="GET"){const row=await db.prepare("SELECT * FROM checkout_sessions WHERE account_id=? ORDER BY created_at DESC LIMIT 1").bind(account.id).first();return Response.json({checkout:row||null})}
+  if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
+  const body=await request.json() as {bundleCode?:BundleCode;interval?:BillingInterval;users?:number;employees?:number};
+  const bundle=bundles.find(x=>x.code===body.bundleCode),interval=body.interval,users=Math.trunc(Number(body.users)),employees=Math.trunc(Number(body.employees||0));
+  if(!bundle||!(["monthly","annual"] as string[]).includes(interval||"")||users<1||users>500||employees<0||employees>10000)return Response.json({error:"Bundle, periodicidade e dimensão válidos são obrigatórios."},{status:400});
+  const calculated=subscriptionTotal({bundle,interval:interval!,users,employees}),fingerprint=JSON.stringify({accountId:account.id,catalogVersion:CATALOG_VERSION,bundleCode:bundle.code,interval,users,employees,amountMinor:calculated.totalMinor}),idempotencyKey=await sha256(fingerprint);
+  const existing=await db.prepare("SELECT * FROM checkout_sessions WHERE idempotency_key=?").bind(idempotencyKey).first();
+  if(existing)return Response.json({checkout:existing,idempotent:true});
+  const id=uid(),now=new Date(),created=now.toISOString(),expires=new Date(now.getTime()+30*60*1000).toISOString(),evidenceHash=await sha256(fingerprint+"|"+created);
+  await db.batch([
+   db.prepare("INSERT INTO checkout_sessions (id,account_id,catalog_version,bundle_code,billing_interval,requested_users,requested_employees,currency,amount_minor,status,idempotency_key,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,account.id,CATALOG_VERSION,bundle.code,interval,users,employees,"AOA",calculated.totalMinor,"Rascunho",idempotencyKey,expires,created,created),
+   db.prepare("INSERT INTO commerce_audit_events (id,account_id,event_type,entity_type,entity_id,summary,evidence_hash,occurred_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),account.id,"checkout.draft_created","checkout_session",id,`Rascunho ${bundle.code} criado`,evidenceHash,created),
+  ]);
+  return Response.json({checkout:{id,account_id:account.id,catalog_version:CATALOG_VERSION,bundle_code:bundle.code,billing_interval:interval,requested_users:users,requested_employees:employees,currency:"AOA",amount_minor:calculated.totalMinor,status:"Rascunho",expires_at:expires,created_at:created},idempotent:false},{status:201});
+ }catch(error){return apiFailure(error,"Não foi possível preparar o checkout.")}
 }
 const selectedTenant=(request:Request)=>request.headers.get("x-tenant-id")||request.headers.get("X-Tenant-Id")||request.headers.get("cookie")?.match(/(?:^|;\s*)ep_tenant=([^;]+)/)?.[1]||"";
 async function securityContext(request:Request,db:D1Database):Promise<SecurityContext|Response>{await ensureSetupSchema(db);const email=actorEmail(request);if(!email)return Response.json({error:"Autenticação necessária."},{status:401});let memberships=await db.prepare("SELECT u.*,COALESCE(t.name,u.tenant_id) tenant_name,o.name organization_name FROM platform_users u LEFT JOIN tenants t ON t.id=u.tenant_id LEFT JOIN organizations o ON o.id=u.organization_id AND o.tenant_id=u.tenant_id WHERE lower(u.email)=lower(?) AND u.status='Ativo' ORDER BY u.created_at").bind(email).all<Record<string,unknown>>();if(!memberships.results.length){const total=await db.prepare("SELECT COUNT(*) n FROM platform_users").first<Record<string,unknown>>();if(Number(total?.n||0)===0){const name=request.headers.get("oai-authenticated-user-full-name")||"Administrador inicial",created=new Date().toISOString(),id=uid();await db.batch([db.prepare("INSERT OR IGNORE INTO tenants (id,created_at,name,slug,status) VALUES (?,?,?,?,?)").bind(DEFAULT_TENANT,created,"Demo Holdings","demo-holdings","Ativo"),db.prepare("INSERT INTO platform_users (id,tenant_id,created_at,name,email,role,organization_id,status) VALUES (?,?,?,?,?,?,?,?)").bind(id,DEFAULT_TENANT,created,name,email,"Administrador",null,"Ativo"),db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),DEFAULT_TENANT,created,"BOOTSTRAP","platformUser",id,email,"Administrador inicial associado ao tenant")]);memberships={results:[{id,name,email,role:"Administrador",tenant_id:DEFAULT_TENANT,tenant_name:"Demo Holdings",organization_id:null,organization_name:null}],success:true,meta:{}}}else return Response.json({error:"O utilizador autenticado não possui membership ativa."},{status:403})}const requested=decodeURIComponent(selectedTenant(request));const user=(requested?memberships.results.find(x=>String(x.tenant_id)===requested):memberships.results[0]);if(!user)return Response.json({error:"O tenant solicitado não pertence ao utilizador autenticado."},{status:403});const role=String(user.role),permissions=rolePermissions[role]||[],tenants=memberships.results.map(x=>({id:String(x.tenant_id),name:String(x.tenant_name),role:String(x.role)}));return{email,name:String(user.name||email),role,tenantId:String(user.tenant_id),tenantName:String(user.tenant_name),organizationId:user.organization_id?String(user.organization_id):null,organizationName:user.organization_name?String(user.organization_name):null,permissions,tenants}}
@@ -324,6 +348,7 @@ const worker = {
     }
     if(apiPath.startsWith("/api/")){const authenticated=await authenticateApiRequest(request,env);if(authenticated instanceof Response)return authenticated;request=authenticated}
     if(apiPath==="/api/invitations/accept")return invitationApi(request,env.DB);
+    if(apiPath==="/api/commerce/checkout")return commerceCheckoutApi(request,env.DB);
 
     if (apiPath.startsWith("/api/")) {
       const security=await securityContext(request,env.DB);if(security instanceof Response)return security;

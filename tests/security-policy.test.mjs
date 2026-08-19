@@ -28,6 +28,13 @@ test("browser receives only the public identity configuration at runtime",()=>{
  assert.match(source,/publishableKey:env\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
  assert.doesNotMatch(source,/service_role/);
 });
+test("checkout is server-priced idempotent and precedes tenant provisioning",()=>{
+ assert.match(source,/async function commerceCheckoutApi/);
+ assert.match(source,/subscriptionTotal\(\{bundle,interval:interval!,users,employees\}\)/);
+ assert.match(source,/SELECT \* FROM checkout_sessions WHERE idempotency_key=/);
+ assert.match(source,/checkout\.draft_created/);
+ assert.match(source,/apiPath==="\/api\/commerce\/checkout"/);
+});
 test("cross-tenant access fails closed",()=>{
  assert.equal(belongsToTenant("tenant-a","tenant-a"),true);
  assert.equal(belongsToTenant("tenant-b","tenant-a"),false);
