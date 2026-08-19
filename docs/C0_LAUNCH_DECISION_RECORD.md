@@ -139,6 +139,22 @@ Política comercial aprovada como baseline C0, sujeita a revisão antes da entra
 | Cancelamento | Exportação disponível durante janela contratual |
 | Retenção após encerramento | 90 dias, sujeita a validação jurídica e política de dados |
 
+### Preços baseline aprovados — catálogo `AO-2026-01`
+
+| Bundle | Mensal | Limites incluídos |
+|---|---:|---|
+| Finance & FP&A | 49.900 AOA | 5 utilizadores |
+| HCM & Payroll | 59.900 AOA | 5 utilizadores e 25 colaboradores |
+| Enterprise Performance | 99.900 AOA | 8 utilizadores |
+| Enterprise Suite | 149.900 AOA | 10 utilizadores e 50 colaboradores |
+
+- Utilizador adicional: 2.500 AOA/mês.
+- Colaborador adicional em bundles com Payroll: 1.000 AOA/mês.
+- Angola Payroll Pack incluído no lançamento.
+- Anualidade equivalente a 10 mensalidades.
+- Impostos aplicáveis são calculados no checkout e não estão hardcoded no Core.
+- O catálogo é versionado; alterações posteriores não reescrevem subscrições contratadas.
+
 ## 6. Gating técnico
 
 Nenhuma subscrição dá acesso diretamente por estado visual. A autorização empresarial exige:

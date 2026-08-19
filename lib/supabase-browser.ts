@@ -68,4 +68,6 @@ export function storeSession(data: Record<string, unknown>) {
   const refreshToken = typeof data.refresh_token === "string" ? data.refresh_token : "";
   if (accessToken) sessionStorage.setItem("ep_access_token", accessToken);
   if (refreshToken) localStorage.setItem("ep_refresh_token", refreshToken);
+  const user = data.user as { email?: unknown } | undefined;
+  if (typeof user?.email === "string") sessionStorage.setItem("ep_user_email", user.email.toLowerCase());
 }
