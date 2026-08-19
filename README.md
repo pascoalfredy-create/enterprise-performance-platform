@@ -29,6 +29,7 @@ O registo público, billing, catálogo comercial, subscrições, entitlements, p
 - `docs/SAAS_CONTROL_PLANE_RBAC.md`
 - `docs/SAAS_COMMERCIAL_ROADMAP.md`
 - `docs/C0_LAUNCH_DECISION_RECORD.md`
+- `docs/C1_IDENTITY_IMPLEMENTATION_PLAN.md`
 - `docs/EMPLOYEE_MASTER_CONTRACTS.md`
 
 ## Comandos

@@ -1,6 +1,6 @@
 # C0 — Registo de decisões para lançamento SaaS
 
-**Estado:** proposta técnica para aprovação do Product Owner  
+**Estado:** aprovado pelo Product Owner para planeamento e execução faseada
 **Data de verificação:** 19 de agosto de 2026  
 **Mercado inicial recomendado:** Angola, com arquitetura preparada para expansão internacional
 
@@ -125,7 +125,7 @@ Não cobrar separadamente por páginas técnicas internas. O cliente compra resu
 
 ## 5. Política comercial proposta
 
-Estas decisões ainda requerem aprovação do Product Owner:
+Política comercial aprovada como baseline C0, sujeita a revisão antes da entrada em produção:
 
 | Tema | Proposta inicial |
 |---|---|
