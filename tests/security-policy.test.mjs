@@ -103,6 +103,7 @@ test("payslip issuance is closed-run only idempotent and auditable",()=>{
 });
 
 test("payment batches reconcile closed payroll and enforce sequential approval",()=>{assert.match(source,/preparePaymentBatch/);assert.match(source,/slips\.results\.length!==Number\(run\.employee_count\)\|\|total!==Number\(run\.net_minor\)/);assert.match(source,/transitionPaymentBatch/);assert.match(source,/security\.role!=="Administrador"/);assert.match(source,/Preparado.*Aprovado.*Exportado/s);assert.match(source,/paymentBatch/)});
+test("absence decisions enforce scope balance and maker checker",()=>{assert.match(source,/absenceRequest/);assert.match(source,/decideAbsence/);assert.match(source,/Saldo de ausência insuficiente/);assert.match(source,/quem criou o pedido não pode aprová-lo/);assert.match(source,/O pedido foi decidido por outro utilizador/)});
 test("membership lifecycle preserves tenant administration",()=>{
  for(const action of ["activate","resend","cancel","changeRole","remove"])assert.match(source,new RegExp(`action===\\"${action}\\"`));
  assert.match(source,/Não pode remover ou cancelar o seu próprio acesso/);

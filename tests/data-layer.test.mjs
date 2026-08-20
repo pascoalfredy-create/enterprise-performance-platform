@@ -81,6 +81,20 @@ test("payment batches reconcile payslips and enforce immutable sequential workfl
  db.close();
 });
 
+test("absence management rejects cross-tenant references overlaps and invalid workflow",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'),('t2','now','Tenant 2','tenant-2','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'),('o2','t2','now','ROOT','Org 2','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Ativo'); INSERT INTO hcm_absence_types VALUES ('at1','t1','FERIAS','Férias','Dias',1,1,'Ativo','now'),('at2','t2','FERIAS','Férias','Dias',1,1,'Ativo','now')");
+ assert.throws(()=>db.exec("INSERT INTO hcm_absence_balances VALUES ('b0','t1','e1','at2',2026,1000,0,'now')"),/absence balance reference outside tenant/);
+ db.exec("INSERT INTO hcm_absence_balances VALUES ('b1','t1','e1','at1',2026,960,0,'now'); INSERT INTO hcm_absence_requests VALUES ('ar1','t1','e1','at1','2026-08-10','2026-08-10',480,'Descanso','Pendente','ana@test','now',NULL,NULL,NULL)");
+ assert.throws(()=>db.exec("INSERT INTO hcm_absence_requests VALUES ('ar2','t1','e1','at1','2026-08-10','2026-08-11',480,NULL,'Pendente','ana@test','now',NULL,NULL,NULL)"),/absence request overlaps existing request/);
+ assert.throws(()=>db.exec("UPDATE hcm_absence_requests SET status='Pendente',reason='alterado' WHERE id='ar1'"),/invalid absence request transition/);
+ db.exec("UPDATE hcm_absence_requests SET status='Aprovado',decided_by='rh@test',decided_at='later' WHERE id='ar1'");
+ assert.equal(db.prepare("SELECT status FROM hcm_absence_requests WHERE id='ar1'").get().status,"Aprovado");
+ assert.equal(db.prepare("SELECT used_minutes FROM hcm_absence_balances WHERE id='b1'").get().used_minutes,480);
+ assert.throws(()=>db.exec("DELETE FROM hcm_absence_requests WHERE id='ar1'"),/absence requests cannot be deleted/);
+ db.close();
+});
+
 test("reference migration protects every vertical-slice boundary",()=>{
  for(const phrase of ["organization outside tenant","dimension reference outside tenant","performance reference outside tenant","salary reference outside tenant","payroll assignment outside tenant","payroll scope outside tenant","payroll line outside tenant","workforce reference outside tenant","report version outside tenant","report scope outside tenant"])
   assert.match(referenceMigration,new RegExp(phrase));
