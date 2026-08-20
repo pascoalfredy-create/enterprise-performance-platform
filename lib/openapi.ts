@@ -13,6 +13,7 @@ export const openApiDocument={
   "/commerce/checkout":{get:read("Read latest authenticated checkout draft","Identity"),post:write("Create idempotent server-priced checkout draft","Identity","commerce:checkout")},
   "/commerce/payment-intent":{post:write("Create test payment intent from persisted checkout","Identity","commerce:checkout")},
   "/commerce/test-confirmation":{post:write("Confirm test payment as Platform Owner","Identity","commerce:test-confirm")},
+  "/commerce/industry-packs":{get:read("List sectors and configurable Industry Packs","Identity")},
   "/commerce/provision":{post:write("Provision one tenant from an owned confirmed payment","Identity","commerce:provision")},
   "/setup":{get:read("Read organizations users employees and dimensions","Setup"),post:write("Write setup","Setup","setup:write")},
   "/hcm":{get:{...read("Read employee master, contracts and absences","HCM"),"x-permission":"hcm:read"},post:write("Manage contracts, absence configuration, balances and decisions","HCM","hcm:write")},

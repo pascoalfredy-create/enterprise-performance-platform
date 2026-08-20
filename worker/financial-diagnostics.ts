@@ -125,6 +125,9 @@ export async function financialDiagnosticsApi(
         sensitivities,
         organizations,
         audit,
+        businessProfile,
+        availableSectors,
+        installations,
       ] = await Promise.all([
         db
           .prepare(
@@ -206,6 +209,23 @@ export async function financialDiagnosticsApi(
               )
               .bind(tenant)
               .all(),
+        db
+          .prepare(
+            "SELECT b.*,s.name sector_name,p.name pack_name,p.description pack_description,p.methodology_name,p.version_number pack_version,p.status pack_status FROM tenant_business_profiles b JOIN industry_sectors s ON s.code=b.sector_code JOIN industry_packs p ON p.code=b.industry_pack_code WHERE b.tenant_id=?",
+          )
+          .bind(tenant)
+          .first(),
+        db
+          .prepare(
+            "SELECT s.code sector_code,s.name sector_name,p.code pack_code,p.name pack_name,p.description pack_description,p.methodology_name,p.version_number pack_version,p.status pack_status FROM industry_sectors s JOIN industry_packs p ON p.code=s.pack_code WHERE s.status='Ativo' AND p.status IN ('Ativo','Piloto') ORDER BY s.name",
+          )
+          .all(),
+        db
+          .prepare(
+            "SELECT i.*,p.name pack_name,f.name framework_name,f.status framework_status FROM tenant_industry_pack_installations i JOIN industry_packs p ON p.code=i.pack_code LEFT JOIN diagnostic_frameworks f ON f.id=i.framework_id AND f.tenant_id=i.tenant_id WHERE i.tenant_id=? ORDER BY i.installed_at DESC",
+          )
+          .bind(tenant)
+          .all(),
       ]);
       return {
         metricDefinitions: metricDefinitions.map((x) => ({
@@ -225,6 +245,9 @@ export async function financialDiagnosticsApi(
         sensitivities: sensitivities.results,
         organizations: organizations.results,
         audit: audit.results,
+        businessProfile,
+        availableSectors: availableSectors.results,
+        installations: installations.results,
       };
     };
     if (request.method === "GET") return Response.json(await snapshot());
@@ -233,7 +256,153 @@ export async function financialDiagnosticsApi(
     const body = (await request.json()) as Record<string, string>;
     let entityId = body.frameworkId || body.runId || body.caseId || "",
       entityType = "diagnosticRun";
-    if (body.type === "assignRole") {
+    if (body.type === "applyIndustryPack") {
+      if (scope)
+        return Response.json(
+          { error: "O Industry Pack exige âmbito de todo o tenant." },
+          { status: 403 },
+        );
+      if (
+        !body.sectorCode ||
+        !body.coreBusiness?.trim() ||
+        body.coreBusiness.trim().length < 10
+      )
+        return Response.json(
+          {
+            error:
+              "Setor e descrição do core business com pelo menos 10 caracteres são obrigatórios.",
+          },
+          { status: 400 },
+        );
+      const industry = await db
+        .prepare(
+          "SELECT s.code sector_code,s.name sector_name,p.code pack_code,p.name pack_name,p.description pack_description,p.methodology_name,p.version_number pack_version FROM industry_sectors s JOIN industry_packs p ON p.code=s.pack_code WHERE s.code=? AND s.status='Ativo' AND p.status IN ('Ativo','Piloto')",
+        )
+        .bind(body.sectorCode)
+        .first<Record<string, unknown>>();
+      if (!industry)
+        return Response.json(
+          { error: "Setor ou Industry Pack indisponível." },
+          { status: 404 },
+        );
+      const [packMetrics, packRules, previousProfile, order] =
+        await Promise.all([
+          db
+            .prepare(
+              "SELECT * FROM industry_pack_metrics WHERE pack_code=? ORDER BY metric_code",
+            )
+            .bind(industry.pack_code)
+            .all<Record<string, unknown>>(),
+          db
+            .prepare(
+              "SELECT * FROM industry_pack_rules ORDER BY metric_code,min_value_bps",
+            )
+            .all<Record<string, unknown>>(),
+          db
+            .prepare(
+              "SELECT country_code FROM tenant_business_profiles WHERE tenant_id=?",
+            )
+            .bind(tenant)
+            .first<Record<string, unknown>>(),
+          db
+            .prepare(
+              "SELECT country_code FROM provisioning_orders WHERE tenant_id=? ORDER BY completed_at DESC LIMIT 1",
+            )
+            .bind(tenant)
+            .first<Record<string, unknown>>(),
+        ]);
+      const totalWeight = packMetrics.results.reduce(
+        (sum, x) => sum + Number(x.weight_bps),
+        0,
+      );
+      if (!packMetrics.results.length || totalWeight !== 10000)
+        return Response.json(
+          {
+            error:
+              "O Industry Pack não passou a validação determinística de pesos (100%).",
+          },
+          { status: 409 },
+        );
+      const frameworkId = uid(),
+        installationId = uid();
+      entityId = frameworkId;
+      entityType = "diagnosticFramework";
+      const statements = [
+        db
+          .prepare(
+            "INSERT INTO tenant_business_profiles (tenant_id,sector_code,industry_pack_code,core_business,country_code,created_at,updated_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(tenant_id) DO UPDATE SET sector_code=excluded.sector_code,industry_pack_code=excluded.industry_pack_code,core_business=excluded.core_business,updated_at=excluded.updated_at",
+          )
+          .bind(
+            tenant,
+            industry.sector_code,
+            industry.pack_code,
+            body.coreBusiness.trim(),
+            previousProfile?.country_code || order?.country_code || "XX",
+            now,
+            now,
+          ),
+        db
+          .prepare(
+            "INSERT INTO diagnostic_frameworks (id,tenant_id,name,description,status,created_by,created_at) VALUES (?,?,?,?,'Rascunho',?,?)",
+          )
+          .bind(
+            frameworkId,
+            tenant,
+            `${industry.methodology_name} · v${industry.pack_version}`,
+            `${industry.pack_description} Core business: ${body.coreBusiness.trim()}`,
+            security.email,
+            now,
+          ),
+        db
+          .prepare(
+            "UPDATE tenant_industry_pack_installations SET status='Substituído' WHERE tenant_id=? AND status='Instalado'",
+          )
+          .bind(tenant),
+        db
+          .prepare(
+            "INSERT INTO tenant_industry_pack_installations (id,tenant_id,pack_code,pack_version,framework_id,installed_by,installed_at,status) VALUES (?,?,?,?,?,?,?,'Instalado')",
+          )
+          .bind(
+            installationId,
+            tenant,
+            industry.pack_code,
+            industry.pack_version,
+            frameworkId,
+            security.email,
+            now,
+          ),
+        ...packMetrics.results.map((m) =>
+          db
+            .prepare(
+              "INSERT INTO diagnostic_metric_configs (id,tenant_id,framework_id,metric_code,weight_bps,created_at) VALUES (?,?,?,?,?,?)",
+            )
+            .bind(uid(), tenant, frameworkId, m.metric_code, m.weight_bps, now),
+        ),
+        ...packRules.results
+          .filter((r) =>
+            packMetrics.results.some((m) => m.metric_code === r.metric_code),
+          )
+          .map((r) =>
+            db
+              .prepare(
+                "INSERT INTO diagnostic_rules (id,tenant_id,framework_id,metric_code,min_value_bps,max_value_bps,score_bps,severity,recommendation,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+              )
+              .bind(
+                uid(),
+                tenant,
+                frameworkId,
+                r.metric_code,
+                r.min_value_bps,
+                r.max_value_bps,
+                r.score_bps,
+                r.severity,
+                r.recommendation,
+                now,
+              ),
+          ),
+      ];
+      await db.batch(statements);
+    } else if (body.type === "assignRole") {
       if (scope)
         return Response.json(
           { error: "A semântica financeira exige âmbito de todo o tenant." },

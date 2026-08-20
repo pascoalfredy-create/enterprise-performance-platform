@@ -50,6 +50,36 @@ type Case = {
   approval_hash?: string;
 };
 type Data = {
+  businessProfile?: {
+    sector_code: string;
+    sector_name: string;
+    industry_pack_code: string;
+    pack_name: string;
+    pack_description: string;
+    methodology_name: string;
+    core_business: string;
+    pack_version: number;
+    pack_status: string;
+  } | null;
+  availableSectors: Array<{
+    sector_code: string;
+    sector_name: string;
+    pack_code: string;
+    pack_name: string;
+    pack_description: string;
+    methodology_name: string;
+    pack_version: number;
+    pack_status: string;
+  }>;
+  installations: Array<{
+    id: string;
+    pack_name: string;
+    pack_version: number;
+    installed_at: string;
+    status: string;
+    framework_name: string;
+    framework_status: string;
+  }>;
   metricDefinitions: Array<{ code: string; label: string; formula: string }>;
   roles: Array<{
     id: string;
@@ -93,6 +123,9 @@ type Data = {
   }>;
 };
 const empty: Data = {
+  businessProfile: null,
+  availableSectors: [],
+  installations: [],
   metricDefinitions: [],
   roles: [],
   lines: [],
@@ -476,6 +509,39 @@ export function FinancialDiagnosticsWorkspace() {
         </div>
       ) : (
         <div className="dg-method">
+          <article className="cartao dg-industry" style={{ gridColumn: "1 / -1", padding: 21 }}>
+            <div>
+              <span>CONTEXTO DO NEGÓCIO</span>
+              <h2>
+                {data.businessProfile?.sector_name ||
+                  "Industry Pack por configurar"}
+              </h2>
+              <p>
+                {data.businessProfile?.core_business ||
+                  "Defina o setor e o core business para alinhar pesos, indicadores e recomendações à atividade da empresa."}
+              </p>
+            </div>
+            <dl>
+              <dt>Pack instalado</dt>
+              <dd>{data.businessProfile?.pack_name || "—"}</dd>
+              <dt>Metodologia</dt>
+              <dd>{data.businessProfile?.methodology_name || "—"}</dd>
+              <dt>Versão</dt>
+              <dd>
+                {data.businessProfile
+                  ? `v${data.businessProfile.pack_version} · ${data.businessProfile.pack_status}`
+                  : "—"}
+              </dd>
+            </dl>
+            <button
+              className="primario"
+              onClick={() => setModal("applyIndustryPack")}
+            >
+              {data.businessProfile
+                ? "Trocar Industry Pack"
+                : "Aplicar Industry Pack"}
+            </button>
+          </article>
           <article className="cartao dg-frameworks">
             <div className="cab">
               <div>
@@ -611,11 +677,47 @@ function title(x: string) {
         calculateDiagnostic: "Executar diagnóstico",
         createInvestmentCase: "Novo caso de investimento",
         addCashFlow: "Adicionar cash-flow",
+        applyIndustryPack: "Contexto e Industry Pack",
       } as Record<string, string>
     )[x] || x
   );
 }
 function ModalFields({ type, data }: { type: string; data: Data }) {
+  if (type === "applyIndustryPack")
+    return (
+      <>
+        <label>
+          Setor / atividade principal
+          <select
+            name="sectorCode"
+            defaultValue={data.businessProfile?.sector_code || ""}
+            required
+          >
+            <option value="">Selecionar setor</option>
+            {data.availableSectors.map((x) => (
+              <option key={x.sector_code} value={x.sector_code}>
+                {x.sector_name} · {x.pack_name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Core business
+          <textarea
+            name="coreBusiness"
+            defaultValue={data.businessProfile?.core_business || ""}
+            minLength={10}
+            rows={4}
+            placeholder="Descreva o que a empresa vende, a quem e como cria valor."
+            required
+          />
+        </label>
+        <p className="dg-pack-note">
+          A aplicação cria um novo framework em rascunho. Um segundo utilizador
+          autorizado deverá validá-lo e ativá-lo.
+        </p>
+      </>
+    );
   if (type === "createFramework")
     return (
       <>

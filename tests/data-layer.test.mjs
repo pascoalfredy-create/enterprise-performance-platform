@@ -293,3 +293,16 @@ test("diagnostic methodologies and investment evidence lock after approval",()=>
  db.exec("INSERT INTO investment_cases (id,tenant_id,organization_id,name,currency,discount_rate_bps,status,version_number,created_by,created_at) VALUES ('i1','t1','o1','Projeto','AOA',1000,'Rascunho',1,'maker@test','now'); INSERT INTO investment_cash_flows VALUES ('cf0','t1','i1',0,-10000,'Investimento','now'),('cf1','t1','i1',1,12000,'Retorno','now'); INSERT INTO investment_sensitivities VALUES ('s1','t1','i1',1000,909,'now'); UPDATE investment_cases SET status='Calculado',npv_minor=909,irr_bps=2000,payback_period=1,input_hash='investment-input',calculated_by='maker@test',calculated_at='later' WHERE id='i1'");
  assert.throws(()=>db.exec("INSERT INTO investment_cash_flows VALUES ('cf2','t1','i1',2,100,'Late','later')"),/investment case is not editable/);db.exec("UPDATE investment_cases SET status='Aprovado',approved_by='checker@test',approved_at='final',approval_hash='investment-approved' WHERE id='i1'");db.close();
 });
+
+test("industry packs are configurable, balanced and preserve installation history",()=>{
+ const db=migratedDatabase();
+ for(const pack of db.prepare("SELECT code FROM industry_packs").all()){
+  const total=db.prepare("SELECT SUM(weight_bps) total FROM industry_pack_metrics WHERE pack_code=?").get(pack.code);
+  assert.equal(total.total,10000,`${pack.code} must total 100%`);
+ }
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant','tenant','Ativo'); INSERT INTO tenant_business_profiles VALUES ('t1','TECHNOLOGY','SERVICE','Software B2B para gestão empresarial','AO','now','now'); INSERT INTO tenant_industry_pack_installations VALUES ('i1','t1','SERVICE',1,NULL,'admin@test','now','Instalado')");
+ assert.throws(()=>db.exec("INSERT INTO tenant_industry_pack_installations VALUES ('i2','t1','GENERAL',1,NULL,'admin@test','later','Instalado')"),/UNIQUE constraint failed/);
+ db.exec("UPDATE tenant_industry_pack_installations SET status='Substituído' WHERE id='i1'; INSERT INTO tenant_industry_pack_installations VALUES ('i2','t1','GENERAL',1,NULL,'admin@test','later','Instalado')");
+ assert.throws(()=>db.exec("DELETE FROM tenant_industry_pack_installations WHERE id='i1'"),/industry pack installations cannot be deleted/);
+ db.close();
+});
