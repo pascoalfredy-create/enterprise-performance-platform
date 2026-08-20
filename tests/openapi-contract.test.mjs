@@ -9,3 +9,4 @@ test("write operations declare permissions and auth errors",()=>{for(const path 
 test("HCM read and write contracts declare sensitive-data permissions",()=>{assert.equal(spec.paths["/hcm"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/hcm"].post["x-permission"],"hcm:write")});
 test("Payroll reads including payslips require sensitive-data permission",()=>{assert.equal(spec.paths["/payroll"].get["x-permission"],"payroll:read");assert.equal(spec.paths["/payroll"].post["x-permission"],"payroll:write")});
 test("workflow inbox publishes its read permission",()=>{assert.equal(spec.paths["/workflow"].get["x-permission"],"workflow:read")});
+test("performance actions publish read and write permissions",()=>{assert.equal(spec.paths["/actions"].get["x-permission"],"action:read");assert.equal(spec.paths["/actions"].post["x-permission"],"action:write")});

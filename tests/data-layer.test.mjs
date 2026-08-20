@@ -95,6 +95,18 @@ test("absence management rejects cross-tenant references overlaps and invalid wo
  db.close();
 });
 
+test("performance actions enforce tenant owner workflow evidence and retention",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'),('t2','now','Tenant 2','tenant-2','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO platform_users VALUES ('u1','t1','now','Ana','ana@test','Gestor','o1','Ativo'),('u2','t2','now','Eva','eva@test','Gestor',NULL,'Ativo')");
+ assert.throws(()=>db.exec("INSERT INTO performance_actions (id,tenant_id,organization_id,title,owner_email,due_date,priority,status,created_by,created_at,updated_at) VALUES ('a0','t1','o1','Ação inválida','eva@test','2026-09-01','Alta','Aberta','ana@test','now','now')"),/performance action reference outside tenant/);
+ db.exec("INSERT INTO performance_actions (id,tenant_id,organization_id,period,currency,source_line_code,title,owner_email,due_date,priority,status,created_by,created_at,updated_at) VALUES ('a1','t1','o1','2026-08','AOA','WORKFORCE','Rever custo','ana@test','2026-09-01','Alta','Aberta','ana@test','now','now')");
+ assert.throws(()=>db.exec("UPDATE performance_actions SET status='Concluída',completed_at='later' WHERE id='a1'"),/completion evidence is required/);
+ db.exec("UPDATE performance_actions SET status='Em curso',updated_at='later' WHERE id='a1'; UPDATE performance_actions SET status='Concluída',updated_at='done',completed_at='done',completion_evidence='Medida implementada' WHERE id='a1'");
+ assert.equal(db.prepare("SELECT status FROM performance_actions WHERE id='a1'").get().status,"Concluída");
+ assert.throws(()=>db.exec("DELETE FROM performance_actions WHERE id='a1'"),/performance actions cannot be deleted/);
+ db.close();
+});
+
 test("reference migration protects every vertical-slice boundary",()=>{
  for(const phrase of ["organization outside tenant","dimension reference outside tenant","performance reference outside tenant","salary reference outside tenant","payroll assignment outside tenant","payroll scope outside tenant","payroll line outside tenant","workforce reference outside tenant","report version outside tenant","report scope outside tenant"])
   assert.match(referenceMigration,new RegExp(phrase));
