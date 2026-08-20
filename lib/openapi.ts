@@ -23,6 +23,7 @@ export const openApiDocument={
   "/financial-models":{get:{...read("Read governed business plans drivers and cash projections","Performance"),"x-permission":"financial-model:read"},post:write("Create calculate or approve deterministic financial models","Performance","financial-model:write")},
   "/financial-data":{get:{...read("Read financial catalog mappings imports and lineage","Performance"),"x-permission":"financial-data:read"},post:write("Configure mappings validate and post Actual imports","Performance","financial-data:write")},
   "/financial-diagnostics":{get:{...read("Read financial health diagnostics and investment cases","Performance"),"x-permission":"diagnostic:read"},post:write("Configure score calculate diagnose or evaluate investments","Performance","diagnostic:write")},
+  "/workforce-plans":{get:read("Read governed headcount plans and actual comparison","Workforce"),post:write("Create submit and approve headcount plans","Workforce","workforce:write")},
   "/payroll":{get:{...read("Read payroll, payslips and payment batches","Payroll"),"x-permission":"payroll:read"},post:write("Configure, calculate, issue documents or transition payment batches","Payroll","payroll:write")},
   "/workforce":{get:read("Read workforce cost","Workforce"),post:write("Post closed payroll to workforce","Workforce","workforce:write")},
   "/dashboard":{get:read("Read executive dashboard","Reporting")},

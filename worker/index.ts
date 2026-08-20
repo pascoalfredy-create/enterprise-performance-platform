@@ -13,6 +13,7 @@ import { consolidationApi } from "./consolidation";
 import { financialModelsApi } from "./financial-models";
 import { financialDataApi } from "./financial-data";
 import { financialDiagnosticsApi } from "./financial-diagnostics";
+import { workforcePlansApi } from "./workforce-plans";
 
 interface Env {
   ASSETS: Fetcher;
@@ -485,11 +486,11 @@ const worker = {
       const security=await securityContext(request,env.DB);if(security instanceof Response)return security;
       if(apiPath==="/api/session")return Response.json(security);
       if(apiPath==="/api/openapi.json")return Response.json(openApiDocument,{headers:{"cache-control":"public, max-age=300"}});
-      const write=request.method!=="GET",required:Permission|null=(apiPath==="/api/setup"||apiPath==="/api/tenants")&&write?"setup:write":apiPath==="/api/hcm"?(write?"hcm:write":"hcm:read"):apiPath==="/api/performance"&&write?"performance:write":apiPath==="/api/scenarios"?(write?"scenario:write":"scenario:read"):apiPath==="/api/consolidation"?(write?"consolidation:write":"consolidation:read"):apiPath==="/api/financial-models"?(write?"financial-model:write":"financial-model:read"):apiPath==="/api/financial-data"?(write?"financial-data:write":"financial-data:read"):apiPath==="/api/financial-diagnostics"?(write?"diagnostic:write":"diagnostic:read"):apiPath==="/api/goals"?(write?"goal:write":"goal:read"):apiPath==="/api/reviews"?(write?"review:write":"review:read"):apiPath==="/api/competencies"?(write?"competency:write":"competency:read"):apiPath==="/api/actions"?(write?"action:write":"action:read"):apiPath==="/api/payroll"?(write?"payroll:write":"payroll:read"):apiPath==="/api/workforce"&&write?"workforce:write":apiPath==="/api/management-reports"&&write?"reports:write":apiPath==="/api/workflow"?"workflow:read":apiPath==="/api/integrity"?"integrity:read":null;
+      const write=request.method!=="GET",required:Permission|null=(apiPath==="/api/setup"||apiPath==="/api/tenants")&&write?"setup:write":apiPath==="/api/hcm"?(write?"hcm:write":"hcm:read"):apiPath==="/api/performance"&&write?"performance:write":apiPath==="/api/scenarios"?(write?"scenario:write":"scenario:read"):apiPath==="/api/consolidation"?(write?"consolidation:write":"consolidation:read"):apiPath==="/api/financial-models"?(write?"financial-model:write":"financial-model:read"):apiPath==="/api/financial-data"?(write?"financial-data:write":"financial-data:read"):apiPath==="/api/financial-diagnostics"?(write?"diagnostic:write":"diagnostic:read"):apiPath==="/api/goals"?(write?"goal:write":"goal:read"):apiPath==="/api/reviews"?(write?"review:write":"review:read"):apiPath==="/api/competencies"?(write?"competency:write":"competency:read"):apiPath==="/api/actions"?(write?"action:write":"action:read"):apiPath==="/api/payroll"?(write?"payroll:write":"payroll:read"):(apiPath==="/api/workforce"||apiPath==="/api/workforce-plans")&&write?"workforce:write":apiPath==="/api/management-reports"&&write?"reports:write":apiPath==="/api/workflow"?"workflow:read":apiPath==="/api/integrity"?"integrity:read":null;
       if(required&&!hasPermission(security.permissions,required))return denied(required);
       const tenantId=security.tenantId;
       const organizationId=security.organizationId;
-      const moduleRequired:string|null=apiPath==="/api/setup"?"CORE":apiPath==="/api/hcm"?"HCM":apiPath==="/api/payroll"?"PAYROLL":["/api/performance","/api/scenarios","/api/consolidation","/api/financial-models","/api/financial-data","/api/financial-diagnostics"].includes(apiPath)?"FINANCE_FP&A":["/api/actions","/api/goals","/api/reviews","/api/competencies"].includes(apiPath)?"PERFORMANCE_MANAGEMENT":apiPath==="/api/workforce"?"WORKFORCE_PLANNING":apiPath==="/api/workflow"?"WORKFLOW":["/api/dashboard","/api/management-reports"].includes(apiPath)?"ANALYTICS_REPORTING":null;
+      const moduleRequired:string|null=apiPath==="/api/setup"?"CORE":apiPath==="/api/hcm"?"HCM":apiPath==="/api/payroll"?"PAYROLL":["/api/performance","/api/scenarios","/api/consolidation","/api/financial-models","/api/financial-data","/api/financial-diagnostics"].includes(apiPath)?"FINANCE_FP&A":["/api/actions","/api/goals","/api/reviews","/api/competencies"].includes(apiPath)?"PERFORMANCE_MANAGEMENT":["/api/workforce","/api/workforce-plans"].includes(apiPath)?"WORKFORCE_PLANNING":apiPath==="/api/workflow"?"WORKFLOW":["/api/dashboard","/api/management-reports"].includes(apiPath)?"ANALYTICS_REPORTING":null;
       if(moduleRequired&&!security.modules.includes(moduleRequired))return Response.json({error:`Módulo não contratado: ${moduleRequired}`},{status:403});
       if(organizationId&&write&&apiPath==="/api/setup")return Response.json({error:"A administração da estrutura exige âmbito de todo o tenant."},{status:403});
       if(organizationId&&write&&apiPath==="/api/performance"){const command=await request.clone().json() as Record<string,string>;if(command.type!=="performanceEntry"||command.organizationId!==organizationId)return Response.json({error:"A operação financeira está fora do âmbito organizacional autorizado."},{status:403})}
@@ -502,6 +503,7 @@ const worker = {
       if (apiPath === "/api/financial-models") return financialModelsApi(request,env.DB,security);
       if (apiPath === "/api/financial-data") return financialDataApi(request,env.DB,security);
       if (apiPath === "/api/financial-diagnostics") return financialDiagnosticsApi(request,env.DB,security);
+      if (apiPath === "/api/workforce-plans") return workforcePlansApi(request,env.DB,security);
       if (apiPath === "/api/payroll") return payrollApi(request, env.DB,tenantId,organizationId);
       if (apiPath === "/api/workforce") return workforceApi(request, env.DB,tenantId,organizationId);
       if (apiPath === "/api/dashboard") return dashboardApi(request, env.DB,tenantId,organizationId);
