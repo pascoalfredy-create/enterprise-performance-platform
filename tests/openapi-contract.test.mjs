@@ -11,3 +11,4 @@ test("Payroll reads including payslips require sensitive-data permission",()=>{a
 test("workflow inbox publishes its read permission",()=>{assert.equal(spec.paths["/workflow"].get["x-permission"],"workflow:read")});
 test("performance actions publish read and write permissions",()=>{assert.equal(spec.paths["/actions"].get["x-permission"],"action:read");assert.equal(spec.paths["/actions"].post["x-permission"],"action:write")});
 test("forecast scenarios publish explicit permissions",()=>{assert.equal(spec.paths["/scenarios"].get["x-permission"],"scenario:read");assert.equal(spec.paths["/scenarios"].post["x-permission"],"scenario:write")});
+test("performance goals publish explicit permissions",()=>{assert.equal(spec.paths["/goals"].get["x-permission"],"goal:read");assert.equal(spec.paths["/goals"].post["x-permission"],"goal:write")});

@@ -119,6 +119,18 @@ test("forecast scenarios keep versions sources and entries governed",()=>{
  db.close();
 });
 
+test("performance goals activate with cycle and require append-only target evidence",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO platform_users VALUES ('u1','t1','now','Ana','ana@test','Gestor','o1','Ativo'); INSERT INTO performance_cycles VALUES ('c1','t1','Ciclo 2026','2026-01-01','2026-12-31','Rascunho','manager@test','now',NULL,NULL,NULL); INSERT INTO performance_goals VALUES ('g1','t1','c1','o1','ana@test','Crescer receita',NULL,'Receita','AOA','Aumentar',10000,20000,100,10000,'Rascunho','manager@test','now',NULL)");
+ db.exec("UPDATE performance_cycles SET status='Ativo',activated_by='admin@test',activated_at='later' WHERE id='c1'");
+ assert.equal(db.prepare("SELECT status FROM performance_goals WHERE id='g1'").get().status,"Ativo");
+ db.exec("INSERT INTO performance_goal_checkins VALUES ('ci1','t1','g1',15000,'Parcial',NULL,'ana@test','2026-06-01')");
+ assert.throws(()=>db.exec("UPDATE performance_goal_checkins SET value_scaled=20000 WHERE id='ci1'"),/goal check-ins are append only/);
+ assert.throws(()=>db.exec("UPDATE performance_goals SET status='Concluído',completed_at='now' WHERE id='g1'"),/goal target not reached/);
+ db.exec("INSERT INTO performance_goal_checkins VALUES ('ci2','t1','g1',20000,'Meta',NULL,'ana@test','2026-12-01'); UPDATE performance_goals SET status='Concluído',completed_at='now' WHERE id='g1'");
+ assert.equal(db.prepare("SELECT status FROM performance_goals WHERE id='g1'").get().status,"Concluído");db.close();
+});
+
 test("reference migration protects every vertical-slice boundary",()=>{
  for(const phrase of ["organization outside tenant","dimension reference outside tenant","performance reference outside tenant","salary reference outside tenant","payroll assignment outside tenant","payroll scope outside tenant","payroll line outside tenant","workforce reference outside tenant","report version outside tenant","report scope outside tenant"])
   assert.match(referenceMigration,new RegExp(phrase));
