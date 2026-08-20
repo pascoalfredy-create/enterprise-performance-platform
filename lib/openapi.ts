@@ -27,6 +27,7 @@ export const openApiDocument={
   "/financial-diagnostics":{get:{...read("Read financial health diagnostics and investment cases","Performance"),"x-permission":"diagnostic:read"},post:write("Configure score calculate diagnose or evaluate investments","Performance","diagnostic:write")},
   "/workforce-plans":{get:read("Read governed headcount plans and actual comparison","Workforce"),post:write("Create submit and approve headcount plans","Workforce","workforce:write")},
   "/payroll":{get:{...read("Read payroll, payslips and payment batches","Payroll"),"x-permission":"payroll:read"},post:write("Configure, calculate, issue documents or transition payment batches","Payroll","payroll:write")},
+  "/payroll-loans":{get:{...read("Read employee loans advances and installments","Payroll"),"x-permission":"payroll:read"},post:write("Request or decide governed payroll loans","Payroll","payroll:write")},
   "/workforce":{get:read("Read workforce cost","Workforce"),post:write("Post closed payroll to workforce","Workforce","workforce:write")},
   "/dashboard":{get:read("Read executive dashboard","Reporting")},
   "/management-reports":{get:read("Read report versions","Reporting"),post:write("Generate immutable management report","Reporting","reports:write")},

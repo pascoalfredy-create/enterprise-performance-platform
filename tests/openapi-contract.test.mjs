@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {openApiDocument as spec} from "../lib/openapi.ts";
 test("publishes OpenAPI 3.1 with stable v1 server",()=>{assert.equal(spec.openapi,"3.1.0");assert.equal(spec.servers[0].url,"/api/v1")});
-test("documents every vertical slice API",()=>{for(const path of ["/session","/setup","/hcm","/recruitment","/attendance","/performance","/payroll","/workforce","/dashboard","/management-reports","/readiness","/integrity"])assert.ok(spec.paths[path],path)});
+test("documents every vertical slice API",()=>{for(const path of ["/session","/setup","/hcm","/recruitment","/attendance","/performance","/payroll","/payroll-loans","/workforce","/dashboard","/management-reports","/readiness","/integrity"])assert.ok(spec.paths[path],path)});
 test("documents tenant memberships and paid provisioning",()=>{assert.ok(spec.paths["/tenants"]?.get);assert.equal(spec.paths["/tenants"]?.post,undefined);assert.equal(spec.paths["/commerce/provision"]?.post?.["x-permission"],"commerce:provision")});
 test("documents invitation acceptance",()=>{assert.ok(spec.paths["/invitations/accept"]?.post);assert.ok(spec.paths["/invitations/accept"].post.responses["403"])});
 test("write operations declare permissions and auth errors",()=>{for(const path of ["/setup","/hcm","/performance","/payroll","/workforce","/management-reports"]){const post=spec.paths[path].post;assert.ok(post["x-permission"]);assert.ok(post.responses["401"]);assert.ok(post.responses["403"])}});
@@ -22,3 +22,4 @@ test("diagnostics contract declares read and write permissions",()=>{assert.equa
 test("headcount planning declares governed workforce writes",()=>{assert.equal(spec.paths["/workforce-plans"].post["x-permission"],"workforce:write")});
 test("recruitment uses sensitive HCM permissions",()=>{assert.equal(spec.paths["/recruitment"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/recruitment"].post["x-permission"],"hcm:write")});
 test("attendance uses sensitive HCM permissions",()=>{assert.equal(spec.paths["/attendance"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/attendance"].post["x-permission"],"hcm:write")});
+test("loans use sensitive payroll permissions",()=>{assert.equal(spec.paths["/payroll-loans"].get["x-permission"],"payroll:read");assert.equal(spec.paths["/payroll-loans"].post["x-permission"],"payroll:write")});
