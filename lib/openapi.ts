@@ -18,6 +18,7 @@ export const openApiDocument={
   "/setup":{get:read("Read organizations users employees and dimensions","Setup"),post:write("Write setup","Setup","setup:write")},
   "/hcm":{get:{...read("Read employee master, contracts and absences","HCM"),"x-permission":"hcm:read"},post:write("Manage contracts, absence configuration, balances and decisions","HCM","hcm:write")},
   "/recruitment":{get:{...read("Read requisitions candidates applications and onboarding","HCM"),"x-permission":"hcm:read"},post:write("Manage governed recruitment and onboarding","HCM","hcm:write")},
+  "/attendance":{get:{...read("Read shifts attendance entries and timesheets","HCM"),"x-permission":"hcm:read"},post:write("Manage governed time and attendance","HCM","hcm:write")},
   "/performance":{get:{...read("Read Actual and Budget","Performance"),parameters:[{$ref:"#/components/parameters/Period"},{$ref:"#/components/parameters/Currency"},{$ref:"#/components/parameters/Version"}]},post:write("Create or approve performance","Performance","performance:write")},
   "/scenarios":{get:{...read("Read Forecast and scenario versions with comparisons","Performance"),"x-permission":"scenario:read"},post:write("Create, populate or approve a planning version","Performance","scenario:write")},
   "/consolidation":{get:{...read("Read FX rate sets consolidation runs and drill-down","Performance"),"x-permission":"consolidation:read"},post:write("Configure rates calculate adjust or approve consolidation","Performance","consolidation:write")},
