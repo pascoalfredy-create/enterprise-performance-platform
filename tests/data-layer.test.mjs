@@ -261,3 +261,26 @@ test("multicurrency consolidation preserves immutable evidence and reconciles ap
  assert.equal(approved.status,'Aprovado');assert.equal(approved.reported_total_minor,25000);
  db.close();
 });
+
+test("business planning locks deterministic projections through approval",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa')");
+ db.exec("INSERT INTO financial_models (id,tenant_id,organization_id,name,currency,start_period,horizon_months,opening_cash_minor,status,version_number,created_by,created_at) VALUES ('m1','t1','o1','Plano 2027','AOA','2027-01',12,10000,'Rascunho',1,'maker@test','now'); INSERT INTO financial_model_lines VALUES ('l1','t1','m1','REV','Receita','Receita',1000,500,1,'maker@test','now'); INSERT INTO financial_projections VALUES ('p1','t1','m1','l1','2027-01','2027-02',0,1000,1000,'formula-hash')");
+ assert.throws(()=>db.exec("UPDATE financial_projections SET statement_amount_minor=2 WHERE id='p1'"),/financial projections are immutable/);
+ db.exec("UPDATE financial_models SET status='Calculado',input_hash='input-hash',calculated_by='maker@test',calculated_at='later' WHERE id='m1'");
+ assert.throws(()=>db.exec("INSERT INTO financial_model_lines VALUES ('l2','t1','m1','COST','Custo','Custo',100,0,0,'maker@test','later')"),/financial model is not editable/);
+ db.exec("UPDATE financial_models SET status='Aprovado',approved_by='checker@test',approved_at='final',approval_hash='approval-hash' WHERE id='m1'");
+ assert.equal(db.prepare("SELECT status FROM financial_models WHERE id='m1'").get().status,'Aprovado');db.close();
+});
+
+test("financial imports preserve source evidence and sequential posting",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO financial_line_catalog VALUES ('l1','t1','REV','Receita','Receita','Operacional','Natural','Ativa','admin@test','now'); INSERT INTO financial_source_mappings VALUES ('m1','t1','ERP','701','l1',NULL,'admin@test','now')");
+ db.exec("INSERT INTO financial_import_batches VALUES ('b1','t1','o1','2026-08','AOA','ERP','actual.csv','Carregado',1,1000,'input-hash','maker@test','now',NULL,NULL,NULL,NULL); INSERT INTO financial_import_rows VALUES ('r1','t1','b1',1,'701','Receita',1000,'l1',NULL,'Mapeado','row-hash')");
+ assert.throws(()=>db.exec("UPDATE financial_import_rows SET amount_minor=2 WHERE id='r1'"),/financial import rows are immutable/);
+ assert.throws(()=>db.exec("UPDATE financial_import_batches SET status='Publicado' WHERE id='b1'"),/invalid financial import transition/);
+ db.exec("UPDATE financial_import_batches SET status='Validado',validated_by='validator@test',validated_at='later' WHERE id='b1'; INSERT INTO performance_entries (id,tenant_id,created_at,organization_id,period,scenario,version_id,currency,line_code,line_name,dimension_member_id,amount_minor,source) VALUES ('p1','t1','later','o1','2026-08','Actual',NULL,'AOA','REV','Receita',NULL,1000,'Import:b1'); INSERT INTO financial_import_postings VALUES ('fp1','t1','b1','r1','p1','later')");
+ assert.throws(()=>db.exec("INSERT INTO financial_import_postings VALUES ('fp2','t1','b1','r1','p1','later')"),/UNIQUE constraint failed/);
+ db.exec("UPDATE financial_import_batches SET status='Publicado',posted_by='checker@test',posted_at='final' WHERE id='b1'");
+ assert.equal(db.prepare("SELECT status FROM financial_import_batches WHERE id='b1'").get().status,'Publicado');db.close();
+});
