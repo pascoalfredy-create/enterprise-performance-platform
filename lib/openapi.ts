@@ -22,6 +22,7 @@ export const openApiDocument={
   "/dashboard":{get:read("Read executive dashboard","Reporting")},
   "/management-reports":{get:read("Read report versions","Reporting"),post:write("Generate immutable management report","Reporting","reports:write")},
   "/readiness":{get:read("Evaluate operational prerequisites by contracted engine","Control")},
+  "/workflow":{get:{...read("Read unified decision inbox and history","Control"),"x-permission":"workflow:read"}},
   "/integrity":{get:{...read("Run vertical slice controls","Control"),"x-permission":"integrity:read"}},
   "/openapi.json":{get:{summary:"OpenAPI document",tags:["Control"],responses:{"200":{description:"OpenAPI 3.1 document"}}}},
  },

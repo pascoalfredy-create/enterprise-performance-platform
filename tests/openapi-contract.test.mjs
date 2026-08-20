@@ -8,3 +8,4 @@ test("documents invitation acceptance",()=>{assert.ok(spec.paths["/invitations/a
 test("write operations declare permissions and auth errors",()=>{for(const path of ["/setup","/hcm","/performance","/payroll","/workforce","/management-reports"]){const post=spec.paths[path].post;assert.ok(post["x-permission"]);assert.ok(post.responses["401"]);assert.ok(post.responses["403"])}});
 test("HCM read and write contracts declare sensitive-data permissions",()=>{assert.equal(spec.paths["/hcm"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/hcm"].post["x-permission"],"hcm:write")});
 test("Payroll reads including payslips require sensitive-data permission",()=>{assert.equal(spec.paths["/payroll"].get["x-permission"],"payroll:read");assert.equal(spec.paths["/payroll"].post["x-permission"],"payroll:write")});
+test("workflow inbox publishes its read permission",()=>{assert.equal(spec.paths["/workflow"].get["x-permission"],"workflow:read")});
