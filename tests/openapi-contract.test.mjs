@@ -13,3 +13,4 @@ test("performance actions publish read and write permissions",()=>{assert.equal(
 test("forecast scenarios publish explicit permissions",()=>{assert.equal(spec.paths["/scenarios"].get["x-permission"],"scenario:read");assert.equal(spec.paths["/scenarios"].post["x-permission"],"scenario:write")});
 test("performance goals publish explicit permissions",()=>{assert.equal(spec.paths["/goals"].get["x-permission"],"goal:read");assert.equal(spec.paths["/goals"].post["x-permission"],"goal:write")});
 test("performance reviews publish explicit permissions",()=>{assert.equal(spec.paths["/reviews"].get["x-permission"],"review:read");assert.equal(spec.paths["/reviews"].post["x-permission"],"review:write")});
+test("competencies and feedback publish explicit permissions",()=>{assert.equal(spec.paths["/competencies"].get["x-permission"],"competency:read");assert.equal(spec.paths["/competencies"].post["x-permission"],"competency:write")});
