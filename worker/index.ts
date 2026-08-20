@@ -8,6 +8,7 @@ import { classifyDataError } from "../lib/api-error";
 import { bundles, CATALOG_VERSION, subscriptionTotal, type BillingInterval, type BundleCode } from "../lib/commercial-catalog";
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
+import { controlPlaneApi } from "./control-plane";
 
 interface Env {
   ASSETS: Fetcher;
@@ -465,6 +466,7 @@ const worker = {
     if(apiPath==="/api/commerce/payment-intent")return paymentIntentApi(request,env.DB);
     if(apiPath==="/api/commerce/test-confirmation")return testConfirmationApi(request,env.DB);
     if(apiPath==="/api/commerce/provision")return provisionTenantApi(request,env.DB);
+    if(apiPath==="/api/control-plane")return controlPlaneApi(request,env.DB);
 
     if (apiPath.startsWith("/api/")) {
       const security=await securityContext(request,env.DB);if(security instanceof Response)return security;

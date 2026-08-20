@@ -14,3 +14,4 @@ test("forecast scenarios publish explicit permissions",()=>{assert.equal(spec.pa
 test("performance goals publish explicit permissions",()=>{assert.equal(spec.paths["/goals"].get["x-permission"],"goal:read");assert.equal(spec.paths["/goals"].post["x-permission"],"goal:write")});
 test("performance reviews publish explicit permissions",()=>{assert.equal(spec.paths["/reviews"].get["x-permission"],"review:read");assert.equal(spec.paths["/reviews"].post["x-permission"],"review:write")});
 test("competencies and feedback publish explicit permissions",()=>{assert.equal(spec.paths["/competencies"].get["x-permission"],"competency:read");assert.equal(spec.paths["/competencies"].post["x-permission"],"competency:write")});
+test("control plane contract is operator protected",()=>{assert.equal(spec.paths["/control-plane"].get["x-permission"],"operator");assert.equal(spec.paths["/control-plane"].post["x-permission"],"operator")});

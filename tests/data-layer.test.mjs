@@ -158,6 +158,15 @@ test("competency frameworks and 360 feedback enforce complete immutable evidence
  assert.equal(db.prepare("SELECT status FROM feedback_360_rounds WHERE id='fr1'").get().status,"Fechado");db.close();
 });
 
+test("control plane changes require sequential decisions and retain immutable evidence",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant','tenant','Ativo'); INSERT INTO control_plane_change_requests (id,change_type,target_type,target_id,tenant_id,reason,status,requested_by,requested_at,before_json) VALUES ('c1','Suspender subscrição','subscription','s1','t1','Incumprimento contratual','Pendente','billing@test','now','{\"status\":\"Ativa\"}')");
+ assert.throws(()=>db.exec("UPDATE control_plane_change_requests SET status='Executado',executed_at='now' WHERE id='c1'"),/invalid control plane change transition/);
+ db.exec("UPDATE control_plane_change_requests SET status='Aprovado',decided_by='owner@test',decided_at='later' WHERE id='c1'; UPDATE control_plane_change_requests SET status='Executado',executed_at='done',after_json='{\"status\":\"Suspenso\"}' WHERE id='c1'; INSERT INTO operator_audit_events VALUES ('a1','owner@test','APPROVE_CHANGE','changeRequest','c1','Incumprimento contratual','hash','done')");
+ assert.throws(()=>db.exec("DELETE FROM control_plane_change_requests WHERE id='c1'"),/control plane changes cannot be deleted/);
+ assert.throws(()=>db.exec("UPDATE operator_audit_events SET reason='alterado' WHERE id='a1'"),/operator audit is immutable/);db.close();
+});
+
 test("reference migration protects every vertical-slice boundary",()=>{
  for(const phrase of ["organization outside tenant","dimension reference outside tenant","performance reference outside tenant","salary reference outside tenant","payroll assignment outside tenant","payroll scope outside tenant","payroll line outside tenant","workforce reference outside tenant","report version outside tenant","report scope outside tenant"])
   assert.match(referenceMigration,new RegExp(phrase));

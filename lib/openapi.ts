@@ -28,6 +28,7 @@ export const openApiDocument={
   "/goals":{get:{...read("Read performance cycles goals and progress","Performance"),"x-permission":"goal:read"},post:write("Create activate check in or complete performance goals","Performance","goal:write")},
   "/reviews":{get:{...read("Read performance reviews calibration and development plans","Performance"),"x-permission":"review:read"},post:write("Run governed performance review commands","Performance","review:write")},
   "/competencies":{get:{...read("Read competency frameworks and feedback 360 rounds","Performance"),"x-permission":"competency:read"},post:write("Configure frameworks or submit governed feedback","Performance","competency:write")},
+  "/control-plane":{get:{...read("Read SaaS tenants subscriptions billing and entitlements","Control"),"x-permission":"operator"},post:write("Request or approve audited platform changes","Control","operator")},
   "/integrity":{get:{...read("Run vertical slice controls","Control"),"x-permission":"integrity:read"}},
   "/openapi.json":{get:{summary:"OpenAPI document",tags:["Control"],responses:{"200":{description:"OpenAPI 3.1 document"}}}},
  },
