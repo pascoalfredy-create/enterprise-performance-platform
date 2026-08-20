@@ -68,6 +68,19 @@ test("payslips require closed payroll and remain immutable",()=>{
  db.close();
 });
 
+test("payment batches reconcile payslips and enforce immutable sequential workflow",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Ativo'); INSERT INTO payroll_runs VALUES ('r1','t1','now','2026-08','AOA','Rascunho',1,100,10,5,90,NULL); INSERT INTO payroll_run_lines VALUES ('l1','t1','now','r1','e1',80,100,10,5,90,'calc','{}'); UPDATE payroll_runs SET status='Validado' WHERE id='r1'; UPDATE payroll_runs SET status='Aprovado' WHERE id='r1'; UPDATE payroll_runs SET status='Fechado',closed_at='now' WHERE id='r1'; INSERT INTO payroll_payslips VALUES ('p1','t1','r1','l1','e1','PS-1','2026-08','AOA',100,10,5,90,'{}','hash','Emitido','now')");
+ assert.throws(()=>db.exec("INSERT INTO payroll_payment_batches (id,tenant_id,run_id,batch_number,period,currency,employee_count,total_minor,status,evidence_hash,prepared_by,prepared_at) VALUES ('b0','t1','r1','PB-0','2026-08','AOA',1,89,'Preparado','hash','rh@test','now')"),/payment batch requires reconciled closed payroll/);
+ db.exec("INSERT INTO payroll_payment_batches (id,tenant_id,run_id,batch_number,period,currency,employee_count,total_minor,status,evidence_hash,prepared_by,prepared_at) VALUES ('b1','t1','r1','PB-1','2026-08','AOA',1,90,'Preparado','hash','rh@test','now'); INSERT INTO payroll_payment_batch_lines VALUES ('bl1','t1','b1','p1','e1',90)");
+ assert.throws(()=>db.exec("UPDATE payroll_payment_batches SET status='Exportado',exported_by='admin',exported_at='now' WHERE id='b1'"),/invalid payment batch transition/);
+ assert.throws(()=>db.exec("UPDATE payroll_payment_batches SET total_minor=91 WHERE id='b1'"),/(payment batch evidence is immutable|invalid payment batch transition)/);
+ db.exec("UPDATE payroll_payment_batches SET status='Aprovado',approved_by='admin',approved_at='now' WHERE id='b1'; UPDATE payroll_payment_batches SET status='Exportado',exported_by='admin',exported_at='later' WHERE id='b1'");
+ assert.equal(db.prepare("SELECT status FROM payroll_payment_batches WHERE id='b1'").get().status,"Exportado");
+ assert.throws(()=>db.exec("DELETE FROM payroll_payment_batch_lines WHERE id='bl1'"),/payment batch lines are immutable/);
+ db.close();
+});
+
 test("reference migration protects every vertical-slice boundary",()=>{
  for(const phrase of ["organization outside tenant","dimension reference outside tenant","performance reference outside tenant","salary reference outside tenant","payroll assignment outside tenant","payroll scope outside tenant","payroll line outside tenant","workforce reference outside tenant","report version outside tenant","report scope outside tenant"])
   assert.match(referenceMigration,new RegExp(phrase));
