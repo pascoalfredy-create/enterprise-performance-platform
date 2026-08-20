@@ -246,3 +246,18 @@ test("API state changes use compare-and-set updates",()=>{
  assert.match(worker,/transition\.meta\.changes/);
  assert.match(worker,/approval\.meta\.changes/);
 });
+
+test("multicurrency consolidation preserves immutable evidence and reconciles approval",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa')");
+ db.exec("INSERT INTO fx_rate_sets (id,tenant_id,name,period,base_currency,status,created_by,created_at) VALUES ('f1','t1','Fecho agosto','2026-08','AOA','Rascunho','maker@test','now'); INSERT INTO fx_rates VALUES ('x1','t1','f1','USD','AOA',90000000000,100000000,'now'); UPDATE fx_rate_sets SET status='Aprovado',approved_by='checker@test',approved_at='later' WHERE id='f1'");
+ assert.throws(()=>db.exec("UPDATE fx_rates SET rate_scaled=1 WHERE id='x1'"),/FX rates are immutable/);
+ db.exec("INSERT INTO consolidation_runs (id,tenant_id,rate_set_id,period,target_currency,run_number,status,source_count,organization_count,currency_count,converted_total_minor,adjustment_total_minor,reported_total_minor,input_hash,created_by,created_at) VALUES ('r1','t1','f1','2026-08','AOA',1,'Calculado',2,1,2,30000,0,30000,'input-hash','maker@test','now'); INSERT INTO consolidation_lines VALUES ('l1','t1','r1','o1','USD','AOA','REV','Receita',100,90000000000,90000,1,'source-hash')");
+ assert.throws(()=>db.exec("UPDATE consolidation_lines SET converted_amount_minor=1 WHERE id='l1'"),/consolidation lines are immutable/);
+ db.exec("INSERT INTO consolidation_adjustments VALUES ('a1','t1','r1','IC','Intercompany',-5000,'Eliminação','Eliminação intercompany documentada','DOC-001','maker@test','now')");
+ assert.throws(()=>db.exec("UPDATE consolidation_runs SET status='Aprovado',adjustment_total_minor=-1,reported_total_minor=29999,approval_hash='wrong' WHERE id='r1'"),/invalid consolidation run transition/);
+ db.exec("UPDATE consolidation_runs SET status='Aprovado',adjustment_total_minor=-5000,reported_total_minor=25000,approved_by='checker@test',approved_at='later',approval_hash='approval-hash' WHERE id='r1'");
+ const approved=db.prepare("SELECT status,reported_total_minor FROM consolidation_runs WHERE id='r1'").get();
+ assert.equal(approved.status,'Aprovado');assert.equal(approved.reported_total_minor,25000);
+ db.close();
+});
