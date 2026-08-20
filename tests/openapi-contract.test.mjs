@@ -10,3 +10,4 @@ test("HCM read and write contracts declare sensitive-data permissions",()=>{asse
 test("Payroll reads including payslips require sensitive-data permission",()=>{assert.equal(spec.paths["/payroll"].get["x-permission"],"payroll:read");assert.equal(spec.paths["/payroll"].post["x-permission"],"payroll:write")});
 test("workflow inbox publishes its read permission",()=>{assert.equal(spec.paths["/workflow"].get["x-permission"],"workflow:read")});
 test("performance actions publish read and write permissions",()=>{assert.equal(spec.paths["/actions"].get["x-permission"],"action:read");assert.equal(spec.paths["/actions"].post["x-permission"],"action:write")});
+test("forecast scenarios publish explicit permissions",()=>{assert.equal(spec.paths["/scenarios"].get["x-permission"],"scenario:read");assert.equal(spec.paths["/scenarios"].post["x-permission"],"scenario:write")});

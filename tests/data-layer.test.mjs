@@ -107,6 +107,18 @@ test("performance actions enforce tenant owner workflow evidence and retention",
  db.close();
 });
 
+test("forecast scenarios keep versions sources and entries governed",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'),('t2','now','Tenant 2','tenant-2','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'),('o2','t2','now','ROOT','Org 2','Empresa','AOA','Ativa'); INSERT INTO planning_versions VALUES ('v1','t1','Forecast Q4','Forecast',2026,NULL,'Rascunho','fp@test','now',NULL,NULL)");
+ assert.throws(()=>db.exec("INSERT INTO planning_entries VALUES ('x','t1','v1','o2','2026-08','AOA','REV','Receita',NULL,100,NULL,'fp@test','now')"),/invalid planning entry reference or closed version/);
+ db.exec("INSERT INTO planning_entries VALUES ('e1','t1','v1','o1','2026-08','AOA','REV','Receita',NULL,100,'Crescimento contratual','fp@test','now')");
+ assert.throws(()=>db.exec("UPDATE planning_entries SET amount_minor=200 WHERE id='e1'"),/planning entries are append only/);
+ assert.throws(()=>db.exec("UPDATE planning_versions SET status='Arquivado' WHERE id='v1'"),/invalid planning version transition/);
+ db.exec("UPDATE planning_versions SET status='Aprovado',approved_by='manager@test',approved_at='later' WHERE id='v1'");
+ assert.throws(()=>db.exec("INSERT INTO planning_entries VALUES ('e2','t1','v1','o1','2026-09','AOA','REV','Receita',NULL,120,NULL,'fp@test','later')"),/invalid planning entry reference or closed version/);
+ db.close();
+});
+
 test("reference migration protects every vertical-slice boundary",()=>{
  for(const phrase of ["organization outside tenant","dimension reference outside tenant","performance reference outside tenant","salary reference outside tenant","payroll assignment outside tenant","payroll scope outside tenant","payroll line outside tenant","workforce reference outside tenant","report version outside tenant","report scope outside tenant"])
   assert.match(referenceMigration,new RegExp(phrase));

@@ -17,6 +17,7 @@ export const openApiDocument={
   "/setup":{get:read("Read organizations users employees and dimensions","Setup"),post:write("Write setup","Setup","setup:write")},
   "/hcm":{get:{...read("Read employee master, contracts and absences","HCM"),"x-permission":"hcm:read"},post:write("Manage contracts, absence configuration, balances and decisions","HCM","hcm:write")},
   "/performance":{get:{...read("Read Actual and Budget","Performance"),parameters:[{$ref:"#/components/parameters/Period"},{$ref:"#/components/parameters/Currency"},{$ref:"#/components/parameters/Version"}]},post:write("Create or approve performance","Performance","performance:write")},
+  "/scenarios":{get:{...read("Read Forecast and scenario versions with comparisons","Performance"),"x-permission":"scenario:read"},post:write("Create, populate or approve a planning version","Performance","scenario:write")},
   "/payroll":{get:{...read("Read payroll, payslips and payment batches","Payroll"),"x-permission":"payroll:read"},post:write("Configure, calculate, issue documents or transition payment batches","Payroll","payroll:write")},
   "/workforce":{get:read("Read workforce cost","Workforce"),post:write("Post closed payroll to workforce","Workforce","workforce:write")},
   "/dashboard":{get:read("Read executive dashboard","Reporting")},
