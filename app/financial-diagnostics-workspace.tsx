@@ -80,6 +80,9 @@ type Data = {
     framework_name: string;
     framework_status: string;
   }>;
+  reports: Array<{id:string;report_number:number;title:string;status:string;input_hash:string;issued_by:string;issued_at:string;payload_json:string}>;
+  actions: Array<{id:string;result_id:string;metric_label:string;title:string;owner_email:string;due_date:string;priority:string;status:string;completion_evidence?:string}>;
+  owners: Array<{email:string;name:string;role:string}>;
   metricDefinitions: Array<{ code: string; label: string; formula: string }>;
   roles: Array<{
     id: string;
@@ -126,6 +129,9 @@ const empty: Data = {
   businessProfile: null,
   availableSectors: [],
   installations: [],
+  reports: [],
+  actions: [],
+  owners: [],
   metricDefinitions: [],
   roles: [],
   lines: [],
@@ -213,6 +219,9 @@ export function FinancialDiagnosticsWorkspace() {
       type: modal,
       frameworkId: context || selected,
       caseId: context || selectedCase,
+      runId: selected,
+      resultId: modal === "createImprovementAction" ? context : "",
+      actionId: modal === "completeImprovementAction" ? context : "",
       ...(Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<
         string,
         string
@@ -358,6 +367,11 @@ export function FinancialDiagnosticsWorkspace() {
                     <div>
                       <b>{x.severity}: </b>
                       {x.recommendation}
+                      {run?.status === "Aprovado" && (
+                        <button onClick={() => {setContext(x.id);setModal("createImprovementAction")}}>
+                          Criar ação
+                        </button>
+                      )}
                     </div>
                   )}
                 </section>
@@ -389,6 +403,12 @@ export function FinancialDiagnosticsWorkspace() {
                 Aprovar diagnóstico
               </button>
             )}
+            {run?.status === "Aprovado" && !data.reports.length && (
+              <button onClick={() => command({type:"issueDiagnosticReport",runId:run.id})}>
+                Emitir relatório formal
+              </button>
+            )}
+            {data.reports.map(report=><section key={report.id} className="dg-issued"><b>Relatório #{report.report_number} · {report.status}</b><small>{report.title}</small><code>{report.input_hash}</code></section>)}
             <dl>
               <dt>Input hash</dt>
               <dd>
@@ -397,6 +417,7 @@ export function FinancialDiagnosticsWorkspace() {
               <dt>Estado</dt>
               <dd>{run?.status || "—"}</dd>
             </dl>
+            {data.actions.length>0&&<section className="dg-actions"><h3>Plano de melhoria</h3>{data.actions.map(action=><article key={action.id}><b>{action.title}</b><small>{action.metric_label} · {action.owner_email} · até {action.due_date}</small><em>{action.priority} · {action.status}</em>{action.status==="Aberta"&&<button onClick={()=>command({type:"transitionImprovementAction",actionId:action.id,status:"Em curso",runId:run!.id})}>Iniciar</button>}{action.status==="Em curso"&&<button onClick={()=>{setContext(action.id);setModal("completeImprovementAction")}}>Concluir</button>}</article>)}</section>}
           </aside>
         </div>
       ) : view === "Investimento" ? (
@@ -678,11 +699,15 @@ function title(x: string) {
         createInvestmentCase: "Novo caso de investimento",
         addCashFlow: "Adicionar cash-flow",
         applyIndustryPack: "Contexto e Industry Pack",
+        createImprovementAction: "Nova ação de melhoria",
+        completeImprovementAction: "Concluir ação com evidência",
       } as Record<string, string>
     )[x] || x
   );
 }
 function ModalFields({ type, data }: { type: string; data: Data }) {
+  if(type==="createImprovementAction")return <><label>Ação<input name="title" minLength={5} required placeholder="Ex.: Reduzir prazo médio de cobrança"/></label><label>Responsável<select name="ownerEmail" required><option value="">Selecionar</option>{data.owners.map(x=><option key={x.email} value={x.email}>{x.name} · {x.role}</option>)}</select></label><div><label>Prazo<input name="dueDate" type="date" required/></label><label>Prioridade<select name="priority"><option>Média</option><option>Alta</option><option>Crítica</option><option>Baixa</option></select></label></div></>;
+  if(type==="completeImprovementAction")return <label>Evidência de conclusão<textarea name="evidence" minLength={10} rows={4} required placeholder="Descreva o resultado e indique a evidência verificável."/><input type="hidden" name="status" value="Concluída"/></label>;
   if (type === "applyIndustryPack")
     return (
       <>

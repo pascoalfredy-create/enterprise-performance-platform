@@ -128,6 +128,9 @@ export async function financialDiagnosticsApi(
         businessProfile,
         availableSectors,
         installations,
+        reports,
+        actions,
+        owners,
       ] = await Promise.all([
         db
           .prepare(
@@ -226,6 +229,13 @@ export async function financialDiagnosticsApi(
           )
           .bind(tenant)
           .all(),
+        runId
+          ? db.prepare("SELECT * FROM diagnostic_management_reports WHERE tenant_id=? AND run_id=? ORDER BY issued_at DESC").bind(tenant,runId).all()
+          : Promise.resolve({ results: [] }),
+        runId
+          ? db.prepare("SELECT a.*,r.metric_label FROM diagnostic_improvement_actions a JOIN diagnostic_results r ON r.id=a.result_id AND r.tenant_id=a.tenant_id WHERE a.tenant_id=? AND a.run_id=? ORDER BY CASE a.status WHEN 'Em curso' THEN 1 WHEN 'Aberta' THEN 2 ELSE 3 END,a.due_date").bind(tenant,runId).all()
+          : Promise.resolve({ results: [] }),
+        db.prepare("SELECT email,name,role FROM platform_users WHERE tenant_id=? AND status='Ativo' ORDER BY name").bind(tenant).all(),
       ]);
       return {
         metricDefinitions: metricDefinitions.map((x) => ({
@@ -248,6 +258,9 @@ export async function financialDiagnosticsApi(
         businessProfile,
         availableSectors: availableSectors.results,
         installations: installations.results,
+        reports: reports.results,
+        actions: actions.results,
+        owners: owners.results,
       };
     };
     if (request.method === "GET") return Response.json(await snapshot());
@@ -785,6 +798,46 @@ export async function financialDiagnosticsApi(
         .bind(security.email, now, hash, body.runId, tenant)
         .run();
       entityId = body.runId;
+    } else if (body.type === "issueDiagnosticReport") {
+      const run = await db.prepare("SELECT r.*,o.name organization_name,f.name framework_name FROM diagnostic_runs r JOIN organizations o ON o.id=r.organization_id AND o.tenant_id=r.tenant_id JOIN diagnostic_frameworks f ON f.id=r.framework_id AND f.tenant_id=r.tenant_id WHERE r.id=? AND r.tenant_id=? AND r.status='Aprovado' AND (? IS NULL OR r.organization_id=?)").bind(body.runId,tenant,scope,scope).first<Record<string,unknown>>();
+      if(!run)return Response.json({error:"A emissão exige um diagnóstico aprovado."},{status:409});
+      const existing=await db.prepare("SELECT id FROM diagnostic_management_reports WHERE tenant_id=? AND run_id=?").bind(tenant,body.runId).first<Record<string,unknown>>();
+      if(existing){entityId=body.runId;return Response.json(await snapshot())}
+      const [diagnosticResults,previous,profile,sequence]=await Promise.all([
+        db.prepare("SELECT * FROM diagnostic_results WHERE tenant_id=? AND run_id=? ORDER BY score_bps,metric_code").bind(tenant,body.runId).all<Record<string,unknown>>(),
+        db.prepare("SELECT overall_score_bps,period FROM diagnostic_runs WHERE tenant_id=? AND organization_id=? AND status='Aprovado' AND period<? ORDER BY period DESC,run_number DESC LIMIT 1").bind(tenant,run.organization_id,run.period).first<Record<string,unknown>>(),
+        db.prepare("SELECT b.core_business,s.name sector_name,p.name pack_name FROM tenant_business_profiles b JOIN industry_sectors s ON s.code=b.sector_code JOIN industry_packs p ON p.code=b.industry_pack_code WHERE b.tenant_id=?").bind(tenant).first<Record<string,unknown>>(),
+        db.prepare("SELECT COALESCE(MAX(report_number),0)+1 n FROM diagnostic_management_reports WHERE tenant_id=?").bind(tenant).first<Record<string,unknown>>(),
+      ]);
+      const critical=diagnosticResults.results.filter(x=>x.severity==="Crítica"),attention=diagnosticResults.results.filter(x=>x.severity==="Atenção"),recommendations=diagnosticResults.results.filter(x=>x.recommendation).map(x=>({metric:x.metric_label,severity:x.severity,recommendation:x.recommendation}));
+      const payload={
+        resultado:{score_bps:run.overall_score_bps,estado:run.status,periodo:run.period,framework:run.framework_name},
+        comparacao:previous?{periodo_anterior:previous.period,score_anterior_bps:previous.overall_score_bps,variacao_bps:Number(run.overall_score_bps)-Number(previous.overall_score_bps)}:null,
+        causa:{criticos:critical.map(x=>({metrica:x.metric_label,valor:x.value_scaled,score_bps:x.score_bps})),atencao:attention.map(x=>x.metric_label)},
+        impacto:{nivel:critical.length?"Elevado":attention.length?"Moderado":"Controlado",indicadores_afetados:critical.length+attention.length},
+        perspetiva:{setor:profile?.sector_name||"Não definido",core_business:profile?.core_business||"Não definido",industry_pack:profile?.pack_name||"Framework próprio"},
+        recomendacao:recommendations,
+        evidencia:{run_input_hash:run.input_hash,run_approval_hash:run.approval_hash,generated_at:now},
+      };
+      entityId=uid();entityType="diagnosticReport";
+      const reportHash=await sha(JSON.stringify(payload));
+      await db.prepare("INSERT INTO diagnostic_management_reports VALUES (?,?,?,?,?,'Emitido',?,?,?,?)").bind(entityId,tenant,body.runId,Number(sequence?.n||1),body.title?.trim()||`Relatório de Diagnóstico · ${run.organization_name} · ${run.period}`,JSON.stringify(payload),reportHash,security.email,now).run();
+    } else if (body.type === "createImprovementAction") {
+      if(!body.runId||!body.resultId||!body.title?.trim()||body.title.trim().length<5||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(body.dueDate||"")||!["Baixa","Média","Alta","Crítica"].includes(body.priority))return Response.json({error:"Resultado, ação, responsável, prazo e prioridade válidos são obrigatórios."},{status:400});
+      const source=await db.prepare("SELECT d.*,r.organization_id FROM diagnostic_results d JOIN diagnostic_runs r ON r.id=d.run_id AND r.tenant_id=d.tenant_id WHERE d.id=? AND d.run_id=? AND d.tenant_id=? AND r.status='Aprovado' AND (? IS NULL OR r.organization_id=?)").bind(body.resultId,body.runId,tenant,scope,scope).first<Record<string,unknown>>();
+      const owner=await db.prepare("SELECT email FROM platform_users WHERE tenant_id=? AND lower(email)=lower(?) AND status='Ativo'").bind(tenant,body.ownerEmail||"").first();
+      if(!source||!owner)return Response.json({error:"Resultado aprovado ou responsável ativo não encontrado."},{status:404});
+      entityId=uid();entityType="diagnosticAction";
+      await db.prepare("INSERT INTO diagnostic_improvement_actions VALUES (?,?,?,?,?,?,?,?,?,?,'Aberta',NULL,?,?,?,NULL)").bind(entityId,tenant,body.runId,body.resultId,source.organization_id,body.title.trim(),source.recommendation||"Recomendação definida pelo gestor",body.ownerEmail.toLowerCase(),body.dueDate,body.priority,security.email,now,now).run();
+    } else if (body.type === "transitionImprovementAction") {
+      const action=await db.prepare("SELECT * FROM diagnostic_improvement_actions WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)").bind(body.actionId,tenant,scope,scope).first<Record<string,unknown>>();
+      if(!action)return Response.json({error:"Ação de melhoria não encontrada."},{status:404});
+      if(String(action.owner_email).toLowerCase()!==security.email.toLowerCase()&&!['Administrador','Financeiro'].includes(security.role))return Response.json({error:"Apenas o responsável ou a gestão financeira pode transitar a ação."},{status:403});
+      const allowed:Record<string,string[]>={Aberta:["Em curso","Cancelada"],"Em curso":["Concluída","Cancelada"]};
+      if(!allowed[String(action.status)]?.includes(body.status))return Response.json({error:"Transição de estado inválida."},{status:409});
+      if(body.status==="Concluída"&&(!body.evidence?.trim()||body.evidence.trim().length<10))return Response.json({error:"A conclusão exige evidência com pelo menos 10 caracteres."},{status:400});
+      entityId=body.actionId;entityType="diagnosticAction";
+      await db.prepare("UPDATE diagnostic_improvement_actions SET status=?,completion_evidence=?,updated_at=?,completed_at=? WHERE id=? AND tenant_id=? AND status=?").bind(body.status,body.status==="Concluída"?body.evidence.trim():null,now,body.status==="Concluída"?now:null,body.actionId,tenant,action.status).run();
     } else if (body.type === "createInvestmentCase") {
       const org = scope || body.organizationId,
         currency = body.currency?.trim().toUpperCase(),
@@ -1001,7 +1054,7 @@ export async function financialDiagnosticsApi(
       .run();
     return financialDiagnosticsApi(
       new Request(
-        `${url.origin}${url.pathname}?${entityType === "investmentCase" ? `case=${entityId}` : `run=${entityId}`}`,
+        `${url.origin}${url.pathname}?${entityType === "investmentCase" ? `case=${entityId}` : `run=${body.runId || entityId}`}`,
         { method: "GET", headers: request.headers },
       ),
       db,
