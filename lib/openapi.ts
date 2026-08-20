@@ -26,6 +26,7 @@ export const openApiDocument={
   "/workflow":{get:{...read("Read unified decision inbox and history","Control"),"x-permission":"workflow:read"}},
   "/actions":{get:{...read("Read governed performance action plans","Performance"),"x-permission":"action:read"},post:write("Create or transition a performance action plan","Performance","action:write")},
   "/goals":{get:{...read("Read performance cycles goals and progress","Performance"),"x-permission":"goal:read"},post:write("Create activate check in or complete performance goals","Performance","goal:write")},
+  "/reviews":{get:{...read("Read performance reviews calibration and development plans","Performance"),"x-permission":"review:read"},post:write("Run governed performance review commands","Performance","review:write")},
   "/integrity":{get:{...read("Run vertical slice controls","Control"),"x-permission":"integrity:read"}},
   "/openapi.json":{get:{summary:"OpenAPI document",tags:["Control"],responses:{"200":{description:"OpenAPI 3.1 document"}}}},
  },

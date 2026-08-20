@@ -131,6 +131,20 @@ test("performance goals activate with cycle and require append-only target evide
  assert.equal(db.prepare("SELECT status FROM performance_goals WHERE id='g1'").get().status,"Concluído");db.close();
 });
 
+test("performance reviews preserve goal evidence and enforce segregated workflow",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO platform_users VALUES ('u1','t1','now','Ana','ana@test','Financeiro','o1','Ativo'),('u2','t1','now','Mário','mario@test','Gestor','o1','Ativo'),('u3','t1','now','Rita','rita@test','Recursos Humanos','o1','Ativo'); INSERT INTO performance_cycles VALUES ('c1','t1','Ciclo 2026','2026-01-01','2026-12-31','Rascunho','admin@test','now',NULL,NULL,NULL); INSERT INTO performance_goals VALUES ('g1','t1','c1','o1','ana@test','Margem',NULL,'Margem','%', 'Aumentar',1000,2000,100,10000,'Rascunho','admin@test','now',NULL); UPDATE performance_cycles SET status='Ativo',activated_by='admin2@test',activated_at='later' WHERE id='c1'; INSERT INTO performance_goal_checkins VALUES ('ci1','t1','g1',1800,'Evidência',NULL,'ana@test','2026-08-01')");
+ db.exec("INSERT INTO performance_reviews (id,tenant_id,cycle_id,organization_id,subject_email,reviewer_email,status,created_by,created_at) VALUES ('r1','t1','c1','o1','ana@test','mario@test','Aguardando autoavaliação','rh@test','now')");
+ db.exec("UPDATE performance_reviews SET status='Aguardando gestor',self_competency_bps=6000,self_comment='Autoavaliação submetida',self_submitted_at='self' WHERE id='r1'");
+ assert.throws(()=>db.exec("UPDATE performance_reviews SET status='Calibração',goal_score_bps=8000,manager_competency_bps=8000,manager_comment='Gestor',manager_submitted_at='manager',final_score_bps=8000 WHERE id='r1'"),/invalid performance review transition/);
+ db.exec("INSERT INTO performance_review_goal_snapshots VALUES ('s1','t1','r1','g1',8000,10000,1800,'manager'); UPDATE performance_reviews SET status='Calibração',goal_score_bps=8000,manager_competency_bps=8000,manager_comment='Avaliação do gestor',manager_submitted_at='manager',final_score_bps=8000 WHERE id='r1'");
+ assert.throws(()=>db.exec("UPDATE performance_review_goal_snapshots SET progress_bps=9000 WHERE id='s1'"),/review goal snapshots are immutable/);
+ db.exec("UPDATE performance_reviews SET status='Finalizada',calibrated_competency_bps=10000,calibration_reason='Calibração independente documentada',final_score_bps=8800,calibrated_by='rita@test',calibrated_at='final' WHERE id='r1'; INSERT INTO performance_development_items (id,tenant_id,review_id,title,owner_email,due_date,status,created_by,created_at) VALUES ('d1','t1','r1','Formação','ana@test','2026-12-01','Aberta','rita@test','final')");
+ assert.throws(()=>db.exec("UPDATE performance_development_items SET status='Concluída',completed_at='done' WHERE id='d1'"),/invalid development item transition/);
+ db.exec("UPDATE performance_development_items SET status='Concluída',completion_evidence='Certificado emitido',completed_at='done' WHERE id='d1'");
+ assert.equal(db.prepare("SELECT final_score_bps FROM performance_reviews WHERE id='r1'").get().final_score_bps,8800);db.close();
+});
+
 test("reference migration protects every vertical-slice boundary",()=>{
  for(const phrase of ["organization outside tenant","dimension reference outside tenant","performance reference outside tenant","salary reference outside tenant","payroll assignment outside tenant","payroll scope outside tenant","payroll line outside tenant","workforce reference outside tenant","report version outside tenant","report scope outside tenant"])
   assert.match(referenceMigration,new RegExp(phrase));
