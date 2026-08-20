@@ -20,3 +20,4 @@ test("financial modelling contract declares read and write permissions",()=>{ass
 test("financial ingestion contract declares read and write permissions",()=>{assert.equal(spec.paths["/financial-data"].get["x-permission"],"financial-data:read");assert.equal(spec.paths["/financial-data"].post["x-permission"],"financial-data:write")});
 test("diagnostics contract declares read and write permissions",()=>{assert.equal(spec.paths["/financial-diagnostics"].get["x-permission"],"diagnostic:read");assert.equal(spec.paths["/financial-diagnostics"].post["x-permission"],"diagnostic:write")});
 test("headcount planning declares governed workforce writes",()=>{assert.equal(spec.paths["/workforce-plans"].post["x-permission"],"workforce:write")});
+test("recruitment uses sensitive HCM permissions",()=>{assert.equal(spec.paths["/recruitment"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/recruitment"].post["x-permission"],"hcm:write")});

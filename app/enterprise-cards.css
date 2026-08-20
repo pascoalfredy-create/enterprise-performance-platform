@@ -1,0 +1,4 @@
+:root{--card-text-sm:12px;--card-text-md:14px;--card-text-lg:16px}
+.cartao :where(small,code,dt),[class$="-kpis"] article :where(span,small),.resumo article :where(span,small,p){font-size:var(--card-text-sm)!important;line-height:1.45}
+.cartao :where(p,span,td,th,label,input,select,textarea,button,em,b,dd),[class$="-kpis"] article{font-size:var(--card-text-md)!important;line-height:1.45}
+.cartao :where(h2,h3,strong),[class$="-kpis"] article strong,.resumo article strong{font-size:var(--card-text-lg)!important;line-height:1.35}
