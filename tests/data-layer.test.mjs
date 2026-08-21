@@ -40,6 +40,17 @@ test("all formal migrations apply to a clean database and enforce invariants",()
  db.close();
 });
 
+test("governed workflow tasks preserve ownership transitions and completion evidence",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO platform_users VALUES ('u1','t1','now','Ana','ana@test','Gestor','o1','Ativo'); INSERT INTO workflow_tasks (id,tenant_id,organization_id,source_domain,source_id,source_target,title,detail,priority,assignee_email,due_at,status,created_by,created_at,updated_at) VALUES ('w1','t1','o1','HCM','d1','Documentos HCM','Rever documento','Ana · BI','Alta','ana@test','2026-09-01','Aberta','ana@test','now','now')");
+ assert.throws(()=>db.exec("UPDATE workflow_tasks SET assignee_email='outro@test' WHERE id='w1'"),/invalid workflow task transition/);
+ assert.throws(()=>db.exec("UPDATE workflow_tasks SET status='Concluída',completed_at='now' WHERE id='w1'"),/completion evidence is required/);
+ db.exec("UPDATE workflow_tasks SET status='Em curso',updated_at='later' WHERE id='w1'; UPDATE workflow_tasks SET status='Concluída',updated_at='end',completed_at='end',completion_evidence='Documento validado' WHERE id='w1'");
+ assert.equal(db.prepare("SELECT status FROM workflow_tasks WHERE id='w1'").get().status,"Concluída");
+ assert.throws(()=>db.exec("DELETE FROM workflow_tasks WHERE id='w1'"),/workflow tasks cannot be deleted/);
+ db.close();
+});
+
 test("database rejects cross-tenant references",()=>{
  const db=migratedDatabase();
  db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'),('t2','now','Tenant 2','tenant-2','Ativo')");

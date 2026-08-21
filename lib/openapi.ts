@@ -36,7 +36,7 @@ export const openApiDocument={
   "/management-reports":{get:read("Read report versions","Reporting"),post:write("Generate immutable management report","Reporting","reports:write")},
   "/readiness":{get:read("Evaluate operational prerequisites by contracted engine","Control")},
   "/workflow":{get:{...read("Read unified decision inbox and history","Control"),"x-permission":"workflow:read"}},
-  "/notifications":{get:{...read("Read actionable alerts derived from governed engines","Control"),"x-permission":"workflow:read"}},
+  "/notifications":{get:{...read("Read actionable alerts derived from governed engines","Control"),"x-permission":"workflow:read"},post:write("Claim or transition a governed alert task","Control","workflow:write")},
   "/actions":{get:{...read("Read governed performance action plans","Performance"),"x-permission":"action:read"},post:write("Create or transition a performance action plan","Performance","action:write")},
   "/goals":{get:{...read("Read performance cycles goals and progress","Performance"),"x-permission":"goal:read"},post:write("Create activate check in or complete performance goals","Performance","goal:write")},
   "/reviews":{get:{...read("Read performance reviews calibration and development plans","Performance"),"x-permission":"review:read"},post:write("Run governed performance review commands","Performance","review:write")},

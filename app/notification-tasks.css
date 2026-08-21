@@ -1,0 +1,6 @@
+.notification-summary{grid-template-columns:repeat(4,1fr)}
+.notification-list mark{display:inline-block;margin-top:5px;padding:3px 7px;border-radius:8px;background:#eaf7f2;color:#0f6e56}
+.notification-actions{display:grid;gap:5px}
+.notification-actions button{border:0;background:transparent;color:#3158d4;font-weight:800;white-space:nowrap}
+.notification-actions button:first-child{padding:6px 9px;border-radius:8px;background:#eaf7f2;color:#0f6e56}
+@media(max-width:520px){.notification-summary{grid-template-columns:repeat(2,1fr)}}
