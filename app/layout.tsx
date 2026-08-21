@@ -3,7 +3,7 @@ import "./globals.css";
 import "./theme.css";
 import "./ui-typography.css";
 import "./enterprise-layout.css";
-import "./visual-refresh.css";
+import "./navigation-refresh.css";
 
 export const metadata: Metadata = {
   title: "Enterprise Performance Platform",
