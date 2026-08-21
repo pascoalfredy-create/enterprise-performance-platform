@@ -24,6 +24,7 @@ import { employeeDocumentsApi } from "./employee-documents";
 interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
+  BUCKET: R2Bucket;
   NEXT_PUBLIC_SUPABASE_URL?: string;
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?: string;
   IMAGES: {
@@ -516,7 +517,7 @@ const worker = {
       if (apiPath === "/api/hcm") return hcmApi(request,env.DB,tenantId,organizationId);
       if (apiPath === "/api/recruitment") return recruitmentApi(request,env.DB,security);
       if (apiPath === "/api/attendance") return attendanceApi(request,env.DB,security);
-      if (apiPath === "/api/employee-documents") return employeeDocumentsApi(request,env.DB,security);
+      if (apiPath === "/api/employee-documents") return employeeDocumentsApi(request,env.DB,env.BUCKET,security);
       if (apiPath === "/api/payroll-loans") return payrollLoansApi(request,env.DB,security);
       if (apiPath === "/api/payroll-adjustments") return payrollAdjustmentsApi(request,env.DB,security);
       if (apiPath === "/api/performance") return performanceApi(request, env.DB,tenantId,organizationId);
