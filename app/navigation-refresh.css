@@ -43,15 +43,17 @@ body.ui-scale,.ui-scale .site{background:var(--nav-canvas);color:var(--nav-ink)}
 .ui-scale .module-sidebar>footer{display:none}
 
 /* Nearly full-screen workspace with controlled reading width inside cards. */
-.ui-scale .module-content{width:100%;max-width:none;margin:0;padding:30px clamp(24px,3vw,52px) 56px;min-height:calc(100vh - 190px)}
-.ui-scale :where(.executivo,.configuracao,.people-workspace,.payroll,.workforce,.reports,.workflow,.actions,.scenarios,.goals,.reviews,.competency,.consolidation,.financial-models,.financial-data,.diagnostics,.attendance,.loans,.adjustments,.recruitment){width:100%;max-width:1760px;margin-inline:auto}
+.ui-scale .module-content{width:100%;max-width:none;margin:0;padding:28px clamp(20px,2.5vw,44px) 52px;min-height:calc(100vh - 190px)}
+.ui-scale :where(.executivo,.configuracao,.people-workspace,.payroll,.workforce,.reports,.workflow,.actions,.scenarios,.goals,.reviews,.competency,.consolidation,.financial-models,.financial-data,.diagnostics,.attendance,.loans,.adjustments,.recruitment){width:100%;max-width:1880px;margin-inline:auto}
 
 /* More breathing room without oversized cards. */
-.ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis){gap:16px!important;margin-block:20px 18px!important}
-.ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis)>article{min-height:118px!important;padding:17px 18px!important;border-radius:15px!important;box-shadow:0 5px 18px rgba(23,32,51,.05)}
+.ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis){gap:14px!important;margin-block:18px 16px!important}
+.ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis)>article{min-height:112px!important;padding:16px 17px!important;border-radius:15px!important;box-shadow:0 5px 18px rgba(23,32,51,.05)}
 .ui-scale.ui-scale.ui-scale :where(.cartao,.platform-table,.subscription-grid>article){border-radius:16px!important;box-shadow:0 5px 20px rgba(23,32,51,.05)}
-.ui-scale.ui-scale.ui-scale .cartao>.cab{min-height:50px;margin-bottom:16px;padding-bottom:14px}
-.ui-scale :where(.exec-grid,.people-grid,.pay-grid,.perf-grid,.wf-grid,.actions-grid,.goals-grid,.scenario-grid,.workflow-grid,.review-layout,.dg-grid,.fd-grid,.fm-grid,.consolidation-grid){gap:18px!important}
+.ui-scale.ui-scale.ui-scale .cartao>.cab{min-height:46px;margin-bottom:14px;padding-bottom:12px}
+.ui-scale :where(.exec-grid,.people-grid,.pay-grid,.perf-grid,.wf-grid,.actions-grid,.goals-grid,.scenario-grid,.workflow-grid,.review-layout,.dg-grid,.fd-grid,.fm-grid,.consolidation-grid){gap:16px!important}
+.ui-scale :where(.exec-grid,.people-grid,.pay-grid,.perf-grid,.wf-grid,.actions-grid,.goals-grid,.scenario-grid,.workflow-grid,.review-layout,.dg-grid,.fd-grid,.fm-grid,.consolidation-grid)>*{align-self:stretch}
+.ui-scale :where(.cartao)>:last-child{margin-bottom:0}
 
 @media(max-width:1320px){
  .ui-scale .module-sidebar{grid-template-columns:auto minmax(0,1fr)}
