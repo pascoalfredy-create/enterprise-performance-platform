@@ -1,0 +1,117 @@
+:root{
+ --ui-card-radius:16px;
+ --ui-card-padding:20px;
+ --ui-card-gap:16px;
+ --ui-card-border:#dde5ec;
+ --ui-card-shadow:0 8px 24px rgba(18,43,78,.07);
+ --ui-card-shadow-hover:0 12px 30px rgba(18,43,78,.11);
+}
+
+.ui-scale.ui-scale.ui-scale :where(.cartao,.auth-card,.modal-card,.usage-card,.order-card,.success-card,.payment-method,.payment-summary,.platform-table,.subscription-grid>article,.change-list,.operator-list,.audit-list){
+ box-sizing:border-box;
+ min-width:0;
+ background:#fff;
+ border:1px solid var(--ui-card-border);
+ border-radius:var(--ui-card-radius);
+ box-shadow:var(--ui-card-shadow);
+}
+
+.ui-scale.ui-scale.ui-scale :where(.cartao,.usage-card,.order-card,.payment-method,.payment-summary,.subscription-grid>article){
+ padding:var(--ui-card-padding);
+}
+
+.ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis){
+ display:grid!important;
+ grid-template-columns:repeat(auto-fit,minmax(205px,1fr))!important;
+ align-items:stretch!important;
+ gap:var(--ui-card-gap)!important;
+ margin-block:16px!important;
+}
+
+.ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis)>article{
+ box-sizing:border-box;
+ display:grid!important;
+ grid-template-rows:auto minmax(28px,1fr) auto;
+ align-content:start;
+ min-width:0;
+ min-height:124px!important;
+ height:100%;
+ padding:18px!important;
+ overflow:hidden;
+ background:#fff;
+ border:1px solid var(--ui-card-border)!important;
+ border-radius:var(--ui-card-radius)!important;
+ box-shadow:var(--ui-card-shadow);
+}
+
+.ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis)>article>span,
+.ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis)>article>small{
+ display:block;
+ max-width:100%;
+ overflow:hidden;
+ text-overflow:ellipsis;
+}
+
+.ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis)>article>strong{
+ align-self:center;
+ display:block;
+ max-width:100%;
+ margin:10px 0 8px!important;
+ overflow-wrap:anywhere;
+ color:#132d52;
+}
+
+.ui-scale.ui-scale.ui-scale .cartao>.cab{
+ display:flex;
+ min-height:48px;
+ align-items:center;
+ justify-content:space-between;
+ gap:16px;
+ margin:0 0 14px;
+ padding:0 0 14px;
+ border-bottom:1px solid #e8edf2;
+}
+
+.ui-scale.ui-scale.ui-scale .cartao>.cab :where(h2,h3,p){margin:4px 0 0}
+.ui-scale.ui-scale.ui-scale .cartao>.cab>div{min-width:0;flex:1}
+.ui-scale.ui-scale.ui-scale .cartao>.cab>button{flex:0 0 auto;white-space:nowrap}
+
+.ui-scale.ui-scale.ui-scale :where(.exec-grid,.people-grid,.pay-grid,.perf-grid,.wf-grid,.actions-grid,.goals-grid,.scenario-grid,.workflow-grid,.review-layout,.dg-grid,.dg-method,.fd-grid,.fm-grid,.consolidation-grid,.attendance-config,.checkout-layout,.payment-grid){
+ align-items:stretch!important;
+ gap:var(--ui-card-gap)!important;
+}
+
+.ui-scale.ui-scale.ui-scale :where(.exec-grid,.people-grid,.pay-grid,.perf-grid,.wf-grid,.actions-grid,.goals-grid,.scenario-grid,.workflow-grid,.review-layout,.dg-grid,.dg-method,.fd-grid,.fm-grid,.consolidation-grid,.attendance-config,.checkout-layout,.payment-grid)>*{
+ min-width:0;
+ height:100%;
+}
+
+.ui-scale.ui-scale.ui-scale :where(.pay-row,.pay-run,.contract-row,.action-row,.goal-row,.scenario-row,.workflow-row,.review-row,.attendance-list>section,.loan-list>section,.adjustment-list>section,.talent-list>section){
+ box-sizing:border-box;
+ min-width:0;
+ min-height:68px;
+ column-gap:14px!important;
+ padding-block:14px!important;
+}
+
+.ui-scale.ui-scale.ui-scale :where(.pay-row,.pay-run,.contract-row,.action-row,.goal-row,.scenario-row,.workflow-row,.review-row,.attendance-list>section,.loan-list>section,.adjustment-list>section,.talent-list>section)>:where(span,p,div){min-width:0}
+.ui-scale.ui-scale.ui-scale :where(.pay-row,.pay-run,.contract-row,.action-row,.goal-row,.scenario-row,.workflow-row,.review-row,.attendance-list>section,.loan-list>section,.adjustment-list>section,.talent-list>section) :where(b,small,p){overflow-wrap:anywhere}
+
+.ui-scale.ui-scale.ui-scale :where(button,.primario,.secundario){min-height:36px}
+.ui-scale.ui-scale.ui-scale :where(input,select,textarea){box-sizing:border-box;min-height:40px}
+
+.ui-scale.ui-scale.ui-scale :where(.cartao,[class$="-kpis"]>article,.pay-resumo>article,.platform-kpis>article){transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+@media(hover:hover){.ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis)>article:hover{border-color:#b8d8d1!important;box-shadow:var(--ui-card-shadow-hover);transform:translateY(-2px)}}
+
+@media(max-width:900px){
+ .ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis){grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .ui-scale.ui-scale.ui-scale :where(.cartao,.usage-card,.order-card,.payment-method,.payment-summary,.subscription-grid>article){padding:18px}
+}
+
+@media(max-width:560px){
+ :root{--ui-card-padding:16px;--ui-card-gap:12px;--ui-card-radius:14px}
+ .ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis){grid-template-columns:1fr!important}
+ .ui-scale.ui-scale.ui-scale :where([class$="-kpis"],.pay-resumo,.platform-kpis)>article{min-height:112px!important}
+ .ui-scale.ui-scale.ui-scale .cartao>.cab{align-items:flex-start;flex-direction:column}
+ .ui-scale.ui-scale.ui-scale .cartao>.cab>button{width:100%}
+}

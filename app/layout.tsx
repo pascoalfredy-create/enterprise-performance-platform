@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./theme.css";
 import "./ui-typography.css";
+import "./enterprise-layout.css";
 
 export const metadata: Metadata = {
   title: "Enterprise Performance Platform",
