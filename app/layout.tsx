@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./theme.css";
+import "./ui-typography.css";
 
 export const metadata: Metadata = {
   title: "Enterprise Performance Platform",
@@ -21,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased ui-scale">{children}</body>
     </html>
   );
 }

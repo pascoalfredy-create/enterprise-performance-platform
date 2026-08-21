@@ -1,0 +1,55 @@
+:root{
+ --ui-text-support:12px;
+ --ui-text-body:14px;
+ --ui-text-emphasis:16px;
+}
+
+/*
+ Enterprise base UI typography.
+ Triple class specificity intentionally supersedes legacy module styles while
+ preserving layout, spacing and the visual identity palette.
+ */
+.ui-scale.ui-scale.ui-scale,
+.ui-scale.ui-scale.ui-scale :where(*){
+ font-size:var(--ui-text-body)!important;
+ line-height:1.45;
+}
+
+.ui-scale.ui-scale.ui-scale :where(
+ small,code,kbd,sup,sub,
+ [class*="eyebrow"],[class*="badge"],[class*="meta"],
+ [class*="status"],[class*="tag"],[class*="hint"],
+ [class*="caption"],[class*="support"],
+ [class$="-kpis"] article>span,[class$="-kpis"] article>small,
+ .cab>div>span,.cab>em
+){
+ font-size:var(--ui-text-support)!important;
+ line-height:1.45;
+}
+
+.ui-scale.ui-scale.ui-scale :where(
+ h1,h2,h3,h4,h5,h6,strong,
+ [class$="-kpis"] article>strong,
+ [class*="resumo"] article>strong,
+ [class*="total"]>strong,
+ [class*="value"]
+){
+ font-size:var(--ui-text-emphasis)!important;
+ line-height:1.3;
+}
+
+.ui-scale.ui-scale.ui-scale :where(
+ p,label,input,select,textarea,button,a,
+ table,thead,tbody,tr,th,td,ul,ol,li,dl,dt,dd,
+ span,b,em,i
+){
+ line-height:1.45;
+}
+
+@media(max-width:600px){
+ .ui-scale.ui-scale.ui-scale,
+ .ui-scale.ui-scale.ui-scale :where(*){
+  text-size-adjust:100%;
+  -webkit-text-size-adjust:100%;
+ }
+}
