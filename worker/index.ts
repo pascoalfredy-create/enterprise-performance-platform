@@ -20,6 +20,7 @@ import { payrollLoansApi } from "./payroll-loans";
 import { payrollAdjustmentsApi } from "./payroll-adjustments";
 import { integrationsApi } from "./integrations";
 import { employeeDocumentsApi } from "./employee-documents";
+import { notificationsApi } from "./notifications";
 
 interface Env {
   ASSETS: Fetcher;
@@ -504,7 +505,7 @@ const worker = {
       const security=await securityContext(request,env.DB);if(security instanceof Response)return security;
       if(apiPath==="/api/session")return Response.json(security);
       if(apiPath==="/api/openapi.json")return Response.json(openApiDocument,{headers:{"cache-control":"public, max-age=300"}});
-      const write=request.method!=="GET",required:Permission|null=(apiPath==="/api/setup"||apiPath==="/api/tenants")&&write?"setup:write":["/api/hcm","/api/recruitment","/api/attendance","/api/employee-documents"].includes(apiPath)?(write?"hcm:write":"hcm:read"):["/api/payroll-loans","/api/payroll-adjustments"].includes(apiPath)?(write?"payroll:write":"payroll:read"):apiPath==="/api/performance"&&write?"performance:write":apiPath==="/api/scenarios"?(write?"scenario:write":"scenario:read"):apiPath==="/api/consolidation"?(write?"consolidation:write":"consolidation:read"):apiPath==="/api/financial-models"?(write?"financial-model:write":"financial-model:read"):apiPath==="/api/financial-data"?(write?"financial-data:write":"financial-data:read"):apiPath==="/api/integrations"?(write?"integration:write":"integration:read"):apiPath==="/api/financial-diagnostics"?(write?"diagnostic:write":"diagnostic:read"):apiPath==="/api/goals"?(write?"goal:write":"goal:read"):apiPath==="/api/reviews"?(write?"review:write":"review:read"):apiPath==="/api/competencies"?(write?"competency:write":"competency:read"):apiPath==="/api/actions"?(write?"action:write":"action:read"):apiPath==="/api/payroll"?(write?"payroll:write":"payroll:read"):(apiPath==="/api/workforce"||apiPath==="/api/workforce-plans")&&write?"workforce:write":apiPath==="/api/management-reports"&&write?"reports:write":apiPath==="/api/workflow"?"workflow:read":apiPath==="/api/integrity"?"integrity:read":null;
+      const write=request.method!=="GET",required:Permission|null=(apiPath==="/api/setup"||apiPath==="/api/tenants")&&write?"setup:write":["/api/hcm","/api/recruitment","/api/attendance","/api/employee-documents"].includes(apiPath)?(write?"hcm:write":"hcm:read"):["/api/payroll-loans","/api/payroll-adjustments"].includes(apiPath)?(write?"payroll:write":"payroll:read"):apiPath==="/api/performance"&&write?"performance:write":apiPath==="/api/scenarios"?(write?"scenario:write":"scenario:read"):apiPath==="/api/consolidation"?(write?"consolidation:write":"consolidation:read"):apiPath==="/api/financial-models"?(write?"financial-model:write":"financial-model:read"):apiPath==="/api/financial-data"?(write?"financial-data:write":"financial-data:read"):apiPath==="/api/integrations"?(write?"integration:write":"integration:read"):apiPath==="/api/financial-diagnostics"?(write?"diagnostic:write":"diagnostic:read"):apiPath==="/api/goals"?(write?"goal:write":"goal:read"):apiPath==="/api/reviews"?(write?"review:write":"review:read"):apiPath==="/api/competencies"?(write?"competency:write":"competency:read"):apiPath==="/api/actions"?(write?"action:write":"action:read"):apiPath==="/api/payroll"?(write?"payroll:write":"payroll:read"):(apiPath==="/api/workforce"||apiPath==="/api/workforce-plans")&&write?"workforce:write":apiPath==="/api/management-reports"&&write?"reports:write":["/api/workflow","/api/notifications"].includes(apiPath)?"workflow:read":apiPath==="/api/integrity"?"integrity:read":null;
       if(required&&!hasPermission(security.permissions,required))return denied(required);
       const tenantId=security.tenantId;
       const organizationId=security.organizationId;
@@ -518,6 +519,7 @@ const worker = {
       if (apiPath === "/api/recruitment") return recruitmentApi(request,env.DB,security);
       if (apiPath === "/api/attendance") return attendanceApi(request,env.DB,security);
       if (apiPath === "/api/employee-documents") return employeeDocumentsApi(request,env.DB,env.BUCKET,security);
+      if (apiPath === "/api/notifications") return notificationsApi(request,env.DB,security);
       if (apiPath === "/api/payroll-loans") return payrollLoansApi(request,env.DB,security);
       if (apiPath === "/api/payroll-adjustments") return payrollAdjustmentsApi(request,env.DB,security);
       if (apiPath === "/api/performance") return performanceApi(request, env.DB,tenantId,organizationId);

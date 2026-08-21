@@ -26,3 +26,4 @@ test("loans use sensitive payroll permissions",()=>{assert.equal(spec.paths["/pa
 test("retroactive adjustments use sensitive payroll permissions",()=>{assert.equal(spec.paths["/payroll-adjustments"].get["x-permission"],"payroll:read");assert.equal(spec.paths["/payroll-adjustments"].post["x-permission"],"payroll:write")});
 test("integration hub publishes explicit permissions",()=>{assert.equal(spec.paths["/integrations"].get["x-permission"],"integration:read");assert.equal(spec.paths["/integrations"].post["x-permission"],"integration:write")});
 test("employee documents use sensitive HCM permissions",()=>{assert.equal(spec.paths["/employee-documents"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/employee-documents"].post["x-permission"],"hcm:write")});
+test("notifications reuse governed workflow permission",()=>{assert.equal(spec.paths["/notifications"].get["x-permission"],"workflow:read")});
