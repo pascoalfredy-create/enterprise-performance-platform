@@ -24,3 +24,4 @@ test("recruitment uses sensitive HCM permissions",()=>{assert.equal(spec.paths["
 test("attendance uses sensitive HCM permissions",()=>{assert.equal(spec.paths["/attendance"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/attendance"].post["x-permission"],"hcm:write")});
 test("loans use sensitive payroll permissions",()=>{assert.equal(spec.paths["/payroll-loans"].get["x-permission"],"payroll:read");assert.equal(spec.paths["/payroll-loans"].post["x-permission"],"payroll:write")});
 test("retroactive adjustments use sensitive payroll permissions",()=>{assert.equal(spec.paths["/payroll-adjustments"].get["x-permission"],"payroll:read");assert.equal(spec.paths["/payroll-adjustments"].post["x-permission"],"payroll:write")});
+test("integration hub publishes explicit permissions",()=>{assert.equal(spec.paths["/integrations"].get["x-permission"],"integration:read");assert.equal(spec.paths["/integrations"].post["x-permission"],"integration:write")});
