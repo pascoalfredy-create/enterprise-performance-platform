@@ -153,6 +153,13 @@ test("dashboard reports and integrity preserve organization scope",()=>{
  assert.match(source,/async function dashboardApi\(request:Request,db:D1Database,tenantId:string,organizationId:string\|null=null\)/);
  assert.match(source,/async function integrityApi\(request:Request,db:D1Database,tenantId:string,organizationId:string\|null=null\)/);
 });
+
+test("integrity distinguishes missing setup from real reconciliation failures",()=>{
+ assert.match(source,/payrollExpected===0\?"warn":payrollExpected===payrollPosted\?"pass":"fail"/);
+ assert.match(source,/financePosted===0&&financeActual===0\?"warn":financePosted===financeActual\?"pass":"fail"/);
+ assert.match(source,/!rows\[8\]\?"warn":reportValid\?"pass":"fail"/);
+ assert.match(source,/Configuração pendente: registe o primeiro colaborador/);
+});
 test("permission checks fail closed",()=>{
  assert.equal(hasPermission(["reports:write"],"reports:write"),true);
  assert.equal(hasPermission(["reports:write"],"payroll:write"),false);
