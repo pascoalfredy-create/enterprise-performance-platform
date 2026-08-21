@@ -508,3 +508,15 @@ test("download templates and enterprise document hub are operational", () => {
   assert.match(api, /ocr_confidence_bps/);
   assert.match(api, /evidence_hash/);
 });
+
+test("guided commercial demonstration has eight persistent narrative stages", () => {
+  const commercial = fs.readFileSync(
+    new URL("../app/commercial-suite.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(commercial, /Iniciar demonstração guiada/);
+  assert.match(commercial, /PERGUNTA DE DESCOBERTA/);
+  assert.match(commercial, /Próximo passo/);
+  assert.match(commercial, /Concluir demonstração/);
+  assert.match(commercial, /Da demonstração ao plano de adoção/);
+});
