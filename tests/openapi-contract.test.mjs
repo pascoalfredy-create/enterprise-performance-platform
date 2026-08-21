@@ -28,3 +28,4 @@ test("integration hub publishes explicit permissions",()=>{assert.equal(spec.pat
 test("employee documents use sensitive HCM permissions",()=>{assert.equal(spec.paths["/employee-documents"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/employee-documents"].post["x-permission"],"hcm:write")});
 test("notifications reuse governed workflow permission",()=>{assert.equal(spec.paths["/notifications"].get["x-permission"],"workflow:read")});
 test("governed alert tasks require workflow write permission",()=>{assert.equal(spec.paths["/notifications"].post["x-permission"],"workflow:write")});
+test("documents the restricted idempotent demo portfolio",()=>{assert.equal(spec.paths["/demo-portfolio"].post["x-permission"],"setup:write")});

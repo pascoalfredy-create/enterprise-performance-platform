@@ -21,6 +21,7 @@ import { payrollAdjustmentsApi } from "./payroll-adjustments";
 import { integrationsApi } from "./integrations";
 import { employeeDocumentsApi } from "./employee-documents";
 import { notificationsApi } from "./notifications";
+import { demoPortfolioApi } from "./demo-portfolio";
 
 interface Env {
   ASSETS: Fetcher;
@@ -506,6 +507,8 @@ const worker = {
     if (apiPath.startsWith("/api/")) {
       const security=await securityContext(request,env.DB);if(security instanceof Response)return security;
       if(apiPath==="/api/session")return Response.json(security);
+      if(apiPath==="/api/demo-portfolio"&&request.method!=="GET"&&!hasPermission(security.permissions,"setup:write"))return denied("setup:write");
+      if(apiPath==="/api/demo-portfolio")return demoPortfolioApi(request,env.DB,security);
       if(apiPath==="/api/openapi.json")return Response.json(openApiDocument,{headers:{"cache-control":"public, max-age=300"}});
       const write=request.method!=="GET",required:Permission|null=(apiPath==="/api/setup"||apiPath==="/api/tenants")&&write?"setup:write":["/api/hcm","/api/recruitment","/api/attendance","/api/employee-documents"].includes(apiPath)?(write?"hcm:write":"hcm:read"):["/api/payroll-loans","/api/payroll-adjustments"].includes(apiPath)?(write?"payroll:write":"payroll:read"):apiPath==="/api/performance"&&write?"performance:write":apiPath==="/api/scenarios"?(write?"scenario:write":"scenario:read"):apiPath==="/api/consolidation"?(write?"consolidation:write":"consolidation:read"):apiPath==="/api/financial-models"?(write?"financial-model:write":"financial-model:read"):apiPath==="/api/financial-data"?(write?"financial-data:write":"financial-data:read"):apiPath==="/api/integrations"?(write?"integration:write":"integration:read"):apiPath==="/api/financial-diagnostics"?(write?"diagnostic:write":"diagnostic:read"):apiPath==="/api/goals"?(write?"goal:write":"goal:read"):apiPath==="/api/reviews"?(write?"review:write":"review:read"):apiPath==="/api/competencies"?(write?"competency:write":"competency:read"):apiPath==="/api/actions"?(write?"action:write":"action:read"):apiPath==="/api/payroll"?(write?"payroll:write":"payroll:read"):(apiPath==="/api/workforce"||apiPath==="/api/workforce-plans")&&write?"workforce:write":apiPath==="/api/management-reports"&&write?"reports:write":["/api/workflow","/api/notifications"].includes(apiPath)?(write?"workflow:write":"workflow:read"):apiPath==="/api/integrity"?"integrity:read":null;
       if(required&&!hasPermission(security.permissions,required))return denied(required);

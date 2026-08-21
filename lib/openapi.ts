@@ -16,6 +16,7 @@ export const openApiDocument={
   "/commerce/industry-packs":{get:read("List sectors and configurable Industry Packs","Identity")},
   "/commerce/provision":{post:write("Provision one tenant from an owned confirmed payment","Identity","commerce:provision")},
   "/setup":{get:read("Read organizations users employees and dimensions","Setup"),post:write("Write setup","Setup","setup:write")},
+  "/demo-portfolio":{get:{...read("Read demo portfolio installation state","Setup"),"x-permission":"setup:write"},post:write("Install the idempotent integrated demo portfolio","Setup","setup:write")},
   "/hcm":{get:{...read("Read employee master, contracts and absences","HCM"),"x-permission":"hcm:read"},post:write("Manage contracts, absence configuration, balances and decisions","HCM","hcm:write")},
   "/recruitment":{get:{...read("Read requisitions candidates applications and onboarding","HCM"),"x-permission":"hcm:read"},post:write("Manage governed recruitment and onboarding","HCM","hcm:write")},
   "/attendance":{get:{...read("Read shifts attendance entries and timesheets","HCM"),"x-permission":"hcm:read"},post:write("Manage governed time and attendance","HCM","hcm:write")},
