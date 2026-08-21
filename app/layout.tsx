@@ -8,9 +8,6 @@ import "./navigation-refresh.css";
 export const metadata: Metadata = {
   title: "Enterprise Performance Platform",
   description: "Governed financial and workforce performance management.",
-  other: {
-    "codex-preview": "development",
-  },
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
