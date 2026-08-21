@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS document_folders (
+ id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,organization_id TEXT,module_code TEXT NOT NULL,name TEXT NOT NULL,parent_id TEXT,status TEXT NOT NULL CHECK(status IN ('Ativa','Arquivada')),created_by TEXT NOT NULL,created_at TEXT NOT NULL,
+ FOREIGN KEY(organization_id) REFERENCES organizations(id),FOREIGN KEY(parent_id) REFERENCES document_folders(id),UNIQUE(tenant_id,organization_id,module_code,name,parent_id)
+);
+CREATE TABLE IF NOT EXISTS module_documents (
+ id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,organization_id TEXT,folder_id TEXT NOT NULL,module_code TEXT NOT NULL,title TEXT NOT NULL,file_name TEXT NOT NULL,mime_type TEXT NOT NULL,file_size INTEGER NOT NULL CHECK(file_size>0),storage_key TEXT NOT NULL,evidence_hash TEXT NOT NULL,version_number INTEGER NOT NULL CHECK(version_number>0),status TEXT NOT NULL CHECK(status IN ('Carregado','Validado','Rejeitado','Arquivado')),ocr_status TEXT NOT NULL CHECK(ocr_status IN ('Não aplicável','Pendente','Em processamento','Extraído','Falhou','Validado')),ocr_confidence_bps INTEGER CHECK(ocr_confidence_bps BETWEEN 0 AND 10000),ocr_payload_json TEXT,uploaded_by TEXT NOT NULL,uploaded_at TEXT NOT NULL,validated_by TEXT,validated_at TEXT,validation_note TEXT,
+ FOREIGN KEY(organization_id) REFERENCES organizations(id),FOREIGN KEY(folder_id) REFERENCES document_folders(id),UNIQUE(tenant_id,storage_key),UNIQUE(tenant_id,folder_id,title,version_number)
+);
+CREATE INDEX IF NOT EXISTS document_folders_scope_idx ON document_folders(tenant_id,organization_id,module_code,status);
+CREATE INDEX IF NOT EXISTS module_documents_scope_idx ON module_documents(tenant_id,organization_id,module_code,status,ocr_status);
+CREATE TRIGGER IF NOT EXISTS document_folder_scope BEFORE INSERT ON document_folders WHEN (NEW.organization_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM organizations o WHERE o.id=NEW.organization_id AND o.tenant_id=NEW.tenant_id)) OR (NEW.parent_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM document_folders p WHERE p.id=NEW.parent_id AND p.tenant_id=NEW.tenant_id AND p.module_code=NEW.module_code)) BEGIN SELECT RAISE(ABORT,'document folder outside tenant'); END;
+CREATE TRIGGER IF NOT EXISTS module_document_scope BEFORE INSERT ON module_documents WHEN NOT EXISTS(SELECT 1 FROM document_folders f WHERE f.id=NEW.folder_id AND f.tenant_id=NEW.tenant_id AND f.module_code=NEW.module_code AND f.status='Ativa') OR (NEW.organization_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM organizations o WHERE o.id=NEW.organization_id AND o.tenant_id=NEW.tenant_id)) BEGIN SELECT RAISE(ABORT,'module document outside tenant'); END;
+CREATE TRIGGER IF NOT EXISTS module_document_no_delete BEFORE DELETE ON module_documents BEGIN SELECT RAISE(ABORT,'module documents cannot be deleted'); END;
+CREATE TRIGGER IF NOT EXISTS document_folder_no_delete BEFORE DELETE ON document_folders BEGIN SELECT RAISE(ABORT,'document folders cannot be deleted'); END;

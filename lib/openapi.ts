@@ -35,6 +35,7 @@ export const openApiDocument={
   "/workforce":{get:read("Read workforce cost","Workforce"),post:write("Post closed payroll to workforce","Workforce","workforce:write")},
   "/dashboard":{get:read("Read executive dashboard","Reporting")},
   "/commercial-suite":{get:read("Read role cockpits report catalog guided demo and commercial readiness","Reporting")},
+  "/document-hub":{get:{...read("Read module folders documents versions and OCR status","Control"),"x-permission":"document:read"},post:write("Create folders upload validate or process governed documents","Control","document:write")},
   "/management-reports":{get:read("Read report versions","Reporting"),post:write("Generate immutable management report","Reporting","reports:write")},
   "/readiness":{get:read("Evaluate operational prerequisites by contracted engine","Control")},
   "/workflow":{get:{...read("Read unified decision inbox and history","Control"),"x-permission":"workflow:read"}},

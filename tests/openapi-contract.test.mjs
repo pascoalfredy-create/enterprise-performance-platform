@@ -30,3 +30,4 @@ test("notifications reuse governed workflow permission",()=>{assert.equal(spec.p
 test("governed alert tasks require workflow write permission",()=>{assert.equal(spec.paths["/notifications"].post["x-permission"],"workflow:write")});
 test("documents the restricted idempotent demo portfolio",()=>{assert.equal(spec.paths["/demo-portfolio"].post["x-permission"],"setup:write")});
 test("documents the commercial validation suite",()=>{assert.ok(spec.paths["/commercial-suite"].get)});
+test("documents governed document hub and OCR permissions",()=>{assert.equal(spec.paths["/document-hub"].get["x-permission"],"document:read");assert.equal(spec.paths["/document-hub"].post["x-permission"],"document:write")});
