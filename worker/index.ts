@@ -22,6 +22,7 @@ import { integrationsApi } from "./integrations";
 import { employeeDocumentsApi } from "./employee-documents";
 import { notificationsApi } from "./notifications";
 import { demoPortfolioApi } from "./demo-portfolio";
+import { commercialSuiteApi } from "./commercial-suite";
 
 interface Env {
   ASSETS: Fetcher;
@@ -514,7 +515,7 @@ const worker = {
       if(required&&!hasPermission(security.permissions,required))return denied(required);
       const tenantId=security.tenantId;
       const organizationId=security.organizationId;
-      const moduleRequired:string|null=apiPath==="/api/setup"?"CORE":["/api/hcm","/api/recruitment","/api/attendance","/api/employee-documents"].includes(apiPath)?"HCM":["/api/payroll","/api/payroll-loans","/api/payroll-adjustments"].includes(apiPath)?"PAYROLL":["/api/performance","/api/scenarios","/api/consolidation","/api/financial-models","/api/financial-data","/api/financial-diagnostics"].includes(apiPath)?"FINANCE_FP&A":apiPath==="/api/integrations"?"INTEGRATIONS":["/api/actions","/api/goals","/api/reviews","/api/competencies"].includes(apiPath)?"PERFORMANCE_MANAGEMENT":["/api/workforce","/api/workforce-plans"].includes(apiPath)?"WORKFORCE_PLANNING":apiPath==="/api/workflow"?"WORKFLOW":["/api/dashboard","/api/management-reports"].includes(apiPath)?"ANALYTICS_REPORTING":null;
+      const moduleRequired:string|null=apiPath==="/api/setup"?"CORE":["/api/hcm","/api/recruitment","/api/attendance","/api/employee-documents"].includes(apiPath)?"HCM":["/api/payroll","/api/payroll-loans","/api/payroll-adjustments"].includes(apiPath)?"PAYROLL":["/api/performance","/api/scenarios","/api/consolidation","/api/financial-models","/api/financial-data","/api/financial-diagnostics"].includes(apiPath)?"FINANCE_FP&A":apiPath==="/api/integrations"?"INTEGRATIONS":["/api/actions","/api/goals","/api/reviews","/api/competencies"].includes(apiPath)?"PERFORMANCE_MANAGEMENT":["/api/workforce","/api/workforce-plans"].includes(apiPath)?"WORKFORCE_PLANNING":apiPath==="/api/workflow"?"WORKFLOW":["/api/dashboard","/api/management-reports","/api/commercial-suite"].includes(apiPath)?"ANALYTICS_REPORTING":null;
       if(moduleRequired&&!security.modules.includes(moduleRequired))return Response.json({error:`Módulo não contratado: ${moduleRequired}`},{status:403});
       if(organizationId&&write&&apiPath==="/api/setup")return Response.json({error:"A administração da estrutura exige âmbito de todo o tenant."},{status:403});
       if(organizationId&&write&&apiPath==="/api/performance"){const command=await request.clone().json() as Record<string,string>;if(command.type!=="performanceEntry"||command.organizationId!==organizationId)return Response.json({error:"A operação financeira está fora do âmbito organizacional autorizado."},{status:403})}
@@ -538,6 +539,7 @@ const worker = {
       if (apiPath === "/api/payroll") return payrollApi(request, env.DB,tenantId,organizationId);
       if (apiPath === "/api/workforce") return workforceApi(request, env.DB,tenantId,organizationId);
       if (apiPath === "/api/dashboard") return dashboardApi(request, env.DB,tenantId,organizationId);
+      if (apiPath === "/api/commercial-suite") return commercialSuiteApi(request,env.DB,security);
       if (apiPath === "/api/management-reports") return managementReportApi(request, env.DB,tenantId,organizationId);
       if (apiPath === "/api/readiness") return readinessApi(request,env.DB,tenantId,organizationId,security.modules);
       if (apiPath === "/api/workflow") return workflowApi(request,env.DB,tenantId,organizationId,security.role,security.email,security.modules);

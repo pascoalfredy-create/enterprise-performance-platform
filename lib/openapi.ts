@@ -34,6 +34,7 @@ export const openApiDocument={
   "/payroll-adjustments":{get:{...read("Read retroactive payroll adjustments","Payroll"),"x-permission":"payroll:read"},post:write("Request or decide governed payroll adjustments","Payroll","payroll:write")},
   "/workforce":{get:read("Read workforce cost","Workforce"),post:write("Post closed payroll to workforce","Workforce","workforce:write")},
   "/dashboard":{get:read("Read executive dashboard","Reporting")},
+  "/commercial-suite":{get:read("Read role cockpits report catalog guided demo and commercial readiness","Reporting")},
   "/management-reports":{get:read("Read report versions","Reporting"),post:write("Generate immutable management report","Reporting","reports:write")},
   "/readiness":{get:read("Evaluate operational prerequisites by contracted engine","Control")},
   "/workflow":{get:{...read("Read unified decision inbox and history","Control"),"x-permission":"workflow:read"}},

@@ -29,3 +29,4 @@ test("employee documents use sensitive HCM permissions",()=>{assert.equal(spec.p
 test("notifications reuse governed workflow permission",()=>{assert.equal(spec.paths["/notifications"].get["x-permission"],"workflow:read")});
 test("governed alert tasks require workflow write permission",()=>{assert.equal(spec.paths["/notifications"].post["x-permission"],"workflow:write")});
 test("documents the restricted idempotent demo portfolio",()=>{assert.equal(spec.paths["/demo-portfolio"].post["x-permission"],"setup:write")});
+test("documents the commercial validation suite",()=>{assert.ok(spec.paths["/commercial-suite"].get)});
