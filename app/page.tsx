@@ -1,23 +1,24 @@
 "use client";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import {apiFetch} from "../lib/api-client";
-import {CompetenciesWorkspace} from "./competencies-workspace";
-import {ConsolidationWorkspace} from "./consolidation-workspace";
-import {FinancialModelsWorkspace} from "./financial-models-workspace";
-import {FinancialDataWorkspace} from "./financial-data-workspace";
-import {FinancialDiagnosticsWorkspace} from "./financial-diagnostics-workspace";
-import {WorkforcePlansWorkspace} from "./workforce-plans-workspace";
-import {RecruitmentWorkspace} from "./recruitment-workspace";
-import {AttendanceWorkspace} from "./attendance-workspace";
-import {PayrollLoansWorkspace} from "./payroll-loans-workspace";
-import {PayrollAdjustmentsWorkspace} from "./payroll-adjustments-workspace";
-import {IntegrationsWorkspace} from "./integrations-workspace";
-import {EmployeeDocumentsWorkspace} from "./employee-documents-workspace";
-import {NotificationsCenter} from "./notifications-center";
-import {EnterpriseCommandCenter} from "./enterprise-command-center";
-import {DemoPortfolioLoader} from "./demo-portfolio-loader";
-import {CommercialSuite} from "./commercial-suite";
-import {DocumentHubWorkspace} from "./document-hub-workspace";
+import { apiFetch } from "../lib/api-client";
+import { CompetenciesWorkspace } from "./competencies-workspace";
+import { ConsolidationWorkspace } from "./consolidation-workspace";
+import { FinancialModelsWorkspace } from "./financial-models-workspace";
+import { FinancialDataWorkspace } from "./financial-data-workspace";
+import { FinancialDiagnosticsWorkspace } from "./financial-diagnostics-workspace";
+import { WorkforcePlansWorkspace } from "./workforce-plans-workspace";
+import { RecruitmentWorkspace } from "./recruitment-workspace";
+import { AttendanceWorkspace } from "./attendance-workspace";
+import { PayrollLoansWorkspace } from "./payroll-loans-workspace";
+import { PayrollAdjustmentsWorkspace } from "./payroll-adjustments-workspace";
+import { IntegrationsWorkspace } from "./integrations-workspace";
+import { EmployeeDocumentsWorkspace } from "./employee-documents-workspace";
+import { NotificationsCenter } from "./notifications-center";
+import { EnterpriseCommandCenter } from "./enterprise-command-center";
+import { DemoPortfolioLoader } from "./demo-portfolio-loader";
+import { CommercialSuite } from "./commercial-suite";
+import { DocumentHubWorkspace } from "./document-hub-workspace";
+import { CustomerActivationWorkspace } from "./customer-activation-workspace";
 import "./dashboard.css";
 import "./report.css";
 import "./integrity.css";
@@ -33,167 +34,6413 @@ import "./goals.css";
 import "./reviews.css";
 import "./enterprise-cards.css";
 
-type ModuleItem={label:string;target?:string;document?:boolean;future?:boolean};
-const moduleCatalog:Array<{code:string;name:string;icon:string;items:ModuleItem[]}>= [
- {code:"CORE",name:"Administração",icon:"⌂",items:[{label:"Organização",target:"Administração"},{label:"Utilizadores e RBAC",target:"Administração"},{label:"Dimensões financeiras",target:"Administração"},{label:"Document Hub e OCR",target:"Documentos"},{label:"Registo de auditoria",target:"Controlo",document:true}]},
- {code:"FINANCE_FP&A",name:"Finance & FP&A",icon:"◫",items:[{label:"Dados, catálogo e mappings",target:"Dados financeiros"},{label:"Actual e Budget",target:"Planeamento"},{label:"Versões orçamentais",target:"Planeamento",document:true},{label:"Forecast e cenários",target:"Cenários"},{label:"Diagnóstico financeiro",target:"Diagnóstico"},{label:"Atratividade de investimento",target:"Diagnóstico",document:true},{label:"Drivers e plano de negócios",target:"Modelação"},{label:"Cash-flow e financiamento",target:"Cash-flow",document:true},{label:"Consolidação e câmbio",target:"Consolidação"}]},
- {code:"HCM",name:"HCM",icon:"♙",items:[{label:"Employee Master",target:"Administração"},{label:"Contratos",target:"Pessoas"},{label:"Recrutamento e onboarding",target:"Recrutamento"},{label:"Assiduidade e timesheets",target:"Assiduidade"},{label:"Ausências e saldos",target:"Ausências"},{label:"Documentos do colaborador",target:"Documentos HCM",document:true}]},
- {code:"PAYROLL",name:"Payroll",icon:"▤",items:[{label:"Perfis salariais",target:"Operações"},{label:"Componentes",target:"Operações"},{label:"Payroll Runs",target:"Operações"},{label:"Empréstimos e adiantamentos",target:"Empréstimos"},{label:"Retroativos e ajustes",target:"Retroativos"},{label:"Payslips",target:"Operações",document:true},{label:"Payment batches",target:"Operações",document:true}]},
- {code:"WORKFORCE_PLANNING",name:"Workforce Planning",icon:"◌",items:[{label:"Workforce Cost",target:"Análises"},{label:"Headcount plan",target:"Headcount"},{label:"Mapa de custos",target:"Análises",document:true}]},
- {code:"PERFORMANCE_MANAGEMENT",name:"Performance Management",icon:"◎",items:[{label:"Planos de ação",target:"Ações"},{label:"Objetivos",target:"Objetivos"},{label:"Avaliações",target:"Avaliações"},{label:"Competências e 360°",target:"Competências"},{label:"Planos de desenvolvimento",target:"Avaliações",document:true}]},
- {code:"ANALYTICS_REPORTING",name:"Analytics & Reporting",icon:"▥",items:[{label:"Dashboard executivo",target:"Visão geral"},{label:"Cockpits por perfil",target:"Centro Comercial"},{label:"Catálogo de relatórios",target:"Centro Comercial",document:true},{label:"Demonstração guiada",target:"Centro Comercial"},{label:"Management Reports",target:"Relatórios",document:true},{label:"Templates de reporte",target:"Relatórios",document:true}]},
- {code:"WORKFLOW",name:"Workflow",icon:"⇄",items:[{label:"Tarefas e aprovações",target:"Workflow"},{label:"Histórico de decisões",target:"Workflow",document:true}]},
- {code:"INTEGRATIONS",name:"Integration Hub",icon:"⌁",items:[{label:"Fontes de dados",target:"Integrações"},{label:"Mappings",target:"Integrações"},{label:"Logs de integração",target:"Integrações",document:true}]},
+type ModuleItem = {
+  label: string;
+  target?: string;
+  document?: boolean;
+  future?: boolean;
+};
+const moduleCatalog: Array<{
+  code: string;
+  name: string;
+  icon: string;
+  items: ModuleItem[];
+}> = [
+  {
+    code: "CORE",
+    name: "Administração",
+    icon: "⌂",
+    items: [
+      { label: "Ativação e subscrição", target: "Ativação" },
+      { label: "Organização", target: "Administração" },
+      { label: "Utilizadores e RBAC", target: "Administração" },
+      { label: "Dimensões financeiras", target: "Administração" },
+      { label: "Document Hub e OCR", target: "Documentos" },
+      { label: "Registo de auditoria", target: "Controlo", document: true },
+    ],
+  },
+  {
+    code: "FINANCE_FP&A",
+    name: "Finance & FP&A",
+    icon: "◫",
+    items: [
+      { label: "Dados, catálogo e mappings", target: "Dados financeiros" },
+      { label: "Actual e Budget", target: "Planeamento" },
+      { label: "Versões orçamentais", target: "Planeamento", document: true },
+      { label: "Forecast e cenários", target: "Cenários" },
+      { label: "Diagnóstico financeiro", target: "Diagnóstico" },
+      {
+        label: "Atratividade de investimento",
+        target: "Diagnóstico",
+        document: true,
+      },
+      { label: "Drivers e plano de negócios", target: "Modelação" },
+      {
+        label: "Cash-flow e financiamento",
+        target: "Cash-flow",
+        document: true,
+      },
+      { label: "Consolidação e câmbio", target: "Consolidação" },
+    ],
+  },
+  {
+    code: "HCM",
+    name: "HCM",
+    icon: "♙",
+    items: [
+      { label: "Employee Master", target: "Administração" },
+      { label: "Contratos", target: "Pessoas" },
+      { label: "Recrutamento e onboarding", target: "Recrutamento" },
+      { label: "Assiduidade e timesheets", target: "Assiduidade" },
+      { label: "Ausências e saldos", target: "Ausências" },
+      {
+        label: "Documentos do colaborador",
+        target: "Documentos HCM",
+        document: true,
+      },
+    ],
+  },
+  {
+    code: "PAYROLL",
+    name: "Payroll",
+    icon: "▤",
+    items: [
+      { label: "Perfis salariais", target: "Operações" },
+      { label: "Componentes", target: "Operações" },
+      { label: "Payroll Runs", target: "Operações" },
+      { label: "Empréstimos e adiantamentos", target: "Empréstimos" },
+      { label: "Retroativos e ajustes", target: "Retroativos" },
+      { label: "Payslips", target: "Operações", document: true },
+      { label: "Payment batches", target: "Operações", document: true },
+    ],
+  },
+  {
+    code: "WORKFORCE_PLANNING",
+    name: "Workforce Planning",
+    icon: "◌",
+    items: [
+      { label: "Workforce Cost", target: "Análises" },
+      { label: "Headcount plan", target: "Headcount" },
+      { label: "Mapa de custos", target: "Análises", document: true },
+    ],
+  },
+  {
+    code: "PERFORMANCE_MANAGEMENT",
+    name: "Performance Management",
+    icon: "◎",
+    items: [
+      { label: "Planos de ação", target: "Ações" },
+      { label: "Objetivos", target: "Objetivos" },
+      { label: "Avaliações", target: "Avaliações" },
+      { label: "Competências e 360°", target: "Competências" },
+      {
+        label: "Planos de desenvolvimento",
+        target: "Avaliações",
+        document: true,
+      },
+    ],
+  },
+  {
+    code: "ANALYTICS_REPORTING",
+    name: "Analytics & Reporting",
+    icon: "▥",
+    items: [
+      { label: "Dashboard executivo", target: "Visão geral" },
+      { label: "Cockpits por perfil", target: "Centro Comercial" },
+      {
+        label: "Catálogo de relatórios",
+        target: "Centro Comercial",
+        document: true,
+      },
+      { label: "Demonstração guiada", target: "Centro Comercial" },
+      { label: "Management Reports", target: "Relatórios", document: true },
+      { label: "Templates de reporte", target: "Relatórios", document: true },
+    ],
+  },
+  {
+    code: "WORKFLOW",
+    name: "Workflow",
+    icon: "⇄",
+    items: [
+      { label: "Tarefas e aprovações", target: "Workflow" },
+      { label: "Histórico de decisões", target: "Workflow", document: true },
+    ],
+  },
+  {
+    code: "INTEGRATIONS",
+    name: "Integration Hub",
+    icon: "⌁",
+    items: [
+      { label: "Fontes de dados", target: "Integrações" },
+      { label: "Mappings", target: "Integrações" },
+      { label: "Logs de integração", target: "Integrações", document: true },
+    ],
+  },
 ];
 
-export default function Home(){
- const [modulo,setModulo]=useState("Visão geral"),[openDomain,setOpenDomain]=useState("ANALYTICS_REPORTING"),[inviteStatus,setInviteStatus]=useState(""),[sessionError,setSessionError]=useState(""),[notificationsOpen,setNotificationsOpen]=useState(false),[notificationCount,setNotificationCount]=useState(0),[commandMode,setCommandMode]=useState<"search"|"help"|"profile"|null>(null),[sessao,setSessao]=useState<{name:string;email:string;role:string;tenantId:string;tenantName:string;organizationId:string|null;organizationName:string|null;permissions:string[];modules:string[];onboarding:{organizations:number;users:number;employees:number;dimensions:number;complete:boolean};tenants:Array<{id:string;name:string;role:string}>}|null>(null);
- useEffect(()=>{apiFetch("/api/session").then(async r=>({ok:r.ok,body:await r.json()})).then(({ok,body})=>{if(ok&&body.email){setSessao(body);localStorage.setItem("ep_active_tenant",body.tenantId);if(!body.onboarding?.complete&&body.role==="Administrador"){setModulo("Administração");setOpenDomain("CORE")}else if(body.organizationId)setModulo(body.modules.includes("FINANCE_FP&A")?"Planeamento":body.modules.includes("HCM")?"Pessoas":"Administração");return}setSessionError(body.error||"Inicie sessão para entrar na plataforma.")}).catch(()=>setSessionError("Não foi possível validar a sessão."))},[]);
- useEffect(()=>{const token=new URLSearchParams(window.location.search).get("invite");if(!token)return;apiFetch("/api/v1/invitations/accept",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token})}).then(async r=>({ok:r.ok,body:await r.json()})).then(({ok,body})=>{if(!ok){setInviteStatus(body.error||"Não foi possível aceitar o convite.");return}document.cookie=`ep_tenant=${encodeURIComponent(body.tenantId)}; Path=/; SameSite=Lax`;localStorage.setItem("ep_active_tenant",body.tenantId);window.history.replaceState({},"","/");window.location.reload()})},[]);
- useEffect(()=>{const key=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();setCommandMode("search")}if(e.key==="Escape")setCommandMode(null)};window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key)},[]);
- const mudarTenant=(tenantId:string)=>{document.cookie=`ep_tenant=${encodeURIComponent(tenantId)}; Path=/; SameSite=Lax`;localStorage.setItem("ep_active_tenant",tenantId);window.location.reload()};
- if(sessionError)return <main className="portal-gate"><div><b>EP</b><small>ACESSO À PLATAFORMA</small><h1>A sua sessão não está disponível</h1><p>{sessionError}</p><a href="/entrar">Entrar novamente →</a></div></main>;
- if(!sessao)return <main className="portal-gate"><div><b>EP</b><small>A VALIDAR IDENTIDADE E EMPRESA</small><h1>A preparar o seu espaço</h1><p>Estamos a confirmar membership, subscrição, módulos e âmbito organizacional.</p><i/></div></main>;
- return <div className="site">
-  {inviteStatus&&<div className="invite-feedback">{inviteStatus}</div>}
-  <header className="topo">
-   <div className="marca"><b>EP</b><span>Enterprise Performance</span></div>
-   <div className="product-context"><small>ESPAÇO DE TRABALHO</small><b>{modulo}</b></div>
-   <div className="acoes"><button className="pesquisa-global" onClick={()=>setCommandMode("search")}>⌕ <span>Pesquisar</span><kbd>⌘K</kbd></button><button className={notificationCount?"notificacao has-alerts":"notificacao"} aria-label="Abrir alertas" onClick={()=>setNotificationsOpen(true)}>◌{notificationCount>0&&<strong>{notificationCount>99?"99+":notificationCount}</strong>}</button><button className="perfil" title={sessao.email} onClick={()=>setCommandMode("profile")}><b>{sessao.name.split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</b><span>{sessao.name}<small>{sessao.role}</small></span>⌄</button></div>
-  </header>
-   <div className="subnav"><div className="empresa"><span>{(sessao.tenantName||"EP").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</span><label><small>{sessao.organizationName?`Âmbito · ${sessao.organizationName}`:"Empresa atual · Todo o tenant"}</small><select aria-label="Empresa atual" value={sessao.tenantId} onChange={e=>mudarTenant(e.target.value)}>{sessao.tenants.map(t=><option key={t.id} value={t.id}>{t.name} · {t.role}</option>)}</select></label><em className="module-count">{sessao.modules.length} módulos ativos</em></div><div className="atalhos"><button className={modulo==="Visão geral"?"ativo":""} onClick={()=>setModulo("Visão geral")}>Resumo</button><button className={["Planeamento","Cenários","Diagnóstico","Modelação","Cash-flow","Consolidação"].includes(modulo)?"ativo":""} onClick={()=>setModulo(sessao.modules.includes("FINANCE_FP&A")?"Planeamento":"Objetivos")}>Desempenho</button><button className={["Pessoas","Recrutamento","Assiduidade","Ausências","Documentos HCM"].includes(modulo)?"ativo":""} onClick={()=>setModulo(sessao.modules.includes("HCM")?"Pessoas":"Administração")}>Pessoas</button><button className={modulo==="Workflow"?"ativo":""} onClick={()=>setModulo("Workflow")}>Atividades</button></div><button className="ajuda" onClick={()=>setCommandMode("help")}>? Ajuda</button></div>
-  <div className="workspace-layout"><aside className="module-sidebar"><header><small>MÓDULOS CONTRATADOS</small><span>{sessao.modules.length} ativos</span></header><button className={modulo==="Visão geral"?"module-home active":"module-home"} onClick={()=>setModulo("Visão geral")}><i>⌂</i><span><b>Início</b><small>Visão executiva</small></span></button><nav aria-label="Módulos e submódulos">{moduleCatalog.filter(domain=>sessao.modules.includes(domain.code)).map(domain=>{const open=openDomain===domain.code;return <section key={domain.code} className={open?"domain open":"domain"}><button className="domain-title" onClick={()=>setOpenDomain(open?"":domain.code)}><i>{domain.icon}</i><span>{domain.name}</span><em>{open?"−":"+"}</em></button>{open&&<div className="domain-items">{domain.items.map(item=><button key={item.label} disabled={item.future} className={item.target===modulo?"active":""} onClick={()=>item.target&&setModulo(item.target)}><span>{item.document?"▧":"·"} {item.label}</span>{item.future?<em>Em preparação</em>:item.document?<em>Documento</em>:null}</button>)}</div>}</section>})}</nav><footer><b>Catálogo governado</b><p>Os módulos e documentos dependem da subscrição, RBAC e âmbito organizacional.</p></footer></aside><main className="module-content">{!sessao.onboarding.complete&&sessao.role==="Administrador"&&<TenantOnboarding state={sessao.onboarding} onOpen={()=>{setModulo("Administração");setOpenDomain("CORE")}}/>}<DemoPortfolioLoader eligible={sessao.role==="Administrador"&&(sessao.tenantId==="demo-tenant"||sessao.tenantName.toLocaleLowerCase("pt").includes("cálculo sutil")||sessao.tenantName.toLowerCase().includes("calculo sutil"))}/><EngineReadiness onNavigate={setModulo}/>
-   {modulo==="Administração"?<ConfiguracaoReal/>:modulo==="Documentos"?<DocumentHubWorkspace/>:modulo==="Dados financeiros"?<FinancialDataWorkspace/>:modulo==="Planeamento"?<PerformanceControl/>:modulo==="Cenários"?<ScenariosWorkspace/>:modulo==="Diagnóstico"?<FinancialDiagnosticsWorkspace/>:modulo==="Modelação"?<FinancialModelsWorkspace/>:modulo==="Cash-flow"?<FinancialModelsWorkspace initialView="Cash-flow"/>:modulo==="Consolidação"?<ConsolidationWorkspace/>:modulo==="Pessoas"?<PeopleWorkspace/>:modulo==="Recrutamento"?<RecruitmentWorkspace/>:modulo==="Assiduidade"?<AttendanceWorkspace/>:modulo==="Ausências"?<AbsenceWorkspace/>:modulo==="Documentos HCM"?<EmployeeDocumentsWorkspace/>:modulo==="Operações"?<PayrollFoundation/>:modulo==="Empréstimos"?<PayrollLoansWorkspace/>:modulo==="Retroativos"?<PayrollAdjustmentsWorkspace/>:modulo==="Análises"?<WorkforceCost/>:modulo==="Headcount"?<WorkforcePlansWorkspace/>:modulo==="Centro Comercial"?<CommercialSuite onNavigate={setModulo}/>:modulo==="Relatórios"?<ManagementReport/>:modulo==="Workflow"?<WorkflowInbox onNavigate={setModulo}/>:modulo==="Ações"?<ActionPlans/>:modulo==="Objetivos"?<GoalsWorkspace/>:modulo==="Avaliações"?<ReviewsWorkspace actor={sessao.email} role={sessao.role}/>:modulo==="Competências"?<CompetenciesWorkspace actor={sessao.email} role={sessao.role}/>:modulo==="Integrações"?<IntegrationsWorkspace/>:modulo==="Controlo"?<><IntegrityCenter onNavigate={setModulo}/><ApiContract/></>:modulo==="Visão geral"?<ExecutiveDashboard onNavigate={setModulo}/>:<ModuleUnavailable/>}
-  </main></div><NotificationsCenter open={notificationsOpen} onClose={()=>setNotificationsOpen(false)} onNavigate={setModulo} onCount={setNotificationCount}/><EnterpriseCommandCenter mode={commandMode} onClose={()=>setCommandMode(null)} onNavigate={setModulo} entries={moduleCatalog.filter(d=>sessao.modules.includes(d.code)).flatMap(d=>d.items.filter(i=>i.target).map(i=>({domain:d.name,label:i.label,target:i.target!,document:i.document})))} user={{name:sessao.name,email:sessao.email,role:sessao.role,tenant:sessao.tenantName,organization:sessao.organizationName}}/>
- </div>
+export default function Home() {
+  const [modulo, setModulo] = useState("Visão geral"),
+    [openDomain, setOpenDomain] = useState("ANALYTICS_REPORTING"),
+    [inviteStatus, setInviteStatus] = useState(""),
+    [sessionError, setSessionError] = useState(""),
+    [notificationsOpen, setNotificationsOpen] = useState(false),
+    [notificationCount, setNotificationCount] = useState(0),
+    [commandMode, setCommandMode] = useState<
+      "search" | "help" | "profile" | null
+    >(null),
+    [sessao, setSessao] = useState<{
+      name: string;
+      email: string;
+      role: string;
+      tenantId: string;
+      tenantName: string;
+      organizationId: string | null;
+      organizationName: string | null;
+      permissions: string[];
+      modules: string[];
+      onboarding: {
+        organizations: number;
+        users: number;
+        employees: number;
+        dimensions: number;
+        complete: boolean;
+      };
+      tenants: Array<{ id: string; name: string; role: string }>;
+    } | null>(null);
+  useEffect(() => {
+    apiFetch("/api/session")
+      .then(async (r) => ({ ok: r.ok, body: await r.json() }))
+      .then(({ ok, body }) => {
+        if (ok && body.email) {
+          setSessao(body);
+          localStorage.setItem("ep_active_tenant", body.tenantId);
+          if (!body.onboarding?.complete && body.role === "Administrador") {
+            setModulo("Administração");
+            setOpenDomain("CORE");
+          } else if (body.organizationId)
+            setModulo(
+              body.modules.includes("FINANCE_FP&A")
+                ? "Planeamento"
+                : body.modules.includes("HCM")
+                  ? "Pessoas"
+                  : "Administração",
+            );
+          return;
+        }
+        setSessionError(
+          body.error || "Inicie sessão para entrar na plataforma.",
+        );
+      })
+      .catch(() => setSessionError("Não foi possível validar a sessão."));
+  }, []);
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("invite");
+    if (!token) return;
+    apiFetch("/api/v1/invitations/accept", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token }),
+    })
+      .then(async (r) => ({ ok: r.ok, body: await r.json() }))
+      .then(({ ok, body }) => {
+        if (!ok) {
+          setInviteStatus(body.error || "Não foi possível aceitar o convite.");
+          return;
+        }
+        document.cookie = `ep_tenant=${encodeURIComponent(body.tenantId)}; Path=/; SameSite=Lax`;
+        localStorage.setItem("ep_active_tenant", body.tenantId);
+        window.history.replaceState({}, "", "/");
+        window.location.reload();
+      });
+  }, []);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCommandMode("search");
+      }
+      if (e.key === "Escape") setCommandMode(null);
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
+  const mudarTenant = (tenantId: string) => {
+    document.cookie = `ep_tenant=${encodeURIComponent(tenantId)}; Path=/; SameSite=Lax`;
+    localStorage.setItem("ep_active_tenant", tenantId);
+    window.location.reload();
+  };
+  if (sessionError)
+    return (
+      <main className="portal-gate">
+        <div>
+          <b>EP</b>
+          <small>ACESSO À PLATAFORMA</small>
+          <h1>A sua sessão não está disponível</h1>
+          <p>{sessionError}</p>
+          <a href="/entrar">Entrar novamente →</a>
+        </div>
+      </main>
+    );
+  if (!sessao)
+    return (
+      <main className="portal-gate">
+        <div>
+          <b>EP</b>
+          <small>A VALIDAR IDENTIDADE E EMPRESA</small>
+          <h1>A preparar o seu espaço</h1>
+          <p>
+            Estamos a confirmar membership, subscrição, módulos e âmbito
+            organizacional.
+          </p>
+          <i />
+        </div>
+      </main>
+    );
+  return (
+    <div className="site">
+      {inviteStatus && <div className="invite-feedback">{inviteStatus}</div>}
+      <header className="topo">
+        <div className="marca">
+          <b>EP</b>
+          <span>Enterprise Performance</span>
+        </div>
+        <div className="product-context">
+          <small>ESPAÇO DE TRABALHO</small>
+          <b>{modulo}</b>
+        </div>
+        <div className="acoes">
+          <button
+            className="pesquisa-global"
+            onClick={() => setCommandMode("search")}
+          >
+            ⌕ <span>Pesquisar</span>
+            <kbd>⌘K</kbd>
+          </button>
+          <button
+            className={
+              notificationCount ? "notificacao has-alerts" : "notificacao"
+            }
+            aria-label="Abrir alertas"
+            onClick={() => setNotificationsOpen(true)}
+          >
+            ◌
+            {notificationCount > 0 && (
+              <strong>
+                {notificationCount > 99 ? "99+" : notificationCount}
+              </strong>
+            )}
+          </button>
+          <button
+            className="perfil"
+            title={sessao.email}
+            onClick={() => setCommandMode("profile")}
+          >
+            <b>
+              {sessao.name
+                .split(" ")
+                .map((x) => x[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase()}
+            </b>
+            <span>
+              {sessao.name}
+              <small>{sessao.role}</small>
+            </span>
+            ⌄
+          </button>
+        </div>
+      </header>
+      <div className="subnav">
+        <div className="empresa">
+          <span>
+            {(sessao.tenantName || "EP")
+              .split(" ")
+              .map((x) => x[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()}
+          </span>
+          <label>
+            <small>
+              {sessao.organizationName
+                ? `Âmbito · ${sessao.organizationName}`
+                : "Empresa atual · Todo o tenant"}
+            </small>
+            <select
+              aria-label="Empresa atual"
+              value={sessao.tenantId}
+              onChange={(e) => mudarTenant(e.target.value)}
+            >
+              {sessao.tenants.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} · {t.role}
+                </option>
+              ))}
+            </select>
+          </label>
+          <em className="module-count">
+            {sessao.modules.length} módulos ativos
+          </em>
+        </div>
+        <div className="atalhos">
+          <button
+            className={modulo === "Visão geral" ? "ativo" : ""}
+            onClick={() => setModulo("Visão geral")}
+          >
+            Resumo
+          </button>
+          <button
+            className={
+              [
+                "Planeamento",
+                "Cenários",
+                "Diagnóstico",
+                "Modelação",
+                "Cash-flow",
+                "Consolidação",
+              ].includes(modulo)
+                ? "ativo"
+                : ""
+            }
+            onClick={() =>
+              setModulo(
+                sessao.modules.includes("FINANCE_FP&A")
+                  ? "Planeamento"
+                  : "Objetivos",
+              )
+            }
+          >
+            Desempenho
+          </button>
+          <button
+            className={
+              [
+                "Pessoas",
+                "Recrutamento",
+                "Assiduidade",
+                "Ausências",
+                "Documentos HCM",
+              ].includes(modulo)
+                ? "ativo"
+                : ""
+            }
+            onClick={() =>
+              setModulo(
+                sessao.modules.includes("HCM") ? "Pessoas" : "Administração",
+              )
+            }
+          >
+            Pessoas
+          </button>
+          <button
+            className={modulo === "Workflow" ? "ativo" : ""}
+            onClick={() => setModulo("Workflow")}
+          >
+            Atividades
+          </button>
+        </div>
+        <button className="ajuda" onClick={() => setCommandMode("help")}>
+          ? Ajuda
+        </button>
+      </div>
+      <div className="workspace-layout">
+        <aside className="module-sidebar">
+          <header>
+            <small>MÓDULOS CONTRATADOS</small>
+            <span>{sessao.modules.length} ativos</span>
+          </header>
+          <button
+            className={
+              modulo === "Visão geral" ? "module-home active" : "module-home"
+            }
+            onClick={() => setModulo("Visão geral")}
+          >
+            <i>⌂</i>
+            <span>
+              <b>Início</b>
+              <small>Visão executiva</small>
+            </span>
+          </button>
+          <nav aria-label="Módulos e submódulos">
+            {moduleCatalog
+              .filter((domain) => sessao.modules.includes(domain.code))
+              .map((domain) => {
+                const open = openDomain === domain.code;
+                return (
+                  <section
+                    key={domain.code}
+                    className={open ? "domain open" : "domain"}
+                  >
+                    <button
+                      className="domain-title"
+                      onClick={() => setOpenDomain(open ? "" : domain.code)}
+                    >
+                      <i>{domain.icon}</i>
+                      <span>{domain.name}</span>
+                      <em>{open ? "−" : "+"}</em>
+                    </button>
+                    {open && (
+                      <div className="domain-items">
+                        {domain.items.map((item) => (
+                          <button
+                            key={item.label}
+                            disabled={item.future}
+                            className={item.target === modulo ? "active" : ""}
+                            onClick={() =>
+                              item.target && setModulo(item.target)
+                            }
+                          >
+                            <span>
+                              {item.document ? "▧" : "·"} {item.label}
+                            </span>
+                            {item.future ? (
+                              <em>Em preparação</em>
+                            ) : item.document ? (
+                              <em>Documento</em>
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+          </nav>
+          <footer>
+            <b>Catálogo governado</b>
+            <p>
+              Os módulos e documentos dependem da subscrição, RBAC e âmbito
+              organizacional.
+            </p>
+          </footer>
+        </aside>
+        <main className="module-content">
+          {!sessao.onboarding.complete && sessao.role === "Administrador" && (
+            <TenantOnboarding
+              state={sessao.onboarding}
+              onOpen={() => {
+                setModulo("Administração");
+                setOpenDomain("CORE");
+              }}
+            />
+          )}
+          <DemoPortfolioLoader
+            eligible={
+              sessao.role === "Administrador" &&
+              (sessao.tenantId === "demo-tenant" ||
+                sessao.tenantName
+                  .toLocaleLowerCase("pt")
+                  .includes("cálculo sutil") ||
+                sessao.tenantName.toLowerCase().includes("calculo sutil"))
+            }
+          />
+          <EngineReadiness onNavigate={setModulo} />
+          {modulo === "Ativação" ? (
+            <CustomerActivationWorkspace onNavigate={setModulo} />
+          ) : modulo === "Administração" ? (
+            <ConfiguracaoReal />
+          ) : modulo === "Documentos" ? (
+            <DocumentHubWorkspace />
+          ) : modulo === "Dados financeiros" ? (
+            <FinancialDataWorkspace />
+          ) : modulo === "Planeamento" ? (
+            <PerformanceControl />
+          ) : modulo === "Cenários" ? (
+            <ScenariosWorkspace />
+          ) : modulo === "Diagnóstico" ? (
+            <FinancialDiagnosticsWorkspace />
+          ) : modulo === "Modelação" ? (
+            <FinancialModelsWorkspace />
+          ) : modulo === "Cash-flow" ? (
+            <FinancialModelsWorkspace initialView="Cash-flow" />
+          ) : modulo === "Consolidação" ? (
+            <ConsolidationWorkspace />
+          ) : modulo === "Pessoas" ? (
+            <PeopleWorkspace />
+          ) : modulo === "Recrutamento" ? (
+            <RecruitmentWorkspace />
+          ) : modulo === "Assiduidade" ? (
+            <AttendanceWorkspace />
+          ) : modulo === "Ausências" ? (
+            <AbsenceWorkspace />
+          ) : modulo === "Documentos HCM" ? (
+            <EmployeeDocumentsWorkspace />
+          ) : modulo === "Operações" ? (
+            <PayrollFoundation />
+          ) : modulo === "Empréstimos" ? (
+            <PayrollLoansWorkspace />
+          ) : modulo === "Retroativos" ? (
+            <PayrollAdjustmentsWorkspace />
+          ) : modulo === "Análises" ? (
+            <WorkforceCost />
+          ) : modulo === "Headcount" ? (
+            <WorkforcePlansWorkspace />
+          ) : modulo === "Centro Comercial" ? (
+            <CommercialSuite onNavigate={setModulo} />
+          ) : modulo === "Relatórios" ? (
+            <ManagementReport />
+          ) : modulo === "Workflow" ? (
+            <WorkflowInbox onNavigate={setModulo} />
+          ) : modulo === "Ações" ? (
+            <ActionPlans />
+          ) : modulo === "Objetivos" ? (
+            <GoalsWorkspace />
+          ) : modulo === "Avaliações" ? (
+            <ReviewsWorkspace actor={sessao.email} role={sessao.role} />
+          ) : modulo === "Competências" ? (
+            <CompetenciesWorkspace actor={sessao.email} role={sessao.role} />
+          ) : modulo === "Integrações" ? (
+            <IntegrationsWorkspace />
+          ) : modulo === "Controlo" ? (
+            <>
+              <IntegrityCenter onNavigate={setModulo} />
+              <ApiContract />
+            </>
+          ) : modulo === "Visão geral" ? (
+            <ExecutiveDashboard onNavigate={setModulo} />
+          ) : (
+            <ModuleUnavailable />
+          )}
+        </main>
+      </div>
+      <NotificationsCenter
+        open={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+        onNavigate={setModulo}
+        onCount={setNotificationCount}
+      />
+      <EnterpriseCommandCenter
+        mode={commandMode}
+        onClose={() => setCommandMode(null)}
+        onNavigate={setModulo}
+        entries={moduleCatalog
+          .filter((d) => sessao.modules.includes(d.code))
+          .flatMap((d) =>
+            d.items
+              .filter((i) => i.target)
+              .map((i) => ({
+                domain: d.name,
+                label: i.label,
+                target: i.target!,
+                document: i.document,
+              })),
+          )}
+        user={{
+          name: sessao.name,
+          email: sessao.email,
+          role: sessao.role,
+          tenant: sessao.tenantName,
+          organization: sessao.organizationName,
+        }}
+      />
+    </div>
+  );
 }
-function TenantOnboarding({state,onOpen}:{state:{organizations:number;users:number;employees:number;dimensions:number};onOpen:()=>void}){const steps=[["Organização",state.organizations],["Utilizadores",state.users],["Colaboradores",state.employees],["Dimensões",state.dimensions]] as const,done=steps.filter(x=>x[1]>0).length;return <section className="tenant-onboarding"><div><small>CONFIGURAÇÃO INICIAL · {done}/4</small><h2>Prepare a base governada da empresa</h2><p>Conclua estes elementos antes de iniciar planeamento, Payroll e reporting.</p></div><ol>{steps.map(([label,count],index)=><li key={label} className={count>0?"done":""}><i>{count>0?"✓":index+1}</i><span><b>{label}</b><small>{count>0?`${count} configurado(s)`:"Pendente"}</small></span></li>)}</ol><button onClick={onOpen}>Continuar configuração →</button></section>}
-function ModuleUnavailable(){return <section className="module-unavailable"><i>◇</i><small>CAPACIDADE GOVERNADA</small><h1>Este submódulo ainda não está ativo</h1><p>A funcionalidade será disponibilizada apenas depois de regras de negócio, permissões, workflow, APIs, testes e auditoria estarem concluídos.</p></section>}
-type Readiness={summary:{ready:number;total:number};engines:Array<{code:string;name:string;ready:boolean;status:string;evidence:string;next:string;target:string}>};
-function EngineReadiness({onNavigate}:{onNavigate:(target:string)=>void}){const [data,setData]=useState<Readiness|null>(null),[open,setOpen]=useState(false);useEffect(()=>{apiFetch("/api/v1/readiness").then(r=>r.json()).then(x=>{if(Array.isArray(x.engines))setData(x)})},[]);if(!data?.engines.length)return null;return <section className={open?"engine-readiness open":"engine-readiness"}><button className="readiness-summary" onClick={()=>setOpen(!open)}><span><i>{data.summary.ready===data.summary.total?"✓":"!"}</i><b>Preparação dos motores</b><small>{data.summary.ready}/{data.summary.total} prontos</small></span><em>{open?"Ocultar detalhes −":"Ver pré-requisitos +"}</em></button>{open&&<div className="readiness-engines">{data.engines.map(engine=><article key={engine.code} className={engine.ready?"ready":"blocked"}><header><i>{engine.ready?"✓":"!"}</i><span><b>{engine.name}</b><small>{engine.status}</small></span></header><p>{engine.evidence}</p><button onClick={()=>onNavigate(engine.target)}>{engine.ready?"Abrir motor":"Próxima ação"}: {engine.next} →</button></article>)}</div>}</section>}
-
-type Organization={id:string;code:string;name:string;kind:string;currency:string;status:string};
-type PlatformUser={id:string;name:string;email:string;role:string;organization_id?:string;status:string};
-type Employee={id:string;employee_number:string;first_name:string;last_name:string;organization_id:string;job_title:string;hire_date:string;status:string};
-type AuditEvent={id:string;summary:string;actor:string;created_at:string};
-type FinancialDimension={id:string;code:string;name:string;description:string;status:string;member_count:number};
-type DimensionMember={id:string;dimension_id:string;code:string;name:string;parent_id?:string;status:string};
-type SetupData={organizations:Organization[];users:PlatformUser[];employees:Employee[];audit:AuditEvent[];dimensions:FinancialDimension[];dimensionMembers:DimensionMember[]};
-const vazio:SetupData={organizations:[],users:[],employees:[],audit:[],dimensions:[],dimensionMembers:[]};
-function ConfiguracaoReal(){
- const [etapa,setEtapa]=useState(1),[dados,setDados]=useState<SetupData>(vazio),[aberto,setAberto]=useState(false),[tipoModal,setTipoModal]=useState(""),[dimensaoAtiva,setDimensaoAtiva]=useState(""),[erro,setErro]=useState(""),[inviteLink,setInviteLink]=useState(""),[aEnviar,setAEnviar]=useState(false);
- const carregar=()=>apiFetch("/api/setup").then(async r=>{const d=await r.json();if(!r.ok||!Array.isArray(d.organizations))throw new Error(d.error);return d}).then(setDados).catch(()=>setErro("Não foi possível carregar os registos."));
- useEffect(()=>{carregar()},[]);
- async function submeter(e:FormEvent<HTMLFormElement>){e.preventDefault();setErro("");setInviteLink("");setAEnviar(true);const form=new FormData(e.currentTarget);const payload=Object.fromEntries(form.entries());payload.type=tipoModal||(etapa===1?"organization":etapa===2?"user":"employee");const res=await apiFetch("/api/setup",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});const body=await res.json();setAEnviar(false);if(!res.ok){setErro(body.error||"Não foi possível guardar.");return}setDados(body);if(body.invite)setInviteLink(`${window.location.origin}/?invite=${encodeURIComponent(body.invite.token)}`);setAberto(false)}
- async function gerirUtilizador(userId:string,action:string,role?:string){setErro("");setInviteLink("");setAEnviar(true);const res=await apiFetch("/api/v1/setup",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"userAction",userId,action,role})});const body=await res.json();setAEnviar(false);if(!res.ok){setErro(body.error||"Não foi possível alterar o acesso.");return}setDados(body);if(body.invite)setInviteLink(`${window.location.origin}/?invite=${encodeURIComponent(body.invite.token)}`)}
- const total=dados.organizations.length+dados.users.length+dados.employees.length+dados.dimensions.length;
- return <section className="configuracao"><div className="config-top"><div><span>CONFIGURAÇÃO BASE</span><h1>Estrutura governada e auditável</h1><p>Crie a organização, atribua acessos e ligue cada colaborador ao seu âmbito.</p></div><b>{total} registos ativos</b></div><div className="progresso"><i style={{width:dados.organizations.length?dados.users.length?dados.employees.length?"100%":"67%":"34%":"8%"}}/></div>
- <div className="passos quatro">{[["1","Organização","Estrutura e moeda",dados.organizations.length?"Configurada":"Começar"],["2","Utilizadores","Funções e âmbito",`${dados.users.length} acessos`],["3","Colaboradores","Vínculos essenciais",`${dados.employees.length} registos`],["4","Dimensões financeiras","Eixos e hierarquias",`${dados.dimensions.length} dimensões`]].map((x,i)=><button key={x[1]} className={etapa===i+1?"passo ativo":"passo"} onClick={()=>{setEtapa(i+1);setAberto(false);setErro("")}}><i>{dados[["organizations","users","employees","dimensions"][i] as keyof SetupData].length?"✓":x[0]}</i><span><b>{x[1]}</b><small>{x[2]}</small></span><em>{x[3]}</em></button>)}</div>
- <div className="config-grid"><article className="cartao estrutura"><div className="cab"><div><span>{etapa===1?"ORGANIZAÇÃO":etapa===2?"UTILIZADORES":etapa===3?"COLABORADORES":"DIMENSÕES FINANCEIRAS"}</span><h2>{etapa===1?"Estrutura organizacional":etapa===2?"Acesso à plataforma":etapa===3?"Diretório essencial":"Eixos de análise configuráveis"}</h2></div><button onClick={()=>{setTipoModal(etapa===4?"dimension":"");setAberto(true)}}>＋ {etapa===1?"Nova unidade":etapa===2?"Convidar":etapa===3?"Novo colaborador":"Nova dimensão"}</button></div>
- {etapa===1?<div className="org-tree">{dados.organizations.length?dados.organizations.map(o=><div key={o.id}><i>{o.code.slice(0,2)}</i><span><b>{o.name}</b><small>{o.kind} · {o.currency}</small></span><em>{o.status}</em></div>):<Vazio texto="Ainda não existem unidades organizacionais."/>}</div>:etapa===2?<div className="user-list acessos">{inviteLink&&<div className="convite-link"><span><b>Link de convite válido por 7 dias</b><small>{inviteLink}</small></span><button onClick={()=>navigator.clipboard.writeText(inviteLink)}>Copiar link</button></div>}{dados.users.length?dados.users.map(u=><div key={u.id}><i>{u.name.split(" ").map((n:string)=>n[0]).join("").slice(0,2)}</i><span><b>{u.name}</b><small>{u.email}</small></span><select aria-label={`Função de ${u.name}`} value={u.role} disabled={aEnviar||u.status==="Removido"} onChange={e=>gerirUtilizador(u.id,"changeRole",e.target.value)}><option>Administrador</option><option>Financeiro</option><option>Recursos Humanos</option><option>Gestor</option><option>Leitura</option></select><em>{u.status}</em><div className="acoes-acesso">{u.status==="Ativo"?<button disabled={aEnviar} onClick={()=>gerirUtilizador(u.id,"remove")}>Remover</button>:<><button disabled={aEnviar} onClick={()=>gerirUtilizador(u.id,"resend")}>Gerar novo link</button>{u.status!=="Cancelado"&&<button disabled={aEnviar} onClick={()=>gerirUtilizador(u.id,"cancel")}>Cancelar</button>}</>}</div></div>):<Vazio texto="Convide o primeiro utilizador."/>}{erro&&<p className="erro-form erro-acesso">{erro}</p>}</div>:etapa===3?<div className="user-list">{dados.employees.length?dados.employees.map(e=><div key={e.id}><i>{e.first_name[0]}{e.last_name[0]}</i><span><b>{e.first_name} {e.last_name}</b><small>{e.employee_number} · {e.job_title}</small></span><em>{e.status}</em></div>):<Vazio texto="Registe o primeiro colaborador."/>}</div>:<div className="dimensoes-lista">{dados.dimensions.length?dados.dimensions.map(d=><section key={d.id} className={dimensaoAtiva===d.id?"dimensao aberta":"dimensao"}><button onClick={()=>setDimensaoAtiva(dimensaoAtiva===d.id?"":d.id)}><i>{d.code.slice(0,2)}</i><span><b>{d.name}</b><small>{d.description}</small></span><em>{d.member_count} membros</em><strong>⌄</strong></button>{dimensaoAtiva===d.id&&<div className="membros">{dados.dimensionMembers.filter(m=>m.dimension_id===d.id).map(m=><div key={m.id} className={m.parent_id?"filho":""}><i>↳</i><span><b>{m.code}</b><small>{m.name}</small></span><em>{m.status}</em></div>)}<button onClick={()=>{setTipoModal("dimensionMember");setDimensaoAtiva(d.id);setAberto(true)}}>＋ Adicionar membro</button></div>}</section>):<Vazio texto="Crie a primeira dimensão de análise."/>}</div>}</article>
- <aside className="cartao controlos"><span>AUDITORIA RECENTE</span><h2>Alterações rastreáveis</h2>{dados.audit.length?dados.audit.map(a=><div key={a.id}><i>✓</i><span><b>{a.summary}</b><small>{a.actor} · {new Date(a.created_at).toLocaleString("pt-PT")}</small></span></div>):<p className="sem-auditoria">As primeiras alterações aparecerão aqui.</p>}<footer><b>Controlos ativos</b><p>Tenant, autor, data e entidade são registados em cada criação.</p></footer></aside></div>
- {aberto&&etapa===4&&<div className="modal-inline"><form onSubmit={submeter}><header><div><small>DIMENSÕES FINANCEIRAS</small><h2>{tipoModal==="dimensionMember"?"Novo membro":"Nova dimensão"}</h2></div><button type="button" onClick={()=>setAberto(false)}>×</button></header>{tipoModal==="dimensionMember"?<><input type="hidden" name="dimensionId" value={dimensaoAtiva}/><div><label>Código<input name="code" required autoFocus placeholder="EX.: OPS-01"/></label><label>Estado<select name="status"><option>Ativo</option></select></label></div><label>Nome do membro<input name="name" required/></label><label>Membro superior<select name="parentId"><option value="">Raiz da hierarquia</option>{dados.dimensionMembers.filter(m=>m.dimension_id===dimensaoAtiva).map(m=><option key={m.id} value={m.id}>{m.code} · {m.name}</option>)}</select></label></>:<><div><label>Código<input name="code" required autoFocus placeholder="EX.: CC"/></label><label>Estado<select name="status"><option>Ativa</option></select></label></div><label>Nome da dimensão<input name="name" required placeholder="Ex.: Centro de custo"/></label><label>Descrição<input name="description" required placeholder="Como esta dimensão será utilizada"/></label></>}{erro&&<p className="erro-form">{erro}</p>}<footer><button type="button" className="secundario" onClick={()=>setAberto(false)}>Cancelar</button><button className="primario" disabled={aEnviar}>{aEnviar?"A guardar…":"Guardar registo"}</button></footer></form></div>}
- {aberto&&etapa<4&&<div className="modal-inline"><form onSubmit={submeter}><header><div><small>NOVO REGISTO</small><h2>{etapa===1?"Unidade organizacional":etapa===2?"Convidar utilizador":"Novo colaborador"}</h2></div><button type="button" onClick={()=>setAberto(false)}>×</button></header>{etapa===1?<><label>Nome<input name="name" required autoFocus/></label><div><label>Código<input name="code" required placeholder="EX.: OPS"/></label><label>Moeda<input name="currency" required placeholder="ISO 4217" maxLength={3}/></label></div><label>Tipo<select name="kind"><option>Grupo</option><option>Empresa</option><option>Unidade</option><option>Departamento</option></select></label></>:etapa===2?<><label>Nome completo<input name="name" required autoFocus/></label><label>Email<input name="email" type="email" required/></label><div><label>Função<select name="role"><option>Gestor</option><option>Financeiro</option><option>Recursos Humanos</option><option>Leitura</option></select></label><label>Âmbito<select name="organizationId"><option value="">Todo o tenant</option>{dados.organizations.map(o=><option value={o.id} key={o.id}>{o.name}</option>)}</select></label></div></>:<><div><label>Número<input name="employeeNumber" required placeholder="EMP-001"/></label><label>Data de admissão<input name="hireDate" type="date" required/></label></div><div><label>Nome<input name="firstName" required/></label><label>Apelido<input name="lastName" required/></label></div><label>Unidade<select name="organizationId" required><option value="">Selecionar</option>{dados.organizations.map(o=><option value={o.id} key={o.id}>{o.name}</option>)}</select></label><label>Função<input name="jobTitle" required/></label></>}{erro&&<p className="erro-form">{erro}</p>}<footer><button type="button" className="secundario" onClick={()=>setAberto(false)}>Cancelar</button><button className="primario" disabled={aEnviar}>{aEnviar?"A guardar…":"Guardar registo"}</button></footer></form></div>}</section>
+function TenantOnboarding({
+  state,
+  onOpen,
+}: {
+  state: {
+    organizations: number;
+    users: number;
+    employees: number;
+    dimensions: number;
+  };
+  onOpen: () => void;
+}) {
+  const steps = [
+      ["Organização", state.organizations],
+      ["Utilizadores", state.users],
+      ["Colaboradores", state.employees],
+      ["Dimensões", state.dimensions],
+    ] as const,
+    done = steps.filter((x) => x[1] > 0).length;
+  return (
+    <section className="tenant-onboarding">
+      <div>
+        <small>CONFIGURAÇÃO INICIAL · {done}/4</small>
+        <h2>Prepare a base governada da empresa</h2>
+        <p>
+          Conclua estes elementos antes de iniciar planeamento, Payroll e
+          reporting.
+        </p>
+      </div>
+      <ol>
+        {steps.map(([label, count], index) => (
+          <li key={label} className={count > 0 ? "done" : ""}>
+            <i>{count > 0 ? "✓" : index + 1}</i>
+            <span>
+              <b>{label}</b>
+              <small>
+                {count > 0 ? `${count} configurado(s)` : "Pendente"}
+              </small>
+            </span>
+          </li>
+        ))}
+      </ol>
+      <button onClick={onOpen}>Continuar configuração →</button>
+    </section>
+  );
 }
-function Vazio({texto}:{texto:string}){return <div className="vazio-lista"><i>＋</i><b>{texto}</b><small>Use a ação acima para começar.</small></div>}
-
-type HcmData={employees:Array<{id:string;employee_number:string;first_name:string;last_name:string;organization_name:string}>;contracts:Array<{id:string;employee_name:string;employee_number:string;organization_name:string;contract_number:string;contract_type:string;work_schedule:string;weekly_minutes:number;status:string}>;audit:AuditEvent[]};
-const hcmEmpty:HcmData={employees:[],contracts:[],audit:[]};
-function PeopleWorkspace(){
- const [data,setData]=useState<HcmData>(hcmEmpty),[modal,setModal]=useState(false),[error,setError]=useState(""),[busy,setBusy]=useState(false);
- const load=()=>apiFetch("/api/v1/hcm").then(async r=>{const body=await r.json();if(!r.ok)throw new Error(body.error);setData(body)}).catch(e=>setError(e.message||"Não foi possível carregar Pessoas."));
- useEffect(()=>{load()},[]);
- async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setError("");const payload={type:"createContract",...Object.fromEntries(new FormData(e.currentTarget).entries())},response=await apiFetch("/api/v1/hcm",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}),body=await response.json();setBusy(false);if(!response.ok){setError(body.error);return}setData(body);setModal(false)}
- async function transition(contractId:string,type:"activateContract"|"endContract"){const endDate=type==="endContract"?window.prompt("Data de término (AAAA-MM-DD)",new Date().toISOString().slice(0,10)):undefined;if(type==="endContract"&&!endDate)return;setBusy(true);const response=await apiFetch("/api/v1/hcm",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type,contractId,endDate})}),body=await response.json();setBusy(false);if(!response.ok){setError(body.error);return}setData(body)}
- const active=data.contracts.filter(x=>x.status==="Ativo").length,pending=data.contracts.filter(x=>x.status==="Rascunho").length;
- return <section className="people-workspace"><div className="people-top"><div><span>HCM · EMPLOYEE MASTER</span><h1>Pessoas, vínculos e responsabilidade</h1><p>O colaborador pertence à organização; o contrato governa a elegibilidade operacional e salarial.</p></div><button className="primario" onClick={()=>setModal(true)}>＋ Novo contrato</button></div><section className="people-kpis"><article><span>Colaboradores</span><strong>{data.employees.length}</strong><small>Employee master no âmbito atual</small></article><article><span>Contratos ativos</span><strong>{active}</strong><small>Elegíveis para configuração salarial</small></article><article className={pending?"attention":""}><span>Aguardam ativação</span><strong>{pending}</strong><small>Requerem validação de RH</small></article><article><span>Cobertura contratual</span><strong>{data.employees.length?`${Math.round(active/data.employees.length*100)}%`:"—"}</strong><small>Ativos sobre colaboradores</small></article></section><div className="people-grid"><article className="cartao people-list"><div className="cab"><div><span>CONTRATOS</span><h2>Ciclo de vida auditável</h2></div><em>{data.contracts.length} registos</em></div>{data.contracts.length?data.contracts.map(c=><div className="contract-row" key={c.id}><i>{c.employee_name.split(" ").map(x=>x[0]).join("").slice(0,2)}</i><span><b>{c.employee_name}</b><small>{c.employee_number} · {c.organization_name}</small></span><p><b>{c.contract_number}</b><small>{c.contract_type} · {c.work_schedule} · {Math.round(c.weekly_minutes/60)}h/semana</small></p><em className={c.status.toLowerCase()}>{c.status}</em><div>{c.status==="Rascunho"&&<button disabled={busy} onClick={()=>transition(c.id,"activateContract")}>Ativar</button>}{c.status==="Ativo"&&<button disabled={busy} onClick={()=>transition(c.id,"endContract")}>Terminar</button>}</div></div>):<Vazio texto="Ainda não existem contratos."/>}</article><aside className="cartao people-audit"><span>AUDITORIA HCM</span><h2>Alterações recentes</h2>{data.audit.length?data.audit.map(a=><div key={a.id}><i>✓</i><span><b>{a.summary}</b><small>{a.actor} · {new Date(a.created_at).toLocaleString("pt-AO")}</small></span></div>):<p>As transições contratuais aparecerão aqui.</p>}<footer><b>Próximas capacidades</b><p>Recrutamento, onboarding, assiduidade, ausências, desempenho e formação serão adicionados como slices próprios.</p></footer></aside></div>{error&&<p className="erro-global">{error}</p>}{modal&&<div className="modal-inline"><form onSubmit={submit}><header><div><small>HCM · CONTRATO</small><h2>Novo vínculo laboral</h2></div><button type="button" onClick={()=>setModal(false)}>×</button></header><label>Colaborador<select name="employeeId" required><option value="">Selecionar</option>{data.employees.map(x=><option key={x.id} value={x.id}>{x.employee_number} · {x.first_name} {x.last_name}</option>)}</select></label><div><label>Número do contrato<input name="contractNumber" required/></label><label>Tipo<input name="contractType" required placeholder="Ex.: Sem termo"/></label></div><div><label>Data de início<input name="startDate" type="date" required/></label><label>Data de fim<input name="endDate" type="date"/></label></div><label>Horário de trabalho<input name="workSchedule" required placeholder="Ex.: Segunda a sexta, 08h–17h"/></label><div><label>Carga semanal (minutos)<input name="weeklyMinutes" type="number" min="1" max="10080" defaultValue="2400" required/></label><label>Country Pack opcional<input name="countryPack" placeholder="Ex.: AO-BASE"/></label></div>{error&&<p className="erro-form">{error}</p>}<footer><button type="button" className="secundario" onClick={()=>setModal(false)}>Cancelar</button><button className="primario" disabled={busy}>{busy?"A guardar…":"Criar rascunho"}</button></footer></form></div>}</section>
+function ModuleUnavailable() {
+  return (
+    <section className="module-unavailable">
+      <i>◇</i>
+      <small>CAPACIDADE GOVERNADA</small>
+      <h1>Este submódulo ainda não está ativo</h1>
+      <p>
+        A funcionalidade será disponibilizada apenas depois de regras de
+        negócio, permissões, workflow, APIs, testes e auditoria estarem
+        concluídos.
+      </p>
+    </section>
+  );
+}
+type Readiness = {
+  summary: { ready: number; total: number };
+  engines: Array<{
+    code: string;
+    name: string;
+    ready: boolean;
+    status: string;
+    evidence: string;
+    next: string;
+    target: string;
+  }>;
+};
+function EngineReadiness({
+  onNavigate,
+}: {
+  onNavigate: (target: string) => void;
+}) {
+  const [data, setData] = useState<Readiness | null>(null),
+    [open, setOpen] = useState(false);
+  useEffect(() => {
+    apiFetch("/api/v1/readiness")
+      .then((r) => r.json())
+      .then((x) => {
+        if (Array.isArray(x.engines)) setData(x);
+      });
+  }, []);
+  if (!data?.engines.length) return null;
+  return (
+    <section className={open ? "engine-readiness open" : "engine-readiness"}>
+      <button className="readiness-summary" onClick={() => setOpen(!open)}>
+        <span>
+          <i>{data.summary.ready === data.summary.total ? "✓" : "!"}</i>
+          <b>Preparação dos motores</b>
+          <small>
+            {data.summary.ready}/{data.summary.total} prontos
+          </small>
+        </span>
+        <em>{open ? "Ocultar detalhes −" : "Ver pré-requisitos +"}</em>
+      </button>
+      {open && (
+        <div className="readiness-engines">
+          {data.engines.map((engine) => (
+            <article
+              key={engine.code}
+              className={engine.ready ? "ready" : "blocked"}
+            >
+              <header>
+                <i>{engine.ready ? "✓" : "!"}</i>
+                <span>
+                  <b>{engine.name}</b>
+                  <small>{engine.status}</small>
+                </span>
+              </header>
+              <p>{engine.evidence}</p>
+              <button onClick={() => onNavigate(engine.target)}>
+                {engine.ready ? "Abrir motor" : "Próxima ação"}: {engine.next} →
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
-type AbsenceData={employees:Array<{id:string;employee_number:string;first_name:string;last_name:string;organization_name:string}>;absenceTypes:Array<{id:string;code:string;name:string;unit:string;paid:number;requires_balance:number;status:string}>;balances:Array<{id:string;employee_name:string;employee_number:string;absence_type_name:string;fiscal_year:number;allowance_minutes:number;used_minutes:number}>;absenceRequests:Array<{id:string;employee_name:string;employee_number:string;organization_name:string;absence_type_code:string;absence_type_name:string;start_date:string;end_date:string;requested_minutes:number;status:string;requested_by:string;requested_at:string}>;audit:AuditEvent[]};
-const absenceEmpty:AbsenceData={employees:[],absenceTypes:[],balances:[],absenceRequests:[],audit:[]};
-function AbsenceWorkspace(){const [data,setData]=useState<AbsenceData>(absenceEmpty),[modal,setModal]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");const load=()=>apiFetch("/api/v1/hcm").then(async r=>{const b=await r.json();if(!r.ok)throw new Error(b.error);setData(b)}).catch(e=>setError(e.message));useEffect(()=>{load()},[]);async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setError("");const res=await apiFetch("/api/v1/hcm",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:modal,...Object.fromEntries(new FormData(e.currentTarget).entries())})}),body=await res.json();setBusy(false);if(!res.ok){setError(body.error);return}setData(body);setModal("")}async function decide(requestId:string,decision:string){setBusy(true);setError("");const res=await apiFetch("/api/v1/hcm",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"decideAbsence",requestId,decision})}),body=await res.json();setBusy(false);if(!res.ok){setError(body.error);return}setData(body)}const pending=data.absenceRequests.filter(r=>r.status==="Pendente").length,approved=data.absenceRequests.filter(r=>r.status==="Aprovado").length,fmt=(m:number)=>m%480===0?`${m/480} dia(s)`:`${(m/60).toFixed(1)} hora(s)`;return <section className="absence"><div className="absence-top"><div><span>HCM · ABSENCE MANAGEMENT</span><h1>Ausências com saldo e decisão controlada</h1><p>Configuração agnóstica a país, validação de sobreposição e workflow auditável.</p></div><div><button className="secundario" onClick={()=>setModal("absenceType")}>＋ Tipo</button><button className="secundario" onClick={()=>setModal("absenceBalance")}>＋ Saldo</button><button className="primario" onClick={()=>setModal("absenceRequest")}>＋ Novo pedido</button></div></div><section className="absence-kpis"><article><span>Pedidos pendentes</span><strong>{pending}</strong><small>Aguardam decisão independente</small></article><article><span>Aprovados</span><strong>{approved}</strong><small>Com impacto operacional</small></article><article><span>Tipos ativos</span><strong>{data.absenceTypes.filter(t=>t.status==="Ativo").length}</strong><small>Configurados no tenant</small></article><article><span>Saldos atribuídos</span><strong>{data.balances.length}</strong><small>Controlados em minutos</small></article></section><div className="absence-grid"><article className="cartao absence-list"><div className="cab"><div><span>PEDIDOS</span><h2>Calendário e decisões</h2></div><em>{data.absenceRequests.length} registos</em></div>{data.absenceRequests.length?data.absenceRequests.map(r=><div className="absence-row" key={r.id}><i>{r.employee_name.split(" ").map(x=>x[0]).join("").slice(0,2)}</i><span><b>{r.employee_name}</b><small>{r.employee_number} · {r.organization_name}</small></span><p><b>{r.absence_type_name}</b><small>{r.start_date} → {r.end_date} · {fmt(r.requested_minutes)}</small></p><em className={r.status.toLowerCase()}>{r.status}</em><div>{r.status==="Pendente"&&<><button disabled={busy} onClick={()=>decide(r.id,"Aprovado")}>Aprovar</button><button disabled={busy} onClick={()=>decide(r.id,"Rejeitado")}>Rejeitar</button></>}</div></div>):<Vazio texto="Ainda não existem pedidos de ausência."/>}</article><aside className="cartao absence-balance"><span>SALDOS</span><h2>Disponibilidade</h2>{data.balances.length?data.balances.map(b=><div key={b.id}><span><b>{b.employee_name}</b><small>{b.absence_type_name} · {b.fiscal_year}</small></span><strong>{fmt(b.allowance_minutes-b.used_minutes)}<small>disponível</small></strong></div>):<p>Nenhum saldo configurado.</p>}<footer><b>Regra do Core</b><p>Direitos legais, feriados e jornadas pertencem aos Country Packs; o motor apenas executa configurações versionadas.</p></footer></aside></div>{error&&<p className="erro-global">{error}</p>}{modal&&<div className="modal-inline"><form onSubmit={submit}><header><div><small>HCM · AUSÊNCIAS</small><h2>{modal==="absenceType"?"Novo tipo":modal==="absenceBalance"?"Atribuir saldo":"Novo pedido"}</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header>{modal==="absenceType"?<><div><label>Código<input name="code" required/></label><label>Unidade<select name="unit"><option>Dias</option><option>Horas</option></select></label></div><label>Nome<input name="name" required placeholder="Ex.: Férias anuais"/></label><label className="check"><input name="paid" type="checkbox"/> Ausência remunerada</label><label className="check"><input name="requiresBalance" type="checkbox"/> Exige saldo disponível</label></>:modal==="absenceBalance"?<><label>Colaborador<select name="employeeId" required><option value="">Selecionar</option>{data.employees.map(e=><option key={e.id} value={e.id}>{e.employee_number} · {e.first_name} {e.last_name}</option>)}</select></label><label>Tipo<select name="absenceTypeId" required><option value="">Selecionar</option>{data.absenceTypes.filter(t=>t.status==="Ativo").map(t=><option key={t.id} value={t.id}>{t.code} · {t.name}</option>)}</select></label><div><label>Ano fiscal<input name="fiscalYear" type="number" defaultValue={new Date().getFullYear()} required/></label><label>Saldo (minutos)<input name="allowanceMinutes" type="number" min="0" required placeholder="Ex.: 10560 = 22 dias"/></label></div></>:<><label>Colaborador<select name="employeeId" required><option value="">Selecionar</option>{data.employees.map(e=><option key={e.id} value={e.id}>{e.employee_number} · {e.first_name} {e.last_name}</option>)}</select></label><label>Tipo<select name="absenceTypeId" required><option value="">Selecionar</option>{data.absenceTypes.filter(t=>t.status==="Ativo").map(t=><option key={t.id} value={t.id}>{t.code} · {t.name}</option>)}</select></label><div><label>Início<input name="startDate" type="date" required/></label><label>Fim<input name="endDate" type="date" required/></label></div><label>Duração total (minutos)<input name="requestedMinutes" type="number" min="1" required placeholder="Ex.: 480 = 1 dia de 8 horas"/></label><label>Motivo<textarea name="reason" rows={3}/></label></>}{error&&<p className="erro-form">{error}</p>}<footer><button type="button" className="secundario" onClick={()=>setModal("")}>Cancelar</button><button className="primario" disabled={busy}>{busy?"A guardar…":"Guardar"}</button></footer></form></div>}</section>}
-
-type WorkflowData={generatedAt:string;tasks:Array<{id:string;domain:string;title:string;subject:string;detail:string;createdAt:string;dueAt:string;priority:string;overdue:boolean;target:string;canAct:boolean;requiredRoles:string[]}>;history:AuditEvent[];summary:{total:number;actionable:number;overdue:number;critical:number}};
-function WorkflowInbox({onNavigate}:{onNavigate:(module:string)=>void}){const [data,setData]=useState<WorkflowData|null>(null),[domain,setDomain]=useState("Todos"),[error,setError]=useState("");const load=()=>apiFetch("/api/v1/workflow").then(async r=>{const b=await r.json();if(!r.ok)throw new Error(b.error);setData(b)}).catch(e=>setError(e.message));useEffect(()=>{load()},[]);const tasks=data?.tasks.filter(t=>domain==="Todos"||t.domain===domain)||[];return <section className="workflow"><div className="workflow-top"><div><span>WORKFLOW & APPROVALS</span><h1>Decisões pendentes num único lugar</h1><p>A caixa de trabalho lê o estado real de cada motor; não duplica nem altera a fonte de verdade.</p></div><button className="secundario" onClick={load}>↻ Atualizar</button></div>{data&&<><section className="workflow-kpis"><article><span>Total pendente</span><strong>{data.summary.total}</strong><small>Todos os motores contratados</small></article><article><span>Posso decidir</span><strong>{data.summary.actionable}</strong><small>Conforme função e segregação</small></article><article className={data.summary.overdue?"attention":""}><span>Fora do prazo</span><strong>{data.summary.overdue}</strong><small>SLA determinístico</small></article><article><span>Prioridade crítica</span><strong>{data.summary.critical}</strong><small>Prazo já ultrapassado</small></article></section><div className="workflow-filter">{["Todos","HCM","Finance","Payroll"].map(x=><button key={x} className={domain===x?"active":""} onClick={()=>setDomain(x)}>{x}</button>)}</div><div className="workflow-grid"><article className="cartao workflow-list"><div className="cab"><div><span>CAIXA DE TRABALHO</span><h2>Tarefas por prioridade e prazo</h2></div><em>{tasks.length} tarefa(s)</em></div>{tasks.length?tasks.map(t=><div className="workflow-row" key={`${t.domain}-${t.id}`}><i className={t.priority.toLowerCase()}>{t.overdue?"!":"◷"}</i><span><b>{t.title}</b><small>{t.domain} · {t.subject} · {t.detail}</small></span><p><b>{t.priority}</b><small>Prazo {new Date(t.dueAt).toLocaleString("pt-AO")}</small></p><em>{t.canAct?"Minha decisão":"Acompanhar"}</em><button onClick={()=>onNavigate(t.target)}>Abrir origem →</button></div>):<Vazio texto="Não existem decisões pendentes neste filtro."/>}</article><aside className="cartao workflow-history"><span>HISTÓRICO</span><h2>Decisões recentes</h2>{data.history.length?data.history.slice(0,10).map(h=><div key={h.id}><i>✓</i><span><b>{h.summary}</b><small>{h.actor} · {new Date(h.created_at).toLocaleString("pt-AO")}</small></span></div>):<p>Nenhuma decisão registada.</p>}<footer><b>Governança</b><p>A execução continua no motor de origem, com as respetivas permissões, validações e audit trail.</p></footer></aside></div></>}{error&&<p className="erro-global">{error}</p>}</section>}
-
-type GoalsData={cycles:Array<{id:string;name:string;start_date:string;end_date:string;status:string;goal_count:number}>;goals:Array<{id:string;cycle_id:string;organization_name:string;owner_email:string;title:string;metric_name:string;unit:string;direction:string;start_scaled:number;target_scaled:number;current_scaled:number;scale:number;weight_bps:number;status:string;progress_bps:number;checkin_count:number}>;organizations:Array<{id:string;code:string;name:string}>;owners:Array<{name:string;email:string;role:string}>;audit:AuditEvent[]};
-function GoalsWorkspace(){const [data,setData]=useState<GoalsData>({cycles:[],goals:[],organizations:[],owners:[],audit:[]}),[modal,setModal]=useState(""),[goalId,setGoalId]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");const load=()=>apiFetch("/api/v1/goals").then(async r=>{const b=await r.json();if(!r.ok)throw new Error(b.error);setData(b)}).catch(e=>setError(e.message));useEffect(()=>{load()},[]);async function command(payload:Record<string,string>){setBusy(true);setError("");const res=await apiFetch("/api/v1/goals",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}),body=await res.json();setBusy(false);if(!res.ok){setError(body.error);return}setData(body);setModal("");setGoalId("")}async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();await command({type:modal,goalId,...Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<string,string>})}const active=data.goals.filter(g=>g.status==="Ativo"),done=data.goals.filter(g=>g.status==="Concluído"),avg=active.length?Math.round(active.reduce((n,g)=>n+g.progress_bps,0)/active.length/100):0,fmt=(n:number,s:number)=>new Intl.NumberFormat("pt-PT",{maximumFractionDigits:3}).format(n/s);return <section className="goals"><div className="goals-top"><div><span>PERFORMANCE MANAGEMENT · GOALS</span><h1>Objetivos mensuráveis, progresso verificável</h1><p>Ciclos governados e check-ins append-only, sem avaliações subjetivas no cálculo.</p></div><div><button className="secundario" onClick={()=>setModal("createCycle")}>＋ Ciclo</button><button className="primario" onClick={()=>setModal("createGoal")}>＋ Objetivo</button></div></div><section className="goals-kpis"><article><span>Objetivos ativos</span><strong>{active.length}</strong><small>Em execução</small></article><article><span>Progresso médio</span><strong>{avg}%</strong><small>Cálculo determinístico</small></article><article><span>Concluídos</span><strong>{done.length}</strong><small>Meta atingida</small></article><article><span>Ciclos ativos</span><strong>{data.cycles.filter(c=>c.status==="Ativo").length}</strong><small>Maker-checker aplicado</small></article></section><div className="goals-grid"><article className="cartao goals-list"><div className="cab"><div><span>OBJETIVOS</span><h2>Metas e check-ins</h2></div><em>{data.goals.length} objetivo(s)</em></div>{data.goals.length?data.goals.map(g=><div className="goal-row" key={g.id}><div className="goal-ring" style={{background:`conic-gradient(#0f6e56 ${g.progress_bps/100}%,#e5e3dc 0)`}}><span>{(g.progress_bps/100).toFixed(0)}%</span></div><span><b>{g.title}</b><small>{g.organization_name} · {g.owner_email} · peso {(g.weight_bps/100).toFixed(0)}%</small></span><p><b>{fmt(g.current_scaled,g.scale)} / {fmt(g.target_scaled,g.scale)} {g.unit}</b><small>{g.metric_name} · {g.direction} · {g.checkin_count} check-in(s)</small></p><em>{g.status}</em><div>{g.status==="Ativo"&&<><button onClick={()=>{setGoalId(g.id);setModal("goalCheckin")}}>Check-in</button><button onClick={()=>command({type:"completeGoal",goalId:g.id})}>Concluir</button></>}</div></div>):<Vazio texto="Crie um ciclo e o primeiro objetivo."/>}</article><aside className="cartao goal-cycles"><span>CICLOS</span><h2>Governance</h2>{data.cycles.map(c=><div key={c.id}><span><b>{c.name}</b><small>{c.start_date} → {c.end_date} · {c.goal_count} objetivo(s)</small></span>{c.status==="Rascunho"?<button disabled={busy} onClick={()=>command({type:"activateCycle",cycleId:c.id})}>Ativar</button>:<em>{c.status}</em>}</div>)}<footer><b>Regra</b><p>O progresso deriva apenas do valor inicial, alvo e último check-in. A IA não intervém no cálculo.</p></footer></aside></div>{error&&<p className="erro-global">{error}</p>}{modal&&<div className="modal-inline"><form onSubmit={submit}><header><div><small>PERFORMANCE GOALS</small><h2>{modal==="createCycle"?"Novo ciclo":modal==="createGoal"?"Novo objetivo":"Novo check-in"}</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header>{modal==="createCycle"?<><label>Nome<input name="name" required/></label><div><label>Início<input name="startDate" type="date" required/></label><label>Fim<input name="endDate" type="date" required/></label></div></>:modal==="createGoal"?<><label>Ciclo<select name="cycleId" required><option value="">Selecionar</option>{data.cycles.filter(c=>c.status==="Rascunho").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Organização<select name="organizationId" required><option value="">Selecionar</option>{data.organizations.map(o=><option key={o.id} value={o.id}>{o.code} · {o.name}</option>)}</select></label><label>Responsável<select name="ownerEmail" required><option value="">Selecionar</option>{data.owners.map(o=><option key={o.email} value={o.email}>{o.name} · {o.role}</option>)}</select></label><label>Título<input name="title" required/></label><label>Descrição<textarea name="description" rows={2}/></label><div><label>Métrica<input name="metricName" required/></label><label>Unidade<input name="unit" required placeholder="%, AOA, unidades"/></label></div><div><label>Direção<select name="direction"><option>Aumentar</option><option>Reduzir</option></select></label><label>Precisão<select name="scale"><option value="1">Inteiro</option><option value="100">2 decimais</option><option value="1000">3 decimais</option></select></label></div><div><label>Valor inicial<input name="startValue" required/></label><label>Meta<input name="targetValue" required/></label></div><label>Peso (%)<input name="weight" type="number" min="0.01" max="100" step="0.01" required/></label></>:<><label>Valor atual<input name="value" required/></label><label>Nota<textarea name="note" rows={3}/></label><label>Evidência<input name="evidence" placeholder="Referência ou documento"/></label></>}{error&&<p className="erro-form">{error}</p>}<footer><button type="button" className="secundario" onClick={()=>setModal("")}>Cancelar</button><button className="primario" disabled={busy}>{busy?"A guardar…":"Guardar"}</button></footer></form></div>}</section>}
-
-type ActionsData={actions:Array<{id:string;organization_name:string;period?:string;currency?:string;source_line_code?:string;title:string;description?:string;owner_email:string;due_date:string;priority:string;status:string;created_by:string;created_at:string;completion_evidence?:string}>;organizations:Array<{id:string;code:string;name:string}>;owners:Array<{name:string;email:string;role:string}>;audit:AuditEvent[]};
-function ActionPlans(){const [data,setData]=useState<ActionsData>({actions:[],organizations:[],owners:[],audit:[]}),[modal,setModal]=useState(""),[selected,setSelected]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");const load=()=>apiFetch("/api/v1/actions").then(async r=>{const b=await r.json();if(!r.ok)throw new Error(b.error);setData(b)}).catch(e=>setError(e.message));useEffect(()=>{load()},[]);async function command(payload:Record<string,string>){setBusy(true);setError("");const res=await apiFetch("/api/v1/actions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}),body=await res.json();setBusy(false);if(!res.ok){setError(body.error);return false}setData(body);setModal("");setSelected("");return true}async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();await command({type:"createAction",...Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<string,string>})}async function complete(e:FormEvent<HTMLFormElement>){e.preventDefault();await command({type:"transitionAction",actionId:selected,status:"Concluída",...Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<string,string>})}const open=data.actions.filter(a=>["Aberta","Em curso"].includes(a.status)),overdue=open.filter(a=>a.due_date<new Date().toISOString().slice(0,10)),done=data.actions.filter(a=>a.status==="Concluída");return <section className="actions"><div className="actions-top"><div><span>PERFORMANCE MANAGEMENT · ACTIONS</span><h1>Transformar explicação em responsabilidade</h1><p>Cada ação mantém contexto, responsável, prazo, estado e evidência de conclusão.</p></div><button className="primario" onClick={()=>setModal("create")}>＋ Novo plano de ação</button></div><section className="actions-kpis"><article><span>Abertas</span><strong>{open.length}</strong><small>Requerem acompanhamento</small></article><article className={overdue.length?"attention":""}><span>Em atraso</span><strong>{overdue.length}</strong><small>Prazo ultrapassado</small></article><article><span>Concluídas</span><strong>{done.length}</strong><small>Com evidência obrigatória</small></article><article><span>Taxa de conclusão</span><strong>{data.actions.length?`${Math.round(done.length/data.actions.length*100)}%`:"—"}</strong><small>Sobre o total registado</small></article></section><div className="actions-grid"><article className="cartao actions-list"><div className="cab"><div><span>PLANOS DE AÇÃO</span><h2>Responsabilidade e execução</h2></div><em>{data.actions.length} registo(s)</em></div>{data.actions.length?data.actions.map(a=><div className="action-row" key={a.id}><i className={a.priority.toLowerCase()}>{a.status==="Concluída"?"✓":"◎"}</i><span><b>{a.title}</b><small>{a.organization_name} · {a.source_line_code||"Ação geral"} · {a.period||"Sem período"}</small></span><p><b>{a.owner_email}</b><small>Prazo {a.due_date} · {a.priority}</small></p><em>{a.status}</em><div>{a.status==="Aberta"&&<button disabled={busy} onClick={()=>command({type:"transitionAction",actionId:a.id,status:"Em curso"})}>Iniciar</button>}{["Aberta","Em curso"].includes(a.status)&&<button disabled={busy} onClick={()=>{setSelected(a.id);setModal("complete")}}>Concluir</button>}</div></div>):<Vazio texto="Crie o primeiro plano de ação de performance."/>}</article><aside className="cartao actions-audit"><span>AUDIT TRAIL</span><h2>Evidência recente</h2>{data.audit.length?data.audit.map(a=><div key={a.id}><i>✓</i><span><b>{a.summary}</b><small>{a.actor} · {new Date(a.created_at).toLocaleString("pt-AO")}</small></span></div>):<p>As decisões aparecerão aqui.</p>}<footer><b>Fonte de verdade</b><p>A ação acompanha o desempenho; nunca altera os valores do Dashboard ou dos motores financeiros.</p></footer></aside></div>{error&&<p className="erro-global">{error}</p>}{modal&&<div className="modal-inline"><form onSubmit={modal==="create"?submit:complete}><header><div><small>PERFORMANCE ACTION</small><h2>{modal==="create"?"Novo plano de ação":"Concluir com evidência"}</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header>{modal==="create"?<><label>Organização<select name="organizationId" required><option value="">Selecionar</option>{data.organizations.map(o=><option key={o.id} value={o.id}>{o.code} · {o.name}</option>)}</select></label><label>Título<input name="title" required placeholder="Ex.: Rever alocação do Workforce Cost"/></label><label>Descrição<textarea name="description" rows={3}/></label><div><label>Período<input name="period" type="month"/></label><label>Moeda<input name="currency" maxLength={3} defaultValue="AOA"/></label></div><label>Linha de origem<input name="sourceLineCode" placeholder="Ex.: WORKFORCE"/></label><label>Contexto<input name="sourceContext" placeholder="Actual vs Budget"/></label><label>Responsável<select name="ownerEmail" required><option value="">Selecionar</option>{data.owners.map(o=><option key={o.email} value={o.email}>{o.name} · {o.role}</option>)}</select></label><div><label>Prazo<input name="dueDate" type="date" required/></label><label>Prioridade<select name="priority"><option>Normal</option><option>Alta</option><option>Crítica</option><option>Baixa</option></select></label></div></>:<label>Evidência de conclusão<textarea name="evidence" rows={5} required placeholder="Descreva o resultado, documento ou decisão que comprova a conclusão."/></label>}{error&&<p className="erro-form">{error}</p>}<footer><button type="button" className="secundario" onClick={()=>setModal("")}>Cancelar</button><button className="primario" disabled={busy}>{busy?"A guardar…":"Confirmar"}</button></footer></form></div>}</section>}
-
-type BudgetVersion={id:string;name:string;fiscal_year:number;status:string};
-type PerfEntry={id:string;period:string;scenario:string;currency:string;line_code:string;line_name:string;amount_minor:number;organization_name:string;dimension_member_name?:string;created_at:string};
-type PerfData={period:string;currency:string;entries:PerfEntry[];versions:BudgetVersion[];organizations:{id:string;name:string;code:string;currency:string}[];members:{id:string;name:string;code:string;dimension_name:string}[];summary:{actualMinor:number;budgetMinor:number;varianceMinor:number;varianceBps:number|null};audit:AuditEvent[]};
-const perfVazio:PerfData={period:"2026-08",currency:"AOA",entries:[],versions:[],organizations:[],members:[],summary:{actualMinor:0,budgetMinor:0,varianceMinor:0,varianceBps:null},audit:[]};
-function PerformanceControl(){
- const [dados,setDados]=useState<PerfData>(perfVazio),[periodo,setPeriodo]=useState("2026-08"),[moeda,setMoeda]=useState("AOA"),[versao,setVersao]=useState(""),[modal,setModal]=useState(""),[erro,setErro]=useState(""),[aEnviar,setAEnviar]=useState(false);
- const carregar=useCallback(()=>apiFetch(`/api/performance?period=${periodo}&currency=${moeda}&version=${versao}`).then(r=>r.json()).then(d=>{if(!Array.isArray(d.entries))throw new Error(d.error);setDados(d);if(!versao&&d.versions[0])setVersao(d.versions[0].id)}).catch(()=>setErro("Não foi possível carregar o controlo de performance.")),[periodo,moeda,versao]);
- useEffect(()=>{carregar()},[carregar]);
- const dinheiro=(minor:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:moeda,maximumFractionDigits:2}).format(minor/100);
- async function enviar(e:FormEvent<HTMLFormElement>){e.preventDefault();setErro("");setAEnviar(true);const payload=Object.fromEntries(new FormData(e.currentTarget).entries());payload.type=modal;const res=await apiFetch(`/api/performance?period=${periodo}&currency=${moeda}&version=${versao}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});const body=await res.json();setAEnviar(false);if(!res.ok){setErro(body.error||"Não foi possível guardar.");return}setDados(body);if(modal==="budgetVersion"&&body.versions[0])setVersao(body.versions[0].id);setModal("")}
- async function aprovar(id:string){setErro("");const res=await apiFetch(`/api/performance?period=${periodo}&currency=${moeda}&version=${versao}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"approveBudget",versionId:id,period:periodo,currency:moeda})});const body=await res.json();if(!res.ok){setErro(body.error);return}setDados(body)}
- const vAtual=dados.versions.find(v=>v.id===versao);
- return <section className="performance"><div className="perf-top"><div><span>ACTUAL / BUDGET CONTROL</span><h1>Performance financeira governada</h1><p>Compare realizado e orçamento com valores determinísticos e rastreáveis.</p></div><div><button className="secundario" onClick={()=>setModal("budgetVersion")}>＋ Nova versão</button><button className="primario" onClick={()=>setModal("performanceEntry")}>＋ Novo valor</button></div></div>
- <section className="perf-filtros"><label>Período<input type="month" value={periodo} onChange={e=>setPeriodo(e.target.value)}/></label><label>Moeda<input value={moeda} maxLength={3} onChange={e=>setMoeda(e.target.value.toUpperCase())}/></label><label>Versão orçamental<select value={versao} onChange={e=>setVersao(e.target.value)}><option value="">Sem versão</option>{dados.versions.map(v=><option key={v.id} value={v.id}>{v.name} · {v.status}</option>)}</select></label><div><small>Estado</small><b className={vAtual?.status==="Aprovado"?"estado aprovado":"estado"}>{vAtual?.status||"Não configurado"}</b></div></section>
- <section className="perf-kpis"><article><span>Realizado</span><strong>{dinheiro(dados.summary.actualMinor)}</strong><small>{periodo}</small></article><article><span>Orçamento</span><strong>{dinheiro(dados.summary.budgetMinor)}</strong><small>{vAtual?.name||"Sem versão selecionada"}</small></article><article className={dados.summary.varianceMinor>0?"desvio-negativo":"desvio-positivo"}><span>Desvio absoluto</span><strong>{dinheiro(dados.summary.varianceMinor)}</strong><small>{dados.summary.varianceBps===null?"Sem base comparável":`${(dados.summary.varianceBps/100).toFixed(2)}% do orçamento`}</small></article></section>
- <div className="perf-grid"><article className="cartao perf-tabela"><div className="cab"><div><span>VALORES REGISTADOS</span><h2>Actual versus Budget</h2></div><em>{dados.entries.length} linhas</em></div>{dados.entries.length?<div className="tabela-wrap"><table><thead><tr><th>Linha</th><th>Organização</th><th>Dimensão</th><th>Cenário</th><th>Valor</th></tr></thead><tbody>{dados.entries.map(e=><tr key={e.id}><td><b>{e.line_code}</b><small>{e.line_name}</small></td><td>{e.organization_name}</td><td>{e.dimension_member_name||"Sem dimensão"}</td><td><em className={e.scenario==="Actual"?"actual":"budget"}>{e.scenario}</em></td><td><b>{dinheiro(e.amount_minor)}</b></td></tr>)}</tbody></table></div>:<Vazio texto="Registe o primeiro valor realizado ou orçamentado."/>}</article>
- <aside className="cartao perf-versoes"><span>WORKFLOW ORÇAMENTAL</span><h2>Versões e aprovação</h2>{dados.versions.length?dados.versions.map(v=><div key={v.id}><i>{v.status==="Aprovado"?"✓":"◷"}</i><span><b>{v.name}</b><small>{v.fiscal_year} · {v.status}</small></span>{v.status==="Rascunho"&&<button onClick={()=>aprovar(v.id)}>Aprovar</button>}</div>):<p className="sem-auditoria">Crie uma versão para iniciar o orçamento.</p>}<footer><b>Cálculo controlado</b><p>Os valores são guardados em unidades monetárias mínimas. O desvio é calculado como Realizado − Orçamento.</p><small>Último evento: {dados.audit[0]?.summary||"Nenhuma alteração registada"}</small></footer></aside></div>
- {erro&&<p className="erro-global">{erro}</p>}{modal&&<div className="modal-inline"><form onSubmit={enviar}><header><div><small>{modal==="budgetVersion"?"WORKFLOW ORÇAMENTAL":"REGISTO FINANCEIRO"}</small><h2>{modal==="budgetVersion"?"Nova versão orçamental":"Novo valor Actual / Budget"}</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header>{modal==="budgetVersion"?<><label>Nome da versão<input name="name" required autoFocus placeholder="Ex.: Orçamento Base 2027"/></label><label>Ano fiscal<input name="fiscalYear" type="number" min="2000" max="2200" required defaultValue="2027"/></label></>:<><div><label>Organização<select name="organizationId" required><option value="">Selecionar</option>{dados.organizations.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></label><label>Período<input name="period" type="month" required defaultValue={periodo}/></label></div><div><label>Cenário<select name="scenario" required><option>Actual</option><option>Budget</option></select></label><label>Versão<select name="versionId" defaultValue={versao}><option value="">Não aplicável a Actual</option>{dados.versions.filter(v=>v.status==="Rascunho").map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select></label></div><div><label>Moeda<input name="currency" required maxLength={3} defaultValue={moeda}/></label><label>Valor<input name="amount" required inputMode="decimal" placeholder="0,00"/></label></div><div><label>Código da linha<input name="lineCode" required placeholder="EX.: REV-SERV"/></label><label>Descrição<input name="lineName" required placeholder="Receitas de serviços"/></label></div><label>Dimensão<select name="dimensionMemberId"><option value="">Sem dimensão</option>{dados.members.map(m=><option key={m.id} value={m.id}>{m.dimension_name} · {m.code} · {m.name}</option>)}</select></label></>}{erro&&<p className="erro-form">{erro}</p>}<footer><button type="button" className="secundario" onClick={()=>setModal("")}>Cancelar</button><button className="primario" disabled={aEnviar}>{aEnviar?"A guardar…":"Guardar"}</button></footer></form></div>}</section>
+type Organization = {
+  id: string;
+  code: string;
+  name: string;
+  kind: string;
+  currency: string;
+  status: string;
+};
+type PlatformUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  organization_id?: string;
+  status: string;
+};
+type Employee = {
+  id: string;
+  employee_number: string;
+  first_name: string;
+  last_name: string;
+  organization_id: string;
+  job_title: string;
+  hire_date: string;
+  status: string;
+};
+type AuditEvent = {
+  id: string;
+  summary: string;
+  actor: string;
+  created_at: string;
+};
+type FinancialDimension = {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  status: string;
+  member_count: number;
+};
+type DimensionMember = {
+  id: string;
+  dimension_id: string;
+  code: string;
+  name: string;
+  parent_id?: string;
+  status: string;
+};
+type SetupData = {
+  organizations: Organization[];
+  users: PlatformUser[];
+  employees: Employee[];
+  audit: AuditEvent[];
+  dimensions: FinancialDimension[];
+  dimensionMembers: DimensionMember[];
+};
+const vazio: SetupData = {
+  organizations: [],
+  users: [],
+  employees: [],
+  audit: [],
+  dimensions: [],
+  dimensionMembers: [],
+};
+function ConfiguracaoReal() {
+  const [etapa, setEtapa] = useState(1),
+    [dados, setDados] = useState<SetupData>(vazio),
+    [aberto, setAberto] = useState(false),
+    [tipoModal, setTipoModal] = useState(""),
+    [dimensaoAtiva, setDimensaoAtiva] = useState(""),
+    [erro, setErro] = useState(""),
+    [inviteLink, setInviteLink] = useState(""),
+    [aEnviar, setAEnviar] = useState(false);
+  const carregar = () =>
+    apiFetch("/api/setup")
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok || !Array.isArray(d.organizations)) throw new Error(d.error);
+        return d;
+      })
+      .then(setDados)
+      .catch(() => setErro("Não foi possível carregar os registos."));
+  useEffect(() => {
+    carregar();
+  }, []);
+  async function submeter(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErro("");
+    setInviteLink("");
+    setAEnviar(true);
+    const form = new FormData(e.currentTarget);
+    const payload = Object.fromEntries(form.entries());
+    payload.type =
+      tipoModal ||
+      (etapa === 1 ? "organization" : etapa === 2 ? "user" : "employee");
+    const res = await apiFetch("/api/setup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+    setAEnviar(false);
+    if (!res.ok) {
+      setErro(body.error || "Não foi possível guardar.");
+      return;
+    }
+    setDados(body);
+    if (body.invite)
+      setInviteLink(
+        `${window.location.origin}/?invite=${encodeURIComponent(body.invite.token)}`,
+      );
+    setAberto(false);
+  }
+  async function gerirUtilizador(
+    userId: string,
+    action: string,
+    role?: string,
+  ) {
+    setErro("");
+    setInviteLink("");
+    setAEnviar(true);
+    const res = await apiFetch("/api/v1/setup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "userAction", userId, action, role }),
+    });
+    const body = await res.json();
+    setAEnviar(false);
+    if (!res.ok) {
+      setErro(body.error || "Não foi possível alterar o acesso.");
+      return;
+    }
+    setDados(body);
+    if (body.invite)
+      setInviteLink(
+        `${window.location.origin}/?invite=${encodeURIComponent(body.invite.token)}`,
+      );
+  }
+  const total =
+    dados.organizations.length +
+    dados.users.length +
+    dados.employees.length +
+    dados.dimensions.length;
+  return (
+    <section className="configuracao">
+      <div className="config-top">
+        <div>
+          <span>CONFIGURAÇÃO BASE</span>
+          <h1>Estrutura governada e auditável</h1>
+          <p>
+            Crie a organização, atribua acessos e ligue cada colaborador ao seu
+            âmbito.
+          </p>
+        </div>
+        <b>{total} registos ativos</b>
+      </div>
+      <div className="progresso">
+        <i
+          style={{
+            width: dados.organizations.length
+              ? dados.users.length
+                ? dados.employees.length
+                  ? "100%"
+                  : "67%"
+                : "34%"
+              : "8%",
+          }}
+        />
+      </div>
+      <div className="passos quatro">
+        {[
+          [
+            "1",
+            "Organização",
+            "Estrutura e moeda",
+            dados.organizations.length ? "Configurada" : "Começar",
+          ],
+          [
+            "2",
+            "Utilizadores",
+            "Funções e âmbito",
+            `${dados.users.length} acessos`,
+          ],
+          [
+            "3",
+            "Colaboradores",
+            "Vínculos essenciais",
+            `${dados.employees.length} registos`,
+          ],
+          [
+            "4",
+            "Dimensões financeiras",
+            "Eixos e hierarquias",
+            `${dados.dimensions.length} dimensões`,
+          ],
+        ].map((x, i) => (
+          <button
+            key={x[1]}
+            className={etapa === i + 1 ? "passo ativo" : "passo"}
+            onClick={() => {
+              setEtapa(i + 1);
+              setAberto(false);
+              setErro("");
+            }}
+          >
+            <i>
+              {dados[
+                ["organizations", "users", "employees", "dimensions"][
+                  i
+                ] as keyof SetupData
+              ].length
+                ? "✓"
+                : x[0]}
+            </i>
+            <span>
+              <b>{x[1]}</b>
+              <small>{x[2]}</small>
+            </span>
+            <em>{x[3]}</em>
+          </button>
+        ))}
+      </div>
+      <div className="config-grid">
+        <article className="cartao estrutura">
+          <div className="cab">
+            <div>
+              <span>
+                {etapa === 1
+                  ? "ORGANIZAÇÃO"
+                  : etapa === 2
+                    ? "UTILIZADORES"
+                    : etapa === 3
+                      ? "COLABORADORES"
+                      : "DIMENSÕES FINANCEIRAS"}
+              </span>
+              <h2>
+                {etapa === 1
+                  ? "Estrutura organizacional"
+                  : etapa === 2
+                    ? "Acesso à plataforma"
+                    : etapa === 3
+                      ? "Diretório essencial"
+                      : "Eixos de análise configuráveis"}
+              </h2>
+            </div>
+            <button
+              onClick={() => {
+                setTipoModal(etapa === 4 ? "dimension" : "");
+                setAberto(true);
+              }}
+            >
+              ＋{" "}
+              {etapa === 1
+                ? "Nova unidade"
+                : etapa === 2
+                  ? "Convidar"
+                  : etapa === 3
+                    ? "Novo colaborador"
+                    : "Nova dimensão"}
+            </button>
+          </div>
+          {etapa === 1 ? (
+            <div className="org-tree">
+              {dados.organizations.length ? (
+                dados.organizations.map((o) => (
+                  <div key={o.id}>
+                    <i>{o.code.slice(0, 2)}</i>
+                    <span>
+                      <b>{o.name}</b>
+                      <small>
+                        {o.kind} · {o.currency}
+                      </small>
+                    </span>
+                    <em>{o.status}</em>
+                  </div>
+                ))
+              ) : (
+                <Vazio texto="Ainda não existem unidades organizacionais." />
+              )}
+            </div>
+          ) : etapa === 2 ? (
+            <div className="user-list acessos">
+              {inviteLink && (
+                <div className="convite-link">
+                  <span>
+                    <b>Link de convite válido por 7 dias</b>
+                    <small>{inviteLink}</small>
+                  </span>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(inviteLink)}
+                  >
+                    Copiar link
+                  </button>
+                </div>
+              )}
+              {dados.users.length ? (
+                dados.users.map((u) => (
+                  <div key={u.id}>
+                    <i>
+                      {u.name
+                        .split(" ")
+                        .map((n: string) => n[0])
+                        .join("")
+                        .slice(0, 2)}
+                    </i>
+                    <span>
+                      <b>{u.name}</b>
+                      <small>{u.email}</small>
+                    </span>
+                    <select
+                      aria-label={`Função de ${u.name}`}
+                      value={u.role}
+                      disabled={aEnviar || u.status === "Removido"}
+                      onChange={(e) =>
+                        gerirUtilizador(u.id, "changeRole", e.target.value)
+                      }
+                    >
+                      <option>Administrador</option>
+                      <option>Financeiro</option>
+                      <option>Recursos Humanos</option>
+                      <option>Gestor</option>
+                      <option>Leitura</option>
+                    </select>
+                    <em>{u.status}</em>
+                    <div className="acoes-acesso">
+                      {u.status === "Ativo" ? (
+                        <button
+                          disabled={aEnviar}
+                          onClick={() => gerirUtilizador(u.id, "remove")}
+                        >
+                          Remover
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            disabled={aEnviar}
+                            onClick={() => gerirUtilizador(u.id, "resend")}
+                          >
+                            Gerar novo link
+                          </button>
+                          {u.status !== "Cancelado" && (
+                            <button
+                              disabled={aEnviar}
+                              onClick={() => gerirUtilizador(u.id, "cancel")}
+                            >
+                              Cancelar
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <Vazio texto="Convide o primeiro utilizador." />
+              )}
+              {erro && <p className="erro-form erro-acesso">{erro}</p>}
+            </div>
+          ) : etapa === 3 ? (
+            <div className="user-list">
+              {dados.employees.length ? (
+                dados.employees.map((e) => (
+                  <div key={e.id}>
+                    <i>
+                      {e.first_name[0]}
+                      {e.last_name[0]}
+                    </i>
+                    <span>
+                      <b>
+                        {e.first_name} {e.last_name}
+                      </b>
+                      <small>
+                        {e.employee_number} · {e.job_title}
+                      </small>
+                    </span>
+                    <em>{e.status}</em>
+                  </div>
+                ))
+              ) : (
+                <Vazio texto="Registe o primeiro colaborador." />
+              )}
+            </div>
+          ) : (
+            <div className="dimensoes-lista">
+              {dados.dimensions.length ? (
+                dados.dimensions.map((d) => (
+                  <section
+                    key={d.id}
+                    className={
+                      dimensaoAtiva === d.id ? "dimensao aberta" : "dimensao"
+                    }
+                  >
+                    <button
+                      onClick={() =>
+                        setDimensaoAtiva(dimensaoAtiva === d.id ? "" : d.id)
+                      }
+                    >
+                      <i>{d.code.slice(0, 2)}</i>
+                      <span>
+                        <b>{d.name}</b>
+                        <small>{d.description}</small>
+                      </span>
+                      <em>{d.member_count} membros</em>
+                      <strong>⌄</strong>
+                    </button>
+                    {dimensaoAtiva === d.id && (
+                      <div className="membros">
+                        {dados.dimensionMembers
+                          .filter((m) => m.dimension_id === d.id)
+                          .map((m) => (
+                            <div
+                              key={m.id}
+                              className={m.parent_id ? "filho" : ""}
+                            >
+                              <i>↳</i>
+                              <span>
+                                <b>{m.code}</b>
+                                <small>{m.name}</small>
+                              </span>
+                              <em>{m.status}</em>
+                            </div>
+                          ))}
+                        <button
+                          onClick={() => {
+                            setTipoModal("dimensionMember");
+                            setDimensaoAtiva(d.id);
+                            setAberto(true);
+                          }}
+                        >
+                          ＋ Adicionar membro
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                ))
+              ) : (
+                <Vazio texto="Crie a primeira dimensão de análise." />
+              )}
+            </div>
+          )}
+        </article>
+        <aside className="cartao controlos">
+          <span>AUDITORIA RECENTE</span>
+          <h2>Alterações rastreáveis</h2>
+          {dados.audit.length ? (
+            dados.audit.map((a) => (
+              <div key={a.id}>
+                <i>✓</i>
+                <span>
+                  <b>{a.summary}</b>
+                  <small>
+                    {a.actor} · {new Date(a.created_at).toLocaleString("pt-PT")}
+                  </small>
+                </span>
+              </div>
+            ))
+          ) : (
+            <p className="sem-auditoria">
+              As primeiras alterações aparecerão aqui.
+            </p>
+          )}
+          <footer>
+            <b>Controlos ativos</b>
+            <p>
+              Tenant, autor, data e entidade são registados em cada criação.
+            </p>
+          </footer>
+        </aside>
+      </div>
+      {aberto && etapa === 4 && (
+        <div className="modal-inline">
+          <form onSubmit={submeter}>
+            <header>
+              <div>
+                <small>DIMENSÕES FINANCEIRAS</small>
+                <h2>
+                  {tipoModal === "dimensionMember"
+                    ? "Novo membro"
+                    : "Nova dimensão"}
+                </h2>
+              </div>
+              <button type="button" onClick={() => setAberto(false)}>
+                ×
+              </button>
+            </header>
+            {tipoModal === "dimensionMember" ? (
+              <>
+                <input type="hidden" name="dimensionId" value={dimensaoAtiva} />
+                <div>
+                  <label>
+                    Código
+                    <input
+                      name="code"
+                      required
+                      autoFocus
+                      placeholder="EX.: OPS-01"
+                    />
+                  </label>
+                  <label>
+                    Estado
+                    <select name="status">
+                      <option>Ativo</option>
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  Nome do membro
+                  <input name="name" required />
+                </label>
+                <label>
+                  Membro superior
+                  <select name="parentId">
+                    <option value="">Raiz da hierarquia</option>
+                    {dados.dimensionMembers
+                      .filter((m) => m.dimension_id === dimensaoAtiva)
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.code} · {m.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label>
+                    Código
+                    <input
+                      name="code"
+                      required
+                      autoFocus
+                      placeholder="EX.: CC"
+                    />
+                  </label>
+                  <label>
+                    Estado
+                    <select name="status">
+                      <option>Ativa</option>
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  Nome da dimensão
+                  <input
+                    name="name"
+                    required
+                    placeholder="Ex.: Centro de custo"
+                  />
+                </label>
+                <label>
+                  Descrição
+                  <input
+                    name="description"
+                    required
+                    placeholder="Como esta dimensão será utilizada"
+                  />
+                </label>
+              </>
+            )}
+            {erro && <p className="erro-form">{erro}</p>}
+            <footer>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => setAberto(false)}
+              >
+                Cancelar
+              </button>
+              <button className="primario" disabled={aEnviar}>
+                {aEnviar ? "A guardar…" : "Guardar registo"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
+      {aberto && etapa < 4 && (
+        <div className="modal-inline">
+          <form onSubmit={submeter}>
+            <header>
+              <div>
+                <small>NOVO REGISTO</small>
+                <h2>
+                  {etapa === 1
+                    ? "Unidade organizacional"
+                    : etapa === 2
+                      ? "Convidar utilizador"
+                      : "Novo colaborador"}
+                </h2>
+              </div>
+              <button type="button" onClick={() => setAberto(false)}>
+                ×
+              </button>
+            </header>
+            {etapa === 1 ? (
+              <>
+                <label>
+                  Nome
+                  <input name="name" required autoFocus />
+                </label>
+                <div>
+                  <label>
+                    Código
+                    <input name="code" required placeholder="EX.: OPS" />
+                  </label>
+                  <label>
+                    Moeda
+                    <input
+                      name="currency"
+                      required
+                      placeholder="ISO 4217"
+                      maxLength={3}
+                    />
+                  </label>
+                </div>
+                <label>
+                  Tipo
+                  <select name="kind">
+                    <option>Grupo</option>
+                    <option>Empresa</option>
+                    <option>Unidade</option>
+                    <option>Departamento</option>
+                  </select>
+                </label>
+              </>
+            ) : etapa === 2 ? (
+              <>
+                <label>
+                  Nome completo
+                  <input name="name" required autoFocus />
+                </label>
+                <label>
+                  Email
+                  <input name="email" type="email" required />
+                </label>
+                <div>
+                  <label>
+                    Função
+                    <select name="role">
+                      <option>Gestor</option>
+                      <option>Financeiro</option>
+                      <option>Recursos Humanos</option>
+                      <option>Leitura</option>
+                    </select>
+                  </label>
+                  <label>
+                    Âmbito
+                    <select name="organizationId">
+                      <option value="">Todo o tenant</option>
+                      {dados.organizations.map((o) => (
+                        <option value={o.id} key={o.id}>
+                          {o.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label>
+                    Número
+                    <input
+                      name="employeeNumber"
+                      required
+                      placeholder="EMP-001"
+                    />
+                  </label>
+                  <label>
+                    Data de admissão
+                    <input name="hireDate" type="date" required />
+                  </label>
+                </div>
+                <div>
+                  <label>
+                    Nome
+                    <input name="firstName" required />
+                  </label>
+                  <label>
+                    Apelido
+                    <input name="lastName" required />
+                  </label>
+                </div>
+                <label>
+                  Unidade
+                  <select name="organizationId" required>
+                    <option value="">Selecionar</option>
+                    {dados.organizations.map((o) => (
+                      <option value={o.id} key={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Função
+                  <input name="jobTitle" required />
+                </label>
+              </>
+            )}
+            {erro && <p className="erro-form">{erro}</p>}
+            <footer>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => setAberto(false)}
+              >
+                Cancelar
+              </button>
+              <button className="primario" disabled={aEnviar}>
+                {aEnviar ? "A guardar…" : "Guardar registo"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+function Vazio({ texto }: { texto: string }) {
+  return (
+    <div className="vazio-lista">
+      <i>＋</i>
+      <b>{texto}</b>
+      <small>Use a ação acima para começar.</small>
+    </div>
+  );
 }
 
-type ScenarioData={period:string;currency:string;selectedVersion:{id:string;name:string;version_type:string;status:string;created_by:string;base_budget_id?:string}|null;versions:Array<{id:string;name:string;version_type:string;fiscal_year:number;status:string;entry_count:number;base_budget_name?:string}>;organizations:Array<{id:string;code:string;name:string;currency:string}>;members:Array<{id:string;code:string;name:string;dimension_name:string}>;entries:Array<{id:string;line_code:string;line_name:string;organization_name:string;dimension_member_name?:string;amount_minor:number;assumption_note?:string}>;summary:{actualMinor:number;budgetMinor:number;forecastMinor:number;forecastVsActualMinor:number;forecastVsBudgetMinor:number};audit:AuditEvent[]};
-const scenarioEmpty:ScenarioData={period:"2026-08",currency:"AOA",selectedVersion:null,versions:[],organizations:[],members:[],entries:[],summary:{actualMinor:0,budgetMinor:0,forecastMinor:0,forecastVsActualMinor:0,forecastVsBudgetMinor:0},audit:[]};
-function ScenariosWorkspace(){const [data,setData]=useState<ScenarioData>(scenarioEmpty),[period,setPeriod]=useState("2026-08"),[currency,setCurrency]=useState("AOA"),[version,setVersion]=useState(""),[modal,setModal]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");const load=useCallback(()=>apiFetch(`/api/v1/scenarios?period=${period}&currency=${currency}&version=${version}`).then(async r=>{const b=await r.json();if(!r.ok)throw new Error(b.error);setData(b);if(!version&&b.versions?.[0])setVersion(b.versions[0].id)}).catch(e=>setError(e.message)),[period,currency,version]);useEffect(()=>{load()},[load]);async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setError("");const res=await apiFetch(`/api/v1/scenarios?period=${period}&currency=${currency}&version=${version}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:modal,...Object.fromEntries(new FormData(e.currentTarget).entries())})}),body=await res.json();setBusy(false);if(!res.ok){setError(body.error);return}setData(body);if(body.selectedVersion?.id)setVersion(body.selectedVersion.id);setModal("")}async function approve(){if(!version)return;setBusy(true);const res=await apiFetch(`/api/v1/scenarios?period=${period}&currency=${currency}&version=${version}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"approvePlanningVersion",versionId:version})}),body=await res.json();setBusy(false);if(!res.ok){setError(body.error);return}setData(body)}const money=(n:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency}).format(n/100);return <section className="scenarios"><div className="scenarios-top"><div><span>FINANCE & FP&A · FORECAST</span><h1>Antecipar resultados sem alterar o Actual</h1><p>Versões independentes, pressupostos explícitos e comparação reproduzível.</p></div><div><button className="secundario" onClick={()=>setModal("createPlanningVersion")}>＋ Nova versão</button><button className="primario" disabled={!version||data.selectedVersion?.status!=="Rascunho"} onClick={()=>setModal("planningEntry")}>＋ Entrada</button></div></div><section className="scenario-filters"><label>Período<input type="month" value={period} onChange={e=>setPeriod(e.target.value)}/></label><label>Moeda<input value={currency} maxLength={3} onChange={e=>setCurrency(e.target.value.toUpperCase())}/></label><label>Versão<select value={version} onChange={e=>setVersion(e.target.value)}><option value="">Selecionar</option>{data.versions.map(v=><option key={v.id} value={v.id}>{v.version_type} · {v.name} · {v.status}</option>)}</select></label>{data.selectedVersion?.status==="Rascunho"&&<button disabled={busy} onClick={approve}>Aprovar versão</button>}</section><section className="scenario-kpis"><article><span>Actual</span><strong>{money(data.summary.actualMinor)}</strong><small>Fonte financeira imutável</small></article><article><span>Budget base</span><strong>{money(data.summary.budgetMinor)}</strong><small>{data.selectedVersion?.base_budget_id?"Versão aprovada":"Sem Budget base"}</small></article><article><span>Forecast / Cenário</span><strong>{money(data.summary.forecastMinor)}</strong><small>{data.selectedVersion?.name||"Sem versão"}</small></article><article className={data.summary.forecastVsActualMinor>0?"attention":""}><span>Forecast − Actual</span><strong>{money(data.summary.forecastVsActualMinor)}</strong><small>Diferença no período</small></article></section><div className="scenario-grid"><article className="cartao scenario-list"><div className="cab"><div><span>LINHAS DE PLANEAMENTO</span><h2>Pressupostos e valores</h2></div><em>{data.entries.length} entrada(s)</em></div>{data.entries.length?data.entries.map(e=><div className="scenario-row" key={e.id}><i>ƒ</i><span><b>{e.line_code} · {e.line_name}</b><small>{e.organization_name} · {e.dimension_member_name||"Sem dimensão"}</small></span><p><b>{money(e.amount_minor)}</b><small>{e.assumption_note||"Sem nota de pressuposto"}</small></p></div>):<Vazio texto="Selecione uma versão e registe linhas de Forecast."/>}</article><aside className="cartao scenario-versions"><span>VERSÕES</span><h2>Governance</h2>{data.versions.map(v=><button key={v.id} className={version===v.id?"active":""} onClick={()=>setVersion(v.id)}><span><b>{v.name}</b><small>{v.version_type} · {v.fiscal_year} · {v.entry_count} entrada(s)</small></span><em>{v.status}</em></button>)}<footer><b>Separação de fontes</b><p>Actual, Budget e Forecast nunca são sobrescritos. A comparação ocorre por parâmetros explícitos.</p></footer></aside></div>{error&&<p className="erro-global">{error}</p>}{modal&&<div className="modal-inline"><form onSubmit={submit}><header><div><small>FP&A · PLANNING VERSION</small><h2>{modal==="createPlanningVersion"?"Nova versão":"Nova entrada"}</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header>{modal==="createPlanningVersion"?<><label>Nome<input name="name" required placeholder="Ex.: Forecast Q4"/></label><div><label>Tipo<select name="versionType"><option>Forecast</option><option>Cenário</option></select></label><label>Ano fiscal<input name="fiscalYear" type="number" defaultValue={new Date().getFullYear()} required/></label></div><p className="calculo-nota">O Budget base aprovado é opcional e permanece uma fonte independente.</p></>:<><input type="hidden" name="versionId" value={version}/><label>Organização<select name="organizationId" required><option value="">Selecionar</option>{data.organizations.map(o=><option key={o.id} value={o.id}>{o.code} · {o.name}</option>)}</select></label><div><label>Período<input name="period" type="month" defaultValue={period} required/></label><label>Moeda<input name="currency" defaultValue={currency} maxLength={3} required/></label></div><div><label>Código da linha<input name="lineCode" required/></label><label>Nome da linha<input name="lineName" required/></label></div><label>Dimensão<select name="dimensionMemberId"><option value="">Sem dimensão</option>{data.members.map(m=><option key={m.id} value={m.id}>{m.dimension_name} · {m.code} · {m.name}</option>)}</select></label><label>Montante<input name="amount" inputMode="decimal" required/></label><label>Pressuposto<textarea name="assumptionNote" rows={3} placeholder="Explique o driver ou hipótese usada."/></label></>}{error&&<p className="erro-form">{error}</p>}<footer><button type="button" className="secundario" onClick={()=>setModal("")}>Cancelar</button><button className="primario" disabled={busy}>{busy?"A guardar…":"Guardar"}</button></footer></form></div>}</section>}
-
-type Payslip={id:string;run_id:string;payslip_number:string;period:string;currency:string;gross_minor:number;deduction_minor:number;employer_minor:number;net_minor:number;document_hash:string;status:string;issued_at:string;employee_number:string;employee_name:string;organization_name:string;payload_json:string};
-type PaymentBatch={id:string;run_id:string;batch_number:string;period:string;currency:string;employee_count:number;total_minor:number;status:string;evidence_hash:string;prepared_by:string;prepared_at:string;approved_by?:string;approved_at?:string;exported_by?:string;exported_at?:string;line_count:number};
-type PayrollData={profiles:Array<{id:string;employee_name:string;employee_number:string;currency:string;base_minor:number;periodicity:string;effective_from:string;status:string;dimension_member_name?:string}>;components:Array<{id:string;code:string;name:string;category:string;method:string;value_minor?:number;rate_bps?:number;employee_name?:string;status:string}>;runs:Array<{id:string;period:string;currency:string;status:string;employee_count:number;gross_minor:number;deduction_minor:number;employer_minor:number;net_minor:number}>;employees:Array<{id:string;employee_number:string;first_name:string;last_name:string}>;members:Array<{id:string;name:string;code:string;dimension_name:string}>;payslips:Payslip[];batches:PaymentBatch[];audit:AuditEvent[]};
-const payrollVazio:PayrollData={profiles:[],components:[],runs:[],employees:[],members:[],payslips:[],batches:[],audit:[]};
-function PayrollFoundation(){
- const [dados,setDados]=useState<PayrollData>(payrollVazio),[vista,setVista]=useState("Perfis salariais"),[modal,setModal]=useState(""),[recibo,setRecibo]=useState<Payslip|null>(null),[erro,setErro]=useState(""),[aEnviar,setAEnviar]=useState(false);
- const carregar=()=>apiFetch("/api/payroll").then(r=>r.json()).then(d=>{if(!Array.isArray(d.profiles))throw new Error(d.error);setDados(d)}).catch(()=>setErro("Não foi possível carregar a fundação de Payroll."));useEffect(()=>{carregar()},[]);
- const dinheiro=(minor:number,currency="AOA")=>new Intl.NumberFormat("pt-PT",{style:"currency",currency}).format(minor/100);
- async function enviar(e:FormEvent<HTMLFormElement>){e.preventDefault();setErro("");setAEnviar(true);const payload=Object.fromEntries(new FormData(e.currentTarget).entries());payload.type=modal;const res=await apiFetch("/api/payroll",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});const body=await res.json();setAEnviar(false);if(!res.ok){setErro(body.error||"Não foi possível executar a operação.");return}setDados(body);setModal("")}
- async function transitar(runId:string){setErro("");const res=await apiFetch("/api/payroll",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"transitionPayrollRun",runId})});const body=await res.json();if(!res.ok){setErro(body.error);return}setDados(body)}
- async function emitirRecibos(runId:string){setErro("");setAEnviar(true);const res=await apiFetch("/api/v1/payroll",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"issuePayslips",runId})}),body=await res.json();setAEnviar(false);if(!res.ok){setErro(body.error);return}setDados(body);setVista("Recibos")}
- async function prepararLote(runId:string){setErro("");setAEnviar(true);const res=await apiFetch("/api/v1/payroll",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"preparePaymentBatch",runId})}),body=await res.json();setAEnviar(false);if(!res.ok){setErro(body.error);return}setDados(body);setVista("Pagamentos")}
- async function transitarLote(batchId:string){setErro("");setAEnviar(true);const res=await apiFetch("/api/v1/payroll",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"transitionPaymentBatch",batchId})}),body=await res.json();setAEnviar(false);if(!res.ok){setErro(body.error);return}setDados(body)}
- const ultimo=dados.runs[0],acao=(status:string)=>status==="Rascunho"?"Validar":status==="Validado"?"Aprovar":status==="Aprovado"?"Fechar":"Fechado",reciboPayload=recibo?JSON.parse(recibo.payload_json) as {employee:{name:string;number:string;jobTitle:string;organizationName:string};amounts:{baseMinor:number;grossMinor:number;deductionMinor:number;employerMinor:number;netMinor:number}}:null;
- return <section className="payroll"><div className="pay-top"><div><span>PAYROLL RUN FOUNDATION</span><h1>Processamento salarial controlado</h1><p>Configuração, cálculo e workflow sem regras laborais ou fiscais hardcoded.</p></div><div><button className="secundario" onClick={()=>setModal("salaryProfile")}>＋ Perfil salarial</button><button className="secundario" onClick={()=>setModal("payrollComponent")}>＋ Componente</button><button className="primario" onClick={()=>setModal("generatePayrollRun")}>▶ Processar</button></div></div>
- <div className="pay-alerta"><i>i</i><div><b>Core agnóstico a país</b><p>Este incremento não calcula impostos, contribuições ou regras laborais. Esses cálculos serão fornecidos por Country Packs versionados.</p></div></div>
- <section className="pay-resumo"><article><span>Perfis ativos</span><strong>{dados.profiles.filter(p=>p.status==="Ativo").length}</strong><small>de {dados.employees.length} colaboradores</small></article><article><span>Último processamento</span><strong>{ultimo?.period||"—"}</strong><small>{ultimo?.status||"Ainda não processado"}</small></article><article><span>Líquido calculado</span><strong>{ultimo?dinheiro(ultimo.net_minor,ultimo.currency):"—"}</strong><small>{ultimo?`${ultimo.employee_count} colaborador(es)`:"Sem resultados"}</small></article><article><span>Custo patronal</span><strong>{ultimo?dinheiro(ultimo.gross_minor+ultimo.employer_minor,ultimo.currency):"—"}</strong><small>Bruto + employer cost</small></article></section>
- <div className="pay-tabs">{["Perfis salariais","Componentes","Processamentos","Recibos","Pagamentos"].map(x=><button key={x} className={vista===x?"ativo":""} onClick={()=>setVista(x)}>{x}<em>{x==="Perfis salariais"?dados.profiles.length:x==="Componentes"?dados.components.length:x==="Processamentos"?dados.runs.length:x==="Recibos"?dados.payslips.length:dados.batches.length}</em></button>)}</div>
- {vista==="Pagamentos"&&<section className="payment-workspace cartao"><div className="cab"><div><span>PAYMENT BATCHES</span><h2>Lotes reconciliados e aprovados</h2></div><em>{dados.batches.length} lote(s)</em></div>{dados.batches.length?dados.batches.map(b=><div className="payment-row" key={b.id}><i>⇄</i><span><b>{b.batch_number}</b><small>Payroll {b.period} · {b.employee_count} colaborador(es) · preparado por {b.prepared_by}</small><code>#{b.evidence_hash.slice(0,16)}</code></span><p><b>{dinheiro(b.total_minor,b.currency)}</b><small>{b.line_count} instrução(ões)</small></p><em>{b.status}</em>{b.status==="Exportado"?<strong>Fechado ✓</strong>:<button disabled={aEnviar} onClick={()=>transitarLote(b.id)}>{b.status==="Preparado"?"Aprovar":"Marcar exportado"} →</button>}</div>):<div className="payment-empty"><Vazio texto="Emita os recibos de um Payroll fechado para preparar o lote."/>{dados.runs.filter(r=>r.status==="Fechado"&&dados.payslips.some(p=>p.run_id===r.id)).map(r=><button className="primario" key={r.id} disabled={aEnviar} onClick={()=>prepararLote(r.id)}>Preparar lote · Payroll {r.period}</button>)}</div>}</section>}
- <div className="pay-grid"><article className="cartao pay-lista"><div className="cab"><div><span>{vista.toUpperCase()}</span><h2>{vista==="Perfis salariais"?"Configuração por colaborador":vista==="Componentes"?"Componentes atribuídos":vista==="Processamentos"?"Runs e workflow":"Documentos salariais emitidos"}</h2></div></div>{vista==="Perfis salariais"?(dados.profiles.length?dados.profiles.map(p=><div className="pay-row" key={p.id}><i>{p.employee_name.split(" ").map(n=>n[0]).join("").slice(0,2)}</i><span><b>{p.employee_name}</b><small>{p.employee_number} · {p.periodicity} · desde {p.effective_from}</small></span><p>{dinheiro(p.base_minor,p.currency)}<small>{p.dimension_member_name||"Sem dimensão"}</small></p><em>{p.status}</em></div>):<Vazio texto="Crie o primeiro perfil salarial."/>):vista==="Componentes"?(dados.components.length?dados.components.map(c=><div className="pay-row componente" key={c.id}><i>{c.category==="Earning"?"＋":c.category==="Deduction"?"−":"◇"}</i><span><b>{c.code} · {c.name}</b><small>{c.employee_name||"Sem atribuição"} · {c.category}</small></span><p>{c.method==="Fixed"?dinheiro(c.value_minor||0):`${((c.rate_bps||0)/100).toFixed(2)}%`}<small>{c.method}</small></p><em>{c.status}</em></div>):<Vazio texto="Crie e atribua o primeiro componente."/>):vista==="Processamentos"?(dados.runs.length?dados.runs.map(r=><div className="pay-run" key={r.id}><div><i>{r.status==="Fechado"?"✓":"◷"}</i><span><b>Payroll {r.period}</b><small>{r.employee_count} colaborador(es) · {r.currency}</small></span></div><div><span>Bruto<b>{dinheiro(r.gross_minor,r.currency)}</b></span><span>Deduções<b>{dinheiro(r.deduction_minor,r.currency)}</b></span><span>Líquido<b>{dinheiro(r.net_minor,r.currency)}</b></span></div><em className={`run-${r.status.toLowerCase()}`}>{r.status}</em>{r.status!=="Fechado"?<button onClick={()=>transitar(r.id)}>{acao(r.status)} →</button>:<button disabled={aEnviar} onClick={()=>emitirRecibos(r.id)}>{dados.payslips.some(p=>p.run_id===r.id)?"Ver recibos":"Emitir recibos"} →</button>}</div>):<Vazio texto="Execute o primeiro Payroll Run."/>):(dados.payslips.length?dados.payslips.map(p=><div className="payslip-row" key={p.id}><i>▧</i><span><b>{p.employee_name}</b><small>{p.employee_number} · {p.organization_name} · {p.period}</small></span><p><b>{dinheiro(p.net_minor,p.currency)}</b><small>Líquido · {p.currency}</small></p><em>{p.status}</em><button onClick={()=>setRecibo(p)}>Abrir →</button></div>):<Vazio texto="Emita recibos a partir de um Payroll Run fechado."/>)}</article>
- <aside className="cartao pay-controlos"><span>CONTROLOS DO MOTOR</span><h2>Execução reproduzível</h2>{[["Montantes","Unidades mínimas"],["Percentagens","Basis points"],["Arredondamento","Determinístico"],["Evidência","Hash SHA-256"],["Segregação","Workflow explícito"]].map(x=><div key={x[0]}><i>✓</i><span><b>{x[0]}</b><small>{x[1]}</small></span></div>)}<footer><b>Última ação auditada</b><p>{dados.audit[0]?.summary||"Nenhuma ação de Payroll registada."}</p></footer></aside></div>
- {recibo&&reciboPayload&&<div className="payslip-overlay" onClick={()=>setRecibo(null)}><article className="payslip-paper" onClick={e=>e.stopPropagation()}><header><div><span>EP</span><p><b>Recibo salarial</b><small>{recibo.payslip_number}</small></p></div><em>{recibo.status}</em></header><section><small>COLABORADOR</small><h2>{reciboPayload.employee.name}</h2><p>{reciboPayload.employee.number} · {reciboPayload.employee.jobTitle} · {reciboPayload.employee.organizationName}</p></section><dl><div><dt>Período</dt><dd>{recibo.period}</dd></div><div><dt>Moeda</dt><dd>{recibo.currency}</dd></div><div><dt>Salário base</dt><dd>{dinheiro(reciboPayload.amounts.baseMinor,recibo.currency)}</dd></div><div><dt>Bruto</dt><dd>{dinheiro(recibo.gross_minor,recibo.currency)}</dd></div><div><dt>Deduções</dt><dd>− {dinheiro(recibo.deduction_minor,recibo.currency)}</dd></div><div className="net"><dt>Líquido</dt><dd>{dinheiro(recibo.net_minor,recibo.currency)}</dd></div><div><dt>Custo patronal</dt><dd>{dinheiro(recibo.employer_minor,recibo.currency)}</dd></div></dl><footer><span>Hash SHA-256<br/><code>{recibo.document_hash}</code></span><span>Emitido em<br/>{new Date(recibo.issued_at).toLocaleString("pt-AO")}</span></footer><nav><button className="secundario" onClick={()=>setRecibo(null)}>Fechar</button><button className="primario" onClick={()=>window.print()}>Imprimir / PDF</button></nav></article></div>}{erro&&<p className="erro-global">{erro}</p>}{modal&&<div className="modal-inline"><form onSubmit={enviar}><header><div><small>PAYROLL FOUNDATION</small><h2>{modal==="salaryProfile"?"Novo perfil salarial":modal==="payrollComponent"?"Novo componente":"Executar Payroll Run"}</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header>{modal==="salaryProfile"?<><label>Colaborador<select name="employeeId" required><option value="">Selecionar</option>{dados.employees.map(e=><option key={e.id} value={e.id}>{e.employee_number} · {e.first_name} {e.last_name}</option>)}</select></label><div><label>Salário base<input name="baseAmount" required inputMode="decimal" placeholder="0,00"/></label><label>Moeda<input name="currency" required maxLength={3} defaultValue="AOA"/></label></div><div><label>Periodicidade<select name="periodicity"><option>Mensal</option><option>Quinzenal</option><option>Semanal</option></select></label><label>Vigência<input name="effectiveFrom" type="date" required/></label></div><label>Dimensão financeira<select name="dimensionMemberId"><option value="">Sem dimensão</option>{dados.members.map(m=><option key={m.id} value={m.id}>{m.dimension_name} · {m.code} · {m.name}</option>)}</select></label></>:modal==="payrollComponent"?<><label>Atribuir ao colaborador<select name="employeeId" required><option value="">Selecionar</option>{dados.employees.map(e=><option key={e.id} value={e.id}>{e.employee_number} · {e.first_name} {e.last_name}</option>)}</select></label><div><label>Código<input name="code" required placeholder="EX.: ALIM"/></label><label>Ordem<input name="calculationOrder" type="number" defaultValue="100"/></label></div><label>Nome<input name="name" required placeholder="Subsídio de alimentação"/></label><div><label>Categoria<select name="category"><option value="Earning">Earning</option><option value="Deduction">Deduction</option><option value="EmployerCost">Employer Cost</option></select></label><label>Método<select name="method"><option value="Fixed">Valor fixo</option><option value="Percentage">Percentagem do base</option></select></label></div><label>Valor ou percentagem<input name="value" required inputMode="decimal" placeholder="Ex.: 25000,00 ou 3,00"/></label></>:<><div><label>Período<input name="period" type="month" required defaultValue="2026-08"/></label><label>Moeda<input name="currency" required maxLength={3} defaultValue="AOA"/></label></div><aside className="calculo-nota"><b>Resultado imutável</b><p>O run guardará os inputs, totais e hash de cálculo por colaborador.</p></aside></>}{erro&&<p className="erro-form">{erro}</p>}<footer><button type="button" className="secundario" onClick={()=>setModal("")}>Cancelar</button><button className="primario" disabled={aEnviar}>{aEnviar?"A processar…":modal==="generatePayrollRun"?"Calcular Payroll":"Guardar"}</button></footer></form></div>}</section>
+type HcmData = {
+  employees: Array<{
+    id: string;
+    employee_number: string;
+    first_name: string;
+    last_name: string;
+    organization_name: string;
+  }>;
+  contracts: Array<{
+    id: string;
+    employee_name: string;
+    employee_number: string;
+    organization_name: string;
+    contract_number: string;
+    contract_type: string;
+    work_schedule: string;
+    weekly_minutes: number;
+    status: string;
+  }>;
+  audit: AuditEvent[];
+};
+const hcmEmpty: HcmData = { employees: [], contracts: [], audit: [] };
+function PeopleWorkspace() {
+  const [data, setData] = useState<HcmData>(hcmEmpty),
+    [modal, setModal] = useState(false),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  const load = () =>
+    apiFetch("/api/v1/hcm")
+      .then(async (r) => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error);
+        setData(body);
+      })
+      .catch((e) =>
+        setError(e.message || "Não foi possível carregar Pessoas."),
+      );
+  useEffect(() => {
+    load();
+  }, []);
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const payload = {
+        type: "createContract",
+        ...Object.fromEntries(new FormData(e.currentTarget).entries()),
+      },
+      response = await apiFetch("/api/v1/hcm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+      body = await response.json();
+    setBusy(false);
+    if (!response.ok) {
+      setError(body.error);
+      return;
+    }
+    setData(body);
+    setModal(false);
+  }
+  async function transition(
+    contractId: string,
+    type: "activateContract" | "endContract",
+  ) {
+    const endDate =
+      type === "endContract"
+        ? window.prompt(
+            "Data de término (AAAA-MM-DD)",
+            new Date().toISOString().slice(0, 10),
+          )
+        : undefined;
+    if (type === "endContract" && !endDate) return;
+    setBusy(true);
+    const response = await apiFetch("/api/v1/hcm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type, contractId, endDate }),
+      }),
+      body = await response.json();
+    setBusy(false);
+    if (!response.ok) {
+      setError(body.error);
+      return;
+    }
+    setData(body);
+  }
+  const active = data.contracts.filter((x) => x.status === "Ativo").length,
+    pending = data.contracts.filter((x) => x.status === "Rascunho").length;
+  return (
+    <section className="people-workspace">
+      <div className="people-top">
+        <div>
+          <span>HCM · EMPLOYEE MASTER</span>
+          <h1>Pessoas, vínculos e responsabilidade</h1>
+          <p>
+            O colaborador pertence à organização; o contrato governa a
+            elegibilidade operacional e salarial.
+          </p>
+        </div>
+        <button className="primario" onClick={() => setModal(true)}>
+          ＋ Novo contrato
+        </button>
+      </div>
+      <section className="people-kpis">
+        <article>
+          <span>Colaboradores</span>
+          <strong>{data.employees.length}</strong>
+          <small>Employee master no âmbito atual</small>
+        </article>
+        <article>
+          <span>Contratos ativos</span>
+          <strong>{active}</strong>
+          <small>Elegíveis para configuração salarial</small>
+        </article>
+        <article className={pending ? "attention" : ""}>
+          <span>Aguardam ativação</span>
+          <strong>{pending}</strong>
+          <small>Requerem validação de RH</small>
+        </article>
+        <article>
+          <span>Cobertura contratual</span>
+          <strong>
+            {data.employees.length
+              ? `${Math.round((active / data.employees.length) * 100)}%`
+              : "—"}
+          </strong>
+          <small>Ativos sobre colaboradores</small>
+        </article>
+      </section>
+      <div className="people-grid">
+        <article className="cartao people-list">
+          <div className="cab">
+            <div>
+              <span>CONTRATOS</span>
+              <h2>Ciclo de vida auditável</h2>
+            </div>
+            <em>{data.contracts.length} registos</em>
+          </div>
+          {data.contracts.length ? (
+            data.contracts.map((c) => (
+              <div className="contract-row" key={c.id}>
+                <i>
+                  {c.employee_name
+                    .split(" ")
+                    .map((x) => x[0])
+                    .join("")
+                    .slice(0, 2)}
+                </i>
+                <span>
+                  <b>{c.employee_name}</b>
+                  <small>
+                    {c.employee_number} · {c.organization_name}
+                  </small>
+                </span>
+                <p>
+                  <b>{c.contract_number}</b>
+                  <small>
+                    {c.contract_type} · {c.work_schedule} ·{" "}
+                    {Math.round(c.weekly_minutes / 60)}h/semana
+                  </small>
+                </p>
+                <em className={c.status.toLowerCase()}>{c.status}</em>
+                <div>
+                  {c.status === "Rascunho" && (
+                    <button
+                      disabled={busy}
+                      onClick={() => transition(c.id, "activateContract")}
+                    >
+                      Ativar
+                    </button>
+                  )}
+                  {c.status === "Ativo" && (
+                    <button
+                      disabled={busy}
+                      onClick={() => transition(c.id, "endContract")}
+                    >
+                      Terminar
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <Vazio texto="Ainda não existem contratos." />
+          )}
+        </article>
+        <aside className="cartao people-audit">
+          <span>AUDITORIA HCM</span>
+          <h2>Alterações recentes</h2>
+          {data.audit.length ? (
+            data.audit.map((a) => (
+              <div key={a.id}>
+                <i>✓</i>
+                <span>
+                  <b>{a.summary}</b>
+                  <small>
+                    {a.actor} · {new Date(a.created_at).toLocaleString("pt-AO")}
+                  </small>
+                </span>
+              </div>
+            ))
+          ) : (
+            <p>As transições contratuais aparecerão aqui.</p>
+          )}
+          <footer>
+            <b>Próximas capacidades</b>
+            <p>
+              Recrutamento, onboarding, assiduidade, ausências, desempenho e
+              formação serão adicionados como slices próprios.
+            </p>
+          </footer>
+        </aside>
+      </div>
+      {error && <p className="erro-global">{error}</p>}
+      {modal && (
+        <div className="modal-inline">
+          <form onSubmit={submit}>
+            <header>
+              <div>
+                <small>HCM · CONTRATO</small>
+                <h2>Novo vínculo laboral</h2>
+              </div>
+              <button type="button" onClick={() => setModal(false)}>
+                ×
+              </button>
+            </header>
+            <label>
+              Colaborador
+              <select name="employeeId" required>
+                <option value="">Selecionar</option>
+                {data.employees.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.employee_number} · {x.first_name} {x.last_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div>
+              <label>
+                Número do contrato
+                <input name="contractNumber" required />
+              </label>
+              <label>
+                Tipo
+                <input
+                  name="contractType"
+                  required
+                  placeholder="Ex.: Sem termo"
+                />
+              </label>
+            </div>
+            <div>
+              <label>
+                Data de início
+                <input name="startDate" type="date" required />
+              </label>
+              <label>
+                Data de fim
+                <input name="endDate" type="date" />
+              </label>
+            </div>
+            <label>
+              Horário de trabalho
+              <input
+                name="workSchedule"
+                required
+                placeholder="Ex.: Segunda a sexta, 08h–17h"
+              />
+            </label>
+            <div>
+              <label>
+                Carga semanal (minutos)
+                <input
+                  name="weeklyMinutes"
+                  type="number"
+                  min="1"
+                  max="10080"
+                  defaultValue="2400"
+                  required
+                />
+              </label>
+              <label>
+                Country Pack opcional
+                <input name="countryPack" placeholder="Ex.: AO-BASE" />
+              </label>
+            </div>
+            {error && <p className="erro-form">{error}</p>}
+            <footer>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => setModal(false)}
+              >
+                Cancelar
+              </button>
+              <button className="primario" disabled={busy}>
+                {busy ? "A guardar…" : "Criar rascunho"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
+    </section>
+  );
 }
 
-type WorkforceData={period:string;currency:string;runs:Array<{id:string;period:string;currency:string;employee_count:number;net_minor:number;posting_count:number}>;postings:Array<{id:string;employee_name:string;employee_number:string;organization_name:string;dimension_member_name?:string;gross_minor:number;employer_minor:number;total_minor:number;source_hash:string}>;versions:BudgetVersion[];summary:{actualMinor:number;budgetMinor:number;varianceMinor:number;varianceBps:number|null};audit:AuditEvent[]};
-const workforceVazio:WorkforceData={period:"2026-08",currency:"AOA",runs:[],postings:[],versions:[],summary:{actualMinor:0,budgetMinor:0,varianceMinor:0,varianceBps:null},audit:[]};
-function WorkforceCost(){const [dados,setDados]=useState<WorkforceData>(workforceVazio),[periodo,setPeriodo]=useState("2026-08"),[moeda,setMoeda]=useState("AOA"),[versao,setVersao]=useState(""),[erro,setErro]=useState(""),[aEnviar,setAEnviar]=useState("");
- const carregar=useCallback(()=>apiFetch(`/api/workforce?period=${periodo}&currency=${moeda}&version=${versao}`).then(r=>r.json()).then(d=>{if(!Array.isArray(d.postings))throw new Error(d.error);setDados(d);if(!versao&&d.versions[0])setVersao(d.versions[0].id)}).catch(()=>setErro("Não foi possível carregar Workforce Cost.")),[periodo,moeda,versao]);useEffect(()=>{carregar()},[carregar]);const dinheiro=(n:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:moeda}).format(n/100);
- async function transferir(runId:string){setErro("");setAEnviar(runId);const res=await apiFetch(`/api/workforce?period=${periodo}&currency=${moeda}&version=${versao}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"postRun",runId,versionId:versao})});const body=await res.json();setAEnviar("");if(!res.ok){setErro(body.error);return}setDados(body);setPeriodo(body.period);setMoeda(body.currency)}
- return <section className="workforce"><div className="wf-top"><div><span>WORKFORCE COST BRIDGE</span><h1>Custos de pessoas ligados à performance</h1><p>Payroll fechado convertido em Actual financeiro por organização e dimensão.</p></div><b>HCM → Finance</b></div><section className="wf-filtros"><label>Período<input type="month" value={periodo} onChange={e=>setPeriodo(e.target.value)}/></label><label>Moeda<input value={moeda} maxLength={3} onChange={e=>setMoeda(e.target.value.toUpperCase())}/></label><label>Versão Budget<select value={versao} onChange={e=>setVersao(e.target.value)}><option value="">Sem versão</option>{dados.versions.map(v=><option key={v.id} value={v.id}>{v.name} · {v.status}</option>)}</select></label></section>
- <section className="wf-kpis"><article><span>Actual Workforce Cost</span><strong>{dinheiro(dados.summary.actualMinor)}</strong><small>Bruto + employer costs</small></article><article><span>Budget Workforce Cost</span><strong>{dinheiro(dados.summary.budgetMinor)}</strong><small>Linha financeira WORKFORCE</small></article><article className={dados.summary.varianceMinor>0?"desfavoravel":"favoravel"}><span>Desvio</span><strong>{dinheiro(dados.summary.varianceMinor)}</strong><small>{dados.summary.varianceBps===null?"Sem orçamento comparável":`${(dados.summary.varianceBps/100).toFixed(2)}% vs Budget`}</small></article><article><span>Colaboradores alocados</span><strong>{dados.postings.length}</strong><small>{dados.runs.filter(r=>Number(r.posting_count)>0).length} run(s) transferidos</small></article></section>
- <div className="wf-grid"><article className="cartao wf-tabela"><div className="cab"><div><span>ALOCAÇÃO DE CUSTOS</span><h2>Payroll → dimensões financeiras</h2></div><em>{dados.postings.length} linhas</em></div>{dados.postings.length?<div className="tabela-wrap"><table><thead><tr><th>Colaborador</th><th>Organização</th><th>Dimensão</th><th>Bruto</th><th>Employer cost</th><th>Total</th></tr></thead><tbody>{dados.postings.map(p=><tr key={p.id}><td><b>{p.employee_name}</b><small>{p.employee_number}</small></td><td>{p.organization_name}</td><td>{p.dimension_member_name||"Sem dimensão"}</td><td>{dinheiro(p.gross_minor)}</td><td>{dinheiro(p.employer_minor)}</td><td><b>{dinheiro(p.total_minor)}</b><small className="hash">#{p.source_hash.slice(0,8)}</small></td></tr>)}</tbody></table></div>:<Vazio texto="Transfira um Payroll Run fechado para gerar Workforce Cost."/>}</article><aside className="cartao wf-runs"><span>RUNS ELEGÍVEIS</span><h2>Transferência controlada</h2>{dados.runs.length?dados.runs.map(r=><div key={r.id}><i>{Number(r.posting_count)>0?"✓":"↗"}</i><span><b>Payroll {r.period}</b><small>{r.employee_count} colaborador(es) · {r.currency}</small></span>{Number(r.posting_count)>0?<em>Transferido</em>:<button disabled={aEnviar===r.id} onClick={()=>transferir(r.id)}>{aEnviar===r.id?"A transferir…":"Transferir"}</button>}</div>):<p className="sem-auditoria">Nenhum Payroll fechado disponível.</p>}<footer><b>Idempotência ativa</b><p>Cada Payroll Run só pode ser transferido uma vez. O hash original acompanha o custo.</p><small>{dados.audit[0]?.summary||"Nenhuma transferência auditada."}</small></footer></aside></div>{erro&&<p className="erro-global">{erro}</p>}</section>}
+type AbsenceData = {
+  employees: Array<{
+    id: string;
+    employee_number: string;
+    first_name: string;
+    last_name: string;
+    organization_name: string;
+  }>;
+  absenceTypes: Array<{
+    id: string;
+    code: string;
+    name: string;
+    unit: string;
+    paid: number;
+    requires_balance: number;
+    status: string;
+  }>;
+  balances: Array<{
+    id: string;
+    employee_name: string;
+    employee_number: string;
+    absence_type_name: string;
+    fiscal_year: number;
+    allowance_minutes: number;
+    used_minutes: number;
+  }>;
+  absenceRequests: Array<{
+    id: string;
+    employee_name: string;
+    employee_number: string;
+    organization_name: string;
+    absence_type_code: string;
+    absence_type_name: string;
+    start_date: string;
+    end_date: string;
+    requested_minutes: number;
+    status: string;
+    requested_by: string;
+    requested_at: string;
+  }>;
+  audit: AuditEvent[];
+};
+const absenceEmpty: AbsenceData = {
+  employees: [],
+  absenceTypes: [],
+  balances: [],
+  absenceRequests: [],
+  audit: [],
+};
+function AbsenceWorkspace() {
+  const [data, setData] = useState<AbsenceData>(absenceEmpty),
+    [modal, setModal] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const load = () =>
+    apiFetch("/api/v1/hcm")
+      .then(async (r) => {
+        const b = await r.json();
+        if (!r.ok) throw new Error(b.error);
+        setData(b);
+      })
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const res = await apiFetch("/api/v1/hcm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: modal,
+          ...Object.fromEntries(new FormData(e.currentTarget).entries()),
+        }),
+      }),
+      body = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(body.error);
+      return;
+    }
+    setData(body);
+    setModal("");
+  }
+  async function decide(requestId: string, decision: string) {
+    setBusy(true);
+    setError("");
+    const res = await apiFetch("/api/v1/hcm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "decideAbsence", requestId, decision }),
+      }),
+      body = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(body.error);
+      return;
+    }
+    setData(body);
+  }
+  const pending = data.absenceRequests.filter(
+      (r) => r.status === "Pendente",
+    ).length,
+    approved = data.absenceRequests.filter(
+      (r) => r.status === "Aprovado",
+    ).length,
+    fmt = (m: number) =>
+      m % 480 === 0 ? `${m / 480} dia(s)` : `${(m / 60).toFixed(1)} hora(s)`;
+  return (
+    <section className="absence">
+      <div className="absence-top">
+        <div>
+          <span>HCM · ABSENCE MANAGEMENT</span>
+          <h1>Ausências com saldo e decisão controlada</h1>
+          <p>
+            Configuração agnóstica a país, validação de sobreposição e workflow
+            auditável.
+          </p>
+        </div>
+        <div>
+          <button
+            className="secundario"
+            onClick={() => setModal("absenceType")}
+          >
+            ＋ Tipo
+          </button>
+          <button
+            className="secundario"
+            onClick={() => setModal("absenceBalance")}
+          >
+            ＋ Saldo
+          </button>
+          <button
+            className="primario"
+            onClick={() => setModal("absenceRequest")}
+          >
+            ＋ Novo pedido
+          </button>
+        </div>
+      </div>
+      <section className="absence-kpis">
+        <article>
+          <span>Pedidos pendentes</span>
+          <strong>{pending}</strong>
+          <small>Aguardam decisão independente</small>
+        </article>
+        <article>
+          <span>Aprovados</span>
+          <strong>{approved}</strong>
+          <small>Com impacto operacional</small>
+        </article>
+        <article>
+          <span>Tipos ativos</span>
+          <strong>
+            {data.absenceTypes.filter((t) => t.status === "Ativo").length}
+          </strong>
+          <small>Configurados no tenant</small>
+        </article>
+        <article>
+          <span>Saldos atribuídos</span>
+          <strong>{data.balances.length}</strong>
+          <small>Controlados em minutos</small>
+        </article>
+      </section>
+      <div className="absence-grid">
+        <article className="cartao absence-list">
+          <div className="cab">
+            <div>
+              <span>PEDIDOS</span>
+              <h2>Calendário e decisões</h2>
+            </div>
+            <em>{data.absenceRequests.length} registos</em>
+          </div>
+          {data.absenceRequests.length ? (
+            data.absenceRequests.map((r) => (
+              <div className="absence-row" key={r.id}>
+                <i>
+                  {r.employee_name
+                    .split(" ")
+                    .map((x) => x[0])
+                    .join("")
+                    .slice(0, 2)}
+                </i>
+                <span>
+                  <b>{r.employee_name}</b>
+                  <small>
+                    {r.employee_number} · {r.organization_name}
+                  </small>
+                </span>
+                <p>
+                  <b>{r.absence_type_name}</b>
+                  <small>
+                    {r.start_date} → {r.end_date} · {fmt(r.requested_minutes)}
+                  </small>
+                </p>
+                <em className={r.status.toLowerCase()}>{r.status}</em>
+                <div>
+                  {r.status === "Pendente" && (
+                    <>
+                      <button
+                        disabled={busy}
+                        onClick={() => decide(r.id, "Aprovado")}
+                      >
+                        Aprovar
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() => decide(r.id, "Rejeitado")}
+                      >
+                        Rejeitar
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <Vazio texto="Ainda não existem pedidos de ausência." />
+          )}
+        </article>
+        <aside className="cartao absence-balance">
+          <span>SALDOS</span>
+          <h2>Disponibilidade</h2>
+          {data.balances.length ? (
+            data.balances.map((b) => (
+              <div key={b.id}>
+                <span>
+                  <b>{b.employee_name}</b>
+                  <small>
+                    {b.absence_type_name} · {b.fiscal_year}
+                  </small>
+                </span>
+                <strong>
+                  {fmt(b.allowance_minutes - b.used_minutes)}
+                  <small>disponível</small>
+                </strong>
+              </div>
+            ))
+          ) : (
+            <p>Nenhum saldo configurado.</p>
+          )}
+          <footer>
+            <b>Regra do Core</b>
+            <p>
+              Direitos legais, feriados e jornadas pertencem aos Country Packs;
+              o motor apenas executa configurações versionadas.
+            </p>
+          </footer>
+        </aside>
+      </div>
+      {error && <p className="erro-global">{error}</p>}
+      {modal && (
+        <div className="modal-inline">
+          <form onSubmit={submit}>
+            <header>
+              <div>
+                <small>HCM · AUSÊNCIAS</small>
+                <h2>
+                  {modal === "absenceType"
+                    ? "Novo tipo"
+                    : modal === "absenceBalance"
+                      ? "Atribuir saldo"
+                      : "Novo pedido"}
+                </h2>
+              </div>
+              <button type="button" onClick={() => setModal("")}>
+                ×
+              </button>
+            </header>
+            {modal === "absenceType" ? (
+              <>
+                <div>
+                  <label>
+                    Código
+                    <input name="code" required />
+                  </label>
+                  <label>
+                    Unidade
+                    <select name="unit">
+                      <option>Dias</option>
+                      <option>Horas</option>
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  Nome
+                  <input
+                    name="name"
+                    required
+                    placeholder="Ex.: Férias anuais"
+                  />
+                </label>
+                <label className="check">
+                  <input name="paid" type="checkbox" /> Ausência remunerada
+                </label>
+                <label className="check">
+                  <input name="requiresBalance" type="checkbox" /> Exige saldo
+                  disponível
+                </label>
+              </>
+            ) : modal === "absenceBalance" ? (
+              <>
+                <label>
+                  Colaborador
+                  <select name="employeeId" required>
+                    <option value="">Selecionar</option>
+                    {data.employees.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.employee_number} · {e.first_name} {e.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Tipo
+                  <select name="absenceTypeId" required>
+                    <option value="">Selecionar</option>
+                    {data.absenceTypes
+                      .filter((t) => t.status === "Ativo")
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.code} · {t.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <div>
+                  <label>
+                    Ano fiscal
+                    <input
+                      name="fiscalYear"
+                      type="number"
+                      defaultValue={new Date().getFullYear()}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Saldo (minutos)
+                    <input
+                      name="allowanceMinutes"
+                      type="number"
+                      min="0"
+                      required
+                      placeholder="Ex.: 10560 = 22 dias"
+                    />
+                  </label>
+                </div>
+              </>
+            ) : (
+              <>
+                <label>
+                  Colaborador
+                  <select name="employeeId" required>
+                    <option value="">Selecionar</option>
+                    {data.employees.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.employee_number} · {e.first_name} {e.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Tipo
+                  <select name="absenceTypeId" required>
+                    <option value="">Selecionar</option>
+                    {data.absenceTypes
+                      .filter((t) => t.status === "Ativo")
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.code} · {t.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <div>
+                  <label>
+                    Início
+                    <input name="startDate" type="date" required />
+                  </label>
+                  <label>
+                    Fim
+                    <input name="endDate" type="date" required />
+                  </label>
+                </div>
+                <label>
+                  Duração total (minutos)
+                  <input
+                    name="requestedMinutes"
+                    type="number"
+                    min="1"
+                    required
+                    placeholder="Ex.: 480 = 1 dia de 8 horas"
+                  />
+                </label>
+                <label>
+                  Motivo
+                  <textarea name="reason" rows={3} />
+                </label>
+              </>
+            )}
+            {error && <p className="erro-form">{error}</p>}
+            <footer>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => setModal("")}
+              >
+                Cancelar
+              </button>
+              <button className="primario" disabled={busy}>
+                {busy ? "A guardar…" : "Guardar"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
 
-type DashData={versions:BudgetVersion[];summary:{actualMinor:number;budgetMinor:number;varianceMinor:number;varianceBps:number|null;workforceMinor:number;headcount:number};trend:Array<{period:string;actual_minor:number;budget_minor:number}>;drivers:Array<{line_code:string;line_name:string;actual_minor:number;budget_minor:number;variance_minor:number}>;entries:Array<PerfEntry&{source:string}>;coverage:{organizations:number;sources:number;latestAt:string|null};payroll:{period:string;status:string}|null};
-const dashEmpty:DashData={versions:[],summary:{actualMinor:0,budgetMinor:0,varianceMinor:0,varianceBps:null,workforceMinor:0,headcount:0},trend:[],drivers:[],entries:[],coverage:{organizations:0,sources:0,latestAt:null},payroll:null};
-function ExecutiveDashboard({onNavigate}:{onNavigate:(module:string)=>void}){const [d,setD]=useState<DashData>(dashEmpty),[period,setPeriod]=useState("2026-08"),[currency,setCurrency]=useState("AOA"),[version,setVersion]=useState(""),[driver,setDriver]=useState("");useEffect(()=>{apiFetch(`/api/dashboard?period=${period}&currency=${currency}&version=${version}`).then(r=>r.json()).then(x=>{setD(x);if(!version&&x.versions?.[0])setVersion(x.versions[0].id)})},[period,currency,version]);const money=(n:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency}).format(n/100),max=Math.max(1,...d.trend.flatMap(x=>[Number(x.actual_minor),Number(x.budget_minor)])),cause=d.drivers.slice().sort((a,b)=>Math.abs(b.variance_minor)-Math.abs(a.variance_minor))[0];return <section className="executivo"><div className="exec-top"><div><span>PERFORMANCE EXECUTIVA</span><h1>Decidir com contexto, não só com números</h1><p>Actual e Budget consolidados a partir dos motores Finance e HCM.</p></div><button className="primario" onClick={()=>onNavigate("Planeamento")}>Abrir planeamento →</button></div><section className="exec-filtros"><label>Período<input type="month" value={period} onChange={e=>setPeriod(e.target.value)}/></label><label>Comparação<select disabled><option>Actual vs Budget</option></select></label><label>Versão<select value={version} onChange={e=>setVersion(e.target.value)}><option value="">Sem versão</option>{d.versions.map(v=><option key={v.id} value={v.id}>{v.name} · {v.status}</option>)}</select></label><label>Moeda<input value={currency} maxLength={3} onChange={e=>setCurrency(e.target.value.toUpperCase())}/></label><small>{d.coverage.latestAt?`Atualizado ${new Date(d.coverage.latestAt).toLocaleString("pt-PT")}`:"Sem lançamentos"}</small></section><section className="exec-kpis"><article><span>Actual consolidado</span><strong>{money(d.summary.actualMinor)}</strong><small>{d.coverage.organizations} organização(ões) · {d.coverage.sources} fonte(s)</small></article><article><span>Budget selecionado</span><strong>{money(d.summary.budgetMinor)}</strong><small>{d.versions.find(v=>v.id===version)?.name||"Sem versão"}</small></article><article className={d.summary.varianceMinor>0?"desfavoravel":"favoravel"}><span>Desvio Actual − Budget</span><strong>{money(d.summary.varianceMinor)}</strong><small>{d.summary.varianceBps===null?"Sem base comparável":`${(d.summary.varianceBps/100).toFixed(2)}% vs Budget`}</small></article><article><span>Workforce Cost</span><strong>{money(d.summary.workforceMinor)}</strong><small>{d.summary.headcount} colaborador(es) ativos</small></article></section><div className="exec-grid"><article className="cartao exec-trend"><div className="cab"><div><span>TENDÊNCIA</span><h2>Actual versus Budget</h2></div><em>6 períodos</em></div><div className="exec-bars">{d.trend.map(x=><div key={x.period}><span><i className="actual" style={{height:`${Math.max(3,Number(x.actual_minor)/max*100)}%`}}/><i className="budget" style={{height:`${Math.max(3,Number(x.budget_minor)/max*100)}%`}}/></span><small>{x.period}</small></div>)}</div><footer><b>● Actual</b><b>● Budget</b></footer></article><aside className="cartao exec-explain"><span>EXPLICAÇÃO DETERMINÍSTICA</span><h2>{cause?`${cause.line_name} é o maior driver do desvio`:"Sem causa calculável"}</h2><p>{cause?`Impacto de ${money(cause.variance_minor)}, calculado diretamente dos lançamentos do período.`:"Registe Actual e Budget comparáveis para identificar causas."}</p><div><b>Contexto</b><small>{period} · {currency} · Actual vs Budget</small></div><div><b>Perspetiva</b><small>{d.payroll?`Payroll ${d.payroll.period} ${d.payroll.status}`:"Sem Payroll no contexto"}</small></div><button onClick={()=>onNavigate(cause?.line_code==="WORKFORCE"?"Análises":"Planeamento")}>Investigar origem →</button></aside></div><article className="cartao exec-drill"><div className="cab"><div><span>DRILL-DOWN</span><h2>Linhas que explicam o resultado</h2></div>{driver&&<button onClick={()=>setDriver("")}>Limpar seleção</button>}</div><div className="tabela-wrap"><table><thead><tr><th>Linha</th><th>Actual</th><th>Budget</th><th>Desvio</th><th></th></tr></thead><tbody>{d.drivers.map(x=><tr key={x.line_code}><td><b>{x.line_name}</b><small>{x.line_code}</small></td><td>{money(x.actual_minor)}</td><td>{money(x.budget_minor)}</td><td>{money(x.variance_minor)}</td><td><button onClick={()=>setDriver(x.line_code)}>Ver origem →</button></td></tr>)}</tbody></table></div>{driver&&<div className="drill-through"><b>Drill-through · {driver}</b>{d.entries.filter(x=>x.line_code===driver).map(x=><div key={x.id}><span>{x.organization_name}<small>{x.dimension_member_name||"Sem dimensão"} · {x.source}</small></span><em>{x.scenario}</em><strong>{money(x.amount_minor)}</strong></div>)}</div>}</article></section>}
+type WorkflowData = {
+  generatedAt: string;
+  tasks: Array<{
+    id: string;
+    domain: string;
+    title: string;
+    subject: string;
+    detail: string;
+    createdAt: string;
+    dueAt: string;
+    priority: string;
+    overdue: boolean;
+    target: string;
+    canAct: boolean;
+    requiredRoles: string[];
+  }>;
+  history: AuditEvent[];
+  summary: {
+    total: number;
+    actionable: number;
+    overdue: number;
+    critical: number;
+  };
+};
+function WorkflowInbox({
+  onNavigate,
+}: {
+  onNavigate: (module: string) => void;
+}) {
+  const [data, setData] = useState<WorkflowData | null>(null),
+    [domain, setDomain] = useState("Todos"),
+    [error, setError] = useState("");
+  const load = () =>
+    apiFetch("/api/v1/workflow")
+      .then(async (r) => {
+        const b = await r.json();
+        if (!r.ok) throw new Error(b.error);
+        setData(b);
+      })
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+  const tasks =
+    data?.tasks.filter((t) => domain === "Todos" || t.domain === domain) || [];
+  return (
+    <section className="workflow">
+      <div className="workflow-top">
+        <div>
+          <span>WORKFLOW & APPROVALS</span>
+          <h1>Decisões pendentes num único lugar</h1>
+          <p>
+            A caixa de trabalho lê o estado real de cada motor; não duplica nem
+            altera a fonte de verdade.
+          </p>
+        </div>
+        <button className="secundario" onClick={load}>
+          ↻ Atualizar
+        </button>
+      </div>
+      {data && (
+        <>
+          <section className="workflow-kpis">
+            <article>
+              <span>Total pendente</span>
+              <strong>{data.summary.total}</strong>
+              <small>Todos os motores contratados</small>
+            </article>
+            <article>
+              <span>Posso decidir</span>
+              <strong>{data.summary.actionable}</strong>
+              <small>Conforme função e segregação</small>
+            </article>
+            <article className={data.summary.overdue ? "attention" : ""}>
+              <span>Fora do prazo</span>
+              <strong>{data.summary.overdue}</strong>
+              <small>SLA determinístico</small>
+            </article>
+            <article>
+              <span>Prioridade crítica</span>
+              <strong>{data.summary.critical}</strong>
+              <small>Prazo já ultrapassado</small>
+            </article>
+          </section>
+          <div className="workflow-filter">
+            {["Todos", "HCM", "Finance", "Payroll"].map((x) => (
+              <button
+                key={x}
+                className={domain === x ? "active" : ""}
+                onClick={() => setDomain(x)}
+              >
+                {x}
+              </button>
+            ))}
+          </div>
+          <div className="workflow-grid">
+            <article className="cartao workflow-list">
+              <div className="cab">
+                <div>
+                  <span>CAIXA DE TRABALHO</span>
+                  <h2>Tarefas por prioridade e prazo</h2>
+                </div>
+                <em>{tasks.length} tarefa(s)</em>
+              </div>
+              {tasks.length ? (
+                tasks.map((t) => (
+                  <div className="workflow-row" key={`${t.domain}-${t.id}`}>
+                    <i className={t.priority.toLowerCase()}>
+                      {t.overdue ? "!" : "◷"}
+                    </i>
+                    <span>
+                      <b>{t.title}</b>
+                      <small>
+                        {t.domain} · {t.subject} · {t.detail}
+                      </small>
+                    </span>
+                    <p>
+                      <b>{t.priority}</b>
+                      <small>
+                        Prazo {new Date(t.dueAt).toLocaleString("pt-AO")}
+                      </small>
+                    </p>
+                    <em>{t.canAct ? "Minha decisão" : "Acompanhar"}</em>
+                    <button onClick={() => onNavigate(t.target)}>
+                      Abrir origem →
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <Vazio texto="Não existem decisões pendentes neste filtro." />
+              )}
+            </article>
+            <aside className="cartao workflow-history">
+              <span>HISTÓRICO</span>
+              <h2>Decisões recentes</h2>
+              {data.history.length ? (
+                data.history.slice(0, 10).map((h) => (
+                  <div key={h.id}>
+                    <i>✓</i>
+                    <span>
+                      <b>{h.summary}</b>
+                      <small>
+                        {h.actor} ·{" "}
+                        {new Date(h.created_at).toLocaleString("pt-AO")}
+                      </small>
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p>Nenhuma decisão registada.</p>
+              )}
+              <footer>
+                <b>Governança</b>
+                <p>
+                  A execução continua no motor de origem, com as respetivas
+                  permissões, validações e audit trail.
+                </p>
+              </footer>
+            </aside>
+          </div>
+        </>
+      )}
+      {error && <p className="erro-global">{error}</p>}
+    </section>
+  );
+}
 
-type ReportItem={id:string;report_number:number;title:string;template:string;period:string;currency:string;status:string;input_hash:string;created_by:string;created_at:string;payload?:ReportPayload};type ReportPayload={generatedAt:string;parameters:{period:string;currency:string;versionName:string;template:string};result:{actualMinor:number;budgetMinor:number;varianceMinor:number;varianceBps:number|null;workforceMinor:number};cause:{lineCode:string;lineName:string;varianceMinor:number}|null;impact:string;perspective:string;recommendation:string;drivers:Array<{lineCode:string;lineName:string;actualMinor:number;budgetMinor:number;varianceMinor:number}>};
-function ManagementReport(){const [items,setItems]=useState<ReportItem[]>([]),[versions,setVersions]=useState<BudgetVersion[]>([]),[report,setReport]=useState<ReportItem|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState("");const load=()=>apiFetch("/api/management-reports").then(r=>r.json()).then(x=>{setItems(x.reports||[]);setVersions(x.versions||[])});useEffect(()=>{load()},[]);async function generate(e:FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setError("");const res=await apiFetch("/api/management-reports",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(Object.fromEntries(new FormData(e.currentTarget).entries()))}),body=await res.json();setBusy(false);if(!res.ok){setError(body.error);return}setReport(body);load()}async function open(id:string){const x=await apiFetch(`/api/management-reports?id=${id}`).then(r=>r.json());setReport(x)}const money=(n:number,c:string)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:c}).format(n/100),p=report?.payload;return <section className="reports"><div className="reports-top"><div><span>MANAGEMENT REPORTING</span><h1>Da performance à recomendação executiva</h1><p>Versões imutáveis, parâmetros explícitos e narrativa suportada pelos motores.</p></div>{report&&<button className="primario" onClick={()=>window.print()}>↥ Exportar / Imprimir</button>}</div><div className="reports-layout"><aside className="report-builder"><span>NOVO RELATÓRIO</span><h2>Parâmetros da versão</h2><form onSubmit={generate}><label>Título<input name="title" defaultValue="Relatório Mensal de Performance" required/></label><label>Template<select name="template"><option>Executivo</option><option>Controller</option><option>Board Pack</option></select></label><div><label>Período<input name="period" type="month" defaultValue="2026-08" required/></label><label>Moeda<input name="currency" defaultValue="AOA" maxLength={3} required/></label></div><label>Versão Budget<select name="versionId"><option value="">Sem versão</option>{versions.map(v=><option key={v.id} value={v.id}>{v.name} · {v.status}</option>)}</select></label>{error&&<p className="erro-form">{error}</p>}<button className="primario" disabled={busy}>{busy?"A gerar…":"Gerar versão auditável"}</button></form><div className="report-history"><b>VERSÕES EMITIDAS</b>{items.map(x=><button key={x.id} onClick={()=>open(x.id)} className={report?.id===x.id?"active":""}><span>v{x.report_number} · {x.title}<small>{x.period} · {x.currency}</small></span><em>{x.status}</em></button>)}</div></aside><article className="report-paper">{p&&report?<><header><div><span>EP</span><p><b>Enterprise Performance</b><small>Management Report · v{report.report_number}</small></p></div><em>{report.status}</em></header><section className="report-title"><small>{p.parameters.template.toUpperCase()} · {p.parameters.period} · {p.parameters.currency}</small><h2>{report.title}</h2><p>Actual versus {p.parameters.versionName}</p></section><div className="report-sections"><ReportSection number="01" title="Resultado"><strong>{money(p.result.actualMinor,report.currency)}</strong><p>Resultado Actual consolidado no período selecionado.</p></ReportSection><ReportSection number="02" title="Comparação"><strong>{money(p.result.varianceMinor,report.currency)}</strong><p>{p.result.varianceBps===null?"Não existe Budget comparável.":`${(p.result.varianceBps/100).toFixed(2)}% face ao Budget de ${money(p.result.budgetMinor,report.currency)}.`}</p></ReportSection><ReportSection number="03" title="Causa"><strong>{p.cause?.lineName||"Sem causa calculável"}</strong><p>{p.cause?`Maior contribuição para o desvio: ${money(p.cause.varianceMinor,report.currency)}.`:"Não existem linhas comparáveis."}</p></ReportSection><ReportSection number="04" title="Impacto"><p>{p.impact}</p><small>Workforce Cost: {money(p.result.workforceMinor,report.currency)}</small></ReportSection><ReportSection number="05" title="Perspetiva"><p>{p.perspective}</p></ReportSection><ReportSection number="06" title="Recomendação"><p>{p.recommendation}</p></ReportSection></div><section className="report-table"><h3>Anexo · Drivers por linha</h3><table><thead><tr><th>Linha</th><th>Actual</th><th>Budget</th><th>Desvio</th></tr></thead><tbody>{p.drivers.map(x=><tr key={x.lineCode}><td><b>{x.lineName}</b><small>{x.lineCode}</small></td><td>{money(x.actualMinor,report.currency)}</td><td>{money(x.budgetMinor,report.currency)}</td><td>{money(x.varianceMinor,report.currency)}</td></tr>)}</tbody></table></section><footer><span>Hash de inputs: {report.input_hash}</span><span>Emitido em {new Date(report.created_at).toLocaleString("pt-PT")}</span></footer></>:<div className="report-empty"><i>▤</i><h2>Pré-visualização do relatório</h2><p>Gere uma versão ou selecione um relatório emitido.</p></div>}</article></div></section>}
-function ReportSection({number,title,children}:{number:string;title:string;children:React.ReactNode}){return <section><header><i>{number}</i><h3>{title}</h3></header><div>{children}</div></section>}
+type GoalsData = {
+  cycles: Array<{
+    id: string;
+    name: string;
+    start_date: string;
+    end_date: string;
+    status: string;
+    goal_count: number;
+  }>;
+  goals: Array<{
+    id: string;
+    cycle_id: string;
+    organization_name: string;
+    owner_email: string;
+    title: string;
+    metric_name: string;
+    unit: string;
+    direction: string;
+    start_scaled: number;
+    target_scaled: number;
+    current_scaled: number;
+    scale: number;
+    weight_bps: number;
+    status: string;
+    progress_bps: number;
+    checkin_count: number;
+  }>;
+  organizations: Array<{ id: string; code: string; name: string }>;
+  owners: Array<{ name: string; email: string; role: string }>;
+  audit: AuditEvent[];
+};
+function GoalsWorkspace() {
+  const [data, setData] = useState<GoalsData>({
+      cycles: [],
+      goals: [],
+      organizations: [],
+      owners: [],
+      audit: [],
+    }),
+    [modal, setModal] = useState(""),
+    [goalId, setGoalId] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const load = () =>
+    apiFetch("/api/v1/goals")
+      .then(async (r) => {
+        const b = await r.json();
+        if (!r.ok) throw new Error(b.error);
+        setData(b);
+      })
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+  async function command(payload: Record<string, string>) {
+    setBusy(true);
+    setError("");
+    const res = await apiFetch("/api/v1/goals", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+      body = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(body.error);
+      return;
+    }
+    setData(body);
+    setModal("");
+    setGoalId("");
+  }
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await command({
+      type: modal,
+      goalId,
+      ...(Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<
+        string,
+        string
+      >),
+    });
+  }
+  const active = data.goals.filter((g) => g.status === "Ativo"),
+    done = data.goals.filter((g) => g.status === "Concluído"),
+    avg = active.length
+      ? Math.round(
+          active.reduce((n, g) => n + g.progress_bps, 0) / active.length / 100,
+        )
+      : 0,
+    fmt = (n: number, s: number) =>
+      new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 3 }).format(
+        n / s,
+      );
+  return (
+    <section className="goals">
+      <div className="goals-top">
+        <div>
+          <span>PERFORMANCE MANAGEMENT · GOALS</span>
+          <h1>Objetivos mensuráveis, progresso verificável</h1>
+          <p>
+            Ciclos governados e check-ins append-only, sem avaliações subjetivas
+            no cálculo.
+          </p>
+        </div>
+        <div>
+          <button
+            className="secundario"
+            onClick={() => setModal("createCycle")}
+          >
+            ＋ Ciclo
+          </button>
+          <button className="primario" onClick={() => setModal("createGoal")}>
+            ＋ Objetivo
+          </button>
+        </div>
+      </div>
+      <section className="goals-kpis">
+        <article>
+          <span>Objetivos ativos</span>
+          <strong>{active.length}</strong>
+          <small>Em execução</small>
+        </article>
+        <article>
+          <span>Progresso médio</span>
+          <strong>{avg}%</strong>
+          <small>Cálculo determinístico</small>
+        </article>
+        <article>
+          <span>Concluídos</span>
+          <strong>{done.length}</strong>
+          <small>Meta atingida</small>
+        </article>
+        <article>
+          <span>Ciclos ativos</span>
+          <strong>
+            {data.cycles.filter((c) => c.status === "Ativo").length}
+          </strong>
+          <small>Maker-checker aplicado</small>
+        </article>
+      </section>
+      <div className="goals-grid">
+        <article className="cartao goals-list">
+          <div className="cab">
+            <div>
+              <span>OBJETIVOS</span>
+              <h2>Metas e check-ins</h2>
+            </div>
+            <em>{data.goals.length} objetivo(s)</em>
+          </div>
+          {data.goals.length ? (
+            data.goals.map((g) => (
+              <div className="goal-row" key={g.id}>
+                <div
+                  className="goal-ring"
+                  style={{
+                    background: `conic-gradient(#0f6e56 ${g.progress_bps / 100}%,#e5e3dc 0)`,
+                  }}
+                >
+                  <span>{(g.progress_bps / 100).toFixed(0)}%</span>
+                </div>
+                <span>
+                  <b>{g.title}</b>
+                  <small>
+                    {g.organization_name} · {g.owner_email} · peso{" "}
+                    {(g.weight_bps / 100).toFixed(0)}%
+                  </small>
+                </span>
+                <p>
+                  <b>
+                    {fmt(g.current_scaled, g.scale)} /{" "}
+                    {fmt(g.target_scaled, g.scale)} {g.unit}
+                  </b>
+                  <small>
+                    {g.metric_name} · {g.direction} · {g.checkin_count}{" "}
+                    check-in(s)
+                  </small>
+                </p>
+                <em>{g.status}</em>
+                <div>
+                  {g.status === "Ativo" && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setGoalId(g.id);
+                          setModal("goalCheckin");
+                        }}
+                      >
+                        Check-in
+                      </button>
+                      <button
+                        onClick={() =>
+                          command({ type: "completeGoal", goalId: g.id })
+                        }
+                      >
+                        Concluir
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <Vazio texto="Crie um ciclo e o primeiro objetivo." />
+          )}
+        </article>
+        <aside className="cartao goal-cycles">
+          <span>CICLOS</span>
+          <h2>Governance</h2>
+          {data.cycles.map((c) => (
+            <div key={c.id}>
+              <span>
+                <b>{c.name}</b>
+                <small>
+                  {c.start_date} → {c.end_date} · {c.goal_count} objetivo(s)
+                </small>
+              </span>
+              {c.status === "Rascunho" ? (
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    command({ type: "activateCycle", cycleId: c.id })
+                  }
+                >
+                  Ativar
+                </button>
+              ) : (
+                <em>{c.status}</em>
+              )}
+            </div>
+          ))}
+          <footer>
+            <b>Regra</b>
+            <p>
+              O progresso deriva apenas do valor inicial, alvo e último
+              check-in. A IA não intervém no cálculo.
+            </p>
+          </footer>
+        </aside>
+      </div>
+      {error && <p className="erro-global">{error}</p>}
+      {modal && (
+        <div className="modal-inline">
+          <form onSubmit={submit}>
+            <header>
+              <div>
+                <small>PERFORMANCE GOALS</small>
+                <h2>
+                  {modal === "createCycle"
+                    ? "Novo ciclo"
+                    : modal === "createGoal"
+                      ? "Novo objetivo"
+                      : "Novo check-in"}
+                </h2>
+              </div>
+              <button type="button" onClick={() => setModal("")}>
+                ×
+              </button>
+            </header>
+            {modal === "createCycle" ? (
+              <>
+                <label>
+                  Nome
+                  <input name="name" required />
+                </label>
+                <div>
+                  <label>
+                    Início
+                    <input name="startDate" type="date" required />
+                  </label>
+                  <label>
+                    Fim
+                    <input name="endDate" type="date" required />
+                  </label>
+                </div>
+              </>
+            ) : modal === "createGoal" ? (
+              <>
+                <label>
+                  Ciclo
+                  <select name="cycleId" required>
+                    <option value="">Selecionar</option>
+                    {data.cycles
+                      .filter((c) => c.status === "Rascunho")
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  Organização
+                  <select name="organizationId" required>
+                    <option value="">Selecionar</option>
+                    {data.organizations.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code} · {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Responsável
+                  <select name="ownerEmail" required>
+                    <option value="">Selecionar</option>
+                    {data.owners.map((o) => (
+                      <option key={o.email} value={o.email}>
+                        {o.name} · {o.role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Título
+                  <input name="title" required />
+                </label>
+                <label>
+                  Descrição
+                  <textarea name="description" rows={2} />
+                </label>
+                <div>
+                  <label>
+                    Métrica
+                    <input name="metricName" required />
+                  </label>
+                  <label>
+                    Unidade
+                    <input
+                      name="unit"
+                      required
+                      placeholder="%, AOA, unidades"
+                    />
+                  </label>
+                </div>
+                <div>
+                  <label>
+                    Direção
+                    <select name="direction">
+                      <option>Aumentar</option>
+                      <option>Reduzir</option>
+                    </select>
+                  </label>
+                  <label>
+                    Precisão
+                    <select name="scale">
+                      <option value="1">Inteiro</option>
+                      <option value="100">2 decimais</option>
+                      <option value="1000">3 decimais</option>
+                    </select>
+                  </label>
+                </div>
+                <div>
+                  <label>
+                    Valor inicial
+                    <input name="startValue" required />
+                  </label>
+                  <label>
+                    Meta
+                    <input name="targetValue" required />
+                  </label>
+                </div>
+                <label>
+                  Peso (%)
+                  <input
+                    name="weight"
+                    type="number"
+                    min="0.01"
+                    max="100"
+                    step="0.01"
+                    required
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <label>
+                  Valor atual
+                  <input name="value" required />
+                </label>
+                <label>
+                  Nota
+                  <textarea name="note" rows={3} />
+                </label>
+                <label>
+                  Evidência
+                  <input
+                    name="evidence"
+                    placeholder="Referência ou documento"
+                  />
+                </label>
+              </>
+            )}
+            {error && <p className="erro-form">{error}</p>}
+            <footer>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => setModal("")}
+              >
+                Cancelar
+              </button>
+              <button className="primario" disabled={busy}>
+                {busy ? "A guardar…" : "Guardar"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
 
-type IntegrityData={generatedAt:string;status:"pass"|"warn"|"fail";summary:{passed:number;warnings:number;failed:number;total:number};reconciliations:{payrollToWorkforce:{differenceMinor:number};workforceToFinance:{differenceMinor:number};reportHashValid:boolean};checks:Array<{key:string;label:string;status:"pass"|"warn"|"fail";evidence:string;target:string}>};
-function IntegrityCenter({onNavigate}:{onNavigate:(module:string)=>void}){const [data,setData]=useState<IntegrityData|null>(null),[busy,setBusy]=useState(false);const run=()=>{setBusy(true);apiFetch("/api/integrity").then(r=>r.json()).then(setData).finally(()=>setBusy(false))};useEffect(()=>{apiFetch("/api/integrity").then(r=>r.json()).then(setData)},[]);return <section className="integrity"><div className="int-top"><div><span>VERTICAL SLICE CONTROL</span><h1>Integridade ponta a ponta</h1><p>Reconciliação e evidência para cada etapa da cadeia crítica.</p></div><button className="primario" onClick={run} disabled={busy}>{busy?"A validar…":"↻ Executar validação"}</button></div>{data&&<><section className={`int-status ${data.status}`}><div><i>{data.status==="pass"?"✓":data.status==="warn"?"!":"×"}</i><span><b>{data.status==="pass"?"Vertical slice íntegro":data.status==="warn"?"Vertical slice com avisos":"Falhas de integridade detetadas"}</b><small>Última execução: {new Date(data.generatedAt).toLocaleString("pt-PT")}</small></span></div><strong>{data.summary.passed}/{data.summary.total}<small>controlos aprovados</small></strong></section><section className="int-kpis"><article><span>Aprovados</span><strong>{data.summary.passed}</strong><small>Sem diferenças</small></article><article><span>Avisos</span><strong>{data.summary.warnings}</strong><small>Requerem contexto</small></article><article><span>Falhas</span><strong>{data.summary.failed}</strong><small>Requerem correção na origem</small></article><article><span>Hash do relatório</span><strong>{data.reconciliations.reportHashValid?"Válido":"Pendente"}</strong><small>Snapshot imutável</small></article></section><div className="int-layout"><article className="cartao int-chain"><div className="cab"><div><span>CADEIA CRÍTICA</span><h2>Controlos e evidências</h2></div><em>{data.summary.total} etapas</em></div>{data.checks.map((c,i)=><div className={`int-check ${c.status}`} key={c.key}><i>{c.status==="pass"?"✓":c.status==="warn"?"!":"×"}</i><span><b>{String(i+1).padStart(2,"0")} · {c.label}</b><small>{c.evidence}</small></span><em>{c.status==="pass"?"Aprovado":c.status==="warn"?"Aviso":"Falha"}</em><button onClick={()=>onNavigate(c.target)}>Abrir origem →</button></div>)}</article><aside className="cartao int-recon"><span>RECONCILIAÇÕES</span><h2>Diferenças calculadas</h2><div><b>Payroll → Workforce</b><strong>{data.reconciliations.payrollToWorkforce.differenceMinor}</strong><small>unidades mínimas</small></div><div><b>Workforce → Finance</b><strong>{data.reconciliations.workforceToFinance.differenceMinor}</strong><small>unidades mínimas</small></div><div><b>Report snapshot</b><strong>{data.reconciliations.reportHashValid?"SHA-256 ✓":"Sem evidência"}</strong><small>integridade dos inputs</small></div><footer><b>Regra operacional</b><p>Uma diferença deve ser corrigida no motor de origem. Dashboard e relatório nunca alteram o dado.</p></footer></aside></div></>}</section>}
+type ActionsData = {
+  actions: Array<{
+    id: string;
+    organization_name: string;
+    period?: string;
+    currency?: string;
+    source_line_code?: string;
+    title: string;
+    description?: string;
+    owner_email: string;
+    due_date: string;
+    priority: string;
+    status: string;
+    created_by: string;
+    created_at: string;
+    completion_evidence?: string;
+  }>;
+  organizations: Array<{ id: string; code: string; name: string }>;
+  owners: Array<{ name: string; email: string; role: string }>;
+  audit: AuditEvent[];
+};
+function ActionPlans() {
+  const [data, setData] = useState<ActionsData>({
+      actions: [],
+      organizations: [],
+      owners: [],
+      audit: [],
+    }),
+    [modal, setModal] = useState(""),
+    [selected, setSelected] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const load = () =>
+    apiFetch("/api/v1/actions")
+      .then(async (r) => {
+        const b = await r.json();
+        if (!r.ok) throw new Error(b.error);
+        setData(b);
+      })
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+  async function command(payload: Record<string, string>) {
+    setBusy(true);
+    setError("");
+    const res = await apiFetch("/api/v1/actions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+      body = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(body.error);
+      return false;
+    }
+    setData(body);
+    setModal("");
+    setSelected("");
+    return true;
+  }
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await command({
+      type: "createAction",
+      ...(Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<
+        string,
+        string
+      >),
+    });
+  }
+  async function complete(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await command({
+      type: "transitionAction",
+      actionId: selected,
+      status: "Concluída",
+      ...(Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<
+        string,
+        string
+      >),
+    });
+  }
+  const open = data.actions.filter((a) =>
+      ["Aberta", "Em curso"].includes(a.status),
+    ),
+    overdue = open.filter(
+      (a) => a.due_date < new Date().toISOString().slice(0, 10),
+    ),
+    done = data.actions.filter((a) => a.status === "Concluída");
+  return (
+    <section className="actions">
+      <div className="actions-top">
+        <div>
+          <span>PERFORMANCE MANAGEMENT · ACTIONS</span>
+          <h1>Transformar explicação em responsabilidade</h1>
+          <p>
+            Cada ação mantém contexto, responsável, prazo, estado e evidência de
+            conclusão.
+          </p>
+        </div>
+        <button className="primario" onClick={() => setModal("create")}>
+          ＋ Novo plano de ação
+        </button>
+      </div>
+      <section className="actions-kpis">
+        <article>
+          <span>Abertas</span>
+          <strong>{open.length}</strong>
+          <small>Requerem acompanhamento</small>
+        </article>
+        <article className={overdue.length ? "attention" : ""}>
+          <span>Em atraso</span>
+          <strong>{overdue.length}</strong>
+          <small>Prazo ultrapassado</small>
+        </article>
+        <article>
+          <span>Concluídas</span>
+          <strong>{done.length}</strong>
+          <small>Com evidência obrigatória</small>
+        </article>
+        <article>
+          <span>Taxa de conclusão</span>
+          <strong>
+            {data.actions.length
+              ? `${Math.round((done.length / data.actions.length) * 100)}%`
+              : "—"}
+          </strong>
+          <small>Sobre o total registado</small>
+        </article>
+      </section>
+      <div className="actions-grid">
+        <article className="cartao actions-list">
+          <div className="cab">
+            <div>
+              <span>PLANOS DE AÇÃO</span>
+              <h2>Responsabilidade e execução</h2>
+            </div>
+            <em>{data.actions.length} registo(s)</em>
+          </div>
+          {data.actions.length ? (
+            data.actions.map((a) => (
+              <div className="action-row" key={a.id}>
+                <i className={a.priority.toLowerCase()}>
+                  {a.status === "Concluída" ? "✓" : "◎"}
+                </i>
+                <span>
+                  <b>{a.title}</b>
+                  <small>
+                    {a.organization_name} · {a.source_line_code || "Ação geral"}{" "}
+                    · {a.period || "Sem período"}
+                  </small>
+                </span>
+                <p>
+                  <b>{a.owner_email}</b>
+                  <small>
+                    Prazo {a.due_date} · {a.priority}
+                  </small>
+                </p>
+                <em>{a.status}</em>
+                <div>
+                  {a.status === "Aberta" && (
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        command({
+                          type: "transitionAction",
+                          actionId: a.id,
+                          status: "Em curso",
+                        })
+                      }
+                    >
+                      Iniciar
+                    </button>
+                  )}
+                  {["Aberta", "Em curso"].includes(a.status) && (
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        setSelected(a.id);
+                        setModal("complete");
+                      }}
+                    >
+                      Concluir
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <Vazio texto="Crie o primeiro plano de ação de performance." />
+          )}
+        </article>
+        <aside className="cartao actions-audit">
+          <span>AUDIT TRAIL</span>
+          <h2>Evidência recente</h2>
+          {data.audit.length ? (
+            data.audit.map((a) => (
+              <div key={a.id}>
+                <i>✓</i>
+                <span>
+                  <b>{a.summary}</b>
+                  <small>
+                    {a.actor} · {new Date(a.created_at).toLocaleString("pt-AO")}
+                  </small>
+                </span>
+              </div>
+            ))
+          ) : (
+            <p>As decisões aparecerão aqui.</p>
+          )}
+          <footer>
+            <b>Fonte de verdade</b>
+            <p>
+              A ação acompanha o desempenho; nunca altera os valores do
+              Dashboard ou dos motores financeiros.
+            </p>
+          </footer>
+        </aside>
+      </div>
+      {error && <p className="erro-global">{error}</p>}
+      {modal && (
+        <div className="modal-inline">
+          <form onSubmit={modal === "create" ? submit : complete}>
+            <header>
+              <div>
+                <small>PERFORMANCE ACTION</small>
+                <h2>
+                  {modal === "create"
+                    ? "Novo plano de ação"
+                    : "Concluir com evidência"}
+                </h2>
+              </div>
+              <button type="button" onClick={() => setModal("")}>
+                ×
+              </button>
+            </header>
+            {modal === "create" ? (
+              <>
+                <label>
+                  Organização
+                  <select name="organizationId" required>
+                    <option value="">Selecionar</option>
+                    {data.organizations.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code} · {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Título
+                  <input
+                    name="title"
+                    required
+                    placeholder="Ex.: Rever alocação do Workforce Cost"
+                  />
+                </label>
+                <label>
+                  Descrição
+                  <textarea name="description" rows={3} />
+                </label>
+                <div>
+                  <label>
+                    Período
+                    <input name="period" type="month" />
+                  </label>
+                  <label>
+                    Moeda
+                    <input name="currency" maxLength={3} defaultValue="AOA" />
+                  </label>
+                </div>
+                <label>
+                  Linha de origem
+                  <input name="sourceLineCode" placeholder="Ex.: WORKFORCE" />
+                </label>
+                <label>
+                  Contexto
+                  <input name="sourceContext" placeholder="Actual vs Budget" />
+                </label>
+                <label>
+                  Responsável
+                  <select name="ownerEmail" required>
+                    <option value="">Selecionar</option>
+                    {data.owners.map((o) => (
+                      <option key={o.email} value={o.email}>
+                        {o.name} · {o.role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div>
+                  <label>
+                    Prazo
+                    <input name="dueDate" type="date" required />
+                  </label>
+                  <label>
+                    Prioridade
+                    <select name="priority">
+                      <option>Normal</option>
+                      <option>Alta</option>
+                      <option>Crítica</option>
+                      <option>Baixa</option>
+                    </select>
+                  </label>
+                </div>
+              </>
+            ) : (
+              <label>
+                Evidência de conclusão
+                <textarea
+                  name="evidence"
+                  rows={5}
+                  required
+                  placeholder="Descreva o resultado, documento ou decisão que comprova a conclusão."
+                />
+              </label>
+            )}
+            {error && <p className="erro-form">{error}</p>}
+            <footer>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => setModal("")}
+              >
+                Cancelar
+              </button>
+              <button className="primario" disabled={busy}>
+                {busy ? "A guardar…" : "Confirmar"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
 
-type Review={id:string;cycle_id:string;cycle_name:string;organization_id:string;organization_name:string;subject_email:string;subject_name:string;reviewer_email:string;reviewer_name:string;status:string;goal_score_bps?:number;manager_competency_bps?:number;calibrated_competency_bps?:number;final_score_bps?:number;snapshot_count:number};
-type ReviewData={reviews:Review[];cycles:Array<{id:string;name:string;status:string}>;people:Array<{name:string;email:string;role:string;organization_id?:string}>;organizations:Array<{id:string;code:string;name:string}>;development:Array<{id:string;review_id:string;title:string;description?:string;owner_email:string;due_date:string;status:string;completion_evidence?:string}>;audit:AuditEvent[]};
-const emptyReviews:ReviewData={reviews:[],cycles:[],people:[],organizations:[],development:[],audit:[]};
-function ReviewsWorkspace({actor,role}:{actor:string;role:string}){const [data,setData]=useState<ReviewData>(emptyReviews),[modal,setModal]=useState(""),[selected,setSelected]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");const load=()=>apiFetch("/api/v1/reviews").then(async r=>{const b=await r.json();if(!r.ok)throw new Error(b.error);setData(b)}).catch(e=>setError(e.message));useEffect(()=>{load()},[]);async function command(payload:Record<string,string>){setBusy(true);setError("");const r=await apiFetch("/api/v1/reviews",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}),b=await r.json();setBusy(false);if(!r.ok){setError(b.error);return}setData(b);setModal("");setSelected("")}async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();await command({type:modal,reviewId:selected,itemId:selected,...Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<string,string>})}const pending=data.reviews.filter(x=>x.status!=="Finalizada"&&x.status!=="Cancelada"),finalized=data.reviews.filter(x=>x.status==="Finalizada"),avg=finalized.length?Math.round(finalized.reduce((n,x)=>n+Number(x.final_score_bps||0),0)/finalized.length/100):0,open=(kind:string,id="")=>{setError("");setSelected(id);setModal(kind)},canCalibrate=["Administrador","Recursos Humanos"].includes(role);return <section className="reviews"><div className="reviews-top"><div><span>PERFORMANCE MANAGEMENT · REVIEWS</span><h1>Avaliar com evidência, calibrar com independência</h1><p>Objetivos mensuráveis, competências e desenvolvimento numa decisão rastreável.</p></div><button className="primario" onClick={()=>open("createReview")}>＋ Nova avaliação</button></div><section className="review-kpis"><article><span>Em curso</span><strong>{pending.length}</strong><small>Autoavaliação, gestor ou calibração</small></article><article><span>Finalizadas</span><strong>{finalized.length}</strong><small>Decisão protegida</small></article><article><span>Nota média</span><strong>{avg}%</strong><small>60% objetivos · 40% competências</small></article><article><span>Desenvolvimento</span><strong>{data.development.filter(x=>x.status==="Aberta").length}</strong><small>Ações abertas</small></article></section><div className="review-layout"><article className="cartao review-list"><div className="cab"><div><span>AVALIAÇÕES</span><h2>Pipeline de decisão</h2></div><em>{data.reviews.length} avaliação(ões)</em></div>{data.reviews.length?data.reviews.map(r=><div className="review-row" key={r.id}><i>{r.status==="Finalizada"?"✓":r.status==="Calibração"?"◇":"◷"}</i><span><b>{r.subject_name}</b><small>{r.cycle_name} · {r.organization_name}</small><small>Gestor: {r.reviewer_name}</small></span><div className="review-score"><b>{r.final_score_bps!=null?`${(r.final_score_bps/100).toFixed(0)}%`:"—"}</b><small>{r.snapshot_count||0} metas congeladas</small></div><em>{r.status}</em><nav>{r.status==="Aguardando autoavaliação"&&r.subject_email.toLowerCase()===actor.toLowerCase()&&<button onClick={()=>open("selfReview",r.id)}>Autoavaliar</button>}{r.status==="Aguardando gestor"&&r.reviewer_email.toLowerCase()===actor.toLowerCase()&&<button onClick={()=>open("managerReview",r.id)}>Avaliar</button>}{r.status==="Calibração"&&canCalibrate&&![r.subject_email,r.reviewer_email].map(x=>x.toLowerCase()).includes(actor.toLowerCase())&&<button onClick={()=>open("calibrate",r.id)}>Calibrar</button>}{r.status==="Finalizada"&&<button onClick={()=>open("createDevelopment",r.id)}>＋ Desenvolvimento</button>}</nav></div>):<Vazio texto="Crie a primeira avaliação a partir de um ciclo ativo com objetivos."/>}</article><aside className="cartao review-governance"><span>MODELO DE PONTUAÇÃO</span><h2>Decisão reproduzível</h2><div><i>60</i><span><b>Objetivos</b><small>Progresso ponderado por peso</small></span><em>%</em></div><div><i>40</i><span><b>Competências</b><small>Escala calibrada de 1 a 5</small></span><em>%</em></div><footer><b>Segregação ativa</b><p>Colaborador, gestor e calibrador têm responsabilidades separadas. Os snapshots das metas são imutáveis.</p></footer></aside></div><article className="cartao development-list"><div className="cab"><div><span>PLANOS DE DESENVOLVIMENTO</span><h2>Ações após a decisão</h2></div><em>{data.development.length} ação(ões)</em></div>{data.development.length?data.development.map(d=><div key={d.id}><i>{d.status==="Concluída"?"✓":"↗"}</i><span><b>{d.title}</b><small>{d.owner_email} · prazo {d.due_date}</small></span><em>{d.status}</em>{d.status==="Aberta"&&<button onClick={()=>open("completeDevelopment",d.id)}>Concluir</button>}</div>):<Vazio texto="As ações surgem após avaliações finalizadas."/>}</article>{error&&!modal&&<p className="erro-global">{error}</p>}{modal&&<div className="modal-inline"><form onSubmit={submit}><header><div><small>PERFORMANCE REVIEWS</small><h2>{modal==="createReview"?"Nova avaliação":modal==="selfReview"?"Autoavaliação":modal==="managerReview"?"Avaliação do gestor":modal==="calibrate"?"Calibração independente":modal==="createDevelopment"?"Plano de desenvolvimento":"Concluir ação"}</h2></div><button type="button" onClick={()=>setModal("")}>×</button></header>{modal==="createReview"?<><label>Ciclo ativo<select name="cycleId" required><option value="">Selecionar</option>{data.cycles.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Organização<select name="organizationId" required><option value="">Selecionar</option>{data.organizations.map(o=><option key={o.id} value={o.id}>{o.code} · {o.name}</option>)}</select></label><label>Colaborador<select name="subjectEmail" required><option value="">Selecionar</option>{data.people.map(p=><option key={p.email} value={p.email}>{p.name} · {p.role}</option>)}</select></label><label>Gestor avaliador<select name="reviewerEmail" required><option value="">Selecionar</option>{data.people.filter(p=>p.role==="Gestor"||p.role==="Administrador").map(p=><option key={p.email} value={p.email}>{p.name} · {p.role}</option>)}</select></label></>:modal==="createDevelopment"?<><label>Ação de desenvolvimento<input name="title" required/></label><label>Descrição<textarea name="description" rows={3}/></label><label>Responsável<select name="ownerEmail" required><option value="">Selecionar</option>{data.people.map(p=><option key={p.email} value={p.email}>{p.name}</option>)}</select></label><label>Prazo<input name="dueDate" type="date" required/></label></>:modal==="completeDevelopment"?<label>Evidência de conclusão<textarea name="evidence" minLength={3} rows={4} required/></label>:<><label>Classificação de competências<select name="rating" required><option value="">Selecionar</option>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n} · {n===1?"A desenvolver":n===2?"Parcial":n===3?"Consistente":n===4?"Supera":"Excecional"}</option>)}</select></label>{modal==="calibrate"?<label>Fundamentação da calibração<textarea name="reason" minLength={10} rows={4} required/></label>:<label>Comentário<textarea name="comment" minLength={3} rows={4} required/></label>}<aside className="review-note"><b>Cálculo protegido</b><p>A classificação não altera os 60% derivados dos snapshots objetivos.</p></aside></>}{error&&<p className="erro-form">{error}</p>}<footer><button type="button" className="secundario" onClick={()=>setModal("")}>Cancelar</button><button className="primario" disabled={busy}>{busy?"A guardar…":"Confirmar"}</button></footer></form></div>}</section>}
+type BudgetVersion = {
+  id: string;
+  name: string;
+  fiscal_year: number;
+  status: string;
+};
+type PerfEntry = {
+  id: string;
+  period: string;
+  scenario: string;
+  currency: string;
+  line_code: string;
+  line_name: string;
+  amount_minor: number;
+  organization_name: string;
+  dimension_member_name?: string;
+  created_at: string;
+};
+type PerfData = {
+  period: string;
+  currency: string;
+  entries: PerfEntry[];
+  versions: BudgetVersion[];
+  organizations: { id: string; name: string; code: string; currency: string }[];
+  members: { id: string; name: string; code: string; dimension_name: string }[];
+  summary: {
+    actualMinor: number;
+    budgetMinor: number;
+    varianceMinor: number;
+    varianceBps: number | null;
+  };
+  audit: AuditEvent[];
+};
+const perfVazio: PerfData = {
+  period: "2026-08",
+  currency: "AOA",
+  entries: [],
+  versions: [],
+  organizations: [],
+  members: [],
+  summary: {
+    actualMinor: 0,
+    budgetMinor: 0,
+    varianceMinor: 0,
+    varianceBps: null,
+  },
+  audit: [],
+};
+function PerformanceControl() {
+  const [dados, setDados] = useState<PerfData>(perfVazio),
+    [periodo, setPeriodo] = useState("2026-08"),
+    [moeda, setMoeda] = useState("AOA"),
+    [versao, setVersao] = useState(""),
+    [modal, setModal] = useState(""),
+    [erro, setErro] = useState(""),
+    [aEnviar, setAEnviar] = useState(false);
+  const carregar = useCallback(
+    () =>
+      apiFetch(
+        `/api/performance?period=${periodo}&currency=${moeda}&version=${versao}`,
+      )
+        .then((r) => r.json())
+        .then((d) => {
+          if (!Array.isArray(d.entries)) throw new Error(d.error);
+          setDados(d);
+          if (!versao && d.versions[0]) setVersao(d.versions[0].id);
+        })
+        .catch(() =>
+          setErro("Não foi possível carregar o controlo de performance."),
+        ),
+    [periodo, moeda, versao],
+  );
+  useEffect(() => {
+    carregar();
+  }, [carregar]);
+  const dinheiro = (minor: number) =>
+    new Intl.NumberFormat("pt-PT", {
+      style: "currency",
+      currency: moeda,
+      maximumFractionDigits: 2,
+    }).format(minor / 100);
+  async function enviar(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErro("");
+    setAEnviar(true);
+    const payload = Object.fromEntries(new FormData(e.currentTarget).entries());
+    payload.type = modal;
+    const res = await apiFetch(
+      `/api/performance?period=${periodo}&currency=${moeda}&version=${versao}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    const body = await res.json();
+    setAEnviar(false);
+    if (!res.ok) {
+      setErro(body.error || "Não foi possível guardar.");
+      return;
+    }
+    setDados(body);
+    if (modal === "budgetVersion" && body.versions[0])
+      setVersao(body.versions[0].id);
+    setModal("");
+  }
+  async function aprovar(id: string) {
+    setErro("");
+    const res = await apiFetch(
+      `/api/performance?period=${periodo}&currency=${moeda}&version=${versao}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: "approveBudget",
+          versionId: id,
+          period: periodo,
+          currency: moeda,
+        }),
+      },
+    );
+    const body = await res.json();
+    if (!res.ok) {
+      setErro(body.error);
+      return;
+    }
+    setDados(body);
+  }
+  const vAtual = dados.versions.find((v) => v.id === versao);
+  return (
+    <section className="performance">
+      <div className="perf-top">
+        <div>
+          <span>ACTUAL / BUDGET CONTROL</span>
+          <h1>Performance financeira governada</h1>
+          <p>
+            Compare realizado e orçamento com valores determinísticos e
+            rastreáveis.
+          </p>
+        </div>
+        <div>
+          <button
+            className="secundario"
+            onClick={() => setModal("budgetVersion")}
+          >
+            ＋ Nova versão
+          </button>
+          <button
+            className="primario"
+            onClick={() => setModal("performanceEntry")}
+          >
+            ＋ Novo valor
+          </button>
+        </div>
+      </div>
+      <section className="perf-filtros">
+        <label>
+          Período
+          <input
+            type="month"
+            value={periodo}
+            onChange={(e) => setPeriodo(e.target.value)}
+          />
+        </label>
+        <label>
+          Moeda
+          <input
+            value={moeda}
+            maxLength={3}
+            onChange={(e) => setMoeda(e.target.value.toUpperCase())}
+          />
+        </label>
+        <label>
+          Versão orçamental
+          <select value={versao} onChange={(e) => setVersao(e.target.value)}>
+            <option value="">Sem versão</option>
+            {dados.versions.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name} · {v.status}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <small>Estado</small>
+          <b
+            className={
+              vAtual?.status === "Aprovado" ? "estado aprovado" : "estado"
+            }
+          >
+            {vAtual?.status || "Não configurado"}
+          </b>
+        </div>
+      </section>
+      <section className="perf-kpis">
+        <article>
+          <span>Realizado</span>
+          <strong>{dinheiro(dados.summary.actualMinor)}</strong>
+          <small>{periodo}</small>
+        </article>
+        <article>
+          <span>Orçamento</span>
+          <strong>{dinheiro(dados.summary.budgetMinor)}</strong>
+          <small>{vAtual?.name || "Sem versão selecionada"}</small>
+        </article>
+        <article
+          className={
+            dados.summary.varianceMinor > 0
+              ? "desvio-negativo"
+              : "desvio-positivo"
+          }
+        >
+          <span>Desvio absoluto</span>
+          <strong>{dinheiro(dados.summary.varianceMinor)}</strong>
+          <small>
+            {dados.summary.varianceBps === null
+              ? "Sem base comparável"
+              : `${(dados.summary.varianceBps / 100).toFixed(2)}% do orçamento`}
+          </small>
+        </article>
+      </section>
+      <div className="perf-grid">
+        <article className="cartao perf-tabela">
+          <div className="cab">
+            <div>
+              <span>VALORES REGISTADOS</span>
+              <h2>Actual versus Budget</h2>
+            </div>
+            <em>{dados.entries.length} linhas</em>
+          </div>
+          {dados.entries.length ? (
+            <div className="tabela-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Linha</th>
+                    <th>Organização</th>
+                    <th>Dimensão</th>
+                    <th>Cenário</th>
+                    <th>Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dados.entries.map((e) => (
+                    <tr key={e.id}>
+                      <td>
+                        <b>{e.line_code}</b>
+                        <small>{e.line_name}</small>
+                      </td>
+                      <td>{e.organization_name}</td>
+                      <td>{e.dimension_member_name || "Sem dimensão"}</td>
+                      <td>
+                        <em
+                          className={
+                            e.scenario === "Actual" ? "actual" : "budget"
+                          }
+                        >
+                          {e.scenario}
+                        </em>
+                      </td>
+                      <td>
+                        <b>{dinheiro(e.amount_minor)}</b>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <Vazio texto="Registe o primeiro valor realizado ou orçamentado." />
+          )}
+        </article>
+        <aside className="cartao perf-versoes">
+          <span>WORKFLOW ORÇAMENTAL</span>
+          <h2>Versões e aprovação</h2>
+          {dados.versions.length ? (
+            dados.versions.map((v) => (
+              <div key={v.id}>
+                <i>{v.status === "Aprovado" ? "✓" : "◷"}</i>
+                <span>
+                  <b>{v.name}</b>
+                  <small>
+                    {v.fiscal_year} · {v.status}
+                  </small>
+                </span>
+                {v.status === "Rascunho" && (
+                  <button onClick={() => aprovar(v.id)}>Aprovar</button>
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="sem-auditoria">
+              Crie uma versão para iniciar o orçamento.
+            </p>
+          )}
+          <footer>
+            <b>Cálculo controlado</b>
+            <p>
+              Os valores são guardados em unidades monetárias mínimas. O desvio
+              é calculado como Realizado − Orçamento.
+            </p>
+            <small>
+              Último evento:{" "}
+              {dados.audit[0]?.summary || "Nenhuma alteração registada"}
+            </small>
+          </footer>
+        </aside>
+      </div>
+      {erro && <p className="erro-global">{erro}</p>}
+      {modal && (
+        <div className="modal-inline">
+          <form onSubmit={enviar}>
+            <header>
+              <div>
+                <small>
+                  {modal === "budgetVersion"
+                    ? "WORKFLOW ORÇAMENTAL"
+                    : "REGISTO FINANCEIRO"}
+                </small>
+                <h2>
+                  {modal === "budgetVersion"
+                    ? "Nova versão orçamental"
+                    : "Novo valor Actual / Budget"}
+                </h2>
+              </div>
+              <button type="button" onClick={() => setModal("")}>
+                ×
+              </button>
+            </header>
+            {modal === "budgetVersion" ? (
+              <>
+                <label>
+                  Nome da versão
+                  <input
+                    name="name"
+                    required
+                    autoFocus
+                    placeholder="Ex.: Orçamento Base 2027"
+                  />
+                </label>
+                <label>
+                  Ano fiscal
+                  <input
+                    name="fiscalYear"
+                    type="number"
+                    min="2000"
+                    max="2200"
+                    required
+                    defaultValue="2027"
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label>
+                    Organização
+                    <select name="organizationId" required>
+                      <option value="">Selecionar</option>
+                      {dados.organizations.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Período
+                    <input
+                      name="period"
+                      type="month"
+                      required
+                      defaultValue={periodo}
+                    />
+                  </label>
+                </div>
+                <div>
+                  <label>
+                    Cenário
+                    <select name="scenario" required>
+                      <option>Actual</option>
+                      <option>Budget</option>
+                    </select>
+                  </label>
+                  <label>
+                    Versão
+                    <select name="versionId" defaultValue={versao}>
+                      <option value="">Não aplicável a Actual</option>
+                      {dados.versions
+                        .filter((v) => v.status === "Rascunho")
+                        .map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                </div>
+                <div>
+                  <label>
+                    Moeda
+                    <input
+                      name="currency"
+                      required
+                      maxLength={3}
+                      defaultValue={moeda}
+                    />
+                  </label>
+                  <label>
+                    Valor
+                    <input
+                      name="amount"
+                      required
+                      inputMode="decimal"
+                      placeholder="0,00"
+                    />
+                  </label>
+                </div>
+                <div>
+                  <label>
+                    Código da linha
+                    <input
+                      name="lineCode"
+                      required
+                      placeholder="EX.: REV-SERV"
+                    />
+                  </label>
+                  <label>
+                    Descrição
+                    <input
+                      name="lineName"
+                      required
+                      placeholder="Receitas de serviços"
+                    />
+                  </label>
+                </div>
+                <label>
+                  Dimensão
+                  <select name="dimensionMemberId">
+                    <option value="">Sem dimensão</option>
+                    {dados.members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.dimension_name} · {m.code} · {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+            {erro && <p className="erro-form">{erro}</p>}
+            <footer>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => setModal("")}
+              >
+                Cancelar
+              </button>
+              <button className="primario" disabled={aEnviar}>
+                {aEnviar ? "A guardar…" : "Guardar"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
 
-type OpenApiSpec={openapi:string;info:{title:string;version:string;description:string};servers:Array<{url:string}>;paths:Record<string,Record<string,{summary?:string;tags?:string[];"x-permission"?:string}>>};
-function ApiContract(){const [spec,setSpec]=useState<OpenApiSpec|null>(null),[open,setOpen]=useState(false);useEffect(()=>{apiFetch("/api/v1/openapi.json").then(r=>r.json()).then(setSpec)},[]);const endpoints=spec?Object.entries(spec.paths).flatMap(([path,ops])=>Object.entries(ops).filter(([method])=>["get","post"].includes(method)).map(([method,op])=>({path,method,op}))):[];return <section className="api-contract cartao"><header><div><span>HTTP / OPENAPI</span><h2>Contrato estável da plataforma</h2><p>{spec?.info.description||"A carregar especificação…"}</p></div><div><b>{spec?.openapi||"—"}<small>OpenAPI</small></b><b>{spec?.info.version||"—"}<small>API version</small></b><button onClick={()=>setOpen(!open)}>{open?"Ocultar endpoints":"Ver endpoints"} →</button></div></header>{open&&<div className="api-list"><div className="api-base"><code>{spec?.servers[0]?.url}</code><span>Base URL versionada</span></div>{endpoints.map(x=><article key={`${x.method}-${x.path}`}><em className={x.method}>{x.method.toUpperCase()}</em><code>{x.path}</code><span>{x.op.summary}</span><b>{x.op["x-permission"]||"authenticated"}</b></article>)}</div>}</section>}
+type ScenarioData = {
+  period: string;
+  currency: string;
+  selectedVersion: {
+    id: string;
+    name: string;
+    version_type: string;
+    status: string;
+    created_by: string;
+    base_budget_id?: string;
+  } | null;
+  versions: Array<{
+    id: string;
+    name: string;
+    version_type: string;
+    fiscal_year: number;
+    status: string;
+    entry_count: number;
+    base_budget_name?: string;
+  }>;
+  organizations: Array<{
+    id: string;
+    code: string;
+    name: string;
+    currency: string;
+  }>;
+  members: Array<{
+    id: string;
+    code: string;
+    name: string;
+    dimension_name: string;
+  }>;
+  entries: Array<{
+    id: string;
+    line_code: string;
+    line_name: string;
+    organization_name: string;
+    dimension_member_name?: string;
+    amount_minor: number;
+    assumption_note?: string;
+  }>;
+  summary: {
+    actualMinor: number;
+    budgetMinor: number;
+    forecastMinor: number;
+    forecastVsActualMinor: number;
+    forecastVsBudgetMinor: number;
+  };
+  audit: AuditEvent[];
+};
+const scenarioEmpty: ScenarioData = {
+  period: "2026-08",
+  currency: "AOA",
+  selectedVersion: null,
+  versions: [],
+  organizations: [],
+  members: [],
+  entries: [],
+  summary: {
+    actualMinor: 0,
+    budgetMinor: 0,
+    forecastMinor: 0,
+    forecastVsActualMinor: 0,
+    forecastVsBudgetMinor: 0,
+  },
+  audit: [],
+};
+function ScenariosWorkspace() {
+  const [data, setData] = useState<ScenarioData>(scenarioEmpty),
+    [period, setPeriod] = useState("2026-08"),
+    [currency, setCurrency] = useState("AOA"),
+    [version, setVersion] = useState(""),
+    [modal, setModal] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const load = useCallback(
+    () =>
+      apiFetch(
+        `/api/v1/scenarios?period=${period}&currency=${currency}&version=${version}`,
+      )
+        .then(async (r) => {
+          const b = await r.json();
+          if (!r.ok) throw new Error(b.error);
+          setData(b);
+          if (!version && b.versions?.[0]) setVersion(b.versions[0].id);
+        })
+        .catch((e) => setError(e.message)),
+    [period, currency, version],
+  );
+  useEffect(() => {
+    load();
+  }, [load]);
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const res = await apiFetch(
+        `/api/v1/scenarios?period=${period}&currency=${currency}&version=${version}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            type: modal,
+            ...Object.fromEntries(new FormData(e.currentTarget).entries()),
+          }),
+        },
+      ),
+      body = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(body.error);
+      return;
+    }
+    setData(body);
+    if (body.selectedVersion?.id) setVersion(body.selectedVersion.id);
+    setModal("");
+  }
+  async function approve() {
+    if (!version) return;
+    setBusy(true);
+    const res = await apiFetch(
+        `/api/v1/scenarios?period=${period}&currency=${currency}&version=${version}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            type: "approvePlanningVersion",
+            versionId: version,
+          }),
+        },
+      ),
+      body = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(body.error);
+      return;
+    }
+    setData(body);
+  }
+  const money = (n: number) =>
+    new Intl.NumberFormat("pt-PT", { style: "currency", currency }).format(
+      n / 100,
+    );
+  return (
+    <section className="scenarios">
+      <div className="scenarios-top">
+        <div>
+          <span>FINANCE & FP&A · FORECAST</span>
+          <h1>Antecipar resultados sem alterar o Actual</h1>
+          <p>
+            Versões independentes, pressupostos explícitos e comparação
+            reproduzível.
+          </p>
+        </div>
+        <div>
+          <button
+            className="secundario"
+            onClick={() => setModal("createPlanningVersion")}
+          >
+            ＋ Nova versão
+          </button>
+          <button
+            className="primario"
+            disabled={!version || data.selectedVersion?.status !== "Rascunho"}
+            onClick={() => setModal("planningEntry")}
+          >
+            ＋ Entrada
+          </button>
+        </div>
+      </div>
+      <section className="scenario-filters">
+        <label>
+          Período
+          <input
+            type="month"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+          />
+        </label>
+        <label>
+          Moeda
+          <input
+            value={currency}
+            maxLength={3}
+            onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+          />
+        </label>
+        <label>
+          Versão
+          <select value={version} onChange={(e) => setVersion(e.target.value)}>
+            <option value="">Selecionar</option>
+            {data.versions.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.version_type} · {v.name} · {v.status}
+              </option>
+            ))}
+          </select>
+        </label>
+        {data.selectedVersion?.status === "Rascunho" && (
+          <button disabled={busy} onClick={approve}>
+            Aprovar versão
+          </button>
+        )}
+      </section>
+      <section className="scenario-kpis">
+        <article>
+          <span>Actual</span>
+          <strong>{money(data.summary.actualMinor)}</strong>
+          <small>Fonte financeira imutável</small>
+        </article>
+        <article>
+          <span>Budget base</span>
+          <strong>{money(data.summary.budgetMinor)}</strong>
+          <small>
+            {data.selectedVersion?.base_budget_id
+              ? "Versão aprovada"
+              : "Sem Budget base"}
+          </small>
+        </article>
+        <article>
+          <span>Forecast / Cenário</span>
+          <strong>{money(data.summary.forecastMinor)}</strong>
+          <small>{data.selectedVersion?.name || "Sem versão"}</small>
+        </article>
+        <article
+          className={data.summary.forecastVsActualMinor > 0 ? "attention" : ""}
+        >
+          <span>Forecast − Actual</span>
+          <strong>{money(data.summary.forecastVsActualMinor)}</strong>
+          <small>Diferença no período</small>
+        </article>
+      </section>
+      <div className="scenario-grid">
+        <article className="cartao scenario-list">
+          <div className="cab">
+            <div>
+              <span>LINHAS DE PLANEAMENTO</span>
+              <h2>Pressupostos e valores</h2>
+            </div>
+            <em>{data.entries.length} entrada(s)</em>
+          </div>
+          {data.entries.length ? (
+            data.entries.map((e) => (
+              <div className="scenario-row" key={e.id}>
+                <i>ƒ</i>
+                <span>
+                  <b>
+                    {e.line_code} · {e.line_name}
+                  </b>
+                  <small>
+                    {e.organization_name} ·{" "}
+                    {e.dimension_member_name || "Sem dimensão"}
+                  </small>
+                </span>
+                <p>
+                  <b>{money(e.amount_minor)}</b>
+                  <small>
+                    {e.assumption_note || "Sem nota de pressuposto"}
+                  </small>
+                </p>
+              </div>
+            ))
+          ) : (
+            <Vazio texto="Selecione uma versão e registe linhas de Forecast." />
+          )}
+        </article>
+        <aside className="cartao scenario-versions">
+          <span>VERSÕES</span>
+          <h2>Governance</h2>
+          {data.versions.map((v) => (
+            <button
+              key={v.id}
+              className={version === v.id ? "active" : ""}
+              onClick={() => setVersion(v.id)}
+            >
+              <span>
+                <b>{v.name}</b>
+                <small>
+                  {v.version_type} · {v.fiscal_year} · {v.entry_count}{" "}
+                  entrada(s)
+                </small>
+              </span>
+              <em>{v.status}</em>
+            </button>
+          ))}
+          <footer>
+            <b>Separação de fontes</b>
+            <p>
+              Actual, Budget e Forecast nunca são sobrescritos. A comparação
+              ocorre por parâmetros explícitos.
+            </p>
+          </footer>
+        </aside>
+      </div>
+      {error && <p className="erro-global">{error}</p>}
+      {modal && (
+        <div className="modal-inline">
+          <form onSubmit={submit}>
+            <header>
+              <div>
+                <small>FP&A · PLANNING VERSION</small>
+                <h2>
+                  {modal === "createPlanningVersion"
+                    ? "Nova versão"
+                    : "Nova entrada"}
+                </h2>
+              </div>
+              <button type="button" onClick={() => setModal("")}>
+                ×
+              </button>
+            </header>
+            {modal === "createPlanningVersion" ? (
+              <>
+                <label>
+                  Nome
+                  <input name="name" required placeholder="Ex.: Forecast Q4" />
+                </label>
+                <div>
+                  <label>
+                    Tipo
+                    <select name="versionType">
+                      <option>Forecast</option>
+                      <option>Cenário</option>
+                    </select>
+                  </label>
+                  <label>
+                    Ano fiscal
+                    <input
+                      name="fiscalYear"
+                      type="number"
+                      defaultValue={new Date().getFullYear()}
+                      required
+                    />
+                  </label>
+                </div>
+                <p className="calculo-nota">
+                  O Budget base aprovado é opcional e permanece uma fonte
+                  independente.
+                </p>
+              </>
+            ) : (
+              <>
+                <input type="hidden" name="versionId" value={version} />
+                <label>
+                  Organização
+                  <select name="organizationId" required>
+                    <option value="">Selecionar</option>
+                    {data.organizations.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code} · {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div>
+                  <label>
+                    Período
+                    <input
+                      name="period"
+                      type="month"
+                      defaultValue={period}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Moeda
+                    <input
+                      name="currency"
+                      defaultValue={currency}
+                      maxLength={3}
+                      required
+                    />
+                  </label>
+                </div>
+                <div>
+                  <label>
+                    Código da linha
+                    <input name="lineCode" required />
+                  </label>
+                  <label>
+                    Nome da linha
+                    <input name="lineName" required />
+                  </label>
+                </div>
+                <label>
+                  Dimensão
+                  <select name="dimensionMemberId">
+                    <option value="">Sem dimensão</option>
+                    {data.members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.dimension_name} · {m.code} · {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Montante
+                  <input name="amount" inputMode="decimal" required />
+                </label>
+                <label>
+                  Pressuposto
+                  <textarea
+                    name="assumptionNote"
+                    rows={3}
+                    placeholder="Explique o driver ou hipótese usada."
+                  />
+                </label>
+              </>
+            )}
+            {error && <p className="erro-form">{error}</p>}
+            <footer>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => setModal("")}
+              >
+                Cancelar
+              </button>
+              <button className="primario" disabled={busy}>
+                {busy ? "A guardar…" : "Guardar"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
+type Payslip = {
+  id: string;
+  run_id: string;
+  payslip_number: string;
+  period: string;
+  currency: string;
+  gross_minor: number;
+  deduction_minor: number;
+  employer_minor: number;
+  net_minor: number;
+  document_hash: string;
+  status: string;
+  issued_at: string;
+  employee_number: string;
+  employee_name: string;
+  organization_name: string;
+  payload_json: string;
+};
+type PaymentBatch = {
+  id: string;
+  run_id: string;
+  batch_number: string;
+  period: string;
+  currency: string;
+  employee_count: number;
+  total_minor: number;
+  status: string;
+  evidence_hash: string;
+  prepared_by: string;
+  prepared_at: string;
+  approved_by?: string;
+  approved_at?: string;
+  exported_by?: string;
+  exported_at?: string;
+  line_count: number;
+};
+type PayrollData = {
+  profiles: Array<{
+    id: string;
+    employee_name: string;
+    employee_number: string;
+    currency: string;
+    base_minor: number;
+    periodicity: string;
+    effective_from: string;
+    status: string;
+    dimension_member_name?: string;
+  }>;
+  components: Array<{
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    method: string;
+    value_minor?: number;
+    rate_bps?: number;
+    employee_name?: string;
+    status: string;
+  }>;
+  runs: Array<{
+    id: string;
+    period: string;
+    currency: string;
+    status: string;
+    employee_count: number;
+    gross_minor: number;
+    deduction_minor: number;
+    employer_minor: number;
+    net_minor: number;
+  }>;
+  employees: Array<{
+    id: string;
+    employee_number: string;
+    first_name: string;
+    last_name: string;
+  }>;
+  members: Array<{
+    id: string;
+    name: string;
+    code: string;
+    dimension_name: string;
+  }>;
+  payslips: Payslip[];
+  batches: PaymentBatch[];
+  audit: AuditEvent[];
+};
+const payrollVazio: PayrollData = {
+  profiles: [],
+  components: [],
+  runs: [],
+  employees: [],
+  members: [],
+  payslips: [],
+  batches: [],
+  audit: [],
+};
+function PayrollFoundation() {
+  const [dados, setDados] = useState<PayrollData>(payrollVazio),
+    [vista, setVista] = useState("Perfis salariais"),
+    [modal, setModal] = useState(""),
+    [recibo, setRecibo] = useState<Payslip | null>(null),
+    [erro, setErro] = useState(""),
+    [aEnviar, setAEnviar] = useState(false);
+  const carregar = () =>
+    apiFetch("/api/payroll")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!Array.isArray(d.profiles)) throw new Error(d.error);
+        setDados(d);
+      })
+      .catch(() => setErro("Não foi possível carregar a fundação de Payroll."));
+  useEffect(() => {
+    carregar();
+  }, []);
+  const dinheiro = (minor: number, currency = "AOA") =>
+    new Intl.NumberFormat("pt-PT", { style: "currency", currency }).format(
+      minor / 100,
+    );
+  async function enviar(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErro("");
+    setAEnviar(true);
+    const payload = Object.fromEntries(new FormData(e.currentTarget).entries());
+    payload.type = modal;
+    const res = await apiFetch("/api/payroll", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+    setAEnviar(false);
+    if (!res.ok) {
+      setErro(body.error || "Não foi possível executar a operação.");
+      return;
+    }
+    setDados(body);
+    setModal("");
+  }
+  async function transitar(runId: string) {
+    setErro("");
+    const res = await apiFetch("/api/payroll", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "transitionPayrollRun", runId }),
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      setErro(body.error);
+      return;
+    }
+    setDados(body);
+  }
+  async function emitirRecibos(runId: string) {
+    setErro("");
+    setAEnviar(true);
+    const res = await apiFetch("/api/v1/payroll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "issuePayslips", runId }),
+      }),
+      body = await res.json();
+    setAEnviar(false);
+    if (!res.ok) {
+      setErro(body.error);
+      return;
+    }
+    setDados(body);
+    setVista("Recibos");
+  }
+  async function prepararLote(runId: string) {
+    setErro("");
+    setAEnviar(true);
+    const res = await apiFetch("/api/v1/payroll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "preparePaymentBatch", runId }),
+      }),
+      body = await res.json();
+    setAEnviar(false);
+    if (!res.ok) {
+      setErro(body.error);
+      return;
+    }
+    setDados(body);
+    setVista("Pagamentos");
+  }
+  async function transitarLote(batchId: string) {
+    setErro("");
+    setAEnviar(true);
+    const res = await apiFetch("/api/v1/payroll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "transitionPaymentBatch", batchId }),
+      }),
+      body = await res.json();
+    setAEnviar(false);
+    if (!res.ok) {
+      setErro(body.error);
+      return;
+    }
+    setDados(body);
+  }
+  const ultimo = dados.runs[0],
+    acao = (status: string) =>
+      status === "Rascunho"
+        ? "Validar"
+        : status === "Validado"
+          ? "Aprovar"
+          : status === "Aprovado"
+            ? "Fechar"
+            : "Fechado",
+    reciboPayload = recibo
+      ? (JSON.parse(recibo.payload_json) as {
+          employee: {
+            name: string;
+            number: string;
+            jobTitle: string;
+            organizationName: string;
+          };
+          amounts: {
+            baseMinor: number;
+            grossMinor: number;
+            deductionMinor: number;
+            employerMinor: number;
+            netMinor: number;
+          };
+        })
+      : null;
+  return (
+    <section className="payroll">
+      <div className="pay-top">
+        <div>
+          <span>PAYROLL RUN FOUNDATION</span>
+          <h1>Processamento salarial controlado</h1>
+          <p>
+            Configuração, cálculo e workflow sem regras laborais ou fiscais
+            hardcoded.
+          </p>
+        </div>
+        <div>
+          <button
+            className="secundario"
+            onClick={() => setModal("salaryProfile")}
+          >
+            ＋ Perfil salarial
+          </button>
+          <button
+            className="secundario"
+            onClick={() => setModal("payrollComponent")}
+          >
+            ＋ Componente
+          </button>
+          <button
+            className="primario"
+            onClick={() => setModal("generatePayrollRun")}
+          >
+            ▶ Processar
+          </button>
+        </div>
+      </div>
+      <div className="pay-alerta">
+        <i>i</i>
+        <div>
+          <b>Core agnóstico a país</b>
+          <p>
+            Este incremento não calcula impostos, contribuições ou regras
+            laborais. Esses cálculos serão fornecidos por Country Packs
+            versionados.
+          </p>
+        </div>
+      </div>
+      <section className="pay-resumo">
+        <article>
+          <span>Perfis ativos</span>
+          <strong>
+            {dados.profiles.filter((p) => p.status === "Ativo").length}
+          </strong>
+          <small>de {dados.employees.length} colaboradores</small>
+        </article>
+        <article>
+          <span>Último processamento</span>
+          <strong>{ultimo?.period || "—"}</strong>
+          <small>{ultimo?.status || "Ainda não processado"}</small>
+        </article>
+        <article>
+          <span>Líquido calculado</span>
+          <strong>
+            {ultimo ? dinheiro(ultimo.net_minor, ultimo.currency) : "—"}
+          </strong>
+          <small>
+            {ultimo
+              ? `${ultimo.employee_count} colaborador(es)`
+              : "Sem resultados"}
+          </small>
+        </article>
+        <article>
+          <span>Custo patronal</span>
+          <strong>
+            {ultimo
+              ? dinheiro(
+                  ultimo.gross_minor + ultimo.employer_minor,
+                  ultimo.currency,
+                )
+              : "—"}
+          </strong>
+          <small>Bruto + employer cost</small>
+        </article>
+      </section>
+      <div className="pay-tabs">
+        {[
+          "Perfis salariais",
+          "Componentes",
+          "Processamentos",
+          "Recibos",
+          "Pagamentos",
+        ].map((x) => (
+          <button
+            key={x}
+            className={vista === x ? "ativo" : ""}
+            onClick={() => setVista(x)}
+          >
+            {x}
+            <em>
+              {x === "Perfis salariais"
+                ? dados.profiles.length
+                : x === "Componentes"
+                  ? dados.components.length
+                  : x === "Processamentos"
+                    ? dados.runs.length
+                    : x === "Recibos"
+                      ? dados.payslips.length
+                      : dados.batches.length}
+            </em>
+          </button>
+        ))}
+      </div>
+      {vista === "Pagamentos" && (
+        <section className="payment-workspace cartao">
+          <div className="cab">
+            <div>
+              <span>PAYMENT BATCHES</span>
+              <h2>Lotes reconciliados e aprovados</h2>
+            </div>
+            <em>{dados.batches.length} lote(s)</em>
+          </div>
+          {dados.batches.length ? (
+            dados.batches.map((b) => (
+              <div className="payment-row" key={b.id}>
+                <i>⇄</i>
+                <span>
+                  <b>{b.batch_number}</b>
+                  <small>
+                    Payroll {b.period} · {b.employee_count} colaborador(es) ·
+                    preparado por {b.prepared_by}
+                  </small>
+                  <code>#{b.evidence_hash.slice(0, 16)}</code>
+                </span>
+                <p>
+                  <b>{dinheiro(b.total_minor, b.currency)}</b>
+                  <small>{b.line_count} instrução(ões)</small>
+                </p>
+                <em>{b.status}</em>
+                {b.status === "Exportado" ? (
+                  <strong>Fechado ✓</strong>
+                ) : (
+                  <button
+                    disabled={aEnviar}
+                    onClick={() => transitarLote(b.id)}
+                  >
+                    {b.status === "Preparado" ? "Aprovar" : "Marcar exportado"}{" "}
+                    →
+                  </button>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="payment-empty">
+              <Vazio texto="Emita os recibos de um Payroll fechado para preparar o lote." />
+              {dados.runs
+                .filter(
+                  (r) =>
+                    r.status === "Fechado" &&
+                    dados.payslips.some((p) => p.run_id === r.id),
+                )
+                .map((r) => (
+                  <button
+                    className="primario"
+                    key={r.id}
+                    disabled={aEnviar}
+                    onClick={() => prepararLote(r.id)}
+                  >
+                    Preparar lote · Payroll {r.period}
+                  </button>
+                ))}
+            </div>
+          )}
+        </section>
+      )}
+      <div className="pay-grid">
+        <article className="cartao pay-lista">
+          <div className="cab">
+            <div>
+              <span>{vista.toUpperCase()}</span>
+              <h2>
+                {vista === "Perfis salariais"
+                  ? "Configuração por colaborador"
+                  : vista === "Componentes"
+                    ? "Componentes atribuídos"
+                    : vista === "Processamentos"
+                      ? "Runs e workflow"
+                      : "Documentos salariais emitidos"}
+              </h2>
+            </div>
+          </div>
+          {vista === "Perfis salariais" ? (
+            dados.profiles.length ? (
+              dados.profiles.map((p) => (
+                <div className="pay-row" key={p.id}>
+                  <i>
+                    {p.employee_name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)}
+                  </i>
+                  <span>
+                    <b>{p.employee_name}</b>
+                    <small>
+                      {p.employee_number} · {p.periodicity} · desde{" "}
+                      {p.effective_from}
+                    </small>
+                  </span>
+                  <p>
+                    {dinheiro(p.base_minor, p.currency)}
+                    <small>{p.dimension_member_name || "Sem dimensão"}</small>
+                  </p>
+                  <em>{p.status}</em>
+                </div>
+              ))
+            ) : (
+              <Vazio texto="Crie o primeiro perfil salarial." />
+            )
+          ) : vista === "Componentes" ? (
+            dados.components.length ? (
+              dados.components.map((c) => (
+                <div className="pay-row componente" key={c.id}>
+                  <i>
+                    {c.category === "Earning"
+                      ? "＋"
+                      : c.category === "Deduction"
+                        ? "−"
+                        : "◇"}
+                  </i>
+                  <span>
+                    <b>
+                      {c.code} · {c.name}
+                    </b>
+                    <small>
+                      {c.employee_name || "Sem atribuição"} · {c.category}
+                    </small>
+                  </span>
+                  <p>
+                    {c.method === "Fixed"
+                      ? dinheiro(c.value_minor || 0)
+                      : `${((c.rate_bps || 0) / 100).toFixed(2)}%`}
+                    <small>{c.method}</small>
+                  </p>
+                  <em>{c.status}</em>
+                </div>
+              ))
+            ) : (
+              <Vazio texto="Crie e atribua o primeiro componente." />
+            )
+          ) : vista === "Processamentos" ? (
+            dados.runs.length ? (
+              dados.runs.map((r) => (
+                <div className="pay-run" key={r.id}>
+                  <div>
+                    <i>{r.status === "Fechado" ? "✓" : "◷"}</i>
+                    <span>
+                      <b>Payroll {r.period}</b>
+                      <small>
+                        {r.employee_count} colaborador(es) · {r.currency}
+                      </small>
+                    </span>
+                  </div>
+                  <div>
+                    <span>
+                      Bruto<b>{dinheiro(r.gross_minor, r.currency)}</b>
+                    </span>
+                    <span>
+                      Deduções<b>{dinheiro(r.deduction_minor, r.currency)}</b>
+                    </span>
+                    <span>
+                      Líquido<b>{dinheiro(r.net_minor, r.currency)}</b>
+                    </span>
+                  </div>
+                  <em className={`run-${r.status.toLowerCase()}`}>
+                    {r.status}
+                  </em>
+                  {r.status !== "Fechado" ? (
+                    <button onClick={() => transitar(r.id)}>
+                      {acao(r.status)} →
+                    </button>
+                  ) : (
+                    <button
+                      disabled={aEnviar}
+                      onClick={() => emitirRecibos(r.id)}
+                    >
+                      {dados.payslips.some((p) => p.run_id === r.id)
+                        ? "Ver recibos"
+                        : "Emitir recibos"}{" "}
+                      →
+                    </button>
+                  )}
+                </div>
+              ))
+            ) : (
+              <Vazio texto="Execute o primeiro Payroll Run." />
+            )
+          ) : dados.payslips.length ? (
+            dados.payslips.map((p) => (
+              <div className="payslip-row" key={p.id}>
+                <i>▧</i>
+                <span>
+                  <b>{p.employee_name}</b>
+                  <small>
+                    {p.employee_number} · {p.organization_name} · {p.period}
+                  </small>
+                </span>
+                <p>
+                  <b>{dinheiro(p.net_minor, p.currency)}</b>
+                  <small>Líquido · {p.currency}</small>
+                </p>
+                <em>{p.status}</em>
+                <button onClick={() => setRecibo(p)}>Abrir →</button>
+              </div>
+            ))
+          ) : (
+            <Vazio texto="Emita recibos a partir de um Payroll Run fechado." />
+          )}
+        </article>
+        <aside className="cartao pay-controlos">
+          <span>CONTROLOS DO MOTOR</span>
+          <h2>Execução reproduzível</h2>
+          {[
+            ["Montantes", "Unidades mínimas"],
+            ["Percentagens", "Basis points"],
+            ["Arredondamento", "Determinístico"],
+            ["Evidência", "Hash SHA-256"],
+            ["Segregação", "Workflow explícito"],
+          ].map((x) => (
+            <div key={x[0]}>
+              <i>✓</i>
+              <span>
+                <b>{x[0]}</b>
+                <small>{x[1]}</small>
+              </span>
+            </div>
+          ))}
+          <footer>
+            <b>Última ação auditada</b>
+            <p>
+              {dados.audit[0]?.summary || "Nenhuma ação de Payroll registada."}
+            </p>
+          </footer>
+        </aside>
+      </div>
+      {recibo && reciboPayload && (
+        <div className="payslip-overlay" onClick={() => setRecibo(null)}>
+          <article
+            className="payslip-paper"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header>
+              <div>
+                <span>EP</span>
+                <p>
+                  <b>Recibo salarial</b>
+                  <small>{recibo.payslip_number}</small>
+                </p>
+              </div>
+              <em>{recibo.status}</em>
+            </header>
+            <section>
+              <small>COLABORADOR</small>
+              <h2>{reciboPayload.employee.name}</h2>
+              <p>
+                {reciboPayload.employee.number} ·{" "}
+                {reciboPayload.employee.jobTitle} ·{" "}
+                {reciboPayload.employee.organizationName}
+              </p>
+            </section>
+            <dl>
+              <div>
+                <dt>Período</dt>
+                <dd>{recibo.period}</dd>
+              </div>
+              <div>
+                <dt>Moeda</dt>
+                <dd>{recibo.currency}</dd>
+              </div>
+              <div>
+                <dt>Salário base</dt>
+                <dd>
+                  {dinheiro(reciboPayload.amounts.baseMinor, recibo.currency)}
+                </dd>
+              </div>
+              <div>
+                <dt>Bruto</dt>
+                <dd>{dinheiro(recibo.gross_minor, recibo.currency)}</dd>
+              </div>
+              <div>
+                <dt>Deduções</dt>
+                <dd>− {dinheiro(recibo.deduction_minor, recibo.currency)}</dd>
+              </div>
+              <div className="net">
+                <dt>Líquido</dt>
+                <dd>{dinheiro(recibo.net_minor, recibo.currency)}</dd>
+              </div>
+              <div>
+                <dt>Custo patronal</dt>
+                <dd>{dinheiro(recibo.employer_minor, recibo.currency)}</dd>
+              </div>
+            </dl>
+            <footer>
+              <span>
+                Hash SHA-256
+                <br />
+                <code>{recibo.document_hash}</code>
+              </span>
+              <span>
+                Emitido em
+                <br />
+                {new Date(recibo.issued_at).toLocaleString("pt-AO")}
+              </span>
+            </footer>
+            <nav>
+              <button className="secundario" onClick={() => setRecibo(null)}>
+                Fechar
+              </button>
+              <button className="primario" onClick={() => window.print()}>
+                Imprimir / PDF
+              </button>
+            </nav>
+          </article>
+        </div>
+      )}
+      {erro && <p className="erro-global">{erro}</p>}
+      {modal && (
+        <div className="modal-inline">
+          <form onSubmit={enviar}>
+            <header>
+              <div>
+                <small>PAYROLL FOUNDATION</small>
+                <h2>
+                  {modal === "salaryProfile"
+                    ? "Novo perfil salarial"
+                    : modal === "payrollComponent"
+                      ? "Novo componente"
+                      : "Executar Payroll Run"}
+                </h2>
+              </div>
+              <button type="button" onClick={() => setModal("")}>
+                ×
+              </button>
+            </header>
+            {modal === "salaryProfile" ? (
+              <>
+                <label>
+                  Colaborador
+                  <select name="employeeId" required>
+                    <option value="">Selecionar</option>
+                    {dados.employees.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.employee_number} · {e.first_name} {e.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div>
+                  <label>
+                    Salário base
+                    <input
+                      name="baseAmount"
+                      required
+                      inputMode="decimal"
+                      placeholder="0,00"
+                    />
+                  </label>
+                  <label>
+                    Moeda
+                    <input
+                      name="currency"
+                      required
+                      maxLength={3}
+                      defaultValue="AOA"
+                    />
+                  </label>
+                </div>
+                <div>
+                  <label>
+                    Periodicidade
+                    <select name="periodicity">
+                      <option>Mensal</option>
+                      <option>Quinzenal</option>
+                      <option>Semanal</option>
+                    </select>
+                  </label>
+                  <label>
+                    Vigência
+                    <input name="effectiveFrom" type="date" required />
+                  </label>
+                </div>
+                <label>
+                  Dimensão financeira
+                  <select name="dimensionMemberId">
+                    <option value="">Sem dimensão</option>
+                    {dados.members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.dimension_name} · {m.code} · {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : modal === "payrollComponent" ? (
+              <>
+                <label>
+                  Atribuir ao colaborador
+                  <select name="employeeId" required>
+                    <option value="">Selecionar</option>
+                    {dados.employees.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.employee_number} · {e.first_name} {e.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div>
+                  <label>
+                    Código
+                    <input name="code" required placeholder="EX.: ALIM" />
+                  </label>
+                  <label>
+                    Ordem
+                    <input
+                      name="calculationOrder"
+                      type="number"
+                      defaultValue="100"
+                    />
+                  </label>
+                </div>
+                <label>
+                  Nome
+                  <input
+                    name="name"
+                    required
+                    placeholder="Subsídio de alimentação"
+                  />
+                </label>
+                <div>
+                  <label>
+                    Categoria
+                    <select name="category">
+                      <option value="Earning">Earning</option>
+                      <option value="Deduction">Deduction</option>
+                      <option value="EmployerCost">Employer Cost</option>
+                    </select>
+                  </label>
+                  <label>
+                    Método
+                    <select name="method">
+                      <option value="Fixed">Valor fixo</option>
+                      <option value="Percentage">Percentagem do base</option>
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  Valor ou percentagem
+                  <input
+                    name="value"
+                    required
+                    inputMode="decimal"
+                    placeholder="Ex.: 25000,00 ou 3,00"
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label>
+                    Período
+                    <input
+                      name="period"
+                      type="month"
+                      required
+                      defaultValue="2026-08"
+                    />
+                  </label>
+                  <label>
+                    Moeda
+                    <input
+                      name="currency"
+                      required
+                      maxLength={3}
+                      defaultValue="AOA"
+                    />
+                  </label>
+                </div>
+                <aside className="calculo-nota">
+                  <b>Resultado imutável</b>
+                  <p>
+                    O run guardará os inputs, totais e hash de cálculo por
+                    colaborador.
+                  </p>
+                </aside>
+              </>
+            )}
+            {erro && <p className="erro-form">{erro}</p>}
+            <footer>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => setModal("")}
+              >
+                Cancelar
+              </button>
+              <button className="primario" disabled={aEnviar}>
+                {aEnviar
+                  ? "A processar…"
+                  : modal === "generatePayrollRun"
+                    ? "Calcular Payroll"
+                    : "Guardar"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
+type WorkforceData = {
+  period: string;
+  currency: string;
+  runs: Array<{
+    id: string;
+    period: string;
+    currency: string;
+    employee_count: number;
+    net_minor: number;
+    posting_count: number;
+  }>;
+  postings: Array<{
+    id: string;
+    employee_name: string;
+    employee_number: string;
+    organization_name: string;
+    dimension_member_name?: string;
+    gross_minor: number;
+    employer_minor: number;
+    total_minor: number;
+    source_hash: string;
+  }>;
+  versions: BudgetVersion[];
+  summary: {
+    actualMinor: number;
+    budgetMinor: number;
+    varianceMinor: number;
+    varianceBps: number | null;
+  };
+  audit: AuditEvent[];
+};
+const workforceVazio: WorkforceData = {
+  period: "2026-08",
+  currency: "AOA",
+  runs: [],
+  postings: [],
+  versions: [],
+  summary: {
+    actualMinor: 0,
+    budgetMinor: 0,
+    varianceMinor: 0,
+    varianceBps: null,
+  },
+  audit: [],
+};
+function WorkforceCost() {
+  const [dados, setDados] = useState<WorkforceData>(workforceVazio),
+    [periodo, setPeriodo] = useState("2026-08"),
+    [moeda, setMoeda] = useState("AOA"),
+    [versao, setVersao] = useState(""),
+    [erro, setErro] = useState(""),
+    [aEnviar, setAEnviar] = useState("");
+  const carregar = useCallback(
+    () =>
+      apiFetch(
+        `/api/workforce?period=${periodo}&currency=${moeda}&version=${versao}`,
+      )
+        .then((r) => r.json())
+        .then((d) => {
+          if (!Array.isArray(d.postings)) throw new Error(d.error);
+          setDados(d);
+          if (!versao && d.versions[0]) setVersao(d.versions[0].id);
+        })
+        .catch(() => setErro("Não foi possível carregar Workforce Cost.")),
+    [periodo, moeda, versao],
+  );
+  useEffect(() => {
+    carregar();
+  }, [carregar]);
+  const dinheiro = (n: number) =>
+    new Intl.NumberFormat("pt-PT", {
+      style: "currency",
+      currency: moeda,
+    }).format(n / 100);
+  async function transferir(runId: string) {
+    setErro("");
+    setAEnviar(runId);
+    const res = await apiFetch(
+      `/api/workforce?period=${periodo}&currency=${moeda}&version=${versao}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "postRun", runId, versionId: versao }),
+      },
+    );
+    const body = await res.json();
+    setAEnviar("");
+    if (!res.ok) {
+      setErro(body.error);
+      return;
+    }
+    setDados(body);
+    setPeriodo(body.period);
+    setMoeda(body.currency);
+  }
+  return (
+    <section className="workforce">
+      <div className="wf-top">
+        <div>
+          <span>WORKFORCE COST BRIDGE</span>
+          <h1>Custos de pessoas ligados à performance</h1>
+          <p>
+            Payroll fechado convertido em Actual financeiro por organização e
+            dimensão.
+          </p>
+        </div>
+        <b>HCM → Finance</b>
+      </div>
+      <section className="wf-filtros">
+        <label>
+          Período
+          <input
+            type="month"
+            value={periodo}
+            onChange={(e) => setPeriodo(e.target.value)}
+          />
+        </label>
+        <label>
+          Moeda
+          <input
+            value={moeda}
+            maxLength={3}
+            onChange={(e) => setMoeda(e.target.value.toUpperCase())}
+          />
+        </label>
+        <label>
+          Versão Budget
+          <select value={versao} onChange={(e) => setVersao(e.target.value)}>
+            <option value="">Sem versão</option>
+            {dados.versions.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name} · {v.status}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+      <section className="wf-kpis">
+        <article>
+          <span>Actual Workforce Cost</span>
+          <strong>{dinheiro(dados.summary.actualMinor)}</strong>
+          <small>Bruto + employer costs</small>
+        </article>
+        <article>
+          <span>Budget Workforce Cost</span>
+          <strong>{dinheiro(dados.summary.budgetMinor)}</strong>
+          <small>Linha financeira WORKFORCE</small>
+        </article>
+        <article
+          className={
+            dados.summary.varianceMinor > 0 ? "desfavoravel" : "favoravel"
+          }
+        >
+          <span>Desvio</span>
+          <strong>{dinheiro(dados.summary.varianceMinor)}</strong>
+          <small>
+            {dados.summary.varianceBps === null
+              ? "Sem orçamento comparável"
+              : `${(dados.summary.varianceBps / 100).toFixed(2)}% vs Budget`}
+          </small>
+        </article>
+        <article>
+          <span>Colaboradores alocados</span>
+          <strong>{dados.postings.length}</strong>
+          <small>
+            {dados.runs.filter((r) => Number(r.posting_count) > 0).length}{" "}
+            run(s) transferidos
+          </small>
+        </article>
+      </section>
+      <div className="wf-grid">
+        <article className="cartao wf-tabela">
+          <div className="cab">
+            <div>
+              <span>ALOCAÇÃO DE CUSTOS</span>
+              <h2>Payroll → dimensões financeiras</h2>
+            </div>
+            <em>{dados.postings.length} linhas</em>
+          </div>
+          {dados.postings.length ? (
+            <div className="tabela-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Colaborador</th>
+                    <th>Organização</th>
+                    <th>Dimensão</th>
+                    <th>Bruto</th>
+                    <th>Employer cost</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dados.postings.map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <b>{p.employee_name}</b>
+                        <small>{p.employee_number}</small>
+                      </td>
+                      <td>{p.organization_name}</td>
+                      <td>{p.dimension_member_name || "Sem dimensão"}</td>
+                      <td>{dinheiro(p.gross_minor)}</td>
+                      <td>{dinheiro(p.employer_minor)}</td>
+                      <td>
+                        <b>{dinheiro(p.total_minor)}</b>
+                        <small className="hash">
+                          #{p.source_hash.slice(0, 8)}
+                        </small>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <Vazio texto="Transfira um Payroll Run fechado para gerar Workforce Cost." />
+          )}
+        </article>
+        <aside className="cartao wf-runs">
+          <span>RUNS ELEGÍVEIS</span>
+          <h2>Transferência controlada</h2>
+          {dados.runs.length ? (
+            dados.runs.map((r) => (
+              <div key={r.id}>
+                <i>{Number(r.posting_count) > 0 ? "✓" : "↗"}</i>
+                <span>
+                  <b>Payroll {r.period}</b>
+                  <small>
+                    {r.employee_count} colaborador(es) · {r.currency}
+                  </small>
+                </span>
+                {Number(r.posting_count) > 0 ? (
+                  <em>Transferido</em>
+                ) : (
+                  <button
+                    disabled={aEnviar === r.id}
+                    onClick={() => transferir(r.id)}
+                  >
+                    {aEnviar === r.id ? "A transferir…" : "Transferir"}
+                  </button>
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="sem-auditoria">Nenhum Payroll fechado disponível.</p>
+          )}
+          <footer>
+            <b>Idempotência ativa</b>
+            <p>
+              Cada Payroll Run só pode ser transferido uma vez. O hash original
+              acompanha o custo.
+            </p>
+            <small>
+              {dados.audit[0]?.summary || "Nenhuma transferência auditada."}
+            </small>
+          </footer>
+        </aside>
+      </div>
+      {erro && <p className="erro-global">{erro}</p>}
+    </section>
+  );
+}
+
+type DashData = {
+  versions: BudgetVersion[];
+  summary: {
+    actualMinor: number;
+    budgetMinor: number;
+    varianceMinor: number;
+    varianceBps: number | null;
+    workforceMinor: number;
+    headcount: number;
+  };
+  trend: Array<{ period: string; actual_minor: number; budget_minor: number }>;
+  drivers: Array<{
+    line_code: string;
+    line_name: string;
+    actual_minor: number;
+    budget_minor: number;
+    variance_minor: number;
+  }>;
+  entries: Array<PerfEntry & { source: string }>;
+  coverage: { organizations: number; sources: number; latestAt: string | null };
+  payroll: { period: string; status: string } | null;
+};
+const dashEmpty: DashData = {
+  versions: [],
+  summary: {
+    actualMinor: 0,
+    budgetMinor: 0,
+    varianceMinor: 0,
+    varianceBps: null,
+    workforceMinor: 0,
+    headcount: 0,
+  },
+  trend: [],
+  drivers: [],
+  entries: [],
+  coverage: { organizations: 0, sources: 0, latestAt: null },
+  payroll: null,
+};
+function ExecutiveDashboard({
+  onNavigate,
+}: {
+  onNavigate: (module: string) => void;
+}) {
+  const [d, setD] = useState<DashData>(dashEmpty),
+    [period, setPeriod] = useState("2026-08"),
+    [currency, setCurrency] = useState("AOA"),
+    [version, setVersion] = useState(""),
+    [driver, setDriver] = useState("");
+  useEffect(() => {
+    apiFetch(
+      `/api/dashboard?period=${period}&currency=${currency}&version=${version}`,
+    )
+      .then((r) => r.json())
+      .then((x) => {
+        setD(x);
+        if (!version && x.versions?.[0]) setVersion(x.versions[0].id);
+      });
+  }, [period, currency, version]);
+  const money = (n: number) =>
+      new Intl.NumberFormat("pt-PT", { style: "currency", currency }).format(
+        n / 100,
+      ),
+    max = Math.max(
+      1,
+      ...d.trend.flatMap((x) => [
+        Number(x.actual_minor),
+        Number(x.budget_minor),
+      ]),
+    ),
+    cause = d.drivers
+      .slice()
+      .sort(
+        (a, b) => Math.abs(b.variance_minor) - Math.abs(a.variance_minor),
+      )[0];
+  return (
+    <section className="executivo">
+      <div className="exec-top">
+        <div>
+          <span>PERFORMANCE EXECUTIVA</span>
+          <h1>Decidir com contexto, não só com números</h1>
+          <p>
+            Actual e Budget consolidados a partir dos motores Finance e HCM.
+          </p>
+        </div>
+        <button className="primario" onClick={() => onNavigate("Planeamento")}>
+          Abrir planeamento →
+        </button>
+      </div>
+      <section className="exec-filtros">
+        <label>
+          Período
+          <input
+            type="month"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+          />
+        </label>
+        <label>
+          Comparação
+          <select disabled>
+            <option>Actual vs Budget</option>
+          </select>
+        </label>
+        <label>
+          Versão
+          <select value={version} onChange={(e) => setVersion(e.target.value)}>
+            <option value="">Sem versão</option>
+            {d.versions.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name} · {v.status}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Moeda
+          <input
+            value={currency}
+            maxLength={3}
+            onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+          />
+        </label>
+        <small>
+          {d.coverage.latestAt
+            ? `Atualizado ${new Date(d.coverage.latestAt).toLocaleString("pt-PT")}`
+            : "Sem lançamentos"}
+        </small>
+      </section>
+      <section className="exec-kpis">
+        <article>
+          <span>Actual consolidado</span>
+          <strong>{money(d.summary.actualMinor)}</strong>
+          <small>
+            {d.coverage.organizations} organização(ões) · {d.coverage.sources}{" "}
+            fonte(s)
+          </small>
+        </article>
+        <article>
+          <span>Budget selecionado</span>
+          <strong>{money(d.summary.budgetMinor)}</strong>
+          <small>
+            {d.versions.find((v) => v.id === version)?.name || "Sem versão"}
+          </small>
+        </article>
+        <article
+          className={d.summary.varianceMinor > 0 ? "desfavoravel" : "favoravel"}
+        >
+          <span>Desvio Actual − Budget</span>
+          <strong>{money(d.summary.varianceMinor)}</strong>
+          <small>
+            {d.summary.varianceBps === null
+              ? "Sem base comparável"
+              : `${(d.summary.varianceBps / 100).toFixed(2)}% vs Budget`}
+          </small>
+        </article>
+        <article>
+          <span>Workforce Cost</span>
+          <strong>{money(d.summary.workforceMinor)}</strong>
+          <small>{d.summary.headcount} colaborador(es) ativos</small>
+        </article>
+      </section>
+      <div className="exec-grid">
+        <article className="cartao exec-trend">
+          <div className="cab">
+            <div>
+              <span>TENDÊNCIA</span>
+              <h2>Actual versus Budget</h2>
+            </div>
+            <em>6 períodos</em>
+          </div>
+          <div className="exec-bars">
+            {d.trend.map((x) => (
+              <div key={x.period}>
+                <span>
+                  <i
+                    className="actual"
+                    style={{
+                      height: `${Math.max(3, (Number(x.actual_minor) / max) * 100)}%`,
+                    }}
+                  />
+                  <i
+                    className="budget"
+                    style={{
+                      height: `${Math.max(3, (Number(x.budget_minor) / max) * 100)}%`,
+                    }}
+                  />
+                </span>
+                <small>{x.period}</small>
+              </div>
+            ))}
+          </div>
+          <footer>
+            <b>● Actual</b>
+            <b>● Budget</b>
+          </footer>
+        </article>
+        <aside className="cartao exec-explain">
+          <span>EXPLICAÇÃO DETERMINÍSTICA</span>
+          <h2>
+            {cause
+              ? `${cause.line_name} é o maior driver do desvio`
+              : "Sem causa calculável"}
+          </h2>
+          <p>
+            {cause
+              ? `Impacto de ${money(cause.variance_minor)}, calculado diretamente dos lançamentos do período.`
+              : "Registe Actual e Budget comparáveis para identificar causas."}
+          </p>
+          <div>
+            <b>Contexto</b>
+            <small>
+              {period} · {currency} · Actual vs Budget
+            </small>
+          </div>
+          <div>
+            <b>Perspetiva</b>
+            <small>
+              {d.payroll
+                ? `Payroll ${d.payroll.period} ${d.payroll.status}`
+                : "Sem Payroll no contexto"}
+            </small>
+          </div>
+          <button
+            onClick={() =>
+              onNavigate(
+                cause?.line_code === "WORKFORCE" ? "Análises" : "Planeamento",
+              )
+            }
+          >
+            Investigar origem →
+          </button>
+        </aside>
+      </div>
+      <article className="cartao exec-drill">
+        <div className="cab">
+          <div>
+            <span>DRILL-DOWN</span>
+            <h2>Linhas que explicam o resultado</h2>
+          </div>
+          {driver && (
+            <button onClick={() => setDriver("")}>Limpar seleção</button>
+          )}
+        </div>
+        <div className="tabela-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Linha</th>
+                <th>Actual</th>
+                <th>Budget</th>
+                <th>Desvio</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {d.drivers.map((x) => (
+                <tr key={x.line_code}>
+                  <td>
+                    <b>{x.line_name}</b>
+                    <small>{x.line_code}</small>
+                  </td>
+                  <td>{money(x.actual_minor)}</td>
+                  <td>{money(x.budget_minor)}</td>
+                  <td>{money(x.variance_minor)}</td>
+                  <td>
+                    <button onClick={() => setDriver(x.line_code)}>
+                      Ver origem →
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {driver && (
+          <div className="drill-through">
+            <b>Drill-through · {driver}</b>
+            {d.entries
+              .filter((x) => x.line_code === driver)
+              .map((x) => (
+                <div key={x.id}>
+                  <span>
+                    {x.organization_name}
+                    <small>
+                      {x.dimension_member_name || "Sem dimensão"} · {x.source}
+                    </small>
+                  </span>
+                  <em>{x.scenario}</em>
+                  <strong>{money(x.amount_minor)}</strong>
+                </div>
+              ))}
+          </div>
+        )}
+      </article>
+    </section>
+  );
+}
+
+type ReportItem = {
+  id: string;
+  report_number: number;
+  title: string;
+  template: string;
+  period: string;
+  currency: string;
+  status: string;
+  input_hash: string;
+  created_by: string;
+  created_at: string;
+  payload?: ReportPayload;
+};
+type ReportPayload = {
+  generatedAt: string;
+  parameters: {
+    period: string;
+    currency: string;
+    versionName: string;
+    template: string;
+  };
+  result: {
+    actualMinor: number;
+    budgetMinor: number;
+    varianceMinor: number;
+    varianceBps: number | null;
+    workforceMinor: number;
+  };
+  cause: { lineCode: string; lineName: string; varianceMinor: number } | null;
+  impact: string;
+  perspective: string;
+  recommendation: string;
+  drivers: Array<{
+    lineCode: string;
+    lineName: string;
+    actualMinor: number;
+    budgetMinor: number;
+    varianceMinor: number;
+  }>;
+};
+function ManagementReport() {
+  const [items, setItems] = useState<ReportItem[]>([]),
+    [versions, setVersions] = useState<BudgetVersion[]>([]),
+    [report, setReport] = useState<ReportItem | null>(null),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const load = () =>
+    apiFetch("/api/management-reports")
+      .then((r) => r.json())
+      .then((x) => {
+        setItems(x.reports || []);
+        setVersions(x.versions || []);
+      });
+  useEffect(() => {
+    load();
+  }, []);
+  async function generate(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const res = await apiFetch("/api/management-reports", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          Object.fromEntries(new FormData(e.currentTarget).entries()),
+        ),
+      }),
+      body = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(body.error);
+      return;
+    }
+    setReport(body);
+    load();
+  }
+  async function open(id: string) {
+    const x = await apiFetch(`/api/management-reports?id=${id}`).then((r) =>
+      r.json(),
+    );
+    setReport(x);
+  }
+  const money = (n: number, c: string) =>
+      new Intl.NumberFormat("pt-PT", { style: "currency", currency: c }).format(
+        n / 100,
+      ),
+    p = report?.payload;
+  return (
+    <section className="reports">
+      <div className="reports-top">
+        <div>
+          <span>MANAGEMENT REPORTING</span>
+          <h1>Da performance à recomendação executiva</h1>
+          <p>
+            Versões imutáveis, parâmetros explícitos e narrativa suportada pelos
+            motores.
+          </p>
+        </div>
+        {report && (
+          <button className="primario" onClick={() => window.print()}>
+            ↥ Exportar / Imprimir
+          </button>
+        )}
+      </div>
+      <div className="reports-layout">
+        <aside className="report-builder">
+          <span>NOVO RELATÓRIO</span>
+          <h2>Parâmetros da versão</h2>
+          <form onSubmit={generate}>
+            <label>
+              Título
+              <input
+                name="title"
+                defaultValue="Relatório Mensal de Performance"
+                required
+              />
+            </label>
+            <label>
+              Template
+              <select name="template">
+                <option>Executivo</option>
+                <option>Controller</option>
+                <option>Board Pack</option>
+              </select>
+            </label>
+            <div>
+              <label>
+                Período
+                <input
+                  name="period"
+                  type="month"
+                  defaultValue="2026-08"
+                  required
+                />
+              </label>
+              <label>
+                Moeda
+                <input
+                  name="currency"
+                  defaultValue="AOA"
+                  maxLength={3}
+                  required
+                />
+              </label>
+            </div>
+            <label>
+              Versão Budget
+              <select name="versionId">
+                <option value="">Sem versão</option>
+                {versions.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name} · {v.status}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {error && <p className="erro-form">{error}</p>}
+            <button className="primario" disabled={busy}>
+              {busy ? "A gerar…" : "Gerar versão auditável"}
+            </button>
+          </form>
+          <div className="report-history">
+            <b>VERSÕES EMITIDAS</b>
+            {items.map((x) => (
+              <button
+                key={x.id}
+                onClick={() => open(x.id)}
+                className={report?.id === x.id ? "active" : ""}
+              >
+                <span>
+                  v{x.report_number} · {x.title}
+                  <small>
+                    {x.period} · {x.currency}
+                  </small>
+                </span>
+                <em>{x.status}</em>
+              </button>
+            ))}
+          </div>
+        </aside>
+        <article className="report-paper">
+          {p && report ? (
+            <>
+              <header>
+                <div>
+                  <span>EP</span>
+                  <p>
+                    <b>Enterprise Performance</b>
+                    <small>Management Report · v{report.report_number}</small>
+                  </p>
+                </div>
+                <em>{report.status}</em>
+              </header>
+              <section className="report-title">
+                <small>
+                  {p.parameters.template.toUpperCase()} · {p.parameters.period}{" "}
+                  · {p.parameters.currency}
+                </small>
+                <h2>{report.title}</h2>
+                <p>Actual versus {p.parameters.versionName}</p>
+              </section>
+              <div className="report-sections">
+                <ReportSection number="01" title="Resultado">
+                  <strong>
+                    {money(p.result.actualMinor, report.currency)}
+                  </strong>
+                  <p>Resultado Actual consolidado no período selecionado.</p>
+                </ReportSection>
+                <ReportSection number="02" title="Comparação">
+                  <strong>
+                    {money(p.result.varianceMinor, report.currency)}
+                  </strong>
+                  <p>
+                    {p.result.varianceBps === null
+                      ? "Não existe Budget comparável."
+                      : `${(p.result.varianceBps / 100).toFixed(2)}% face ao Budget de ${money(p.result.budgetMinor, report.currency)}.`}
+                  </p>
+                </ReportSection>
+                <ReportSection number="03" title="Causa">
+                  <strong>{p.cause?.lineName || "Sem causa calculável"}</strong>
+                  <p>
+                    {p.cause
+                      ? `Maior contribuição para o desvio: ${money(p.cause.varianceMinor, report.currency)}.`
+                      : "Não existem linhas comparáveis."}
+                  </p>
+                </ReportSection>
+                <ReportSection number="04" title="Impacto">
+                  <p>{p.impact}</p>
+                  <small>
+                    Workforce Cost:{" "}
+                    {money(p.result.workforceMinor, report.currency)}
+                  </small>
+                </ReportSection>
+                <ReportSection number="05" title="Perspetiva">
+                  <p>{p.perspective}</p>
+                </ReportSection>
+                <ReportSection number="06" title="Recomendação">
+                  <p>{p.recommendation}</p>
+                </ReportSection>
+              </div>
+              <section className="report-table">
+                <h3>Anexo · Drivers por linha</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Linha</th>
+                      <th>Actual</th>
+                      <th>Budget</th>
+                      <th>Desvio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {p.drivers.map((x) => (
+                      <tr key={x.lineCode}>
+                        <td>
+                          <b>{x.lineName}</b>
+                          <small>{x.lineCode}</small>
+                        </td>
+                        <td>{money(x.actualMinor, report.currency)}</td>
+                        <td>{money(x.budgetMinor, report.currency)}</td>
+                        <td>{money(x.varianceMinor, report.currency)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+              <footer>
+                <span>Hash de inputs: {report.input_hash}</span>
+                <span>
+                  Emitido em{" "}
+                  {new Date(report.created_at).toLocaleString("pt-PT")}
+                </span>
+              </footer>
+            </>
+          ) : (
+            <div className="report-empty">
+              <i>▤</i>
+              <h2>Pré-visualização do relatório</h2>
+              <p>Gere uma versão ou selecione um relatório emitido.</p>
+            </div>
+          )}
+        </article>
+      </div>
+    </section>
+  );
+}
+function ReportSection({
+  number,
+  title,
+  children,
+}: {
+  number: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <header>
+        <i>{number}</i>
+        <h3>{title}</h3>
+      </header>
+      <div>{children}</div>
+    </section>
+  );
+}
+
+type IntegrityData = {
+  generatedAt: string;
+  status: "pass" | "warn" | "fail";
+  summary: { passed: number; warnings: number; failed: number; total: number };
+  reconciliations: {
+    payrollToWorkforce: { differenceMinor: number };
+    workforceToFinance: { differenceMinor: number };
+    reportHashValid: boolean;
+  };
+  checks: Array<{
+    key: string;
+    label: string;
+    status: "pass" | "warn" | "fail";
+    evidence: string;
+    target: string;
+  }>;
+};
+function IntegrityCenter({
+  onNavigate,
+}: {
+  onNavigate: (module: string) => void;
+}) {
+  const [data, setData] = useState<IntegrityData | null>(null),
+    [busy, setBusy] = useState(false);
+  const run = () => {
+    setBusy(true);
+    apiFetch("/api/integrity")
+      .then((r) => r.json())
+      .then(setData)
+      .finally(() => setBusy(false));
+  };
+  useEffect(() => {
+    apiFetch("/api/integrity")
+      .then((r) => r.json())
+      .then(setData);
+  }, []);
+  return (
+    <section className="integrity">
+      <div className="int-top">
+        <div>
+          <span>VERTICAL SLICE CONTROL</span>
+          <h1>Integridade ponta a ponta</h1>
+          <p>Reconciliação e evidência para cada etapa da cadeia crítica.</p>
+        </div>
+        <button className="primario" onClick={run} disabled={busy}>
+          {busy ? "A validar…" : "↻ Executar validação"}
+        </button>
+      </div>
+      {data && (
+        <>
+          <section className={`int-status ${data.status}`}>
+            <div>
+              <i>
+                {data.status === "pass"
+                  ? "✓"
+                  : data.status === "warn"
+                    ? "!"
+                    : "×"}
+              </i>
+              <span>
+                <b>
+                  {data.status === "pass"
+                    ? "Vertical slice íntegro"
+                    : data.status === "warn"
+                      ? "Vertical slice com avisos"
+                      : "Falhas de integridade detetadas"}
+                </b>
+                <small>
+                  Última execução:{" "}
+                  {new Date(data.generatedAt).toLocaleString("pt-PT")}
+                </small>
+              </span>
+            </div>
+            <strong>
+              {data.summary.passed}/{data.summary.total}
+              <small>controlos aprovados</small>
+            </strong>
+          </section>
+          <section className="int-kpis">
+            <article>
+              <span>Aprovados</span>
+              <strong>{data.summary.passed}</strong>
+              <small>Sem diferenças</small>
+            </article>
+            <article>
+              <span>Avisos</span>
+              <strong>{data.summary.warnings}</strong>
+              <small>Requerem contexto</small>
+            </article>
+            <article>
+              <span>Falhas</span>
+              <strong>{data.summary.failed}</strong>
+              <small>Requerem correção na origem</small>
+            </article>
+            <article>
+              <span>Hash do relatório</span>
+              <strong>
+                {data.reconciliations.reportHashValid ? "Válido" : "Pendente"}
+              </strong>
+              <small>Snapshot imutável</small>
+            </article>
+          </section>
+          <div className="int-layout">
+            <article className="cartao int-chain">
+              <div className="cab">
+                <div>
+                  <span>CADEIA CRÍTICA</span>
+                  <h2>Controlos e evidências</h2>
+                </div>
+                <em>{data.summary.total} etapas</em>
+              </div>
+              {data.checks.map((c, i) => (
+                <div className={`int-check ${c.status}`} key={c.key}>
+                  <i>
+                    {c.status === "pass"
+                      ? "✓"
+                      : c.status === "warn"
+                        ? "!"
+                        : "×"}
+                  </i>
+                  <span>
+                    <b>
+                      {String(i + 1).padStart(2, "0")} · {c.label}
+                    </b>
+                    <small>{c.evidence}</small>
+                  </span>
+                  <em>
+                    {c.status === "pass"
+                      ? "Aprovado"
+                      : c.status === "warn"
+                        ? "Aviso"
+                        : "Falha"}
+                  </em>
+                  <button onClick={() => onNavigate(c.target)}>
+                    Abrir origem →
+                  </button>
+                </div>
+              ))}
+            </article>
+            <aside className="cartao int-recon">
+              <span>RECONCILIAÇÕES</span>
+              <h2>Diferenças calculadas</h2>
+              <div>
+                <b>Payroll → Workforce</b>
+                <strong>
+                  {data.reconciliations.payrollToWorkforce.differenceMinor}
+                </strong>
+                <small>unidades mínimas</small>
+              </div>
+              <div>
+                <b>Workforce → Finance</b>
+                <strong>
+                  {data.reconciliations.workforceToFinance.differenceMinor}
+                </strong>
+                <small>unidades mínimas</small>
+              </div>
+              <div>
+                <b>Report snapshot</b>
+                <strong>
+                  {data.reconciliations.reportHashValid
+                    ? "SHA-256 ✓"
+                    : "Sem evidência"}
+                </strong>
+                <small>integridade dos inputs</small>
+              </div>
+              <footer>
+                <b>Regra operacional</b>
+                <p>
+                  Uma diferença deve ser corrigida no motor de origem. Dashboard
+                  e relatório nunca alteram o dado.
+                </p>
+              </footer>
+            </aside>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+type Review = {
+  id: string;
+  cycle_id: string;
+  cycle_name: string;
+  organization_id: string;
+  organization_name: string;
+  subject_email: string;
+  subject_name: string;
+  reviewer_email: string;
+  reviewer_name: string;
+  status: string;
+  goal_score_bps?: number;
+  manager_competency_bps?: number;
+  calibrated_competency_bps?: number;
+  final_score_bps?: number;
+  snapshot_count: number;
+};
+type ReviewData = {
+  reviews: Review[];
+  cycles: Array<{ id: string; name: string; status: string }>;
+  people: Array<{
+    name: string;
+    email: string;
+    role: string;
+    organization_id?: string;
+  }>;
+  organizations: Array<{ id: string; code: string; name: string }>;
+  development: Array<{
+    id: string;
+    review_id: string;
+    title: string;
+    description?: string;
+    owner_email: string;
+    due_date: string;
+    status: string;
+    completion_evidence?: string;
+  }>;
+  audit: AuditEvent[];
+};
+const emptyReviews: ReviewData = {
+  reviews: [],
+  cycles: [],
+  people: [],
+  organizations: [],
+  development: [],
+  audit: [],
+};
+function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
+  const [data, setData] = useState<ReviewData>(emptyReviews),
+    [modal, setModal] = useState(""),
+    [selected, setSelected] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const load = () =>
+    apiFetch("/api/v1/reviews")
+      .then(async (r) => {
+        const b = await r.json();
+        if (!r.ok) throw new Error(b.error);
+        setData(b);
+      })
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+  async function command(payload: Record<string, string>) {
+    setBusy(true);
+    setError("");
+    const r = await apiFetch("/api/v1/reviews", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+      b = await r.json();
+    setBusy(false);
+    if (!r.ok) {
+      setError(b.error);
+      return;
+    }
+    setData(b);
+    setModal("");
+    setSelected("");
+  }
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await command({
+      type: modal,
+      reviewId: selected,
+      itemId: selected,
+      ...(Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<
+        string,
+        string
+      >),
+    });
+  }
+  const pending = data.reviews.filter(
+      (x) => x.status !== "Finalizada" && x.status !== "Cancelada",
+    ),
+    finalized = data.reviews.filter((x) => x.status === "Finalizada"),
+    avg = finalized.length
+      ? Math.round(
+          finalized.reduce((n, x) => n + Number(x.final_score_bps || 0), 0) /
+            finalized.length /
+            100,
+        )
+      : 0,
+    open = (kind: string, id = "") => {
+      setError("");
+      setSelected(id);
+      setModal(kind);
+    },
+    canCalibrate = ["Administrador", "Recursos Humanos"].includes(role);
+  return (
+    <section className="reviews">
+      <div className="reviews-top">
+        <div>
+          <span>PERFORMANCE MANAGEMENT · REVIEWS</span>
+          <h1>Avaliar com evidência, calibrar com independência</h1>
+          <p>
+            Objetivos mensuráveis, competências e desenvolvimento numa decisão
+            rastreável.
+          </p>
+        </div>
+        <button className="primario" onClick={() => open("createReview")}>
+          ＋ Nova avaliação
+        </button>
+      </div>
+      <section className="review-kpis">
+        <article>
+          <span>Em curso</span>
+          <strong>{pending.length}</strong>
+          <small>Autoavaliação, gestor ou calibração</small>
+        </article>
+        <article>
+          <span>Finalizadas</span>
+          <strong>{finalized.length}</strong>
+          <small>Decisão protegida</small>
+        </article>
+        <article>
+          <span>Nota média</span>
+          <strong>{avg}%</strong>
+          <small>60% objetivos · 40% competências</small>
+        </article>
+        <article>
+          <span>Desenvolvimento</span>
+          <strong>
+            {data.development.filter((x) => x.status === "Aberta").length}
+          </strong>
+          <small>Ações abertas</small>
+        </article>
+      </section>
+      <div className="review-layout">
+        <article className="cartao review-list">
+          <div className="cab">
+            <div>
+              <span>AVALIAÇÕES</span>
+              <h2>Pipeline de decisão</h2>
+            </div>
+            <em>{data.reviews.length} avaliação(ões)</em>
+          </div>
+          {data.reviews.length ? (
+            data.reviews.map((r) => (
+              <div className="review-row" key={r.id}>
+                <i>
+                  {r.status === "Finalizada"
+                    ? "✓"
+                    : r.status === "Calibração"
+                      ? "◇"
+                      : "◷"}
+                </i>
+                <span>
+                  <b>{r.subject_name}</b>
+                  <small>
+                    {r.cycle_name} · {r.organization_name}
+                  </small>
+                  <small>Gestor: {r.reviewer_name}</small>
+                </span>
+                <div className="review-score">
+                  <b>
+                    {r.final_score_bps != null
+                      ? `${(r.final_score_bps / 100).toFixed(0)}%`
+                      : "—"}
+                  </b>
+                  <small>{r.snapshot_count || 0} metas congeladas</small>
+                </div>
+                <em>{r.status}</em>
+                <nav>
+                  {r.status === "Aguardando autoavaliação" &&
+                    r.subject_email.toLowerCase() === actor.toLowerCase() && (
+                      <button onClick={() => open("selfReview", r.id)}>
+                        Autoavaliar
+                      </button>
+                    )}
+                  {r.status === "Aguardando gestor" &&
+                    r.reviewer_email.toLowerCase() === actor.toLowerCase() && (
+                      <button onClick={() => open("managerReview", r.id)}>
+                        Avaliar
+                      </button>
+                    )}
+                  {r.status === "Calibração" &&
+                    canCalibrate &&
+                    ![r.subject_email, r.reviewer_email]
+                      .map((x) => x.toLowerCase())
+                      .includes(actor.toLowerCase()) && (
+                      <button onClick={() => open("calibrate", r.id)}>
+                        Calibrar
+                      </button>
+                    )}
+                  {r.status === "Finalizada" && (
+                    <button onClick={() => open("createDevelopment", r.id)}>
+                      ＋ Desenvolvimento
+                    </button>
+                  )}
+                </nav>
+              </div>
+            ))
+          ) : (
+            <Vazio texto="Crie a primeira avaliação a partir de um ciclo ativo com objetivos." />
+          )}
+        </article>
+        <aside className="cartao review-governance">
+          <span>MODELO DE PONTUAÇÃO</span>
+          <h2>Decisão reproduzível</h2>
+          <div>
+            <i>60</i>
+            <span>
+              <b>Objetivos</b>
+              <small>Progresso ponderado por peso</small>
+            </span>
+            <em>%</em>
+          </div>
+          <div>
+            <i>40</i>
+            <span>
+              <b>Competências</b>
+              <small>Escala calibrada de 1 a 5</small>
+            </span>
+            <em>%</em>
+          </div>
+          <footer>
+            <b>Segregação ativa</b>
+            <p>
+              Colaborador, gestor e calibrador têm responsabilidades separadas.
+              Os snapshots das metas são imutáveis.
+            </p>
+          </footer>
+        </aside>
+      </div>
+      <article className="cartao development-list">
+        <div className="cab">
+          <div>
+            <span>PLANOS DE DESENVOLVIMENTO</span>
+            <h2>Ações após a decisão</h2>
+          </div>
+          <em>{data.development.length} ação(ões)</em>
+        </div>
+        {data.development.length ? (
+          data.development.map((d) => (
+            <div key={d.id}>
+              <i>{d.status === "Concluída" ? "✓" : "↗"}</i>
+              <span>
+                <b>{d.title}</b>
+                <small>
+                  {d.owner_email} · prazo {d.due_date}
+                </small>
+              </span>
+              <em>{d.status}</em>
+              {d.status === "Aberta" && (
+                <button onClick={() => open("completeDevelopment", d.id)}>
+                  Concluir
+                </button>
+              )}
+            </div>
+          ))
+        ) : (
+          <Vazio texto="As ações surgem após avaliações finalizadas." />
+        )}
+      </article>
+      {error && !modal && <p className="erro-global">{error}</p>}
+      {modal && (
+        <div className="modal-inline">
+          <form onSubmit={submit}>
+            <header>
+              <div>
+                <small>PERFORMANCE REVIEWS</small>
+                <h2>
+                  {modal === "createReview"
+                    ? "Nova avaliação"
+                    : modal === "selfReview"
+                      ? "Autoavaliação"
+                      : modal === "managerReview"
+                        ? "Avaliação do gestor"
+                        : modal === "calibrate"
+                          ? "Calibração independente"
+                          : modal === "createDevelopment"
+                            ? "Plano de desenvolvimento"
+                            : "Concluir ação"}
+                </h2>
+              </div>
+              <button type="button" onClick={() => setModal("")}>
+                ×
+              </button>
+            </header>
+            {modal === "createReview" ? (
+              <>
+                <label>
+                  Ciclo ativo
+                  <select name="cycleId" required>
+                    <option value="">Selecionar</option>
+                    {data.cycles.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Organização
+                  <select name="organizationId" required>
+                    <option value="">Selecionar</option>
+                    {data.organizations.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code} · {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Colaborador
+                  <select name="subjectEmail" required>
+                    <option value="">Selecionar</option>
+                    {data.people.map((p) => (
+                      <option key={p.email} value={p.email}>
+                        {p.name} · {p.role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Gestor avaliador
+                  <select name="reviewerEmail" required>
+                    <option value="">Selecionar</option>
+                    {data.people
+                      .filter(
+                        (p) =>
+                          p.role === "Gestor" || p.role === "Administrador",
+                      )
+                      .map((p) => (
+                        <option key={p.email} value={p.email}>
+                          {p.name} · {p.role}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </>
+            ) : modal === "createDevelopment" ? (
+              <>
+                <label>
+                  Ação de desenvolvimento
+                  <input name="title" required />
+                </label>
+                <label>
+                  Descrição
+                  <textarea name="description" rows={3} />
+                </label>
+                <label>
+                  Responsável
+                  <select name="ownerEmail" required>
+                    <option value="">Selecionar</option>
+                    {data.people.map((p) => (
+                      <option key={p.email} value={p.email}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Prazo
+                  <input name="dueDate" type="date" required />
+                </label>
+              </>
+            ) : modal === "completeDevelopment" ? (
+              <label>
+                Evidência de conclusão
+                <textarea name="evidence" minLength={3} rows={4} required />
+              </label>
+            ) : (
+              <>
+                <label>
+                  Classificação de competências
+                  <select name="rating" required>
+                    <option value="">Selecionar</option>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>
+                        {n} ·{" "}
+                        {n === 1
+                          ? "A desenvolver"
+                          : n === 2
+                            ? "Parcial"
+                            : n === 3
+                              ? "Consistente"
+                              : n === 4
+                                ? "Supera"
+                                : "Excecional"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {modal === "calibrate" ? (
+                  <label>
+                    Fundamentação da calibração
+                    <textarea name="reason" minLength={10} rows={4} required />
+                  </label>
+                ) : (
+                  <label>
+                    Comentário
+                    <textarea name="comment" minLength={3} rows={4} required />
+                  </label>
+                )}
+                <aside className="review-note">
+                  <b>Cálculo protegido</b>
+                  <p>
+                    A classificação não altera os 60% derivados dos snapshots
+                    objetivos.
+                  </p>
+                </aside>
+              </>
+            )}
+            {error && <p className="erro-form">{error}</p>}
+            <footer>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => setModal("")}
+              >
+                Cancelar
+              </button>
+              <button className="primario" disabled={busy}>
+                {busy ? "A guardar…" : "Confirmar"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
+type OpenApiSpec = {
+  openapi: string;
+  info: { title: string; version: string; description: string };
+  servers: Array<{ url: string }>;
+  paths: Record<
+    string,
+    Record<
+      string,
+      { summary?: string; tags?: string[]; "x-permission"?: string }
+    >
+  >;
+};
+function ApiContract() {
+  const [spec, setSpec] = useState<OpenApiSpec | null>(null),
+    [open, setOpen] = useState(false);
+  useEffect(() => {
+    apiFetch("/api/v1/openapi.json")
+      .then((r) => r.json())
+      .then(setSpec);
+  }, []);
+  const endpoints = spec
+    ? Object.entries(spec.paths).flatMap(([path, ops]) =>
+        Object.entries(ops)
+          .filter(([method]) => ["get", "post"].includes(method))
+          .map(([method, op]) => ({ path, method, op })),
+      )
+    : [];
+  return (
+    <section className="api-contract cartao">
+      <header>
+        <div>
+          <span>HTTP / OPENAPI</span>
+          <h2>Contrato estável da plataforma</h2>
+          <p>{spec?.info.description || "A carregar especificação…"}</p>
+        </div>
+        <div>
+          <b>
+            {spec?.openapi || "—"}
+            <small>OpenAPI</small>
+          </b>
+          <b>
+            {spec?.info.version || "—"}
+            <small>API version</small>
+          </b>
+          <button onClick={() => setOpen(!open)}>
+            {open ? "Ocultar endpoints" : "Ver endpoints"} →
+          </button>
+        </div>
+      </header>
+      {open && (
+        <div className="api-list">
+          <div className="api-base">
+            <code>{spec?.servers[0]?.url}</code>
+            <span>Base URL versionada</span>
+          </div>
+          {endpoints.map((x) => (
+            <article key={`${x.method}-${x.path}`}>
+              <em className={x.method}>{x.method.toUpperCase()}</em>
+              <code>{x.path}</code>
+              <span>{x.op.summary}</span>
+              <b>{x.op["x-permission"] || "authenticated"}</b>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}

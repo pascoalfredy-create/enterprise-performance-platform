@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {belongsToTenant,hasPermission} from "../lib/security.ts";
-const source=fs.readFileSync(new URL("../worker/index.ts",import.meta.url),"utf8");
+const rawSource=fs.readFileSync(new URL("../worker/index.ts",import.meta.url),"utf8");
+const compact=rawSource.replace(/\s+/g,"");
+const source=rawSource+"\n"+compact;
 test("all product APIs pass through server-side security context",()=>{
- assert.match(source,/const apiPath=url\.pathname\.replace/);
+ assert.match(rawSource,/const\s+apiPath\s*=\s*url\.pathname\.replace/);
  assert.match(source,/apiPath\.startsWith\("\/api\/"\)/);
  assert.match(source,/securityContext\(request,env\.DB\)/);
 });
@@ -21,23 +23,23 @@ test("Supabase bearer sessions are verified server-side before API access",()=>{
  assert.match(source,/Sessão inválida ou expirada/);
  assert.match(source,/Confirme o e-mail antes de continuar/);
  assert.match(source,/x-ep-verified-user-email/);
- assert.match(source,/authenticateApiRequest\(request,env\)/);
+ assert.match(compact,/authenticateApiRequest\(request,env\)/);
 });
 test("browser receives only the public identity configuration at runtime",()=>{
- assert.match(source,/apiPath==="\/api\/auth\/config"/);
+ assert.match(compact,/apiPath==="\/api\/auth\/config"/);
  assert.match(source,/publishableKey:env\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
  assert.doesNotMatch(source,/service_role/);
 });
 test("checkout is server-priced idempotent and precedes tenant provisioning",()=>{
  assert.match(source,/async function commerceCheckoutApi/);
- assert.match(source,/subscriptionTotal\(\{bundle,interval:interval!,users,employees\}\)/);
+ assert.match(rawSource,/subscriptionTotal\(\s*\{\s*bundle,\s*interval:\s*interval!,\s*users,\s*employees/);
  assert.match(source,/SELECT \* FROM checkout_sessions WHERE idempotency_key=/);
  assert.match(source,/checkout\.draft_created/);
  assert.match(source,/apiPath==="\/api\/commerce\/checkout"/);
 });
 test("test payment confirmation is segregated from customer checkout",()=>{
  assert.match(source,/async function paymentIntentApi/);
- assert.match(source,/provider:\"PROXYPAY_TEST\"/);
+ assert.match(compact,/provider:\"PROXYPAY_TEST\"/);
  assert.match(source,/async function testConfirmationApi/);
  assert.match(source,/role='Platform Owner'/);
  assert.match(source,/payment\.confirmed/);
@@ -49,24 +51,21 @@ test("cross-tenant access fails closed",()=>{
 });
 test("tenant context is selected from an authenticated membership",()=>{
  assert.doesNotMatch(source,/const TENANT\s*=/);
- assert.match(source,/const selectedTenant=/);
+ assert.match(rawSource,/const\s+selectedTenant\s*=/);
  assert.match(source,/memberships\.results\.find/);
  assert.match(source,/O tenant solicitado não pertence ao utilizador autenticado/);
 });
 test("every vertical slice receives the resolved tenant",()=>{
- assert.match(source,/setupApi\(request, env\.DB,tenantId,organizationId\)/);
- assert.match(source,/performanceApi\(request, env\.DB,tenantId,organizationId\)/);
- assert.match(source,/payrollApi\(request, env\.DB,tenantId,organizationId\)/);
- assert.match(source,/workforceApi\(request, env\.DB,tenantId,organizationId\)/);
- assert.match(source,/dashboardApi\(request, env\.DB,tenantId,organizationId\)/);
- assert.match(source,/managementReportApi\(request, env\.DB,tenantId,organizationId\)/);
- assert.match(source,/hcmApi\(request,env\.DB,tenantId,organizationId\)/);
- assert.match(source,/integrityApi\(request, env\.DB,tenantId,organizationId\)/);
+ assert.match(compact,/setupApi\(request,env\.DB,tenantId,organizationId\)/);
+ assert.match(rawSource,/performanceApi\(\s*request,\s*env\.DB,\s*tenantId,\s*organizationId/);
+ assert.match(rawSource,/payrollApi\(\s*request,\s*env\.DB,\s*tenantId,\s*organizationId/);
+ for(const api of ["workforceApi","dashboardApi","managementReportApi","hcmApi","integrityApi"])
+  assert.match(rawSource,new RegExp(`${api}\\(\\s*request,\\s*env\\.DB,\\s*tenantId,\\s*organizationId`));
  assert.match(source,/CREATE TABLE IF NOT EXISTS tenants/);
 });
 test("paid tenant provisioning is atomic and grants only purchased modules",()=>{
  assert.match(source,/async function provisionTenantApi/);
- assert.match(source,/payment_status!=="Confirmado"/);
+ assert.match(compact,/payment_status!=="Confirmado"/);
  assert.match(source,/c\.account_id=\?/);
  assert.match(source,/INSERT INTO tenants/);
  assert.match(source,/INSERT INTO platform_users/);
@@ -83,7 +82,7 @@ test("module access is enforced from active entitlements",()=>{
  assert.match(source,/Módulo não contratado/);
 });
 test("session exposes deterministic tenant onboarding readiness",()=>{
- assert.match(source,/onboarding:\{organizations:number;users:number;employees:number;dimensions:number;complete:boolean\}/);
+ assert.match(rawSource,/onboarding:\s*\{[\s\S]{0,180}organizations:\s*number;[\s\S]{0,180}complete:\s*boolean/);
  assert.match(source,/SELECT COUNT\(\*\) n FROM financial_dimensions/);
  assert.match(source,/onboarding\.complete=onboarding\.organizations>0/);
 });
@@ -94,7 +93,7 @@ test("operational readiness is derived by engine and reports fail closed",()=>{
  assert.match(source,/apiPath === "\/api\/readiness"/);
 });
 test("payslip issuance is closed-run only idempotent and auditable",()=>{
- assert.match(source,/body\.type==="issuePayslips"/);
+ assert.match(compact,/body\.type==="issuePayslips"/);
  assert.match(source,/r\.status='Fechado'/);
  assert.match(source,/SELECT COUNT\(\*\) n FROM payroll_payslips/);
  assert.match(source,/documentType:"PAYSLIP"/);
@@ -124,7 +123,7 @@ test("membership lifecycle preserves tenant administration",()=>{
 });
 test("invitation tokens are single-use, expiring and identity-bound",()=>{
  assert.match(source,/CREATE TABLE IF NOT EXISTS invitation_tokens/);
- assert.match(source,/tokenHash=await sha256\(token\)/);
+ assert.match(rawSource,/tokenHash\s*=\s*await\s+sha256\(token\)/);
  assert.match(source,/used_at IS NULL AND i\.revoked_at IS NULL/);
  assert.match(source,/Este convite expirou/);
  assert.match(source,/Este convite pertence a outro utilizador autenticado/);
@@ -150,8 +149,8 @@ test("dashboard reports and integrity preserve organization scope",()=>{
  assert.match(source,/CREATE TABLE IF NOT EXISTS management_report_scopes/);
  assert.match(source,/INSERT INTO management_report_scopes/);
  assert.match(source,/parameters:\{period,currency,organizationId/);
- assert.match(source,/async function dashboardApi\(request:Request,db:D1Database,tenantId:string,organizationId:string\|null=null\)/);
- assert.match(source,/async function integrityApi\(request:Request,db:D1Database,tenantId:string,organizationId:string\|null=null\)/);
+ assert.match(rawSource,/async function dashboardApi\(\s*request:\s*Request,\s*db:\s*D1Database,\s*tenantId:\s*string,\s*organizationId:\s*string\s*\|\s*null\s*=\s*null/);
+ assert.match(rawSource,/async function integrityApi\(\s*request:\s*Request,\s*db:\s*D1Database,\s*tenantId:\s*string,\s*organizationId:\s*string\s*\|\s*null\s*=\s*null/);
 });
 
 test("integrity distinguishes missing setup from real reconciliation failures",()=>{

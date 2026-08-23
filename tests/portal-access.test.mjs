@@ -91,7 +91,7 @@ test("modules fit the available width without horizontal scrolling", () => {
 });
 test("contracted modules expose governed submodules and documents", () => {
   assert.match(page, /const moduleCatalog/);
-  assert.match(page, /document:true/);
+  assert.match(page, /document:\s*true/);
   assert.match(page, /Em preparação/);
   assert.match(page, /MÓDULOS CONTRATADOS/);
 });
@@ -419,9 +419,9 @@ test("enterprise shell exposes search profile help and legal trust surfaces", ()
 });
 test("top enterprise shortcuts and help are functional", () => {
   for (const target of ["Visão geral", "Planeamento", "Pessoas", "Workflow"])
-    assert.match(page, new RegExp(`setModulo\\(.*${target}`));
+    assert.match(page, new RegExp(`setModulo\\([\\s\\S]{0,180}${target}`));
   assert.match(page, /setCommandMode\("help"\)/);
-  assert.match(page, /ctrlKey\|\|e\.metaKey/);
+  assert.match(page, /ctrlKey\s*\|\|\s*e\.metaKey/);
 });
 test("registration records acceptance against accessible legal documents", () => {
   const registration = fs.readFileSync(
@@ -519,4 +519,21 @@ test("guided commercial demonstration has eight persistent narrative stages", ()
   assert.match(commercial, /Próximo passo/);
   assert.match(commercial, /Concluir demonstração/);
   assert.match(commercial, /Da demonstração ao plano de adoção/);
+});
+
+test("customer activation center exposes adoption subscription imports and honest maturity", () => {
+  const activation = fs.readFileSync(
+    new URL("../app/customer-activation-workspace.tsx", import.meta.url),
+    "utf8",
+  );
+  const api = fs.readFileSync(
+    new URL("../worker/customer-activation.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(page, /CustomerActivationWorkspace/);
+  assert.match(activation, /ROTEIRO DE ATIVAÇÃO/);
+  assert.match(activation, /IMPORTAÇÃO ASSISTIDA/);
+  assert.match(activation, /MATRIZ DE COMPLETUDE/);
+  assert.match(api, /subscription_change_requests/);
+  assert.match(api, /Contratado, ainda sem evidência operacional/);
 });

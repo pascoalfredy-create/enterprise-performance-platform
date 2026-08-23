@@ -1,52 +1,516 @@
-const errors={"401":{description:"Identidade autenticada ausente"},"403":{description:"Membership ou permissão insuficiente"},"409":{description:"Conflito de estado ou idempotência"}};
-function read(summary:string,tag:string){return{summary,tags:[tag],security:[{bearerAuth:[]}],responses:{"200":{description:"Operação concluída"},...errors}}}
-function write(summary:string,tag:string,permission:string){return{summary,tags:[tag],security:[{bearerAuth:[]}],"x-permission":permission,requestBody:{required:true,content:{"application/json":{schema:{$ref:"#/components/schemas/Command"}}}},responses:{"200":{description:"Operação concluída"},"201":{description:"Registo criado ou transição executada"},...errors}}}
-export const openApiDocument={
- openapi:"3.1.0",
- info:{title:"Enterprise Performance Platform API",version:"1.0.0",description:"Contratos HTTP versionados para o primeiro vertical slice. Cálculos financeiros e salariais permanecem determinísticos e auditáveis."},
- servers:[{url:"/api/v1",description:"API estável v1"}],
- tags:["Identity","Setup","HCM","Performance","Payroll","Workforce","Reporting","Control"].map(name=>({name})),
- paths:{
-  "/session":{get:read("Current security context","Identity")},
-  "/tenants":{get:read("List authenticated tenant memberships","Identity")},
-  "/invitations/accept":{post:{summary:"Accept a single-use tenant invitation",tags:["Identity"],security:[{bearerAuth:[]}],requestBody:{required:true,content:{"application/json":{schema:{type:"object",required:["token"],properties:{token:{type:"string",pattern:"^epi_"}}}}}},responses:{"200":{description:"Membership activated"},...errors}}},
-  "/commerce/checkout":{get:read("Read latest authenticated checkout draft","Identity"),post:write("Create idempotent server-priced checkout draft","Identity","commerce:checkout")},
-  "/commerce/payment-intent":{post:write("Create test payment intent from persisted checkout","Identity","commerce:checkout")},
-  "/commerce/test-confirmation":{post:write("Confirm test payment as Platform Owner","Identity","commerce:test-confirm")},
-  "/commerce/industry-packs":{get:read("List sectors and configurable Industry Packs","Identity")},
-  "/commerce/provision":{post:write("Provision one tenant from an owned confirmed payment","Identity","commerce:provision")},
-  "/setup":{get:read("Read organizations users employees and dimensions","Setup"),post:write("Write setup","Setup","setup:write")},
-  "/demo-portfolio":{get:{...read("Read demo portfolio installation state","Setup"),"x-permission":"setup:write"},post:write("Install the idempotent integrated demo portfolio","Setup","setup:write")},
-  "/hcm":{get:{...read("Read employee master, contracts and absences","HCM"),"x-permission":"hcm:read"},post:write("Manage contracts, absence configuration, balances and decisions","HCM","hcm:write")},
-  "/recruitment":{get:{...read("Read requisitions candidates applications and onboarding","HCM"),"x-permission":"hcm:read"},post:write("Manage governed recruitment and onboarding","HCM","hcm:write")},
-  "/attendance":{get:{...read("Read shifts attendance entries and timesheets","HCM"),"x-permission":"hcm:read"},post:write("Manage governed time and attendance","HCM","hcm:write")},
-  "/employee-documents":{get:{...read("Read employee document types versions validity and evidence","HCM"),"x-permission":"hcm:read"},post:write("Configure types register metadata and decide employee documents","HCM","hcm:write")},
-  "/performance":{get:{...read("Read Actual and Budget","Performance"),parameters:[{$ref:"#/components/parameters/Period"},{$ref:"#/components/parameters/Currency"},{$ref:"#/components/parameters/Version"}]},post:write("Create or approve performance","Performance","performance:write")},
-  "/scenarios":{get:{...read("Read Forecast and scenario versions with comparisons","Performance"),"x-permission":"scenario:read"},post:write("Create, populate or approve a planning version","Performance","scenario:write")},
-  "/consolidation":{get:{...read("Read FX rate sets consolidation runs and drill-down","Performance"),"x-permission":"consolidation:read"},post:write("Configure rates calculate adjust or approve consolidation","Performance","consolidation:write")},
-  "/financial-models":{get:{...read("Read governed business plans drivers and cash projections","Performance"),"x-permission":"financial-model:read"},post:write("Create calculate or approve deterministic financial models","Performance","financial-model:write")},
-  "/financial-data":{get:{...read("Read financial catalog mappings imports and lineage","Performance"),"x-permission":"financial-data:read"},post:write("Configure mappings validate and post Actual imports","Performance","financial-data:write")},
-  "/integrations":{get:{...read("Read integration sources mappings executions and logs","Control"),"x-permission":"integration:read"},post:write("Configure sources receive validate and decide governed executions","Control","integration:write")},
-  "/financial-diagnostics":{get:{...read("Read financial health diagnostics and investment cases","Performance"),"x-permission":"diagnostic:read"},post:write("Configure score calculate diagnose or evaluate investments","Performance","diagnostic:write")},
-  "/workforce-plans":{get:read("Read governed headcount plans and actual comparison","Workforce"),post:write("Create submit and approve headcount plans","Workforce","workforce:write")},
-  "/payroll":{get:{...read("Read payroll, payslips and payment batches","Payroll"),"x-permission":"payroll:read"},post:write("Configure, calculate, issue documents or transition payment batches","Payroll","payroll:write")},
-  "/payroll-loans":{get:{...read("Read employee loans advances and installments","Payroll"),"x-permission":"payroll:read"},post:write("Request or decide governed payroll loans","Payroll","payroll:write")},
-  "/payroll-adjustments":{get:{...read("Read retroactive payroll adjustments","Payroll"),"x-permission":"payroll:read"},post:write("Request or decide governed payroll adjustments","Payroll","payroll:write")},
-  "/workforce":{get:read("Read workforce cost","Workforce"),post:write("Post closed payroll to workforce","Workforce","workforce:write")},
-  "/dashboard":{get:read("Read executive dashboard","Reporting")},
-  "/commercial-suite":{get:read("Read role cockpits report catalog guided demo and commercial readiness","Reporting")},
-  "/document-hub":{get:{...read("Read module folders documents versions and OCR status","Control"),"x-permission":"document:read"},post:write("Create folders upload validate or process governed documents","Control","document:write")},
-  "/management-reports":{get:read("Read report versions","Reporting"),post:write("Generate immutable management report","Reporting","reports:write")},
-  "/readiness":{get:read("Evaluate operational prerequisites by contracted engine","Control")},
-  "/workflow":{get:{...read("Read unified decision inbox and history","Control"),"x-permission":"workflow:read"}},
-  "/notifications":{get:{...read("Read actionable alerts derived from governed engines","Control"),"x-permission":"workflow:read"},post:write("Claim or transition a governed alert task","Control","workflow:write")},
-  "/actions":{get:{...read("Read governed performance action plans","Performance"),"x-permission":"action:read"},post:write("Create or transition a performance action plan","Performance","action:write")},
-  "/goals":{get:{...read("Read performance cycles goals and progress","Performance"),"x-permission":"goal:read"},post:write("Create activate check in or complete performance goals","Performance","goal:write")},
-  "/reviews":{get:{...read("Read performance reviews calibration and development plans","Performance"),"x-permission":"review:read"},post:write("Run governed performance review commands","Performance","review:write")},
-  "/competencies":{get:{...read("Read competency frameworks and feedback 360 rounds","Performance"),"x-permission":"competency:read"},post:write("Configure frameworks or submit governed feedback","Performance","competency:write")},
-  "/control-plane":{get:{...read("Read SaaS tenants subscriptions billing and entitlements","Control"),"x-permission":"operator"},post:write("Request or approve audited platform changes","Control","operator")},
-  "/integrity":{get:{...read("Run vertical slice controls","Control"),"x-permission":"integrity:read"}},
-  "/openapi.json":{get:{summary:"OpenAPI document",tags:["Control"],responses:{"200":{description:"OpenAPI 3.1 document"}}}},
- },
- components:{securitySchemes:{bearerAuth:{type:"http",scheme:"bearer",bearerFormat:"JWT",description:"Access token Supabase validado no servidor. O acesso privado interno permanece transitório até à abertura pública."}},parameters:{Period:{name:"period",in:"query",schema:{type:"string",pattern:"^\\d{4}-(0[1-9]|1[0-2])$",example:"2026-08"}},Currency:{name:"currency",in:"query",schema:{type:"string",pattern:"^[A-Z]{3}$",example:"AOA"}},Version:{name:"version",in:"query",schema:{type:"string"}}},schemas:{Command:{type:"object",required:["type"],properties:{type:{type:"string",description:"Discriminador explícito do comando"}},additionalProperties:true},Error:{type:"object",required:["error"],properties:{error:{type:"string"}}}}}
+const errors = {
+  "401": { description: "Identidade autenticada ausente" },
+  "403": { description: "Membership ou permissão insuficiente" },
+  "409": { description: "Conflito de estado ou idempotência" },
+};
+function read(summary: string, tag: string) {
+  return {
+    summary,
+    tags: [tag],
+    security: [{ bearerAuth: [] }],
+    responses: { "200": { description: "Operação concluída" }, ...errors },
+  };
+}
+function write(summary: string, tag: string, permission: string) {
+  return {
+    summary,
+    tags: [tag],
+    security: [{ bearerAuth: [] }],
+    "x-permission": permission,
+    requestBody: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: { $ref: "#/components/schemas/Command" },
+        },
+      },
+    },
+    responses: {
+      "200": { description: "Operação concluída" },
+      "201": { description: "Registo criado ou transição executada" },
+      ...errors,
+    },
+  };
+}
+export const openApiDocument = {
+  openapi: "3.1.0",
+  info: {
+    title: "Enterprise Performance Platform API",
+    version: "1.0.0",
+    description:
+      "Contratos HTTP versionados para o primeiro vertical slice. Cálculos financeiros e salariais permanecem determinísticos e auditáveis.",
+  },
+  servers: [{ url: "/api/v1", description: "API estável v1" }],
+  tags: [
+    "Identity",
+    "Setup",
+    "HCM",
+    "Performance",
+    "Payroll",
+    "Workforce",
+    "Reporting",
+    "Control",
+  ].map((name) => ({ name })),
+  paths: {
+    "/session": { get: read("Current security context", "Identity") },
+    "/tenants": {
+      get: read("List authenticated tenant memberships", "Identity"),
+    },
+    "/invitations/accept": {
+      post: {
+        summary: "Accept a single-use tenant invitation",
+        tags: ["Identity"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["token"],
+                properties: { token: { type: "string", pattern: "^epi_" } },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Membership activated" },
+          ...errors,
+        },
+      },
+    },
+    "/commerce/checkout": {
+      get: read("Read latest authenticated checkout draft", "Identity"),
+      post: write(
+        "Create idempotent server-priced checkout draft",
+        "Identity",
+        "commerce:checkout",
+      ),
+    },
+    "/commerce/payment-intent": {
+      post: write(
+        "Create test payment intent from persisted checkout",
+        "Identity",
+        "commerce:checkout",
+      ),
+    },
+    "/commerce/test-confirmation": {
+      post: write(
+        "Confirm test payment as Platform Owner",
+        "Identity",
+        "commerce:test-confirm",
+      ),
+    },
+    "/commerce/industry-packs": {
+      get: read("List sectors and configurable Industry Packs", "Identity"),
+    },
+    "/commerce/provision": {
+      post: write(
+        "Provision one tenant from an owned confirmed payment",
+        "Identity",
+        "commerce:provision",
+      ),
+    },
+    "/setup": {
+      get: read("Read organizations users employees and dimensions", "Setup"),
+      post: write("Write setup", "Setup", "setup:write"),
+    },
+    "/demo-portfolio": {
+      get: {
+        ...read("Read demo portfolio installation state", "Setup"),
+        "x-permission": "setup:write",
+      },
+      post: write(
+        "Install the idempotent integrated demo portfolio",
+        "Setup",
+        "setup:write",
+      ),
+    },
+    "/hcm": {
+      get: {
+        ...read("Read employee master, contracts and absences", "HCM"),
+        "x-permission": "hcm:read",
+      },
+      post: write(
+        "Manage contracts, absence configuration, balances and decisions",
+        "HCM",
+        "hcm:write",
+      ),
+    },
+    "/recruitment": {
+      get: {
+        ...read(
+          "Read requisitions candidates applications and onboarding",
+          "HCM",
+        ),
+        "x-permission": "hcm:read",
+      },
+      post: write(
+        "Manage governed recruitment and onboarding",
+        "HCM",
+        "hcm:write",
+      ),
+    },
+    "/attendance": {
+      get: {
+        ...read("Read shifts attendance entries and timesheets", "HCM"),
+        "x-permission": "hcm:read",
+      },
+      post: write("Manage governed time and attendance", "HCM", "hcm:write"),
+    },
+    "/employee-documents": {
+      get: {
+        ...read(
+          "Read employee document types versions validity and evidence",
+          "HCM",
+        ),
+        "x-permission": "hcm:read",
+      },
+      post: write(
+        "Configure types register metadata and decide employee documents",
+        "HCM",
+        "hcm:write",
+      ),
+    },
+    "/performance": {
+      get: {
+        ...read("Read Actual and Budget", "Performance"),
+        parameters: [
+          { $ref: "#/components/parameters/Period" },
+          { $ref: "#/components/parameters/Currency" },
+          { $ref: "#/components/parameters/Version" },
+        ],
+      },
+      post: write(
+        "Create or approve performance",
+        "Performance",
+        "performance:write",
+      ),
+    },
+    "/scenarios": {
+      get: {
+        ...read(
+          "Read Forecast and scenario versions with comparisons",
+          "Performance",
+        ),
+        "x-permission": "scenario:read",
+      },
+      post: write(
+        "Create, populate or approve a planning version",
+        "Performance",
+        "scenario:write",
+      ),
+    },
+    "/consolidation": {
+      get: {
+        ...read(
+          "Read FX rate sets consolidation runs and drill-down",
+          "Performance",
+        ),
+        "x-permission": "consolidation:read",
+      },
+      post: write(
+        "Configure rates calculate adjust or approve consolidation",
+        "Performance",
+        "consolidation:write",
+      ),
+    },
+    "/financial-models": {
+      get: {
+        ...read(
+          "Read governed business plans drivers and cash projections",
+          "Performance",
+        ),
+        "x-permission": "financial-model:read",
+      },
+      post: write(
+        "Create calculate or approve deterministic financial models",
+        "Performance",
+        "financial-model:write",
+      ),
+    },
+    "/financial-data": {
+      get: {
+        ...read(
+          "Read financial catalog mappings imports and lineage",
+          "Performance",
+        ),
+        "x-permission": "financial-data:read",
+      },
+      post: write(
+        "Configure mappings validate and post Actual imports",
+        "Performance",
+        "financial-data:write",
+      ),
+    },
+    "/integrations": {
+      get: {
+        ...read(
+          "Read integration sources mappings executions and logs",
+          "Control",
+        ),
+        "x-permission": "integration:read",
+      },
+      post: write(
+        "Configure sources receive validate and decide governed executions",
+        "Control",
+        "integration:write",
+      ),
+    },
+    "/financial-diagnostics": {
+      get: {
+        ...read(
+          "Read financial health diagnostics and investment cases",
+          "Performance",
+        ),
+        "x-permission": "diagnostic:read",
+      },
+      post: write(
+        "Configure score calculate diagnose or evaluate investments",
+        "Performance",
+        "diagnostic:write",
+      ),
+    },
+    "/workforce-plans": {
+      get: read(
+        "Read governed headcount plans and actual comparison",
+        "Workforce",
+      ),
+      post: write(
+        "Create submit and approve headcount plans",
+        "Workforce",
+        "workforce:write",
+      ),
+    },
+    "/payroll": {
+      get: {
+        ...read("Read payroll, payslips and payment batches", "Payroll"),
+        "x-permission": "payroll:read",
+      },
+      post: write(
+        "Configure, calculate, issue documents or transition payment batches",
+        "Payroll",
+        "payroll:write",
+      ),
+    },
+    "/payroll-loans": {
+      get: {
+        ...read("Read employee loans advances and installments", "Payroll"),
+        "x-permission": "payroll:read",
+      },
+      post: write(
+        "Request or decide governed payroll loans",
+        "Payroll",
+        "payroll:write",
+      ),
+    },
+    "/payroll-adjustments": {
+      get: {
+        ...read("Read retroactive payroll adjustments", "Payroll"),
+        "x-permission": "payroll:read",
+      },
+      post: write(
+        "Request or decide governed payroll adjustments",
+        "Payroll",
+        "payroll:write",
+      ),
+    },
+    "/workforce": {
+      get: read("Read workforce cost", "Workforce"),
+      post: write(
+        "Post closed payroll to workforce",
+        "Workforce",
+        "workforce:write",
+      ),
+    },
+    "/dashboard": { get: read("Read executive dashboard", "Reporting") },
+    "/commercial-suite": {
+      get: read(
+        "Read role cockpits report catalog guided demo and commercial readiness",
+        "Reporting",
+      ),
+    },
+    "/document-hub": {
+      get: {
+        ...read(
+          "Read module folders documents versions and OCR status",
+          "Control",
+        ),
+        "x-permission": "document:read",
+      },
+      post: write(
+        "Create folders upload validate or process governed documents",
+        "Control",
+        "document:write",
+      ),
+    },
+    "/customer-activation": {
+      get: read(
+        "Read customer subscription adoption checkpoints and module maturity",
+        "Setup",
+      ),
+      post: write(
+        "Request an audited subscription change",
+        "Setup",
+        "setup:write",
+      ),
+    },
+    "/management-reports": {
+      get: read("Read report versions", "Reporting"),
+      post: write(
+        "Generate immutable management report",
+        "Reporting",
+        "reports:write",
+      ),
+    },
+    "/readiness": {
+      get: read(
+        "Evaluate operational prerequisites by contracted engine",
+        "Control",
+      ),
+    },
+    "/workflow": {
+      get: {
+        ...read("Read unified decision inbox and history", "Control"),
+        "x-permission": "workflow:read",
+      },
+    },
+    "/notifications": {
+      get: {
+        ...read(
+          "Read actionable alerts derived from governed engines",
+          "Control",
+        ),
+        "x-permission": "workflow:read",
+      },
+      post: write(
+        "Claim or transition a governed alert task",
+        "Control",
+        "workflow:write",
+      ),
+    },
+    "/actions": {
+      get: {
+        ...read("Read governed performance action plans", "Performance"),
+        "x-permission": "action:read",
+      },
+      post: write(
+        "Create or transition a performance action plan",
+        "Performance",
+        "action:write",
+      ),
+    },
+    "/goals": {
+      get: {
+        ...read("Read performance cycles goals and progress", "Performance"),
+        "x-permission": "goal:read",
+      },
+      post: write(
+        "Create activate check in or complete performance goals",
+        "Performance",
+        "goal:write",
+      ),
+    },
+    "/reviews": {
+      get: {
+        ...read(
+          "Read performance reviews calibration and development plans",
+          "Performance",
+        ),
+        "x-permission": "review:read",
+      },
+      post: write(
+        "Run governed performance review commands",
+        "Performance",
+        "review:write",
+      ),
+    },
+    "/competencies": {
+      get: {
+        ...read(
+          "Read competency frameworks and feedback 360 rounds",
+          "Performance",
+        ),
+        "x-permission": "competency:read",
+      },
+      post: write(
+        "Configure frameworks or submit governed feedback",
+        "Performance",
+        "competency:write",
+      ),
+    },
+    "/control-plane": {
+      get: {
+        ...read(
+          "Read SaaS tenants subscriptions billing and entitlements",
+          "Control",
+        ),
+        "x-permission": "operator",
+      },
+      post: write(
+        "Request or approve audited platform changes",
+        "Control",
+        "operator",
+      ),
+    },
+    "/integrity": {
+      get: {
+        ...read("Run vertical slice controls", "Control"),
+        "x-permission": "integrity:read",
+      },
+    },
+    "/openapi.json": {
+      get: {
+        summary: "OpenAPI document",
+        tags: ["Control"],
+        responses: { "200": { description: "OpenAPI 3.1 document" } },
+      },
+    },
+  },
+  components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+        description:
+          "Access token Supabase validado no servidor. O acesso privado interno permanece transitório até à abertura pública.",
+      },
+    },
+    parameters: {
+      Period: {
+        name: "period",
+        in: "query",
+        schema: {
+          type: "string",
+          pattern: "^\\d{4}-(0[1-9]|1[0-2])$",
+          example: "2026-08",
+        },
+      },
+      Currency: {
+        name: "currency",
+        in: "query",
+        schema: { type: "string", pattern: "^[A-Z]{3}$", example: "AOA" },
+      },
+      Version: { name: "version", in: "query", schema: { type: "string" } },
+    },
+    schemas: {
+      Command: {
+        type: "object",
+        required: ["type"],
+        properties: {
+          type: {
+            type: "string",
+            description: "Discriminador explícito do comando",
+          },
+        },
+        additionalProperties: true,
+      },
+      Error: {
+        type: "object",
+        required: ["error"],
+        properties: { error: { type: "string" } },
+      },
+    },
+  },
 } as const;

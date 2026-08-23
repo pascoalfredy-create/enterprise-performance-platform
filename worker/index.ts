@@ -1,11 +1,25 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
-import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
+import {
+  handleImageOptimization,
+  DEFAULT_DEVICE_SIZES,
+  DEFAULT_IMAGE_SIZES,
+} from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { percentageAmount, variance, workforceTotal } from "../lib/deterministic";
+import {
+  percentageAmount,
+  variance,
+  workforceTotal,
+} from "../lib/deterministic";
 import { hasPermission } from "../lib/security";
 import { openApiDocument } from "../lib/openapi";
 import { classifyDataError } from "../lib/api-error";
-import { bundles, CATALOG_VERSION, subscriptionTotal, type BillingInterval, type BundleCode } from "../lib/commercial-catalog";
+import {
+  bundles,
+  CATALOG_VERSION,
+  subscriptionTotal,
+  type BillingInterval,
+  type BundleCode,
+} from "../lib/commercial-catalog";
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
 import { controlPlaneApi } from "./control-plane";
@@ -24,6 +38,7 @@ import { notificationsApi } from "./notifications";
 import { demoPortfolioApi } from "./demo-portfolio";
 import { commercialSuiteApi } from "./commercial-suite";
 import { documentHubApi } from "./document-hub";
+import { customerActivationApi } from "./customer-activation";
 
 interface Env {
   ASSETS: Fetcher;
@@ -36,7 +51,10 @@ interface Env {
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
-        output(options: { format: string; quality: number }): Promise<{ response(): Response }>;
+        output(options: {
+          format: string;
+          quality: number;
+        }): Promise<{ response(): Response }>;
       };
     };
   };
@@ -49,442 +67,5437 @@ interface ExecutionContext {
 
 const DEFAULT_TENANT = "demo-tenant";
 const uid = () => crypto.randomUUID();
-type Permission="setup:write"|"hcm:read"|"hcm:write"|"performance:write"|"scenario:read"|"scenario:write"|"consolidation:read"|"consolidation:write"|"financial-model:read"|"financial-model:write"|"financial-data:read"|"financial-data:write"|"integration:read"|"integration:write"|"diagnostic:read"|"diagnostic:write"|"goal:read"|"goal:write"|"review:read"|"review:write"|"competency:read"|"competency:write"|"action:read"|"action:write"|"payroll:read"|"payroll:write"|"workforce:write"|"reports:write"|"workflow:read"|"workflow:write"|"integrity:read"|"document:read"|"document:write";
-type TenantOption={id:string;name:string;role:string};
-type SecurityContext={email:string;name:string;role:string;tenantId:string;tenantName:string;organizationId:string|null;organizationName:string|null;permissions:Permission[];tenants:TenantOption[];modules:string[];onboarding:{organizations:number;users:number;employees:number;dimensions:number;complete:boolean}};
-const rolePermissions:Record<string,Permission[]>={Administrador:["setup:write","hcm:read","hcm:write","performance:write","scenario:read","scenario:write","consolidation:read","consolidation:write","goal:read","goal:write","review:read","review:write","competency:read","competency:write","action:read","action:write","payroll:read","payroll:write","workforce:write","reports:write","workflow:read","integrity:read"],Financeiro:["performance:write","scenario:read","scenario:write","consolidation:read","consolidation:write","goal:read","goal:write","review:read","review:write","competency:read","competency:write","action:read","action:write","workforce:write","reports:write","workflow:read","integrity:read"],"Recursos Humanos":["hcm:read","hcm:write","goal:read","goal:write","review:read","review:write","competency:read","competency:write","action:read","action:write","payroll:read","payroll:write","workflow:read"],Gestor:["hcm:read","performance:write","scenario:read","scenario:write","consolidation:read","consolidation:write","goal:read","goal:write","review:read","review:write","competency:read","competency:write","action:read","action:write","reports:write","workflow:read"],Leitura:["scenario:read","consolidation:read","goal:read","review:read","review:write","competency:read","competency:write","action:read"]};
-for(const role of ["Administrador","Financeiro","Gestor"])rolePermissions[role].push("financial-model:read","financial-model:write","financial-data:read","financial-data:write","diagnostic:read","diagnostic:write");
-for(const role of ["Administrador","Financeiro"])rolePermissions[role].push("integration:read","integration:write");
-for(const role of ["Gestor","Leitura"])rolePermissions[role].push("integration:read");
-rolePermissions.Leitura.push("financial-model:read","financial-data:read","diagnostic:read");
-for(const role of ["Administrador","Financeiro","Recursos Humanos","Gestor"])rolePermissions[role].push("workflow:write");
-for(const role of ["Administrador","Financeiro","Recursos Humanos","Gestor","Leitura"])rolePermissions[role].push("document:read");
-for(const role of ["Administrador","Financeiro","Recursos Humanos","Gestor"])rolePermissions[role].push("document:write");
-const workspaceEmail=(request:Request)=>request.headers.get("oai-authenticated-user-email")||request.headers.get("x-openai-user-email")||"";
-const actorEmail=(request:Request)=>request.headers.get("x-ep-verified-user-email")||workspaceEmail(request)||(new URL(request.url).hostname==="terminal.local"?"admin@preview.local":"");
-async function authenticateApiRequest(request:Request,env:Env):Promise<Request|Response>{
-  const authorization=request.headers.get("authorization")||"";
-  if(!authorization.startsWith("Bearer "))return workspaceEmail(request)?request:Response.json({error:"Autenticação necessária."},{status:401});
-  if(!env.NEXT_PUBLIC_SUPABASE_URL||!env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)return Response.json({error:"O serviço de identidade não está configurado."},{status:503});
-  let response:Response;
-  try{response=await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user`,{headers:{apikey:env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,authorization}})}catch{return Response.json({error:"Não foi possível validar a identidade."},{status:503})}
-  if(!response.ok)return Response.json({error:"Sessão inválida ou expirada."},{status:401});
-  const user=await response.json() as {email?:string;email_confirmed_at?:string;user_metadata?:Record<string,unknown>};
-  if(!user.email||!user.email_confirmed_at)return Response.json({error:"Confirme o e-mail antes de continuar."},{status:403});
-  const headers=new Headers(request.headers);
-  headers.set("x-ep-verified-user-email",user.email.toLowerCase());
-  headers.set("x-ep-verified-user-sub",String((user as {id?:string}).id||user.email.toLowerCase()));
-  const name=String(user.user_metadata?.display_name||user.email);
-  headers.set("x-ep-verified-user-name",name);
-  return new Request(request,{headers});
-}
-async function commerceCheckoutApi(request:Request,db:D1Database){
- try{
-  const email=actorEmail(request).toLowerCase(),identitySubject=request.headers.get("x-ep-verified-user-sub")||`workspace:${email}`;
-  if(!email)return Response.json({error:"Autenticação necessária."},{status:401});
-  let account=await db.prepare("SELECT * FROM commerce_accounts WHERE identity_subject=?").bind(identitySubject).first<Record<string,unknown>>();
-  if(!account){const id=uid(),now=new Date().toISOString();await db.prepare("INSERT INTO commerce_accounts (id,identity_subject,email_normalized,status,created_at,updated_at) VALUES (?,?,?,?,?,?)").bind(id,identitySubject,email,"Ativa",now,now).run();account={id,identity_subject:identitySubject,email_normalized:email,status:"Ativa"}}
-  if(account.status!=="Ativa")return Response.json({error:"A conta comercial não está ativa."},{status:403});
-  if(request.method==="GET"){const row=await db.prepare("SELECT * FROM checkout_sessions WHERE account_id=? ORDER BY created_at DESC LIMIT 1").bind(account.id).first();return Response.json({checkout:row||null})}
-  if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
-  const body=await request.json() as {bundleCode?:BundleCode;interval?:BillingInterval;users?:number;employees?:number};
-  const bundle=bundles.find(x=>x.code===body.bundleCode),interval=body.interval,users=Math.trunc(Number(body.users)),employees=Math.trunc(Number(body.employees||0));
-  if(!bundle||!(["monthly","annual"] as string[]).includes(interval||"")||users<1||users>500||employees<0||employees>10000)return Response.json({error:"Bundle, periodicidade e dimensão válidos são obrigatórios."},{status:400});
-  const calculated=subscriptionTotal({bundle,interval:interval!,users,employees}),fingerprint=JSON.stringify({accountId:account.id,catalogVersion:CATALOG_VERSION,bundleCode:bundle.code,interval,users,employees,amountMinor:calculated.totalMinor}),idempotencyKey=await sha256(fingerprint);
-  const existing=await db.prepare("SELECT * FROM checkout_sessions WHERE idempotency_key=?").bind(idempotencyKey).first();
-  if(existing)return Response.json({checkout:existing,idempotent:true});
-  const id=uid(),now=new Date(),created=now.toISOString(),expires=new Date(now.getTime()+30*60*1000).toISOString(),evidenceHash=await sha256(fingerprint+"|"+created);
-  await db.batch([
-   db.prepare("INSERT INTO checkout_sessions (id,account_id,catalog_version,bundle_code,billing_interval,requested_users,requested_employees,currency,amount_minor,status,idempotency_key,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,account.id,CATALOG_VERSION,bundle.code,interval,users,employees,"AOA",calculated.totalMinor,"Rascunho",idempotencyKey,expires,created,created),
-   db.prepare("INSERT INTO commerce_audit_events (id,account_id,event_type,entity_type,entity_id,summary,evidence_hash,occurred_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),account.id,"checkout.draft_created","checkout_session",id,`Rascunho ${bundle.code} criado`,evidenceHash,created),
-  ]);
-  return Response.json({checkout:{id,account_id:account.id,catalog_version:CATALOG_VERSION,bundle_code:bundle.code,billing_interval:interval,requested_users:users,requested_employees:employees,currency:"AOA",amount_minor:calculated.totalMinor,status:"Rascunho",expires_at:expires,created_at:created},idempotent:false},{status:201});
- }catch(error){return apiFailure(error,"Não foi possível preparar o checkout.")}
-}
-async function commerceAccount(request:Request,db:D1Database){const email=actorEmail(request).toLowerCase(),subject=request.headers.get("x-ep-verified-user-sub")||`workspace:${email}`;return db.prepare("SELECT * FROM commerce_accounts WHERE identity_subject=? AND email_normalized=? AND status='Ativa'").bind(subject,email).first<Record<string,unknown>>()}
-async function paymentIntentApi(request:Request,db:D1Database){
- try{
-  if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
-  const account=await commerceAccount(request,db);if(!account)return Response.json({error:"Conta comercial ativa não encontrada."},{status:403});
-  const body=await request.json() as {checkoutId?:string};if(!body.checkoutId)return Response.json({error:"Checkout obrigatório."},{status:400});
-  const checkout=await db.prepare("SELECT * FROM checkout_sessions WHERE id=? AND account_id=? AND status IN ('Rascunho','Aguarda pagamento')").bind(body.checkoutId,account.id).first<Record<string,unknown>>();if(!checkout)return Response.json({error:"Checkout válido não encontrado."},{status:404});
-  if(String(checkout.expires_at)<=new Date().toISOString())return Response.json({error:"O checkout expirou. Crie um novo rascunho."},{status:410});
-  const existing=await db.prepare("SELECT p.*,i.invoice_number,i.status invoice_status,i.tax_status FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id WHERE i.checkout_id=?").bind(checkout.id).first();if(existing)return Response.json({payment:existing,idempotent:true});
-  const invoiceId=uid(),paymentId=uid(),created=new Date().toISOString(),expires=String(checkout.expires_at),reference=`TEST-${paymentId.replaceAll("-","").slice(0,12).toUpperCase()}`,invoiceNumber=`TEST-${invoiceId.replaceAll("-","").slice(0,10).toUpperCase()}`,amount=Number(checkout.amount_minor);
-  await db.batch([
-   db.prepare("INSERT INTO billing_invoices (id,checkout_id,account_id,invoice_number,currency,subtotal_minor,tax_minor,tax_status,total_minor,status,due_at,paid_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(invoiceId,checkout.id,account.id,invoiceNumber,"AOA",amount,0,"Pendente configuração",amount,"Aguarda pagamento",expires,null,created),
-   db.prepare("INSERT INTO payment_intents (id,invoice_id,provider,provider_reference,amount_minor,currency,status,expires_at,confirmed_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(paymentId,invoiceId,"PROXYPAY_TEST",reference,amount,"AOA","Pendente",expires,null,created),
-   db.prepare("UPDATE checkout_sessions SET status='Aguarda pagamento',updated_at=? WHERE id=? AND account_id=? AND status='Rascunho'").bind(created,checkout.id,account.id),
-   db.prepare("INSERT INTO commerce_audit_events (id,account_id,event_type,entity_type,entity_id,summary,evidence_hash,occurred_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),account.id,"payment.test_intent_created","payment_intent",paymentId,`Intenção de teste ${reference} criada`,await sha256(`${paymentId}|${amount}|AOA|${created}`),created),
-  ]);
-  return Response.json({payment:{id:paymentId,invoice_id:invoiceId,invoice_number:invoiceNumber,provider:"PROXYPAY_TEST",provider_reference:reference,amount_minor:amount,currency:"AOA",status:"Pendente",tax_status:"Pendente configuração",expires_at:expires},idempotent:false},{status:201});
- }catch(error){return apiFailure(error,"Não foi possível preparar a intenção de pagamento.")}
-}
-async function testConfirmationApi(request:Request,db:D1Database){
- try{
-  if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
-  const email=actorEmail(request).toLowerCase(),subject=request.headers.get("x-ep-verified-user-sub")||`workspace:${email}`,operator=await db.prepare("SELECT * FROM operator_users WHERE email_normalized=? AND role='Platform Owner' AND status='Ativo'").bind(email).first<Record<string,unknown>>();
-  if(!operator)return Response.json({error:"A confirmação de teste exige Platform Owner."},{status:403});
-  if(operator.identity_subject&&operator.identity_subject!==subject)return Response.json({error:"A identidade do operador não corresponde ao registo aprovado."},{status:403});
-  if(!operator.identity_subject)await db.prepare("UPDATE operator_users SET identity_subject=?,updated_at=? WHERE id=? AND identity_subject IS NULL").bind(subject,new Date().toISOString(),operator.id).run();
-  const body=await request.json() as {paymentId?:string};const payment=await db.prepare("SELECT p.*,i.account_id,i.status invoice_status FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id WHERE p.id=?").bind(body.paymentId||"").first<Record<string,unknown>>();if(!payment)return Response.json({error:"Intenção de pagamento não encontrada."},{status:404});
-  if(payment.status==="Confirmado")return Response.json({payment:{...payment},idempotent:true});
-  if(payment.status!=="Pendente")return Response.json({error:"O estado atual não permite confirmação."},{status:409});
-  const now=new Date().toISOString(),externalEventId=`test-confirm:${payment.id}`,payloadHash=await sha256(`${externalEventId}|${payment.amount_minor}|${now}`);
-  const transition=await db.prepare("UPDATE payment_intents SET status='Confirmado',confirmed_at=? WHERE id=? AND status='Pendente'").bind(now,payment.id).run();if(!Number(transition.meta.changes||0))return Response.json({error:"O pagamento foi alterado em paralelo."},{status:409});
-  await db.batch([
-   db.prepare("UPDATE billing_invoices SET status='Paga',paid_at=? WHERE id=? AND status='Aguarda pagamento'").bind(now,payment.invoice_id),
-   db.prepare("INSERT INTO billing_events (id,provider,external_event_id,event_type,payload_hash,status,received_at,processed_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),"PROXYPAY_TEST",externalEventId,"payment.confirmed",payloadHash,"Processado",now,now),
-   db.prepare("INSERT INTO commerce_audit_events (id,account_id,event_type,entity_type,entity_id,summary,evidence_hash,occurred_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),payment.account_id,"payment.test_confirmed","payment_intent",String(payment.id),`Pagamento de teste confirmado por ${email}`,payloadHash,now),
-  ]);
-  return Response.json({payment:{id:payment.id,status:"Confirmado",confirmed_at:now},idempotent:false});
- }catch(error){return apiFailure(error,"Não foi possível confirmar o pagamento de teste.")}
-}
-const bundleModules:Record<BundleCode,string[]>={
- FINANCE:["CORE","FINANCE_FP&A","ANALYTICS_REPORTING","WORKFLOW"],
- PEOPLE:["CORE","HCM","PAYROLL","ANALYTICS_REPORTING","WORKFLOW"],
- PERFORMANCE:["CORE","FINANCE_FP&A","WORKFORCE_PLANNING","PERFORMANCE_MANAGEMENT","ANALYTICS_REPORTING","WORKFLOW"],
- ENTERPRISE:["CORE","FINANCE_FP&A","HCM","PAYROLL","WORKFORCE_PLANNING","PERFORMANCE_MANAGEMENT","ANALYTICS_REPORTING","WORKFLOW","INTEGRATIONS"],
+type Permission =
+  | "setup:write"
+  | "hcm:read"
+  | "hcm:write"
+  | "performance:write"
+  | "scenario:read"
+  | "scenario:write"
+  | "consolidation:read"
+  | "consolidation:write"
+  | "financial-model:read"
+  | "financial-model:write"
+  | "financial-data:read"
+  | "financial-data:write"
+  | "integration:read"
+  | "integration:write"
+  | "diagnostic:read"
+  | "diagnostic:write"
+  | "goal:read"
+  | "goal:write"
+  | "review:read"
+  | "review:write"
+  | "competency:read"
+  | "competency:write"
+  | "action:read"
+  | "action:write"
+  | "payroll:read"
+  | "payroll:write"
+  | "workforce:write"
+  | "reports:write"
+  | "workflow:read"
+  | "workflow:write"
+  | "integrity:read"
+  | "document:read"
+  | "document:write";
+type TenantOption = { id: string; name: string; role: string };
+type SecurityContext = {
+  email: string;
+  name: string;
+  role: string;
+  tenantId: string;
+  tenantName: string;
+  organizationId: string | null;
+  organizationName: string | null;
+  permissions: Permission[];
+  tenants: TenantOption[];
+  modules: string[];
+  onboarding: {
+    organizations: number;
+    users: number;
+    employees: number;
+    dimensions: number;
+    complete: boolean;
+  };
 };
-async function industryPacksApi(request:Request,db:D1Database){try{if(request.method!=="GET")return Response.json({error:"Método não permitido."},{status:405});const sectors=await db.prepare("SELECT s.code,s.name,p.code pack_code,p.name pack_name,p.description,p.methodology_name,p.status pack_status,p.version_number FROM industry_sectors s JOIN industry_packs p ON p.code=s.pack_code WHERE s.status='Ativo' AND p.status IN ('Ativo','Piloto') ORDER BY s.name").all();return Response.json({sectors:sectors.results})}catch(error){return apiFailure(error,"Não foi possível carregar os Industry Packs.")}}
-async function provisionTenantApi(request:Request,db:D1Database){
- try{
-  if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
-  const account=await commerceAccount(request,db);if(!account)return Response.json({error:"Conta comercial ativa não encontrada."},{status:403});
-  const body=await request.json() as {paymentId?:string;companyName?:string;slug?:string;countryCode?:string;currency?:string;locale?:string;sectorCode?:string;coreBusiness?:string};
-  const companyName=body.companyName?.trim(),slug=body.slug?.trim().toLowerCase(),country=(body.countryCode||"").trim().toUpperCase(),currency=(body.currency||"").trim().toUpperCase(),locale=(body.locale||"pt-AO").trim(),sectorCode=(body.sectorCode||"").trim().toUpperCase(),coreBusiness=body.coreBusiness?.trim();
-  if(!body.paymentId||!companyName||!slug?.match(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)||!country.match(/^[A-Z]{2}$/)||!currency.match(/^[A-Z]{3}$/)||!locale.match(/^[a-z]{2}(?:-[A-Z]{2})?$/)||!sectorCode||!coreBusiness||coreBusiness.length<10)return Response.json({error:"Pagamento, empresa, setor, core business, país, moeda e idioma válidos são obrigatórios."},{status:400});
-  const existing=await db.prepare("SELECT p.*,s.bundle_code FROM provisioning_orders p LEFT JOIN subscriptions s ON s.tenant_id=p.tenant_id WHERE p.payment_id=? AND p.account_id=?").bind(body.paymentId,account.id).first<Record<string,unknown>>();
-  if(existing?.status==="Concluída"){const [entitlements,profile]=await Promise.all([db.prepare("SELECT module_code FROM module_entitlements WHERE tenant_id=? AND status='Ativo' ORDER BY module_code").bind(existing.tenant_id).all<Record<string,unknown>>(),db.prepare("SELECT b.sector_code sectorCode,s.name sectorName,b.core_business coreBusiness,b.industry_pack_code industryPackCode,p.name industryPackName,f.status frameworkStatus FROM tenant_business_profiles b JOIN industry_sectors s ON s.code=b.sector_code JOIN industry_packs p ON p.code=b.industry_pack_code LEFT JOIN tenant_industry_pack_installations i ON i.tenant_id=b.tenant_id AND i.status='Instalado' LEFT JOIN diagnostic_frameworks f ON f.id=i.framework_id WHERE b.tenant_id=?").bind(existing.tenant_id).first<Record<string,unknown>>()]);return Response.json({provisioning:existing,businessProfile:profile,modules:entitlements.results.map(x=>x.module_code),idempotent:true})}
-  const source=await db.prepare("SELECT p.id payment_id,p.status payment_status,i.checkout_id,c.bundle_code,c.billing_interval,c.status checkout_status,c.account_id FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id JOIN checkout_sessions c ON c.id=i.checkout_id WHERE p.id=? AND c.account_id=?").bind(body.paymentId,account.id).first<Record<string,unknown>>();
-  if(!source)return Response.json({error:"Pagamento pertencente à conta não encontrado."},{status:404});
-  if(source.payment_status!=="Confirmado")return Response.json({error:"A empresa só pode ser criada após pagamento confirmado."},{status:409});
-  if(await db.prepare("SELECT id FROM tenants WHERE slug=?").bind(slug).first())return Response.json({error:"Este identificador de empresa já está em uso."},{status:409});
-  const bundle=String(source.bundle_code) as BundleCode,modules=bundleModules[bundle];if(!modules)return Response.json({error:"Bundle contratado inválido."},{status:409});
-  const industry=await db.prepare("SELECT s.code sector_code,s.name sector_name,p.code pack_code,p.name pack_name,p.description pack_description,p.methodology_name,p.status pack_status,p.version_number pack_version FROM industry_sectors s JOIN industry_packs p ON p.code=s.pack_code WHERE s.code=? AND s.status='Ativo' AND p.status IN ('Ativo','Piloto')").bind(sectorCode).first<Record<string,unknown>>();if(!industry)return Response.json({error:"Setor ou Industry Pack não disponível."},{status:400});
-  const packMetrics=modules.includes("FINANCE_FP&A")?await db.prepare("SELECT * FROM industry_pack_metrics WHERE pack_code=? ORDER BY metric_code").bind(industry.pack_code).all<Record<string,unknown>>():{results:[] as Record<string,unknown>[]};
-  const packRules=modules.includes("FINANCE_FP&A")?await db.prepare("SELECT r.* FROM industry_pack_rules r JOIN industry_pack_metrics m ON m.metric_code=r.metric_code WHERE m.pack_code=? ORDER BY r.metric_code,r.id").bind(industry.pack_code).all<Record<string,unknown>>():{results:[] as Record<string,unknown>[]};
-  const now=new Date(),created=now.toISOString(),periodEnd=new Date(now);if(source.billing_interval==="annual")periodEnd.setUTCFullYear(periodEnd.getUTCFullYear()+1);else periodEnd.setUTCMonth(periodEnd.getUTCMonth()+1);
-  const tenantId=uid(),organizationId=uid(),membershipId=uid(),subscriptionId=uid(),orderId=existing?String(existing.id):uid(),email=actorEmail(request).toLowerCase(),name=request.headers.get("x-ep-verified-user-name")||email,frameworkId=modules.includes("FINANCE_FP&A")?uid():null;
-  const statements:D1PreparedStatement[]=[
-   db.prepare("INSERT INTO tenants (id,created_at,name,slug,status) VALUES (?,?,?,?,?)").bind(tenantId,created,companyName,slug,"Ativo"),
-   db.prepare("INSERT INTO organizations (id,tenant_id,created_at,code,name,kind,currency,status) VALUES (?,?,?,?,?,?,?,?)").bind(organizationId,tenantId,created,"ROOT",companyName,"Empresa",currency,"Ativa"),
-   db.prepare("INSERT INTO tenant_business_profiles VALUES (?,?,?,?,?,?,?)").bind(tenantId,sectorCode,industry.pack_code,coreBusiness,country,created,created),
-   db.prepare("INSERT INTO platform_users (id,tenant_id,created_at,name,email,role,organization_id,status) VALUES (?,?,?,?,?,?,?,?)").bind(membershipId,tenantId,created,name,email,"Administrador",organizationId,"Ativo"),
-   db.prepare("INSERT INTO subscriptions (id,account_id,checkout_id,tenant_id,bundle_code,billing_interval,status,current_period_start,current_period_end,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(subscriptionId,account.id,source.checkout_id,tenantId,bundle,source.billing_interval,"Ativa",created,periodEnd.toISOString(),created),
-   db.prepare("UPDATE checkout_sessions SET status='Pago',updated_at=? WHERE id=? AND account_id=? AND status='Aguarda pagamento'").bind(created,source.checkout_id,account.id),
-   db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,created,"PROVISION","tenant",tenantId,email,`Empresa criada a partir do bundle ${bundle}`),
-   db.prepare("INSERT INTO commerce_audit_events (id,account_id,event_type,entity_type,entity_id,summary,evidence_hash,occurred_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),account.id,"tenant.provisioned","tenant",tenantId,`Tenant ${slug} provisionado com ${modules.length} módulos`,await sha256(`${source.checkout_id}|${tenantId}|${bundle}|${created}`),created),
-  ];
-  if(existing)statements.push(db.prepare("UPDATE provisioning_orders SET tenant_id=?,company_name=?,company_slug=?,country_code=?,base_currency=?,locale=?,status='Concluída',completed_at=? WHERE id=? AND account_id=? AND status='Pendente'").bind(tenantId,companyName,slug,country,currency,locale,created,orderId,account.id));
-  else statements.push(db.prepare("INSERT INTO provisioning_orders (id,payment_id,account_id,checkout_id,tenant_id,company_name,company_slug,country_code,base_currency,locale,status,requested_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(orderId,body.paymentId,account.id,source.checkout_id,tenantId,companyName,slug,country,currency,locale,"Concluída",created,created));
-  for(const moduleCode of modules)statements.push(db.prepare("INSERT INTO module_entitlements (id,tenant_id,subscription_id,module_code,status,effective_from,effective_to,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,subscriptionId,moduleCode,"Ativo",created,null,created));
-  if(frameworkId){const totalWeight=packMetrics.results.reduce((sum,x)=>sum+Number(x.weight_bps),0);if(totalWeight!==10000)return Response.json({error:"O Industry Pack não passou a validação determinística de pesos (100%)."},{status:409});statements.push(db.prepare("INSERT INTO diagnostic_frameworks (id,tenant_id,name,description,status,created_by,created_at) VALUES (?,?,?,?,'Rascunho',?,?)").bind(frameworkId,tenantId,`${industry.methodology_name} · Pack v${industry.pack_version}`,`${industry.pack_description} Core business: ${coreBusiness}`,email,created));for(const metric of packMetrics.results)statements.push(db.prepare("INSERT INTO diagnostic_metric_configs VALUES (?,?,?,?,?,?)").bind(uid(),tenantId,frameworkId,metric.metric_code,metric.weight_bps,created));for(const rule of packRules.results)statements.push(db.prepare("INSERT INTO diagnostic_rules VALUES (?,?,?,?,?,?,?,?,?,?)").bind(uid(),tenantId,frameworkId,rule.metric_code,rule.min_value_bps,rule.max_value_bps,rule.score_bps,rule.severity,rule.recommendation,created));statements.push(db.prepare("INSERT INTO tenant_industry_pack_installations VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,industry.pack_code,industry.pack_version,frameworkId,email,created,"Instalado"))}
-  await db.batch(statements);
-  return Response.json({provisioning:{id:orderId,tenant_id:tenantId,company_name:companyName,company_slug:slug,status:"Concluída"},businessProfile:{sectorCode,sectorName:industry.sector_name,coreBusiness,industryPackCode:industry.pack_code,industryPackName:industry.pack_name,frameworkStatus:frameworkId?"Rascunho":"Não aplicável"},subscription:{id:subscriptionId,bundle_code:bundle,status:"Ativa",current_period_end:periodEnd.toISOString()},modules,idempotent:false},{status:201});
- }catch(error){return apiFailure(error,"Não foi possível criar a empresa contratada.")}
+const rolePermissions: Record<string, Permission[]> = {
+  Administrador: [
+    "setup:write",
+    "hcm:read",
+    "hcm:write",
+    "performance:write",
+    "scenario:read",
+    "scenario:write",
+    "consolidation:read",
+    "consolidation:write",
+    "goal:read",
+    "goal:write",
+    "review:read",
+    "review:write",
+    "competency:read",
+    "competency:write",
+    "action:read",
+    "action:write",
+    "payroll:read",
+    "payroll:write",
+    "workforce:write",
+    "reports:write",
+    "workflow:read",
+    "integrity:read",
+  ],
+  Financeiro: [
+    "performance:write",
+    "scenario:read",
+    "scenario:write",
+    "consolidation:read",
+    "consolidation:write",
+    "goal:read",
+    "goal:write",
+    "review:read",
+    "review:write",
+    "competency:read",
+    "competency:write",
+    "action:read",
+    "action:write",
+    "workforce:write",
+    "reports:write",
+    "workflow:read",
+    "integrity:read",
+  ],
+  "Recursos Humanos": [
+    "hcm:read",
+    "hcm:write",
+    "goal:read",
+    "goal:write",
+    "review:read",
+    "review:write",
+    "competency:read",
+    "competency:write",
+    "action:read",
+    "action:write",
+    "payroll:read",
+    "payroll:write",
+    "workflow:read",
+  ],
+  Gestor: [
+    "hcm:read",
+    "performance:write",
+    "scenario:read",
+    "scenario:write",
+    "consolidation:read",
+    "consolidation:write",
+    "goal:read",
+    "goal:write",
+    "review:read",
+    "review:write",
+    "competency:read",
+    "competency:write",
+    "action:read",
+    "action:write",
+    "reports:write",
+    "workflow:read",
+  ],
+  Leitura: [
+    "scenario:read",
+    "consolidation:read",
+    "goal:read",
+    "review:read",
+    "review:write",
+    "competency:read",
+    "competency:write",
+    "action:read",
+  ],
+};
+for (const role of ["Administrador", "Financeiro", "Gestor"])
+  rolePermissions[role].push(
+    "financial-model:read",
+    "financial-model:write",
+    "financial-data:read",
+    "financial-data:write",
+    "diagnostic:read",
+    "diagnostic:write",
+  );
+for (const role of ["Administrador", "Financeiro"])
+  rolePermissions[role].push("integration:read", "integration:write");
+for (const role of ["Gestor", "Leitura"])
+  rolePermissions[role].push("integration:read");
+rolePermissions.Leitura.push(
+  "financial-model:read",
+  "financial-data:read",
+  "diagnostic:read",
+);
+for (const role of [
+  "Administrador",
+  "Financeiro",
+  "Recursos Humanos",
+  "Gestor",
+])
+  rolePermissions[role].push("workflow:write");
+for (const role of [
+  "Administrador",
+  "Financeiro",
+  "Recursos Humanos",
+  "Gestor",
+  "Leitura",
+])
+  rolePermissions[role].push("document:read");
+for (const role of [
+  "Administrador",
+  "Financeiro",
+  "Recursos Humanos",
+  "Gestor",
+])
+  rolePermissions[role].push("document:write");
+const workspaceEmail = (request: Request) =>
+  request.headers.get("oai-authenticated-user-email") ||
+  request.headers.get("x-openai-user-email") ||
+  "";
+const actorEmail = (request: Request) =>
+  request.headers.get("x-ep-verified-user-email") ||
+  workspaceEmail(request) ||
+  (new URL(request.url).hostname === "terminal.local"
+    ? "admin@preview.local"
+    : "");
+async function authenticateApiRequest(
+  request: Request,
+  env: Env,
+): Promise<Request | Response> {
+  const authorization = request.headers.get("authorization") || "";
+  if (!authorization.startsWith("Bearer "))
+    return workspaceEmail(request)
+      ? request
+      : Response.json({ error: "Autenticação necessária." }, { status: 401 });
+  if (
+    !env.NEXT_PUBLIC_SUPABASE_URL ||
+    !env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  )
+    return Response.json(
+      { error: "O serviço de identidade não está configurado." },
+      { status: 503 },
+    );
+  let response: Response;
+  try {
+    response = await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        apikey: env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+        authorization,
+      },
+    });
+  } catch {
+    return Response.json(
+      { error: "Não foi possível validar a identidade." },
+      { status: 503 },
+    );
+  }
+  if (!response.ok)
+    return Response.json(
+      { error: "Sessão inválida ou expirada." },
+      { status: 401 },
+    );
+  const user = (await response.json()) as {
+    email?: string;
+    email_confirmed_at?: string;
+    user_metadata?: Record<string, unknown>;
+  };
+  if (!user.email || !user.email_confirmed_at)
+    return Response.json(
+      { error: "Confirme o e-mail antes de continuar." },
+      { status: 403 },
+    );
+  const headers = new Headers(request.headers);
+  headers.set("x-ep-verified-user-email", user.email.toLowerCase());
+  headers.set(
+    "x-ep-verified-user-sub",
+    String((user as { id?: string }).id || user.email.toLowerCase()),
+  );
+  const name = String(user.user_metadata?.display_name || user.email);
+  headers.set("x-ep-verified-user-name", name);
+  return new Request(request, { headers });
 }
-const selectedTenant=(request:Request)=>request.headers.get("x-tenant-id")||request.headers.get("X-Tenant-Id")||request.headers.get("cookie")?.match(/(?:^|;\s*)ep_tenant=([^;]+)/)?.[1]||"";
-async function securityContext(request:Request,db:D1Database):Promise<SecurityContext|Response>{await ensureSetupSchema(db);const email=actorEmail(request);if(!email)return Response.json({error:"Autenticação necessária."},{status:401});let memberships=await db.prepare("SELECT u.*,COALESCE(t.name,u.tenant_id) tenant_name,o.name organization_name FROM platform_users u LEFT JOIN tenants t ON t.id=u.tenant_id LEFT JOIN organizations o ON o.id=u.organization_id AND o.tenant_id=u.tenant_id WHERE lower(u.email)=lower(?) AND u.status='Ativo' ORDER BY u.created_at").bind(email).all<Record<string,unknown>>();if(!memberships.results.length){const total=await db.prepare("SELECT COUNT(*) n FROM platform_users").first<Record<string,unknown>>();if(Number(total?.n||0)===0){const name=request.headers.get("oai-authenticated-user-full-name")||"Administrador inicial",created=new Date().toISOString(),id=uid();await db.batch([db.prepare("INSERT OR IGNORE INTO tenants (id,created_at,name,slug,status) VALUES (?,?,?,?,?)").bind(DEFAULT_TENANT,created,"Demo Holdings","demo-holdings","Ativo"),db.prepare("INSERT INTO platform_users (id,tenant_id,created_at,name,email,role,organization_id,status) VALUES (?,?,?,?,?,?,?,?)").bind(id,DEFAULT_TENANT,created,name,email,"Administrador",null,"Ativo"),db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),DEFAULT_TENANT,created,"BOOTSTRAP","platformUser",id,email,"Administrador inicial associado ao tenant")]);memberships={results:[{id,name,email,role:"Administrador",tenant_id:DEFAULT_TENANT,tenant_name:"Demo Holdings",organization_id:null,organization_name:null}],success:true,meta:{}}}else return Response.json({error:"O utilizador autenticado não possui membership ativa."},{status:403})}const requested=decodeURIComponent(selectedTenant(request));const user=(requested?memberships.results.find(x=>String(x.tenant_id)===requested):memberships.results[0]);if(!user)return Response.json({error:"O tenant solicitado não pertence ao utilizador autenticado."},{status:403});const role=String(user.role),permissions=rolePermissions[role]||[],tenants=memberships.results.map(x=>({id:String(x.tenant_id),name:String(x.tenant_name),role:String(x.role)}));const [entitlements,organizationCount,userCount,employeeCount,dimensionCount]=await Promise.all([db.prepare("SELECT module_code FROM module_entitlements WHERE tenant_id=? AND status='Ativo'").bind(user.tenant_id).all<Record<string,unknown>>(),db.prepare("SELECT COUNT(*) n FROM organizations WHERE tenant_id=? AND status='Ativa'").bind(user.tenant_id).first<Record<string,unknown>>(),db.prepare("SELECT COUNT(*) n FROM platform_users WHERE tenant_id=? AND status='Ativo'").bind(user.tenant_id).first<Record<string,unknown>>(),db.prepare("SELECT COUNT(*) n FROM employees WHERE tenant_id=?").bind(user.tenant_id).first<Record<string,unknown>>(),db.prepare("SELECT COUNT(*) n FROM financial_dimensions WHERE tenant_id=? AND status='Ativa'").bind(user.tenant_id).first<Record<string,unknown>>()]);const modules=String(user.tenant_id)===DEFAULT_TENANT?["CORE","FINANCE_FP&A","HCM","PAYROLL","WORKFORCE_PLANNING","PERFORMANCE_MANAGEMENT","ANALYTICS_REPORTING","WORKFLOW","INTEGRATIONS"]:entitlements.results.map(x=>String(x.module_code)),onboarding={organizations:Number(organizationCount?.n||0),users:Number(userCount?.n||0),employees:Number(employeeCount?.n||0),dimensions:Number(dimensionCount?.n||0),complete:false};onboarding.complete=onboarding.organizations>0&&onboarding.users>0&&onboarding.employees>0&&onboarding.dimensions>0;return{email,name:String(user.name||email),role,tenantId:String(user.tenant_id),tenantName:String(user.tenant_name),organizationId:user.organization_id?String(user.organization_id):null,organizationName:user.organization_name?String(user.organization_name):null,permissions,tenants,modules,onboarding}}
-const denied=(permission:Permission)=>Response.json({error:`Permissão necessária: ${permission}`},{status:403});
-const apiFailure=(error:unknown,fallback:string)=>{const failure=classifyDataError(error,fallback);return Response.json({error:failure.message,code:failure.code},{status:failure.status})};
-async function issueInvitation(db:D1Database,tenantId:string,userId:string){const token=`epi_${crypto.randomUUID().replaceAll("-","")}${crypto.randomUUID().replaceAll("-","")}`,tokenHash=await sha256(token),created=new Date(),expires=new Date(created.getTime()+7*24*60*60*1000);await db.batch([db.prepare("UPDATE invitation_tokens SET revoked_at=? WHERE tenant_id=? AND user_id=? AND used_at IS NULL AND revoked_at IS NULL").bind(created.toISOString(),tenantId,userId),db.prepare("INSERT INTO invitation_tokens (id,tenant_id,user_id,token_hash,created_at,expires_at,used_at,revoked_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,userId,tokenHash,created.toISOString(),expires.toISOString(),null,null)]);return{token,expiresAt:expires.toISOString()}}
-async function invitationApi(request:Request,db:D1Database){try{await ensureSetupSchema(db);const email=actorEmail(request);if(!email)return Response.json({error:"Autenticação necessária."},{status:401});if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});const body=await request.json() as Record<string,string>;if(!body.token?.startsWith("epi_"))return Response.json({error:"Convite inválido."},{status:400});const tokenHash=await sha256(body.token),now=new Date().toISOString(),invite=await db.prepare("SELECT i.*,u.email,u.name FROM invitation_tokens i JOIN platform_users u ON u.id=i.user_id AND u.tenant_id=i.tenant_id WHERE i.token_hash=? AND i.used_at IS NULL AND i.revoked_at IS NULL").bind(tokenHash).first<Record<string,unknown>>();if(!invite)return Response.json({error:"Este convite não existe ou já foi utilizado."},{status:404});if(String(invite.expires_at)<=now)return Response.json({error:"Este convite expirou. Solicite um novo convite."},{status:410});if(String(invite.email).toLowerCase()!==email.toLowerCase())return Response.json({error:"Este convite pertence a outro utilizador autenticado."},{status:403});await db.batch([db.prepare("UPDATE invitation_tokens SET used_at=? WHERE id=?").bind(now,invite.id),db.prepare("UPDATE platform_users SET status='Ativo' WHERE id=? AND tenant_id=?").bind(invite.user_id,invite.tenant_id),db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),invite.tenant_id,now,"ACCEPT","invitation",invite.id,email,`Convite aceite por ${email}`)]);return Response.json({tenantId:invite.tenant_id,status:"Ativo"})}catch(error){return apiFailure(error,"Não foi possível aceitar o convite.")}}
-async function tenantsApi(request:Request,db:D1Database,security:SecurityContext){
- try{
+async function commerceCheckoutApi(request: Request, db: D1Database) {
+  try {
+    const email = actorEmail(request).toLowerCase(),
+      identitySubject =
+        request.headers.get("x-ep-verified-user-sub") || `workspace:${email}`;
+    if (!email)
+      return Response.json(
+        { error: "Autenticação necessária." },
+        { status: 401 },
+      );
+    let account = await db
+      .prepare("SELECT * FROM commerce_accounts WHERE identity_subject=?")
+      .bind(identitySubject)
+      .first<Record<string, unknown>>();
+    if (!account) {
+      const id = uid(),
+        now = new Date().toISOString();
+      await db
+        .prepare(
+          "INSERT INTO commerce_accounts (id,identity_subject,email_normalized,status,created_at,updated_at) VALUES (?,?,?,?,?,?)",
+        )
+        .bind(id, identitySubject, email, "Ativa", now, now)
+        .run();
+      account = {
+        id,
+        identity_subject: identitySubject,
+        email_normalized: email,
+        status: "Ativa",
+      };
+    }
+    if (account.status !== "Ativa")
+      return Response.json(
+        { error: "A conta comercial não está ativa." },
+        { status: 403 },
+      );
+    if (request.method === "GET") {
+      const row = await db
+        .prepare(
+          "SELECT * FROM checkout_sessions WHERE account_id=? ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(account.id)
+        .first();
+      return Response.json({ checkout: row || null });
+    }
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as {
+      bundleCode?: BundleCode;
+      interval?: BillingInterval;
+      users?: number;
+      employees?: number;
+    };
+    const bundle = bundles.find((x) => x.code === body.bundleCode),
+      interval = body.interval,
+      users = Math.trunc(Number(body.users)),
+      employees = Math.trunc(Number(body.employees || 0));
+    if (
+      !bundle ||
+      !(["monthly", "annual"] as string[]).includes(interval || "") ||
+      users < 1 ||
+      users > 500 ||
+      employees < 0 ||
+      employees > 10000
+    )
+      return Response.json(
+        { error: "Bundle, periodicidade e dimensão válidos são obrigatórios." },
+        { status: 400 },
+      );
+    const calculated = subscriptionTotal({
+        bundle,
+        interval: interval!,
+        users,
+        employees,
+      }),
+      fingerprint = JSON.stringify({
+        accountId: account.id,
+        catalogVersion: CATALOG_VERSION,
+        bundleCode: bundle.code,
+        interval,
+        users,
+        employees,
+        amountMinor: calculated.totalMinor,
+      }),
+      idempotencyKey = await sha256(fingerprint);
+    const existing = await db
+      .prepare("SELECT * FROM checkout_sessions WHERE idempotency_key=?")
+      .bind(idempotencyKey)
+      .first();
+    if (existing)
+      return Response.json({ checkout: existing, idempotent: true });
+    const id = uid(),
+      now = new Date(),
+      created = now.toISOString(),
+      expires = new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
+      evidenceHash = await sha256(fingerprint + "|" + created);
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO checkout_sessions (id,account_id,catalog_version,bundle_code,billing_interval,requested_users,requested_employees,currency,amount_minor,status,idempotency_key,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          id,
+          account.id,
+          CATALOG_VERSION,
+          bundle.code,
+          interval,
+          users,
+          employees,
+          "AOA",
+          calculated.totalMinor,
+          "Rascunho",
+          idempotencyKey,
+          expires,
+          created,
+          created,
+        ),
+      db
+        .prepare(
+          "INSERT INTO commerce_audit_events (id,account_id,event_type,entity_type,entity_id,summary,evidence_hash,occurred_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          account.id,
+          "checkout.draft_created",
+          "checkout_session",
+          id,
+          `Rascunho ${bundle.code} criado`,
+          evidenceHash,
+          created,
+        ),
+    ]);
+    return Response.json(
+      {
+        checkout: {
+          id,
+          account_id: account.id,
+          catalog_version: CATALOG_VERSION,
+          bundle_code: bundle.code,
+          billing_interval: interval,
+          requested_users: users,
+          requested_employees: employees,
+          currency: "AOA",
+          amount_minor: calculated.totalMinor,
+          status: "Rascunho",
+          expires_at: expires,
+          created_at: created,
+        },
+        idempotent: false,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return apiFailure(error, "Não foi possível preparar o checkout.");
+  }
+}
+async function commerceAccount(request: Request, db: D1Database) {
+  const email = actorEmail(request).toLowerCase(),
+    subject =
+      request.headers.get("x-ep-verified-user-sub") || `workspace:${email}`;
+  return db
+    .prepare(
+      "SELECT * FROM commerce_accounts WHERE identity_subject=? AND email_normalized=? AND status='Ativa'",
+    )
+    .bind(subject, email)
+    .first<Record<string, unknown>>();
+}
+async function paymentIntentApi(request: Request, db: D1Database) {
+  try {
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const account = await commerceAccount(request, db);
+    if (!account)
+      return Response.json(
+        { error: "Conta comercial ativa não encontrada." },
+        { status: 403 },
+      );
+    const body = (await request.json()) as { checkoutId?: string };
+    if (!body.checkoutId)
+      return Response.json({ error: "Checkout obrigatório." }, { status: 400 });
+    const checkout = await db
+      .prepare(
+        "SELECT * FROM checkout_sessions WHERE id=? AND account_id=? AND status IN ('Rascunho','Aguarda pagamento')",
+      )
+      .bind(body.checkoutId, account.id)
+      .first<Record<string, unknown>>();
+    if (!checkout)
+      return Response.json(
+        { error: "Checkout válido não encontrado." },
+        { status: 404 },
+      );
+    if (String(checkout.expires_at) <= new Date().toISOString())
+      return Response.json(
+        { error: "O checkout expirou. Crie um novo rascunho." },
+        { status: 410 },
+      );
+    const existing = await db
+      .prepare(
+        "SELECT p.*,i.invoice_number,i.status invoice_status,i.tax_status FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id WHERE i.checkout_id=?",
+      )
+      .bind(checkout.id)
+      .first();
+    if (existing) return Response.json({ payment: existing, idempotent: true });
+    const invoiceId = uid(),
+      paymentId = uid(),
+      created = new Date().toISOString(),
+      expires = String(checkout.expires_at),
+      reference = `TEST-${paymentId.replaceAll("-", "").slice(0, 12).toUpperCase()}`,
+      invoiceNumber = `TEST-${invoiceId.replaceAll("-", "").slice(0, 10).toUpperCase()}`,
+      amount = Number(checkout.amount_minor);
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO billing_invoices (id,checkout_id,account_id,invoice_number,currency,subtotal_minor,tax_minor,tax_status,total_minor,status,due_at,paid_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          invoiceId,
+          checkout.id,
+          account.id,
+          invoiceNumber,
+          "AOA",
+          amount,
+          0,
+          "Pendente configuração",
+          amount,
+          "Aguarda pagamento",
+          expires,
+          null,
+          created,
+        ),
+      db
+        .prepare(
+          "INSERT INTO payment_intents (id,invoice_id,provider,provider_reference,amount_minor,currency,status,expires_at,confirmed_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          paymentId,
+          invoiceId,
+          "PROXYPAY_TEST",
+          reference,
+          amount,
+          "AOA",
+          "Pendente",
+          expires,
+          null,
+          created,
+        ),
+      db
+        .prepare(
+          "UPDATE checkout_sessions SET status='Aguarda pagamento',updated_at=? WHERE id=? AND account_id=? AND status='Rascunho'",
+        )
+        .bind(created, checkout.id, account.id),
+      db
+        .prepare(
+          "INSERT INTO commerce_audit_events (id,account_id,event_type,entity_type,entity_id,summary,evidence_hash,occurred_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          account.id,
+          "payment.test_intent_created",
+          "payment_intent",
+          paymentId,
+          `Intenção de teste ${reference} criada`,
+          await sha256(`${paymentId}|${amount}|AOA|${created}`),
+          created,
+        ),
+    ]);
+    return Response.json(
+      {
+        payment: {
+          id: paymentId,
+          invoice_id: invoiceId,
+          invoice_number: invoiceNumber,
+          provider: "PROXYPAY_TEST",
+          provider_reference: reference,
+          amount_minor: amount,
+          currency: "AOA",
+          status: "Pendente",
+          tax_status: "Pendente configuração",
+          expires_at: expires,
+        },
+        idempotent: false,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return apiFailure(
+      error,
+      "Não foi possível preparar a intenção de pagamento.",
+    );
+  }
+}
+async function testConfirmationApi(request: Request, db: D1Database) {
+  try {
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const email = actorEmail(request).toLowerCase(),
+      subject =
+        request.headers.get("x-ep-verified-user-sub") || `workspace:${email}`,
+      operator = await db
+        .prepare(
+          "SELECT * FROM operator_users WHERE email_normalized=? AND role='Platform Owner' AND status='Ativo'",
+        )
+        .bind(email)
+        .first<Record<string, unknown>>();
+    if (!operator)
+      return Response.json(
+        { error: "A confirmação de teste exige Platform Owner." },
+        { status: 403 },
+      );
+    if (operator.identity_subject && operator.identity_subject !== subject)
+      return Response.json(
+        {
+          error:
+            "A identidade do operador não corresponde ao registo aprovado.",
+        },
+        { status: 403 },
+      );
+    if (!operator.identity_subject)
+      await db
+        .prepare(
+          "UPDATE operator_users SET identity_subject=?,updated_at=? WHERE id=? AND identity_subject IS NULL",
+        )
+        .bind(subject, new Date().toISOString(), operator.id)
+        .run();
+    const body = (await request.json()) as { paymentId?: string };
+    const payment = await db
+      .prepare(
+        "SELECT p.*,i.account_id,i.status invoice_status FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id WHERE p.id=?",
+      )
+      .bind(body.paymentId || "")
+      .first<Record<string, unknown>>();
+    if (!payment)
+      return Response.json(
+        { error: "Intenção de pagamento não encontrada." },
+        { status: 404 },
+      );
+    if (payment.status === "Confirmado")
+      return Response.json({ payment: { ...payment }, idempotent: true });
+    if (payment.status !== "Pendente")
+      return Response.json(
+        { error: "O estado atual não permite confirmação." },
+        { status: 409 },
+      );
+    const now = new Date().toISOString(),
+      externalEventId = `test-confirm:${payment.id}`,
+      payloadHash = await sha256(
+        `${externalEventId}|${payment.amount_minor}|${now}`,
+      );
+    const transition = await db
+      .prepare(
+        "UPDATE payment_intents SET status='Confirmado',confirmed_at=? WHERE id=? AND status='Pendente'",
+      )
+      .bind(now, payment.id)
+      .run();
+    if (!Number(transition.meta.changes || 0))
+      return Response.json(
+        { error: "O pagamento foi alterado em paralelo." },
+        { status: 409 },
+      );
+    await db.batch([
+      db
+        .prepare(
+          "UPDATE billing_invoices SET status='Paga',paid_at=? WHERE id=? AND status='Aguarda pagamento'",
+        )
+        .bind(now, payment.invoice_id),
+      db
+        .prepare(
+          "INSERT INTO billing_events (id,provider,external_event_id,event_type,payload_hash,status,received_at,processed_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          "PROXYPAY_TEST",
+          externalEventId,
+          "payment.confirmed",
+          payloadHash,
+          "Processado",
+          now,
+          now,
+        ),
+      db
+        .prepare(
+          "INSERT INTO commerce_audit_events (id,account_id,event_type,entity_type,entity_id,summary,evidence_hash,occurred_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          payment.account_id,
+          "payment.test_confirmed",
+          "payment_intent",
+          String(payment.id),
+          `Pagamento de teste confirmado por ${email}`,
+          payloadHash,
+          now,
+        ),
+    ]);
+    return Response.json({
+      payment: { id: payment.id, status: "Confirmado", confirmed_at: now },
+      idempotent: false,
+    });
+  } catch (error) {
+    return apiFailure(
+      error,
+      "Não foi possível confirmar o pagamento de teste.",
+    );
+  }
+}
+const bundleModules: Record<BundleCode, string[]> = {
+  FINANCE: ["CORE", "FINANCE_FP&A", "ANALYTICS_REPORTING", "WORKFLOW"],
+  PEOPLE: ["CORE", "HCM", "PAYROLL", "ANALYTICS_REPORTING", "WORKFLOW"],
+  PERFORMANCE: [
+    "CORE",
+    "FINANCE_FP&A",
+    "WORKFORCE_PLANNING",
+    "PERFORMANCE_MANAGEMENT",
+    "ANALYTICS_REPORTING",
+    "WORKFLOW",
+  ],
+  ENTERPRISE: [
+    "CORE",
+    "FINANCE_FP&A",
+    "HCM",
+    "PAYROLL",
+    "WORKFORCE_PLANNING",
+    "PERFORMANCE_MANAGEMENT",
+    "ANALYTICS_REPORTING",
+    "WORKFLOW",
+    "INTEGRATIONS",
+  ],
+};
+async function industryPacksApi(request: Request, db: D1Database) {
+  try {
+    if (request.method !== "GET")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const sectors = await db
+      .prepare(
+        "SELECT s.code,s.name,p.code pack_code,p.name pack_name,p.description,p.methodology_name,p.status pack_status,p.version_number FROM industry_sectors s JOIN industry_packs p ON p.code=s.pack_code WHERE s.status='Ativo' AND p.status IN ('Ativo','Piloto') ORDER BY s.name",
+      )
+      .all();
+    return Response.json({ sectors: sectors.results });
+  } catch (error) {
+    return apiFailure(error, "Não foi possível carregar os Industry Packs.");
+  }
+}
+async function provisionTenantApi(request: Request, db: D1Database) {
+  try {
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const account = await commerceAccount(request, db);
+    if (!account)
+      return Response.json(
+        { error: "Conta comercial ativa não encontrada." },
+        { status: 403 },
+      );
+    const body = (await request.json()) as {
+      paymentId?: string;
+      companyName?: string;
+      slug?: string;
+      countryCode?: string;
+      currency?: string;
+      locale?: string;
+      sectorCode?: string;
+      coreBusiness?: string;
+    };
+    const companyName = body.companyName?.trim(),
+      slug = body.slug?.trim().toLowerCase(),
+      country = (body.countryCode || "").trim().toUpperCase(),
+      currency = (body.currency || "").trim().toUpperCase(),
+      locale = (body.locale || "pt-AO").trim(),
+      sectorCode = (body.sectorCode || "").trim().toUpperCase(),
+      coreBusiness = body.coreBusiness?.trim();
+    if (
+      !body.paymentId ||
+      !companyName ||
+      !slug?.match(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) ||
+      !country.match(/^[A-Z]{2}$/) ||
+      !currency.match(/^[A-Z]{3}$/) ||
+      !locale.match(/^[a-z]{2}(?:-[A-Z]{2})?$/) ||
+      !sectorCode ||
+      !coreBusiness ||
+      coreBusiness.length < 10
+    )
+      return Response.json(
+        {
+          error:
+            "Pagamento, empresa, setor, core business, país, moeda e idioma válidos são obrigatórios.",
+        },
+        { status: 400 },
+      );
+    const existing = await db
+      .prepare(
+        "SELECT p.*,s.bundle_code FROM provisioning_orders p LEFT JOIN subscriptions s ON s.tenant_id=p.tenant_id WHERE p.payment_id=? AND p.account_id=?",
+      )
+      .bind(body.paymentId, account.id)
+      .first<Record<string, unknown>>();
+    if (existing?.status === "Concluída") {
+      const [entitlements, profile] = await Promise.all([
+        db
+          .prepare(
+            "SELECT module_code FROM module_entitlements WHERE tenant_id=? AND status='Ativo' ORDER BY module_code",
+          )
+          .bind(existing.tenant_id)
+          .all<Record<string, unknown>>(),
+        db
+          .prepare(
+            "SELECT b.sector_code sectorCode,s.name sectorName,b.core_business coreBusiness,b.industry_pack_code industryPackCode,p.name industryPackName,f.status frameworkStatus FROM tenant_business_profiles b JOIN industry_sectors s ON s.code=b.sector_code JOIN industry_packs p ON p.code=b.industry_pack_code LEFT JOIN tenant_industry_pack_installations i ON i.tenant_id=b.tenant_id AND i.status='Instalado' LEFT JOIN diagnostic_frameworks f ON f.id=i.framework_id WHERE b.tenant_id=?",
+          )
+          .bind(existing.tenant_id)
+          .first<Record<string, unknown>>(),
+      ]);
+      return Response.json({
+        provisioning: existing,
+        businessProfile: profile,
+        modules: entitlements.results.map((x) => x.module_code),
+        idempotent: true,
+      });
+    }
+    const source = await db
+      .prepare(
+        "SELECT p.id payment_id,p.status payment_status,i.checkout_id,c.bundle_code,c.billing_interval,c.status checkout_status,c.account_id FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id JOIN checkout_sessions c ON c.id=i.checkout_id WHERE p.id=? AND c.account_id=?",
+      )
+      .bind(body.paymentId, account.id)
+      .first<Record<string, unknown>>();
+    if (!source)
+      return Response.json(
+        { error: "Pagamento pertencente à conta não encontrado." },
+        { status: 404 },
+      );
+    if (source.payment_status !== "Confirmado")
+      return Response.json(
+        { error: "A empresa só pode ser criada após pagamento confirmado." },
+        { status: 409 },
+      );
+    if (
+      await db.prepare("SELECT id FROM tenants WHERE slug=?").bind(slug).first()
+    )
+      return Response.json(
+        { error: "Este identificador de empresa já está em uso." },
+        { status: 409 },
+      );
+    const bundle = String(source.bundle_code) as BundleCode,
+      modules = bundleModules[bundle];
+    if (!modules)
+      return Response.json(
+        { error: "Bundle contratado inválido." },
+        { status: 409 },
+      );
+    const industry = await db
+      .prepare(
+        "SELECT s.code sector_code,s.name sector_name,p.code pack_code,p.name pack_name,p.description pack_description,p.methodology_name,p.status pack_status,p.version_number pack_version FROM industry_sectors s JOIN industry_packs p ON p.code=s.pack_code WHERE s.code=? AND s.status='Ativo' AND p.status IN ('Ativo','Piloto')",
+      )
+      .bind(sectorCode)
+      .first<Record<string, unknown>>();
+    if (!industry)
+      return Response.json(
+        { error: "Setor ou Industry Pack não disponível." },
+        { status: 400 },
+      );
+    const packMetrics = modules.includes("FINANCE_FP&A")
+      ? await db
+          .prepare(
+            "SELECT * FROM industry_pack_metrics WHERE pack_code=? ORDER BY metric_code",
+          )
+          .bind(industry.pack_code)
+          .all<Record<string, unknown>>()
+      : { results: [] as Record<string, unknown>[] };
+    const packRules = modules.includes("FINANCE_FP&A")
+      ? await db
+          .prepare(
+            "SELECT r.* FROM industry_pack_rules r JOIN industry_pack_metrics m ON m.metric_code=r.metric_code WHERE m.pack_code=? ORDER BY r.metric_code,r.id",
+          )
+          .bind(industry.pack_code)
+          .all<Record<string, unknown>>()
+      : { results: [] as Record<string, unknown>[] };
+    const now = new Date(),
+      created = now.toISOString(),
+      periodEnd = new Date(now);
+    if (source.billing_interval === "annual")
+      periodEnd.setUTCFullYear(periodEnd.getUTCFullYear() + 1);
+    else periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
+    const tenantId = uid(),
+      organizationId = uid(),
+      membershipId = uid(),
+      subscriptionId = uid(),
+      orderId = existing ? String(existing.id) : uid(),
+      email = actorEmail(request).toLowerCase(),
+      name = request.headers.get("x-ep-verified-user-name") || email,
+      frameworkId = modules.includes("FINANCE_FP&A") ? uid() : null;
+    const statements: D1PreparedStatement[] = [
+      db
+        .prepare(
+          "INSERT INTO tenants (id,created_at,name,slug,status) VALUES (?,?,?,?,?)",
+        )
+        .bind(tenantId, created, companyName, slug, "Ativo"),
+      db
+        .prepare(
+          "INSERT INTO organizations (id,tenant_id,created_at,code,name,kind,currency,status) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          organizationId,
+          tenantId,
+          created,
+          "ROOT",
+          companyName,
+          "Empresa",
+          currency,
+          "Ativa",
+        ),
+      db
+        .prepare("INSERT INTO tenant_business_profiles VALUES (?,?,?,?,?,?,?)")
+        .bind(
+          tenantId,
+          sectorCode,
+          industry.pack_code,
+          coreBusiness,
+          country,
+          created,
+          created,
+        ),
+      db
+        .prepare(
+          "INSERT INTO platform_users (id,tenant_id,created_at,name,email,role,organization_id,status) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          membershipId,
+          tenantId,
+          created,
+          name,
+          email,
+          "Administrador",
+          organizationId,
+          "Ativo",
+        ),
+      db
+        .prepare(
+          "INSERT INTO subscriptions (id,account_id,checkout_id,tenant_id,bundle_code,billing_interval,status,current_period_start,current_period_end,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          subscriptionId,
+          account.id,
+          source.checkout_id,
+          tenantId,
+          bundle,
+          source.billing_interval,
+          "Ativa",
+          created,
+          periodEnd.toISOString(),
+          created,
+        ),
+      db
+        .prepare(
+          "UPDATE checkout_sessions SET status='Pago',updated_at=? WHERE id=? AND account_id=? AND status='Aguarda pagamento'",
+        )
+        .bind(created, source.checkout_id, account.id),
+      db
+        .prepare(
+          "INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          tenantId,
+          created,
+          "PROVISION",
+          "tenant",
+          tenantId,
+          email,
+          `Empresa criada a partir do bundle ${bundle}`,
+        ),
+      db
+        .prepare(
+          "INSERT INTO commerce_audit_events (id,account_id,event_type,entity_type,entity_id,summary,evidence_hash,occurred_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          account.id,
+          "tenant.provisioned",
+          "tenant",
+          tenantId,
+          `Tenant ${slug} provisionado com ${modules.length} módulos`,
+          await sha256(
+            `${source.checkout_id}|${tenantId}|${bundle}|${created}`,
+          ),
+          created,
+        ),
+    ];
+    if (existing)
+      statements.push(
+        db
+          .prepare(
+            "UPDATE provisioning_orders SET tenant_id=?,company_name=?,company_slug=?,country_code=?,base_currency=?,locale=?,status='Concluída',completed_at=? WHERE id=? AND account_id=? AND status='Pendente'",
+          )
+          .bind(
+            tenantId,
+            companyName,
+            slug,
+            country,
+            currency,
+            locale,
+            created,
+            orderId,
+            account.id,
+          ),
+      );
+    else
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO provisioning_orders (id,payment_id,account_id,checkout_id,tenant_id,company_name,company_slug,country_code,base_currency,locale,status,requested_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            orderId,
+            body.paymentId,
+            account.id,
+            source.checkout_id,
+            tenantId,
+            companyName,
+            slug,
+            country,
+            currency,
+            locale,
+            "Concluída",
+            created,
+            created,
+          ),
+      );
+    for (const moduleCode of modules)
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO module_entitlements (id,tenant_id,subscription_id,module_code,status,effective_from,effective_to,created_at) VALUES (?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            uid(),
+            tenantId,
+            subscriptionId,
+            moduleCode,
+            "Ativo",
+            created,
+            null,
+            created,
+          ),
+      );
+    if (frameworkId) {
+      const totalWeight = packMetrics.results.reduce(
+        (sum, x) => sum + Number(x.weight_bps),
+        0,
+      );
+      if (totalWeight !== 10000)
+        return Response.json(
+          {
+            error:
+              "O Industry Pack não passou a validação determinística de pesos (100%).",
+          },
+          { status: 409 },
+        );
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO diagnostic_frameworks (id,tenant_id,name,description,status,created_by,created_at) VALUES (?,?,?,?,'Rascunho',?,?)",
+          )
+          .bind(
+            frameworkId,
+            tenantId,
+            `${industry.methodology_name} · Pack v${industry.pack_version}`,
+            `${industry.pack_description} Core business: ${coreBusiness}`,
+            email,
+            created,
+          ),
+      );
+      for (const metric of packMetrics.results)
+        statements.push(
+          db
+            .prepare(
+              "INSERT INTO diagnostic_metric_configs VALUES (?,?,?,?,?,?)",
+            )
+            .bind(
+              uid(),
+              tenantId,
+              frameworkId,
+              metric.metric_code,
+              metric.weight_bps,
+              created,
+            ),
+        );
+      for (const rule of packRules.results)
+        statements.push(
+          db
+            .prepare(
+              "INSERT INTO diagnostic_rules VALUES (?,?,?,?,?,?,?,?,?,?)",
+            )
+            .bind(
+              uid(),
+              tenantId,
+              frameworkId,
+              rule.metric_code,
+              rule.min_value_bps,
+              rule.max_value_bps,
+              rule.score_bps,
+              rule.severity,
+              rule.recommendation,
+              created,
+            ),
+        );
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO tenant_industry_pack_installations VALUES (?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            uid(),
+            tenantId,
+            industry.pack_code,
+            industry.pack_version,
+            frameworkId,
+            email,
+            created,
+            "Instalado",
+          ),
+      );
+    }
+    await db.batch(statements);
+    return Response.json(
+      {
+        provisioning: {
+          id: orderId,
+          tenant_id: tenantId,
+          company_name: companyName,
+          company_slug: slug,
+          status: "Concluída",
+        },
+        businessProfile: {
+          sectorCode,
+          sectorName: industry.sector_name,
+          coreBusiness,
+          industryPackCode: industry.pack_code,
+          industryPackName: industry.pack_name,
+          frameworkStatus: frameworkId ? "Rascunho" : "Não aplicável",
+        },
+        subscription: {
+          id: subscriptionId,
+          bundle_code: bundle,
+          status: "Ativa",
+          current_period_end: periodEnd.toISOString(),
+        },
+        modules,
+        idempotent: false,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return apiFailure(error, "Não foi possível criar a empresa contratada.");
+  }
+}
+const selectedTenant = (request: Request) =>
+  request.headers.get("x-tenant-id") ||
+  request.headers.get("X-Tenant-Id") ||
+  request.headers.get("cookie")?.match(/(?:^|;\s*)ep_tenant=([^;]+)/)?.[1] ||
+  "";
+async function securityContext(
+  request: Request,
+  db: D1Database,
+): Promise<SecurityContext | Response> {
   await ensureSetupSchema(db);
-  if(request.method==="GET")return Response.json({tenants:security.tenants,currentTenantId:security.tenantId});
-  if(request.method==="POST")return Response.json({error:"A criação de empresas exige checkout e pagamento confirmado."},{status:403});
-  return Response.json({error:"Método não permitido."},{status:405});
- }catch(error){return apiFailure(error,"Não foi possível criar a empresa.")}
+  const email = actorEmail(request);
+  if (!email)
+    return Response.json(
+      { error: "Autenticação necessária." },
+      { status: 401 },
+    );
+  let memberships = await db
+    .prepare(
+      "SELECT u.*,COALESCE(t.name,u.tenant_id) tenant_name,o.name organization_name FROM platform_users u LEFT JOIN tenants t ON t.id=u.tenant_id LEFT JOIN organizations o ON o.id=u.organization_id AND o.tenant_id=u.tenant_id WHERE lower(u.email)=lower(?) AND u.status='Ativo' ORDER BY u.created_at",
+    )
+    .bind(email)
+    .all<Record<string, unknown>>();
+  if (!memberships.results.length) {
+    const total = await db
+      .prepare("SELECT COUNT(*) n FROM platform_users")
+      .first<Record<string, unknown>>();
+    if (Number(total?.n || 0) === 0) {
+      const name =
+          request.headers.get("oai-authenticated-user-full-name") ||
+          "Administrador inicial",
+        created = new Date().toISOString(),
+        id = uid();
+      await db.batch([
+        db
+          .prepare(
+            "INSERT OR IGNORE INTO tenants (id,created_at,name,slug,status) VALUES (?,?,?,?,?)",
+          )
+          .bind(
+            DEFAULT_TENANT,
+            created,
+            "Demo Holdings",
+            "demo-holdings",
+            "Ativo",
+          ),
+        db
+          .prepare(
+            "INSERT INTO platform_users (id,tenant_id,created_at,name,email,role,organization_id,status) VALUES (?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            id,
+            DEFAULT_TENANT,
+            created,
+            name,
+            email,
+            "Administrador",
+            null,
+            "Ativo",
+          ),
+        db
+          .prepare(
+            "INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            uid(),
+            DEFAULT_TENANT,
+            created,
+            "BOOTSTRAP",
+            "platformUser",
+            id,
+            email,
+            "Administrador inicial associado ao tenant",
+          ),
+      ]);
+      memberships = {
+        results: [
+          {
+            id,
+            name,
+            email,
+            role: "Administrador",
+            tenant_id: DEFAULT_TENANT,
+            tenant_name: "Demo Holdings",
+            organization_id: null,
+            organization_name: null,
+          },
+        ],
+        success: true,
+        meta: {},
+      };
+    } else
+      return Response.json(
+        { error: "O utilizador autenticado não possui membership ativa." },
+        { status: 403 },
+      );
+  }
+  const requested = decodeURIComponent(selectedTenant(request));
+  const user = requested
+    ? memberships.results.find((x) => String(x.tenant_id) === requested)
+    : memberships.results[0];
+  if (!user)
+    return Response.json(
+      { error: "O tenant solicitado não pertence ao utilizador autenticado." },
+      { status: 403 },
+    );
+  const role = String(user.role),
+    permissions = rolePermissions[role] || [],
+    tenants = memberships.results.map((x) => ({
+      id: String(x.tenant_id),
+      name: String(x.tenant_name),
+      role: String(x.role),
+    }));
+  const [
+    entitlements,
+    organizationCount,
+    userCount,
+    employeeCount,
+    dimensionCount,
+  ] = await Promise.all([
+    db
+      .prepare(
+        "SELECT module_code FROM module_entitlements WHERE tenant_id=? AND status='Ativo'",
+      )
+      .bind(user.tenant_id)
+      .all<Record<string, unknown>>(),
+    db
+      .prepare(
+        "SELECT COUNT(*) n FROM organizations WHERE tenant_id=? AND status='Ativa'",
+      )
+      .bind(user.tenant_id)
+      .first<Record<string, unknown>>(),
+    db
+      .prepare(
+        "SELECT COUNT(*) n FROM platform_users WHERE tenant_id=? AND status='Ativo'",
+      )
+      .bind(user.tenant_id)
+      .first<Record<string, unknown>>(),
+    db
+      .prepare("SELECT COUNT(*) n FROM employees WHERE tenant_id=?")
+      .bind(user.tenant_id)
+      .first<Record<string, unknown>>(),
+    db
+      .prepare(
+        "SELECT COUNT(*) n FROM financial_dimensions WHERE tenant_id=? AND status='Ativa'",
+      )
+      .bind(user.tenant_id)
+      .first<Record<string, unknown>>(),
+  ]);
+  const modules =
+      String(user.tenant_id) === DEFAULT_TENANT
+        ? [
+            "CORE",
+            "FINANCE_FP&A",
+            "HCM",
+            "PAYROLL",
+            "WORKFORCE_PLANNING",
+            "PERFORMANCE_MANAGEMENT",
+            "ANALYTICS_REPORTING",
+            "WORKFLOW",
+            "INTEGRATIONS",
+          ]
+        : entitlements.results.map((x) => String(x.module_code)),
+    onboarding = {
+      organizations: Number(organizationCount?.n || 0),
+      users: Number(userCount?.n || 0),
+      employees: Number(employeeCount?.n || 0),
+      dimensions: Number(dimensionCount?.n || 0),
+      complete: false,
+    };
+  onboarding.complete =
+    onboarding.organizations > 0 &&
+    onboarding.users > 0 &&
+    onboarding.employees > 0 &&
+    onboarding.dimensions > 0;
+  return {
+    email,
+    name: String(user.name || email),
+    role,
+    tenantId: String(user.tenant_id),
+    tenantName: String(user.tenant_name),
+    organizationId: user.organization_id ? String(user.organization_id) : null,
+    organizationName: user.organization_name
+      ? String(user.organization_name)
+      : null,
+    permissions,
+    tenants,
+    modules,
+    onboarding,
+  };
+}
+const denied = (permission: Permission) =>
+  Response.json(
+    { error: `Permissão necessária: ${permission}` },
+    { status: 403 },
+  );
+const apiFailure = (error: unknown, fallback: string) => {
+  const failure = classifyDataError(error, fallback);
+  return Response.json(
+    { error: failure.message, code: failure.code },
+    { status: failure.status },
+  );
+};
+async function issueInvitation(
+  db: D1Database,
+  tenantId: string,
+  userId: string,
+) {
+  const token = `epi_${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`,
+    tokenHash = await sha256(token),
+    created = new Date(),
+    expires = new Date(created.getTime() + 7 * 24 * 60 * 60 * 1000);
+  await db.batch([
+    db
+      .prepare(
+        "UPDATE invitation_tokens SET revoked_at=? WHERE tenant_id=? AND user_id=? AND used_at IS NULL AND revoked_at IS NULL",
+      )
+      .bind(created.toISOString(), tenantId, userId),
+    db
+      .prepare(
+        "INSERT INTO invitation_tokens (id,tenant_id,user_id,token_hash,created_at,expires_at,used_at,revoked_at) VALUES (?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        uid(),
+        tenantId,
+        userId,
+        tokenHash,
+        created.toISOString(),
+        expires.toISOString(),
+        null,
+        null,
+      ),
+  ]);
+  return { token, expiresAt: expires.toISOString() };
+}
+async function invitationApi(request: Request, db: D1Database) {
+  try {
+    await ensureSetupSchema(db);
+    const email = actorEmail(request);
+    if (!email)
+      return Response.json(
+        { error: "Autenticação necessária." },
+        { status: 401 },
+      );
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as Record<string, string>;
+    if (!body.token?.startsWith("epi_"))
+      return Response.json({ error: "Convite inválido." }, { status: 400 });
+    const tokenHash = await sha256(body.token),
+      now = new Date().toISOString(),
+      invite = await db
+        .prepare(
+          "SELECT i.*,u.email,u.name FROM invitation_tokens i JOIN platform_users u ON u.id=i.user_id AND u.tenant_id=i.tenant_id WHERE i.token_hash=? AND i.used_at IS NULL AND i.revoked_at IS NULL",
+        )
+        .bind(tokenHash)
+        .first<Record<string, unknown>>();
+    if (!invite)
+      return Response.json(
+        { error: "Este convite não existe ou já foi utilizado." },
+        { status: 404 },
+      );
+    if (String(invite.expires_at) <= now)
+      return Response.json(
+        { error: "Este convite expirou. Solicite um novo convite." },
+        { status: 410 },
+      );
+    if (String(invite.email).toLowerCase() !== email.toLowerCase())
+      return Response.json(
+        { error: "Este convite pertence a outro utilizador autenticado." },
+        { status: 403 },
+      );
+    await db.batch([
+      db
+        .prepare("UPDATE invitation_tokens SET used_at=? WHERE id=?")
+        .bind(now, invite.id),
+      db
+        .prepare(
+          "UPDATE platform_users SET status='Ativo' WHERE id=? AND tenant_id=?",
+        )
+        .bind(invite.user_id, invite.tenant_id),
+      db
+        .prepare(
+          "INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          invite.tenant_id,
+          now,
+          "ACCEPT",
+          "invitation",
+          invite.id,
+          email,
+          `Convite aceite por ${email}`,
+        ),
+    ]);
+    return Response.json({ tenantId: invite.tenant_id, status: "Ativo" });
+  } catch (error) {
+    return apiFailure(error, "Não foi possível aceitar o convite.");
+  }
+}
+async function tenantsApi(
+  request: Request,
+  db: D1Database,
+  security: SecurityContext,
+) {
+  try {
+    await ensureSetupSchema(db);
+    if (request.method === "GET")
+      return Response.json({
+        tenants: security.tenants,
+        currentTenantId: security.tenantId,
+      });
+    if (request.method === "POST")
+      return Response.json(
+        {
+          error: "A criação de empresas exige checkout e pagamento confirmado.",
+        },
+        { status: 403 },
+      );
+    return Response.json({ error: "Método não permitido." }, { status: 405 });
+  } catch (error) {
+    return apiFailure(error, "Não foi possível criar a empresa.");
+  }
 }
 async function ensureSetupSchema(db: D1Database) {
   await db.batch([
-    db.prepare("CREATE TABLE IF NOT EXISTS tenants (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, status TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS invitation_tokens (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, user_id TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT, revoked_at TEXT)"),
-    db.prepare("INSERT OR IGNORE INTO tenants (id,created_at,name,slug,status) VALUES ('demo-tenant','2026-01-01T00:00:00.000Z','Demo Holdings','demo-holdings','Ativo')"),
-    db.prepare("CREATE TABLE IF NOT EXISTS organizations (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, currency TEXT NOT NULL, status TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS platform_users (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, role TEXT NOT NULL, organization_id TEXT, status TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS employees (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, employee_number TEXT NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL, organization_id TEXT NOT NULL, job_title TEXT NOT NULL, hire_date TEXT NOT NULL, status TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS employee_contracts (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, employee_id TEXT NOT NULL, contract_number TEXT NOT NULL, contract_type TEXT NOT NULL, start_date TEXT NOT NULL, end_date TEXT, work_schedule TEXT NOT NULL, weekly_minutes INTEGER NOT NULL, country_pack TEXT, status TEXT NOT NULL, activated_at TEXT, ended_at TEXT)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, actor TEXT NOT NULL, summary TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS financial_dimensions (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS dimension_members (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, dimension_id TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, parent_id TEXT, status TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS budget_versions (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, name TEXT NOT NULL, fiscal_year INTEGER NOT NULL, status TEXT NOT NULL, approved_at TEXT)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS performance_entries (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, organization_id TEXT NOT NULL, period TEXT NOT NULL, scenario TEXT NOT NULL, version_id TEXT, currency TEXT NOT NULL, line_code TEXT NOT NULL, line_name TEXT NOT NULL, dimension_member_id TEXT, amount_minor INTEGER NOT NULL, source TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS salary_profiles (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, employee_id TEXT NOT NULL, currency TEXT NOT NULL, periodicity TEXT NOT NULL, base_minor INTEGER NOT NULL, effective_from TEXT NOT NULL, effective_to TEXT, dimension_member_id TEXT, status TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS payroll_components (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL, method TEXT NOT NULL, value_minor INTEGER, rate_bps INTEGER, calculation_order INTEGER NOT NULL, status TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS payroll_assignments (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, employee_id TEXT NOT NULL, component_id TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS payroll_runs (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, period TEXT NOT NULL, currency TEXT NOT NULL, status TEXT NOT NULL, employee_count INTEGER NOT NULL, gross_minor INTEGER NOT NULL, deduction_minor INTEGER NOT NULL, employer_minor INTEGER NOT NULL, net_minor INTEGER NOT NULL, closed_at TEXT)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS payroll_run_scopes (run_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, organization_id TEXT, created_at TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS payroll_run_lines (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, run_id TEXT NOT NULL, employee_id TEXT NOT NULL, base_minor INTEGER NOT NULL, gross_minor INTEGER NOT NULL, deduction_minor INTEGER NOT NULL, employer_minor INTEGER NOT NULL, net_minor INTEGER NOT NULL, calculation_hash TEXT NOT NULL, input_snapshot TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS workforce_cost_postings (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, run_id TEXT NOT NULL, run_line_id TEXT NOT NULL, employee_id TEXT NOT NULL, organization_id TEXT NOT NULL, dimension_member_id TEXT, period TEXT NOT NULL, currency TEXT NOT NULL, gross_minor INTEGER NOT NULL, employer_minor INTEGER NOT NULL, total_minor INTEGER NOT NULL, source_hash TEXT NOT NULL, posted_at TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS management_reports (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, report_number INTEGER NOT NULL, title TEXT NOT NULL, template TEXT NOT NULL, period TEXT NOT NULL, currency TEXT NOT NULL, budget_version_id TEXT, status TEXT NOT NULL, payload_json TEXT NOT NULL, input_hash TEXT NOT NULL, created_by TEXT NOT NULL)"),
-    db.prepare("CREATE TABLE IF NOT EXISTS management_report_scopes (report_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, organization_id TEXT, created_at TEXT NOT NULL)"),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS tenants (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, status TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS invitation_tokens (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, user_id TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT, revoked_at TEXT)",
+    ),
+    db.prepare(
+      "INSERT OR IGNORE INTO tenants (id,created_at,name,slug,status) VALUES ('demo-tenant','2026-01-01T00:00:00.000Z','Demo Holdings','demo-holdings','Ativo')",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS organizations (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, currency TEXT NOT NULL, status TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS platform_users (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, role TEXT NOT NULL, organization_id TEXT, status TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS employees (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, employee_number TEXT NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL, organization_id TEXT NOT NULL, job_title TEXT NOT NULL, hire_date TEXT NOT NULL, status TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS employee_contracts (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, employee_id TEXT NOT NULL, contract_number TEXT NOT NULL, contract_type TEXT NOT NULL, start_date TEXT NOT NULL, end_date TEXT, work_schedule TEXT NOT NULL, weekly_minutes INTEGER NOT NULL, country_pack TEXT, status TEXT NOT NULL, activated_at TEXT, ended_at TEXT)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, actor TEXT NOT NULL, summary TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS financial_dimensions (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS dimension_members (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, dimension_id TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, parent_id TEXT, status TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS budget_versions (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, name TEXT NOT NULL, fiscal_year INTEGER NOT NULL, status TEXT NOT NULL, approved_at TEXT)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS performance_entries (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, organization_id TEXT NOT NULL, period TEXT NOT NULL, scenario TEXT NOT NULL, version_id TEXT, currency TEXT NOT NULL, line_code TEXT NOT NULL, line_name TEXT NOT NULL, dimension_member_id TEXT, amount_minor INTEGER NOT NULL, source TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS salary_profiles (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, employee_id TEXT NOT NULL, currency TEXT NOT NULL, periodicity TEXT NOT NULL, base_minor INTEGER NOT NULL, effective_from TEXT NOT NULL, effective_to TEXT, dimension_member_id TEXT, status TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS payroll_components (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL, method TEXT NOT NULL, value_minor INTEGER, rate_bps INTEGER, calculation_order INTEGER NOT NULL, status TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS payroll_assignments (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, employee_id TEXT NOT NULL, component_id TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS payroll_runs (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, period TEXT NOT NULL, currency TEXT NOT NULL, status TEXT NOT NULL, employee_count INTEGER NOT NULL, gross_minor INTEGER NOT NULL, deduction_minor INTEGER NOT NULL, employer_minor INTEGER NOT NULL, net_minor INTEGER NOT NULL, closed_at TEXT)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS payroll_run_scopes (run_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, organization_id TEXT, created_at TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS payroll_run_lines (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, run_id TEXT NOT NULL, employee_id TEXT NOT NULL, base_minor INTEGER NOT NULL, gross_minor INTEGER NOT NULL, deduction_minor INTEGER NOT NULL, employer_minor INTEGER NOT NULL, net_minor INTEGER NOT NULL, calculation_hash TEXT NOT NULL, input_snapshot TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS workforce_cost_postings (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, run_id TEXT NOT NULL, run_line_id TEXT NOT NULL, employee_id TEXT NOT NULL, organization_id TEXT NOT NULL, dimension_member_id TEXT, period TEXT NOT NULL, currency TEXT NOT NULL, gross_minor INTEGER NOT NULL, employer_minor INTEGER NOT NULL, total_minor INTEGER NOT NULL, source_hash TEXT NOT NULL, posted_at TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS management_reports (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, created_at TEXT NOT NULL, report_number INTEGER NOT NULL, title TEXT NOT NULL, template TEXT NOT NULL, period TEXT NOT NULL, currency TEXT NOT NULL, budget_version_id TEXT, status TEXT NOT NULL, payload_json TEXT NOT NULL, input_hash TEXT NOT NULL, created_by TEXT NOT NULL)",
+    ),
+    db.prepare(
+      "CREATE TABLE IF NOT EXISTS management_report_scopes (report_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, organization_id TEXT, created_at TEXT NOT NULL)",
+    ),
   ]);
 }
-async function setupSnapshot(db: D1Database,tenantId:string,organizationId:string|null=null) {
-  const [organizations, users, employees, audit, dimensions, dimensionMembers] = await Promise.all([
-    db.prepare("SELECT * FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) ORDER BY created_at").bind(tenantId,organizationId,organizationId).all(),
-    db.prepare("SELECT * FROM platform_users WHERE tenant_id=? AND (? IS NULL OR organization_id=?) ORDER BY created_at").bind(tenantId,organizationId,organizationId).all(),
-    db.prepare("SELECT * FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) ORDER BY created_at DESC").bind(tenantId,organizationId,organizationId).all(),
-    organizationId?Promise.resolve({results:[]}):db.prepare("SELECT * FROM audit_events WHERE tenant_id=? ORDER BY created_at DESC LIMIT 8").bind(tenantId).all(),
-    db.prepare("SELECT d.*, COUNT(m.id) AS member_count FROM financial_dimensions d LEFT JOIN dimension_members m ON m.dimension_id=d.id AND m.tenant_id=d.tenant_id WHERE d.tenant_id=? GROUP BY d.id ORDER BY d.created_at").bind(tenantId).all(),
-    db.prepare("SELECT * FROM dimension_members WHERE tenant_id=? ORDER BY dimension_id, parent_id, code").bind(tenantId).all(),
-  ]);
-  return { organizations: organizations.results, users: users.results, employees: employees.results, audit: audit.results, dimensions: dimensions.results, dimensionMembers: dimensionMembers.results };
+async function setupSnapshot(
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  const [organizations, users, employees, audit, dimensions, dimensionMembers] =
+    await Promise.all([
+      db
+        .prepare(
+          "SELECT * FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) ORDER BY created_at",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .all(),
+      db
+        .prepare(
+          "SELECT * FROM platform_users WHERE tenant_id=? AND (? IS NULL OR organization_id=?) ORDER BY created_at",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .all(),
+      db
+        .prepare(
+          "SELECT * FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) ORDER BY created_at DESC",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .all(),
+      organizationId
+        ? Promise.resolve({ results: [] })
+        : db
+            .prepare(
+              "SELECT * FROM audit_events WHERE tenant_id=? ORDER BY created_at DESC LIMIT 8",
+            )
+            .bind(tenantId)
+            .all(),
+      db
+        .prepare(
+          "SELECT d.*, COUNT(m.id) AS member_count FROM financial_dimensions d LEFT JOIN dimension_members m ON m.dimension_id=d.id AND m.tenant_id=d.tenant_id WHERE d.tenant_id=? GROUP BY d.id ORDER BY d.created_at",
+        )
+        .bind(tenantId)
+        .all(),
+      db
+        .prepare(
+          "SELECT * FROM dimension_members WHERE tenant_id=? ORDER BY dimension_id, parent_id, code",
+        )
+        .bind(tenantId)
+        .all(),
+    ]);
+  return {
+    organizations: organizations.results,
+    users: users.results,
+    employees: employees.results,
+    audit: audit.results,
+    dimensions: dimensions.results,
+    dimensionMembers: dimensionMembers.results,
+  };
 }
-async function setupApi(request: Request, db: D1Database,tenantId:string,organizationId:string|null=null) {
+async function setupApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
   try {
     await ensureSetupSchema(db);
-    if (request.method === "GET") return Response.json(await setupSnapshot(db,tenantId,organizationId));
-    if (request.method !== "POST") return Response.json({error:"Método não permitido."},{status:405});
-    const body = await request.json() as Record<string,string>, created = new Date().toISOString(), recordId = uid();let issuedInvite:{token:string;expiresAt:string}|null=null;
+    if (request.method === "GET")
+      return Response.json(await setupSnapshot(db, tenantId, organizationId));
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as Record<string, string>,
+      created = new Date().toISOString(),
+      recordId = uid();
+    let issuedInvite: { token: string; expiresAt: string } | null = null;
     const actor = actorEmail(request) || "utilizador autenticado";
     let summary = "";
     if (body.type === "organization") {
-      if (!body.name?.trim() || !body.code?.trim() || !body.currency?.trim()) return Response.json({error:"Nome, código e moeda são obrigatórios."},{status:400});
-      if (await db.prepare("SELECT id FROM organizations WHERE tenant_id=? AND code=?").bind(tenantId,body.code.trim().toUpperCase()).first()) return Response.json({error:"Já existe uma unidade com este código."},{status:409});
-      summary=`Unidade ${body.name.trim()} criada`;
-      await db.prepare("INSERT INTO organizations (id,tenant_id,code,name,kind,currency,status,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(recordId,tenantId,body.code.trim().toUpperCase(),body.name.trim(),body.kind||"Unidade",body.currency.trim().toUpperCase(),"Ativa",created).run();
+      if (!body.name?.trim() || !body.code?.trim() || !body.currency?.trim())
+        return Response.json(
+          { error: "Nome, código e moeda são obrigatórios." },
+          { status: 400 },
+        );
+      if (
+        await db
+          .prepare("SELECT id FROM organizations WHERE tenant_id=? AND code=?")
+          .bind(tenantId, body.code.trim().toUpperCase())
+          .first()
+      )
+        return Response.json(
+          { error: "Já existe uma unidade com este código." },
+          { status: 409 },
+        );
+      summary = `Unidade ${body.name.trim()} criada`;
+      await db
+        .prepare(
+          "INSERT INTO organizations (id,tenant_id,code,name,kind,currency,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          recordId,
+          tenantId,
+          body.code.trim().toUpperCase(),
+          body.name.trim(),
+          body.kind || "Unidade",
+          body.currency.trim().toUpperCase(),
+          "Ativa",
+          created,
+        )
+        .run();
     } else if (body.type === "user") {
-      if (!body.name?.trim() || !/^\S+@\S+\.\S+$/.test(body.email||"")) return Response.json({error:"Indique um nome e um email válido."},{status:400});
-      if (await db.prepare("SELECT id FROM platform_users WHERE tenant_id=? AND lower(email)=lower(?)").bind(tenantId,body.email.trim()).first()) return Response.json({error:"Este email já tem acesso ou convite."},{status:409});
-      summary=`Convite enviado a ${body.email.trim()}`;
-      await db.prepare("INSERT INTO platform_users (id,tenant_id,name,email,role,organization_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(recordId,tenantId,body.name.trim(),body.email.trim().toLowerCase(),body.role||"Gestor",body.organizationId||null,"Convite enviado",created).run();
-      issuedInvite=await issueInvitation(db,tenantId,recordId);
+      if (!body.name?.trim() || !/^\S+@\S+\.\S+$/.test(body.email || ""))
+        return Response.json(
+          { error: "Indique um nome e um email válido." },
+          { status: 400 },
+        );
+      if (
+        await db
+          .prepare(
+            "SELECT id FROM platform_users WHERE tenant_id=? AND lower(email)=lower(?)",
+          )
+          .bind(tenantId, body.email.trim())
+          .first()
+      )
+        return Response.json(
+          { error: "Este email já tem acesso ou convite." },
+          { status: 409 },
+        );
+      summary = `Convite enviado a ${body.email.trim()}`;
+      await db
+        .prepare(
+          "INSERT INTO platform_users (id,tenant_id,name,email,role,organization_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          recordId,
+          tenantId,
+          body.name.trim(),
+          body.email.trim().toLowerCase(),
+          body.role || "Gestor",
+          body.organizationId || null,
+          "Convite enviado",
+          created,
+        )
+        .run();
+      issuedInvite = await issueInvitation(db, tenantId, recordId);
     } else if (body.type === "userAction") {
-      const target=await db.prepare("SELECT * FROM platform_users WHERE id=? AND tenant_id=?").bind(body.userId,tenantId).first<Record<string,unknown>>();
-      if(!target)return Response.json({error:"Associação de utilizador não encontrada."},{status:404});
-      const action=body.action,targetEmail=String(target.email),targetRole=String(target.role),targetStatus=String(target.status),validRoles=["Administrador","Financeiro","Recursos Humanos","Gestor","Leitura"];
-      if(["remove","cancel"].includes(action)&&targetEmail.toLowerCase()===actor.toLowerCase())return Response.json({error:"Não pode remover ou cancelar o seu próprio acesso."},{status:409});
-      const removesAdmin=targetRole==="Administrador"&&targetStatus==="Ativo"&&(action==="remove"||(action==="changeRole"&&body.role!=="Administrador"));
-      if(removesAdmin){const admins=await db.prepare("SELECT COUNT(*) n FROM platform_users WHERE tenant_id=? AND role='Administrador' AND status='Ativo'").bind(tenantId).first<Record<string,unknown>>();if(Number(admins?.n||0)<=1)return Response.json({error:"A empresa deve manter pelo menos um Administrador ativo."},{status:409})}
-      if(action==="activate")return Response.json({error:"A ativação exige a aceitação do convite pelo destinatário autenticado."},{status:409});
-      else if(action==="resend"){if(targetStatus==="Ativo")return Response.json({error:"Um acesso ativo não requer reenvio."},{status:409});await db.prepare("UPDATE platform_users SET status='Convite enviado',created_at=? WHERE id=? AND tenant_id=?").bind(created,body.userId,tenantId).run();issuedInvite=await issueInvitation(db,tenantId,body.userId);summary=`Convite reenviado a ${targetEmail}`;
-      }else if(action==="cancel"){if(targetStatus==="Ativo")return Response.json({error:"Remova o acesso ativo em vez de cancelar o convite."},{status:409});await db.batch([db.prepare("UPDATE platform_users SET status='Cancelado' WHERE id=? AND tenant_id=?").bind(body.userId,tenantId),db.prepare("UPDATE invitation_tokens SET revoked_at=? WHERE tenant_id=? AND user_id=? AND used_at IS NULL").bind(created,tenantId,body.userId)]);summary=`Convite de ${targetEmail} cancelado`;
-      }else if(action==="changeRole"){if(!validRoles.includes(body.role))return Response.json({error:"Função inválida."},{status:400});await db.prepare("UPDATE platform_users SET role=? WHERE id=? AND tenant_id=?").bind(body.role,body.userId,tenantId).run();summary=`Função de ${targetEmail} alterada para ${body.role}`;
-      }else if(action==="remove"){await db.batch([db.prepare("UPDATE platform_users SET status='Removido' WHERE id=? AND tenant_id=?").bind(body.userId,tenantId),db.prepare("UPDATE invitation_tokens SET revoked_at=? WHERE tenant_id=? AND user_id=? AND used_at IS NULL").bind(created,tenantId,body.userId)]);summary=`Acesso de ${targetEmail} removido`;
-      }else return Response.json({error:"Ação de utilizador não suportada."},{status:400});
+      const target = await db
+        .prepare("SELECT * FROM platform_users WHERE id=? AND tenant_id=?")
+        .bind(body.userId, tenantId)
+        .first<Record<string, unknown>>();
+      if (!target)
+        return Response.json(
+          { error: "Associação de utilizador não encontrada." },
+          { status: 404 },
+        );
+      const action = body.action,
+        targetEmail = String(target.email),
+        targetRole = String(target.role),
+        targetStatus = String(target.status),
+        validRoles = [
+          "Administrador",
+          "Financeiro",
+          "Recursos Humanos",
+          "Gestor",
+          "Leitura",
+        ];
+      if (
+        ["remove", "cancel"].includes(action) &&
+        targetEmail.toLowerCase() === actor.toLowerCase()
+      )
+        return Response.json(
+          { error: "Não pode remover ou cancelar o seu próprio acesso." },
+          { status: 409 },
+        );
+      const removesAdmin =
+        targetRole === "Administrador" &&
+        targetStatus === "Ativo" &&
+        (action === "remove" ||
+          (action === "changeRole" && body.role !== "Administrador"));
+      if (removesAdmin) {
+        const admins = await db
+          .prepare(
+            "SELECT COUNT(*) n FROM platform_users WHERE tenant_id=? AND role='Administrador' AND status='Ativo'",
+          )
+          .bind(tenantId)
+          .first<Record<string, unknown>>();
+        if (Number(admins?.n || 0) <= 1)
+          return Response.json(
+            {
+              error: "A empresa deve manter pelo menos um Administrador ativo.",
+            },
+            { status: 409 },
+          );
+      }
+      if (action === "activate")
+        return Response.json(
+          {
+            error:
+              "A ativação exige a aceitação do convite pelo destinatário autenticado.",
+          },
+          { status: 409 },
+        );
+      else if (action === "resend") {
+        if (targetStatus === "Ativo")
+          return Response.json(
+            { error: "Um acesso ativo não requer reenvio." },
+            { status: 409 },
+          );
+        await db
+          .prepare(
+            "UPDATE platform_users SET status='Convite enviado',created_at=? WHERE id=? AND tenant_id=?",
+          )
+          .bind(created, body.userId, tenantId)
+          .run();
+        issuedInvite = await issueInvitation(db, tenantId, body.userId);
+        summary = `Convite reenviado a ${targetEmail}`;
+      } else if (action === "cancel") {
+        if (targetStatus === "Ativo")
+          return Response.json(
+            { error: "Remova o acesso ativo em vez de cancelar o convite." },
+            { status: 409 },
+          );
+        await db.batch([
+          db
+            .prepare(
+              "UPDATE platform_users SET status='Cancelado' WHERE id=? AND tenant_id=?",
+            )
+            .bind(body.userId, tenantId),
+          db
+            .prepare(
+              "UPDATE invitation_tokens SET revoked_at=? WHERE tenant_id=? AND user_id=? AND used_at IS NULL",
+            )
+            .bind(created, tenantId, body.userId),
+        ]);
+        summary = `Convite de ${targetEmail} cancelado`;
+      } else if (action === "changeRole") {
+        if (!validRoles.includes(body.role))
+          return Response.json({ error: "Função inválida." }, { status: 400 });
+        await db
+          .prepare(
+            "UPDATE platform_users SET role=? WHERE id=? AND tenant_id=?",
+          )
+          .bind(body.role, body.userId, tenantId)
+          .run();
+        summary = `Função de ${targetEmail} alterada para ${body.role}`;
+      } else if (action === "remove") {
+        await db.batch([
+          db
+            .prepare(
+              "UPDATE platform_users SET status='Removido' WHERE id=? AND tenant_id=?",
+            )
+            .bind(body.userId, tenantId),
+          db
+            .prepare(
+              "UPDATE invitation_tokens SET revoked_at=? WHERE tenant_id=? AND user_id=? AND used_at IS NULL",
+            )
+            .bind(created, tenantId, body.userId),
+        ]);
+        summary = `Acesso de ${targetEmail} removido`;
+      } else
+        return Response.json(
+          { error: "Ação de utilizador não suportada." },
+          { status: 400 },
+        );
     } else if (body.type === "employee") {
-      if (!body.employeeNumber?.trim() || !body.firstName?.trim() || !body.lastName?.trim() || !body.organizationId || !body.hireDate) return Response.json({error:"Preencha todos os campos obrigatórios."},{status:400});
-      if (await db.prepare("SELECT id FROM employees WHERE tenant_id=? AND employee_number=?").bind(tenantId,body.employeeNumber.trim().toUpperCase()).first()) return Response.json({error:"O número de colaborador já existe."},{status:409});
-      summary=`Colaborador ${body.firstName.trim()} ${body.lastName.trim()} criado`;
-      await db.prepare("INSERT INTO employees (id,tenant_id,employee_number,first_name,last_name,organization_id,job_title,hire_date,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(recordId,tenantId,body.employeeNumber.trim().toUpperCase(),body.firstName.trim(),body.lastName.trim(),body.organizationId,body.jobTitle?.trim()||"Por definir",body.hireDate,"Pendente",created).run();
+      if (
+        !body.employeeNumber?.trim() ||
+        !body.firstName?.trim() ||
+        !body.lastName?.trim() ||
+        !body.organizationId ||
+        !body.hireDate
+      )
+        return Response.json(
+          { error: "Preencha todos os campos obrigatórios." },
+          { status: 400 },
+        );
+      if (
+        await db
+          .prepare(
+            "SELECT id FROM employees WHERE tenant_id=? AND employee_number=?",
+          )
+          .bind(tenantId, body.employeeNumber.trim().toUpperCase())
+          .first()
+      )
+        return Response.json(
+          { error: "O número de colaborador já existe." },
+          { status: 409 },
+        );
+      summary = `Colaborador ${body.firstName.trim()} ${body.lastName.trim()} criado`;
+      await db
+        .prepare(
+          "INSERT INTO employees (id,tenant_id,employee_number,first_name,last_name,organization_id,job_title,hire_date,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          recordId,
+          tenantId,
+          body.employeeNumber.trim().toUpperCase(),
+          body.firstName.trim(),
+          body.lastName.trim(),
+          body.organizationId,
+          body.jobTitle?.trim() || "Por definir",
+          body.hireDate,
+          "Pendente",
+          created,
+        )
+        .run();
     } else if (body.type === "dimension") {
-      if (!body.name?.trim() || !body.code?.trim()) return Response.json({error:"Nome e código são obrigatórios."},{status:400});
-      if (await db.prepare("SELECT id FROM financial_dimensions WHERE tenant_id=? AND code=?").bind(tenantId,body.code.trim().toUpperCase()).first()) return Response.json({error:"Já existe uma dimensão com este código."},{status:409});
-      summary=`Dimensão ${body.name.trim()} criada`;
-      await db.prepare("INSERT INTO financial_dimensions (id,tenant_id,code,name,description,status,created_at) VALUES (?,?,?,?,?,?,?)").bind(recordId,tenantId,body.code.trim().toUpperCase(),body.name.trim(),body.description?.trim()||"Dimensão configurável","Ativa",created).run();
+      if (!body.name?.trim() || !body.code?.trim())
+        return Response.json(
+          { error: "Nome e código são obrigatórios." },
+          { status: 400 },
+        );
+      if (
+        await db
+          .prepare(
+            "SELECT id FROM financial_dimensions WHERE tenant_id=? AND code=?",
+          )
+          .bind(tenantId, body.code.trim().toUpperCase())
+          .first()
+      )
+        return Response.json(
+          { error: "Já existe uma dimensão com este código." },
+          { status: 409 },
+        );
+      summary = `Dimensão ${body.name.trim()} criada`;
+      await db
+        .prepare(
+          "INSERT INTO financial_dimensions (id,tenant_id,code,name,description,status,created_at) VALUES (?,?,?,?,?,?,?)",
+        )
+        .bind(
+          recordId,
+          tenantId,
+          body.code.trim().toUpperCase(),
+          body.name.trim(),
+          body.description?.trim() || "Dimensão configurável",
+          "Ativa",
+          created,
+        )
+        .run();
     } else if (body.type === "dimensionMember") {
-      if (!body.dimensionId || !body.name?.trim() || !body.code?.trim()) return Response.json({error:"Dimensão, nome e código são obrigatórios."},{status:400});
-      if (await db.prepare("SELECT id FROM dimension_members WHERE tenant_id=? AND dimension_id=? AND code=?").bind(tenantId,body.dimensionId,body.code.trim().toUpperCase()).first()) return Response.json({error:"Este código já existe na dimensão."},{status:409});
-      if (body.parentId && !(await db.prepare("SELECT id FROM dimension_members WHERE tenant_id=? AND dimension_id=? AND id=?").bind(tenantId,body.dimensionId,body.parentId).first())) return Response.json({error:"O membro superior não pertence à dimensão."},{status:400});
-      summary=`Membro ${body.name.trim()} adicionado à dimensão`;
-      await db.prepare("INSERT INTO dimension_members (id,tenant_id,dimension_id,code,name,parent_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(recordId,tenantId,body.dimensionId,body.code.trim().toUpperCase(),body.name.trim(),body.parentId||null,"Ativo",created).run();
-    } else return Response.json({error:"Operação não suportada."},{status:400});
-    await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,body.type==="userAction"?String(body.action||"UPDATE").toUpperCase():"CREATE",body.type,body.type==="userAction"?body.userId:recordId,actor,summary,created).run();
-    return Response.json({...await setupSnapshot(db,tenantId,organizationId),...(issuedInvite?{invite:issuedInvite}:{})},{status:201});
-  } catch(error) { return apiFailure(error,"Não foi possível guardar os dados de configuração."); }
-}
-
-async function hcmSnapshot(db:D1Database,tenantId:string,organizationId:string|null=null){
- const [employees,contracts,absenceTypes,balances,absenceRequests,audit]=await Promise.all([
-  db.prepare("SELECT e.*,o.name organization_name,c.id active_contract_id,c.contract_number,c.contract_type,c.start_date contract_start_date,c.end_date contract_end_date,c.work_schedule,c.weekly_minutes FROM employees e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id LEFT JOIN employee_contracts c ON c.employee_id=e.id AND c.tenant_id=e.tenant_id AND c.status='Ativo' WHERE e.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY e.employee_number").bind(tenantId,organizationId,organizationId).all(),
-  db.prepare("SELECT c.*,e.employee_number,e.first_name||' '||e.last_name employee_name,o.name organization_name FROM employee_contracts c JOIN employees e ON e.id=c.employee_id AND e.tenant_id=c.tenant_id JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id WHERE c.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY c.created_at DESC").bind(tenantId,organizationId,organizationId).all(),
-  db.prepare("SELECT * FROM hcm_absence_types WHERE tenant_id=? ORDER BY status,name").bind(tenantId).all(),
-  db.prepare("SELECT b.*,e.employee_number,e.first_name||' '||e.last_name employee_name,t.name absence_type_name FROM hcm_absence_balances b JOIN employees e ON e.id=b.employee_id AND e.tenant_id=b.tenant_id JOIN hcm_absence_types t ON t.id=b.absence_type_id AND t.tenant_id=b.tenant_id WHERE b.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY b.fiscal_year DESC,e.employee_number").bind(tenantId,organizationId,organizationId).all(),
-  db.prepare("SELECT r.*,e.employee_number,e.first_name||' '||e.last_name employee_name,o.name organization_name,t.code absence_type_code,t.name absence_type_name,t.paid,t.requires_balance FROM hcm_absence_requests r JOIN employees e ON e.id=r.employee_id AND e.tenant_id=r.tenant_id JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id JOIN hcm_absence_types t ON t.id=r.absence_type_id AND t.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY r.requested_at DESC").bind(tenantId,organizationId,organizationId).all(),
-  organizationId?Promise.resolve({results:[]}):db.prepare("SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('employeeContract','absenceType','absenceBalance','absenceRequest') ORDER BY created_at DESC LIMIT 10").bind(tenantId).all(),
- ]);return{employees:employees.results,contracts:contracts.results,absenceTypes:absenceTypes.results,balances:balances.results,absenceRequests:absenceRequests.results,audit:audit.results};
-}
-async function hcmApi(request:Request,db:D1Database,tenantId:string,organizationId:string|null=null){try{await ensureSetupSchema(db);if(request.method==="GET")return Response.json(await hcmSnapshot(db,tenantId,organizationId));if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});const body=await request.json() as Record<string,string>,created=new Date().toISOString(),actor=actorEmail(request)||"utilizador autenticado";let contractId=body.contractId,summary="",action="CREATE";
- if(body.type==="createContract"){
-  const weeklyMinutes=Number(body.weeklyMinutes),employee=await db.prepare("SELECT id,hire_date FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)").bind(body.employeeId,tenantId,organizationId,organizationId).first<Record<string,unknown>>();if(!employee)return Response.json({error:"Colaborador fora do âmbito autorizado."},{status:403});if(!body.contractNumber?.trim()||!body.contractType?.trim()||!/^\d{4}-\d{2}-\d{2}$/.test(body.startDate||"")||!body.workSchedule?.trim()||!Number.isInteger(weeklyMinutes)||weeklyMinutes<=0||weeklyMinutes>10080)return Response.json({error:"Número, tipo, início, horário e carga semanal válidos são obrigatórios."},{status:400});if(body.endDate&&(!/^\d{4}-\d{2}-\d{2}$/.test(body.endDate)||body.endDate<body.startDate))return Response.json({error:"A data de fim não pode ser anterior ao início."},{status:400});contractId=uid();await db.prepare("INSERT INTO employee_contracts (id,tenant_id,created_at,employee_id,contract_number,contract_type,start_date,end_date,work_schedule,weekly_minutes,country_pack,status,activated_at,ended_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(contractId,tenantId,created,body.employeeId,body.contractNumber.trim().toUpperCase(),body.contractType.trim(),body.startDate,body.endDate||null,body.workSchedule.trim(),weeklyMinutes,body.countryPack?.trim()||null,"Rascunho",null,null).run();summary=`Contrato ${body.contractNumber.trim().toUpperCase()} criado em rascunho`;
- }else if(body.type==="activateContract"){
-  const result=await db.prepare("UPDATE employee_contracts SET status='Ativo',activated_at=? WHERE id=? AND tenant_id=? AND status='Rascunho' AND EXISTS (SELECT 1 FROM employees e WHERE e.id=employee_contracts.employee_id AND e.tenant_id=employee_contracts.tenant_id AND (? IS NULL OR e.organization_id=?))").bind(created,contractId,tenantId,organizationId,organizationId).run();if(!Number(result.meta.changes||0))return Response.json({error:"O contrato não está disponível para ativação neste âmbito."},{status:409});summary="Contrato ativado; colaborador elegível para configuração salarial";action="ACTIVATE";
- }else if(body.type==="endContract"){
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(body.endDate||""))return Response.json({error:"Indique uma data de término válida."},{status:400});const result=await db.prepare("UPDATE employee_contracts SET status='Terminado',end_date=?,ended_at=? WHERE id=? AND tenant_id=? AND status='Ativo' AND start_date<=? AND EXISTS (SELECT 1 FROM employees e WHERE e.id=employee_contracts.employee_id AND e.tenant_id=employee_contracts.tenant_id AND (? IS NULL OR e.organization_id=?))").bind(body.endDate,created,contractId,tenantId,body.endDate,organizationId,organizationId).run();if(!Number(result.meta.changes||0))return Response.json({error:"O contrato não está ativo ou a data de término é inválida."},{status:409});summary=`Contrato terminado em ${body.endDate}`;action="END";
- }else if(body.type==="absenceType"){
-  if(organizationId)return Response.json({error:"A configuração de tipos exige âmbito de todo o tenant."},{status:403});if(!body.code?.trim()||!body.name?.trim()||!["Dias","Horas"].includes(body.unit))return Response.json({error:"Código, nome e unidade são obrigatórios."},{status:400});contractId=uid();await db.prepare("INSERT INTO hcm_absence_types (id,tenant_id,code,name,unit,paid,requires_balance,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(contractId,tenantId,body.code.trim().toUpperCase(),body.name.trim(),body.unit,body.paid==="on"?1:0,body.requiresBalance==="on"?1:0,"Ativo",created).run();summary=`Tipo de ausência ${body.name.trim()} criado`;action="CONFIGURE";
- }else if(body.type==="absenceBalance"){
-  const minutes=Number(body.allowanceMinutes),employee=await db.prepare("SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)").bind(body.employeeId,tenantId,organizationId,organizationId).first();if(!employee||!Number.isInteger(minutes)||minutes<0||!body.absenceTypeId||!Number.isInteger(Number(body.fiscalYear)))return Response.json({error:"Colaborador, tipo, ano e saldo válido são obrigatórios."},{status:400});contractId=uid();await db.prepare("INSERT INTO hcm_absence_balances (id,tenant_id,employee_id,absence_type_id,fiscal_year,allowance_minutes,used_minutes,created_at) VALUES (?,?,?,?,?,?,0,?)").bind(contractId,tenantId,body.employeeId,body.absenceTypeId,Number(body.fiscalYear),minutes,created).run();summary=`Saldo de ausência configurado para ${body.fiscalYear}`;action="ALLOCATE";
- }else if(body.type==="absenceRequest"){
-  const minutes=Number(body.requestedMinutes),employee=await db.prepare("SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'").bind(body.employeeId,tenantId,organizationId,organizationId).first();if(!employee||!body.absenceTypeId||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(body.startDate||"")||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(body.endDate||"")||!Number.isInteger(minutes)||minutes<=0)return Response.json({error:"Colaborador ativo, tipo, datas e duração são obrigatórios."},{status:400});contractId=uid();await db.prepare("INSERT INTO hcm_absence_requests (id,tenant_id,employee_id,absence_type_id,start_date,end_date,requested_minutes,reason,status,requested_by,requested_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(contractId,tenantId,body.employeeId,body.absenceTypeId,body.startDate,body.endDate,minutes,body.reason?.trim()||null,"Pendente",actor,created).run();summary=`Pedido de ausência criado de ${body.startDate} a ${body.endDate}`;action="REQUEST";
- }else if(body.type==="decideAbsence"){
-  const decision=body.decision,requestRow=await db.prepare("SELECT r.*,t.requires_balance,e.organization_id FROM hcm_absence_requests r JOIN hcm_absence_types t ON t.id=r.absence_type_id AND t.tenant_id=r.tenant_id JOIN employees e ON e.id=r.employee_id AND e.tenant_id=r.tenant_id WHERE r.id=? AND r.tenant_id=? AND r.status='Pendente' AND (? IS NULL OR e.organization_id=?)").bind(body.requestId,tenantId,organizationId,organizationId).first<Record<string,unknown>>();if(!requestRow||!["Aprovado","Rejeitado","Cancelado"].includes(decision))return Response.json({error:"Pedido pendente e decisão válida são obrigatórios."},{status:409});if(decision!=="Cancelado"&&requestRow.requested_by===actor)return Response.json({error:"Segregação de funções: quem criou o pedido não pode aprová-lo ou rejeitá-lo."},{status:403});contractId=body.requestId;if(decision==="Aprovado"&&Number(requestRow.requires_balance)){const year=Number(String(requestRow.start_date).slice(0,4)),balance=await db.prepare("SELECT allowance_minutes-used_minutes available FROM hcm_absence_balances WHERE tenant_id=? AND employee_id=? AND absence_type_id=? AND fiscal_year=?").bind(tenantId,requestRow.employee_id,requestRow.absence_type_id,year).first<Record<string,unknown>>();if(!balance||Number(balance.available)<Number(requestRow.requested_minutes))return Response.json({error:"Saldo de ausência insuficiente para aprovação."},{status:409})}const result=await db.prepare("UPDATE hcm_absence_requests SET status=?,decided_by=?,decided_at=?,decision_note=? WHERE id=? AND tenant_id=? AND status='Pendente'").bind(decision,actor,created,body.decisionNote?.trim()||null,body.requestId,tenantId).run();if(!Number(result.meta.changes||0))return Response.json({error:"O pedido foi decidido por outro utilizador."},{status:409});summary=`Pedido de ausência ${decision.toLowerCase()}`;action=decision.toUpperCase();
- }else return Response.json({error:"Operação HCM não suportada."},{status:400});const entityType=body.type.includes("absence")||body.type==="decideAbsence"?(body.type==="absenceType"?"absenceType":body.type==="absenceBalance"?"absenceBalance":"absenceRequest"):"employeeContract";await db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,created,action,entityType,contractId,actor,summary).run();return Response.json(await hcmSnapshot(db,tenantId,organizationId),{status:201});}catch(error){return apiFailure(error,"Não foi possível concluir a operação HCM.")}}
-
-function parseMinor(value:string){const clean=value.trim().replace(/\s/g,"").replace(",",".");if(!/^-?\d+(\.\d{1,2})?$/.test(clean))throw new Error("Indique um valor monetário válido, com até duas casas decimais.");const negative=clean.startsWith("-");const [whole,dec=""]=clean.replace("-","").split(".");const minor=Number(whole)*100+Number(dec.padEnd(2,"0"));if(!Number.isSafeInteger(minor))throw new Error("Valor fora do limite permitido.");return negative?-minor:minor}
-function parseScaled(value:string,scale:number){const clean=value.trim().replace(",",".");if(!/^-?\d+(\.\d{1,3})?$/.test(clean)||![1,10,100,1000].includes(scale))throw new Error("Valor ou escala inválida.");const scaled=Math.round(Number(clean)*scale);if(!Number.isSafeInteger(scaled))throw new Error("Valor fora do limite permitido.");return scaled}
-async function performanceSnapshot(db:D1Database, url:URL,tenantId:string,organizationId:string|null=null){
-  const period=url.searchParams.get("period")||new Date().toISOString().slice(0,7),currency=(url.searchParams.get("currency")||"AOA").toUpperCase(),version=url.searchParams.get("version")||"";
-  const [entries,versions,organizations,members,summary,audit]=await Promise.all([
-    db.prepare("SELECT e.*, o.name AS organization_name, m.name AS dimension_member_name FROM performance_entries e JOIN organizations o ON o.id=e.organization_id LEFT JOIN dimension_members m ON m.id=e.dimension_member_id WHERE e.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND e.period=? AND e.currency=? AND (e.scenario='Actual' OR e.version_id=?) ORDER BY e.created_at DESC LIMIT 100").bind(tenantId,organizationId,organizationId,period,currency,version).all(),
-    db.prepare("SELECT * FROM budget_versions WHERE tenant_id=? ORDER BY fiscal_year DESC, created_at DESC").bind(tenantId).all(),
-    db.prepare("SELECT id,name,code,currency FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name").bind(tenantId,organizationId,organizationId).all(),
-    db.prepare("SELECT m.id,m.name,m.code,d.name AS dimension_name FROM dimension_members m JOIN financial_dimensions d ON d.id=m.dimension_id WHERE m.tenant_id=? AND m.status='Ativo' ORDER BY d.name,m.code").bind(tenantId).all(),
-    db.prepare("SELECT COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) AS actual_minor, COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) AS budget_minor FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?").bind(version,tenantId,organizationId,organizationId,period,currency).first(),
-    organizationId?Promise.resolve({results:[]}):db.prepare("SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('performanceEntry','budgetVersion','approveBudget') ORDER BY created_at DESC LIMIT 6").bind(tenantId).all(),
-  ]);
-  const actual=Number(summary?.actual_minor||0),budget=Number(summary?.budget_minor||0),variance=actual-budget,varianceBps=budget===0?null:Math.trunc(variance*10000/budget);
-  return {period,currency,entries:entries.results,versions:versions.results,organizations:organizations.results,members:members.results,summary:{actualMinor:actual,budgetMinor:budget,varianceMinor:variance,varianceBps},audit:audit.results};
-}
-async function performanceApi(request:Request,db:D1Database,tenantId:string,organizationId:string|null=null){
- try{await ensureSetupSchema(db);const url=new URL(request.url);if(request.method==="GET")return Response.json(await performanceSnapshot(db,url,tenantId,organizationId));if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
- const body=await request.json() as Record<string,string>,created=new Date().toISOString(),recordId=uid(),actor=actorEmail(request)||"utilizador autenticado";let summary="",entityType=body.type;
- if(body.type==="budgetVersion"){
-   const year=Number(body.fiscalYear);if(!body.name?.trim()||!Number.isInteger(year)||year<2000||year>2200)return Response.json({error:"Nome e ano fiscal válidos são obrigatórios."},{status:400});
-   summary=`Versão orçamental ${body.name.trim()} criada`;await db.prepare("INSERT INTO budget_versions (id,tenant_id,name,fiscal_year,status,approved_at,created_at) VALUES (?,?,?,?,?,?,?)").bind(recordId,tenantId,body.name.trim(),year,"Rascunho",null,created).run();
- }else if(body.type==="performanceEntry"){
-   if(!body.organizationId||!/^\d{4}-(0[1-9]|1[0-2])$/.test(body.period||"")||!['Actual','Budget'].includes(body.scenario)||!body.currency?.match(/^[A-Za-z]{3}$/)||!body.lineCode?.trim()||!body.lineName?.trim())return Response.json({error:"Preencha organização, período, cenário, moeda e linha."},{status:400});
-   if(!(await db.prepare("SELECT id FROM organizations WHERE id=? AND tenant_id=?").bind(body.organizationId,tenantId).first()))return Response.json({error:"Organização inválida."},{status:400});
-   if(body.scenario==="Budget"){if(!body.versionId)return Response.json({error:"Selecione uma versão orçamental."},{status:400});const v=await db.prepare("SELECT status FROM budget_versions WHERE id=? AND tenant_id=?").bind(body.versionId,tenantId).first<{status:string}>();if(!v||v.status!=="Rascunho")return Response.json({error:"Apenas versões em rascunho aceitam lançamentos."},{status:409});}
-   if(body.dimensionMemberId&&!(await db.prepare("SELECT id FROM dimension_members WHERE id=? AND tenant_id=?").bind(body.dimensionMemberId,tenantId).first()))return Response.json({error:"Membro dimensional inválido."},{status:400});
-   const amount=parseMinor(body.amount);summary=`${body.scenario==='Actual'?'Realizado':'Orçamento'} ${body.lineCode.trim().toUpperCase()} registado`;
-   await db.prepare("INSERT INTO performance_entries (id,tenant_id,organization_id,period,scenario,version_id,currency,line_code,line_name,dimension_member_id,amount_minor,source,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(recordId,tenantId,body.organizationId,body.period,body.scenario,body.scenario==="Budget"?body.versionId:null,body.currency.toUpperCase(),body.lineCode.trim().toUpperCase(),body.lineName.trim(),body.dimensionMemberId||null,amount,"Manual",created).run();
- }else if(body.type==="approveBudget"){
-   const security=await securityContext(request,db);if(security instanceof Response)return security;if(!["Administrador","Gestor"].includes(security.role))return Response.json({error:"Segregação de funções: o preparador Financeiro não pode aprovar o Budget."},{status:403});
-   const version=await db.prepare("SELECT name,status FROM budget_versions WHERE id=? AND tenant_id=?").bind(body.versionId,tenantId).first<{name:string,status:string}>();if(!version||version.status!=="Rascunho")return Response.json({error:"A versão não está disponível para aprovação."},{status:409});
-   const approval=await db.prepare("UPDATE budget_versions SET status='Aprovado', approved_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'").bind(created,body.versionId,tenantId).run();if(!Number(approval.meta.changes||0))return Response.json({error:"A versão foi alterada por outro utilizador. Atualize os dados."},{status:409});summary=`Versão orçamental ${version.name} aprovada`;entityType="approveBudget";
- }else return Response.json({error:"Operação não suportada."},{status:400});
- await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,body.type==="approveBudget"?"APPROVE":"CREATE",entityType,body.type==="approveBudget"?body.versionId:recordId,actor,summary,created).run();
- return Response.json(await performanceSnapshot(db,new URL(`${url.origin}/api/performance?period=${encodeURIComponent(body.period||url.searchParams.get('period')||new Date().toISOString().slice(0,7))}&currency=${encodeURIComponent(body.currency||url.searchParams.get('currency')||'AOA')}&version=${encodeURIComponent(body.versionId||url.searchParams.get('version')||'')}`),tenantId,organizationId),{status:201});
- }catch(error){return apiFailure(error,"Não foi possível processar os dados financeiros.")}
-}
-
-async function scenariosApi(request:Request,db:D1Database,security:SecurityContext){try{const tenantId=security.tenantId,organizationId=security.organizationId,url=new URL(request.url),period=url.searchParams.get("period")||new Date().toISOString().slice(0,7),currency=(url.searchParams.get("currency")||"AOA").toUpperCase(),versionId=url.searchParams.get("version")||"";const snapshot=async()=>{const version=versionId?await db.prepare("SELECT * FROM planning_versions WHERE id=? AND tenant_id=?").bind(versionId,tenantId).first<Record<string,unknown>>():null,[versions,organizations,members,entries,totals,audit]=await Promise.all([db.prepare("SELECT v.*,b.name base_budget_name,(SELECT COUNT(*) FROM planning_entries e WHERE e.version_id=v.id AND e.tenant_id=v.tenant_id) entry_count FROM planning_versions v LEFT JOIN budget_versions b ON b.id=v.base_budget_id AND b.tenant_id=v.tenant_id WHERE v.tenant_id=? ORDER BY v.fiscal_year DESC,v.created_at DESC").bind(tenantId).all(),db.prepare("SELECT id,code,name,currency FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name").bind(tenantId,organizationId,organizationId).all(),db.prepare("SELECT m.id,m.code,m.name,d.name dimension_name FROM dimension_members m JOIN financial_dimensions d ON d.id=m.dimension_id AND d.tenant_id=m.tenant_id WHERE m.tenant_id=? AND m.status='Ativo' ORDER BY d.name,m.code").bind(tenantId).all(),versionId?db.prepare("SELECT e.*,o.name organization_name,m.name dimension_member_name FROM planning_entries e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id LEFT JOIN dimension_members m ON m.id=e.dimension_member_id WHERE e.tenant_id=? AND e.version_id=? AND (? IS NULL OR e.organization_id=?) AND e.period=? AND e.currency=? ORDER BY e.line_code,e.created_at").bind(tenantId,versionId,organizationId,organizationId,period,currency).all():Promise.resolve({results:[]}),versionId?db.prepare("SELECT COALESCE((SELECT SUM(amount_minor) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? AND scenario='Actual'),0) actual,COALESCE((SELECT SUM(amount_minor) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? AND scenario='Budget' AND version_id=?),0) budget,COALESCE((SELECT SUM(amount_minor) FROM planning_entries WHERE tenant_id=? AND version_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?),0) forecast").bind(tenantId,organizationId,organizationId,period,currency,tenantId,organizationId,organizationId,period,currency,version?.base_budget_id||"",tenantId,versionId,organizationId,organizationId,period,currency).first<Record<string,unknown>>():Promise.resolve({actual:0,budget:0,forecast:0}),organizationId?Promise.resolve({results:[]}):db.prepare("SELECT * FROM audit_events WHERE tenant_id=? AND entity_type='planningVersion' ORDER BY created_at DESC LIMIT 10").bind(tenantId).all()]);const actual=Number(totals?.actual||0),budget=Number(totals?.budget||0),forecast=Number(totals?.forecast||0);return{period,currency,selectedVersion:version,versions:versions.results,organizations:organizations.results,members:members.results,entries:entries.results,summary:{actualMinor:actual,budgetMinor:budget,forecastMinor:forecast,forecastVsActualMinor:forecast-actual,forecastVsBudgetMinor:forecast-budget},audit:audit.results}};if(request.method==="GET")return Response.json(await snapshot());if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});const body=await request.json() as Record<string,string>,now=new Date().toISOString(),id=uid();if(body.type==="createPlanningVersion"){const year=Number(body.fiscalYear);if(!body.name?.trim()||!["Forecast","Cenário"].includes(body.versionType)||!Number.isInteger(year)||year<2000||year>2200)return Response.json({error:"Nome, tipo e ano fiscal válidos são obrigatórios."},{status:400});await db.prepare("INSERT INTO planning_versions (id,tenant_id,name,version_type,fiscal_year,base_budget_id,status,created_by,created_at) VALUES (?,?,?,?,?,?,?, ?,?)").bind(id,tenantId,body.name.trim(),body.versionType,year,body.baseBudgetId||null,"Rascunho",security.email,now).run();await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,"CREATE","planningVersion",id,security.email,`${body.versionType} ${body.name.trim()} criado`,now).run()}else if(body.type==="planningEntry"){if(!body.versionId||!body.organizationId||!/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(body.period||"")||!/^[A-Za-z]{3}$/.test(body.currency||"")||!body.lineCode?.trim()||!body.lineName?.trim())return Response.json({error:"Versão, organização, período, moeda e linha são obrigatórios."},{status:400});if(organizationId&&body.organizationId!==organizationId)return Response.json({error:"Entrada fora do âmbito organizacional autorizado."},{status:403});await db.prepare("INSERT INTO planning_entries (id,tenant_id,version_id,organization_id,period,currency,line_code,line_name,dimension_member_id,amount_minor,assumption_note,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,tenantId,body.versionId,body.organizationId,body.period,body.currency.toUpperCase(),body.lineCode.trim().toUpperCase(),body.lineName.trim(),body.dimensionMemberId||null,parseMinor(body.amount),body.assumptionNote?.trim()||null,security.email,now).run()}else if(body.type==="approvePlanningVersion"){const version=await db.prepare("SELECT * FROM planning_versions WHERE id=? AND tenant_id=? AND status='Rascunho'").bind(body.versionId,tenantId).first<Record<string,unknown>>();if(!version)return Response.json({error:"Versão em rascunho não encontrada."},{status:404});if(!["Administrador","Gestor"].includes(security.role))return Response.json({error:"A aprovação exige Administrador ou Gestor."},{status:403});if(String(version.created_by).toLowerCase()===security.email.toLowerCase())return Response.json({error:"Segregação de funções: o criador não pode aprovar a própria versão."},{status:403});const count=await db.prepare("SELECT COUNT(*) n FROM planning_entries WHERE tenant_id=? AND version_id=?").bind(tenantId,body.versionId).first<Record<string,unknown>>();if(!Number(count?.n||0))return Response.json({error:"A versão precisa de pelo menos uma entrada antes da aprovação."},{status:409});const result=await db.prepare("UPDATE planning_versions SET status='Aprovado',approved_by=?,approved_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'").bind(security.email,now,body.versionId,tenantId).run();if(!Number(result.meta.changes||0))return Response.json({error:"A versão foi alterada em paralelo."},{status:409});await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,"APPROVE","planningVersion",body.versionId,security.email,`Versão ${version.name} aprovada`,now).run()}else return Response.json({error:"Operação de cenário não suportada."},{status:400});const next=new URL(request.url);if(body.versionId)next.searchParams.set("version",body.versionId);else next.searchParams.set("version",id);return scenariosApi(new Request(next,{method:"GET",headers:request.headers}),db,security)}catch(error){return apiFailure(error,"Não foi possível processar Forecast e cenários.")}}
-
-async function goalsApi(request:Request,db:D1Database,security:SecurityContext){try{const tenantId=security.tenantId,organizationId=security.organizationId;const snapshot=async()=>{const [cycles,goalRows,organizations,owners,audit]=await Promise.all([db.prepare("SELECT c.*,(SELECT COUNT(*) FROM performance_goals g WHERE g.cycle_id=c.id AND g.tenant_id=c.tenant_id) goal_count FROM performance_cycles c WHERE c.tenant_id=? ORDER BY c.start_date DESC").bind(tenantId).all(),db.prepare("SELECT g.*,o.name organization_name,(SELECT value_scaled FROM performance_goal_checkins ci WHERE ci.goal_id=g.id AND ci.tenant_id=g.tenant_id ORDER BY ci.checked_at DESC LIMIT 1) current_scaled,(SELECT COUNT(*) FROM performance_goal_checkins ci WHERE ci.goal_id=g.id AND ci.tenant_id=g.tenant_id) checkin_count FROM performance_goals g JOIN organizations o ON o.id=g.organization_id AND o.tenant_id=g.tenant_id WHERE g.tenant_id=? AND (? IS NULL OR g.organization_id=?) ORDER BY CASE g.status WHEN 'Ativo' THEN 1 WHEN 'Rascunho' THEN 2 ELSE 3 END,g.created_at DESC").bind(tenantId,organizationId,organizationId).all<Record<string,unknown>>(),db.prepare("SELECT id,code,name FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name").bind(tenantId,organizationId,organizationId).all(),db.prepare("SELECT name,email,role FROM platform_users WHERE tenant_id=? AND status='Ativo' AND (? IS NULL OR organization_id IS NULL OR organization_id=?) ORDER BY name").bind(tenantId,organizationId,organizationId).all(),organizationId?Promise.resolve({results:[]}):db.prepare("SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('performanceCycle','performanceGoal') ORDER BY created_at DESC LIMIT 12").bind(tenantId).all()]);const goals=goalRows.results.map(g=>{const start=Number(g.start_scaled),target=Number(g.target_scaled),current=g.current_scaled===null||g.current_scaled===undefined?start:Number(g.current_scaled),raw=g.direction==="Aumentar"?(current-start)*10000/(target-start):(start-current)*10000/(start-target);return{...g,current_scaled:current,progress_bps:Math.max(0,Math.min(10000,Math.trunc(raw)))}});return{cycles:cycles.results,goals,organizations:organizations.results,owners:owners.results,audit:audit.results}};if(request.method==="GET")return Response.json(await snapshot());if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});const body=await request.json() as Record<string,string>,now=new Date().toISOString(),id=uid();if(body.type==="createCycle"){if(!body.name?.trim()||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(body.startDate||"")||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(body.endDate||"")||body.endDate<body.startDate)return Response.json({error:"Nome e intervalo válido são obrigatórios."},{status:400});await db.prepare("INSERT INTO performance_cycles (id,tenant_id,name,start_date,end_date,status,created_by,created_at) VALUES (?,?,?,?,?,'Rascunho',?,?)").bind(id,tenantId,body.name.trim(),body.startDate,body.endDate,security.email,now).run();await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,"CREATE","performanceCycle",id,security.email,`Ciclo ${body.name.trim()} criado`,now).run()}else if(body.type==="createGoal"){const scale=Number(body.scale||100),weight=Math.round(Number((body.weight||"").replace(",","."))*100);if(!body.cycleId||!body.organizationId||!body.ownerEmail||!body.title?.trim()||!body.metricName?.trim()||!body.unit?.trim()||!["Aumentar","Reduzir"].includes(body.direction)||!Number.isInteger(weight)||weight<1||weight>10000)return Response.json({error:"Ciclo, organização, responsável, meta, métrica, direção e peso são obrigatórios."},{status:400});if(organizationId&&body.organizationId!==organizationId)return Response.json({error:"Objetivo fora do âmbito organizacional autorizado."},{status:403});await db.prepare("INSERT INTO performance_goals (id,tenant_id,cycle_id,organization_id,owner_email,title,description,metric_name,unit,direction,start_scaled,target_scaled,scale,weight_bps,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Rascunho',?,?)").bind(id,tenantId,body.cycleId,body.organizationId,body.ownerEmail.toLowerCase(),body.title.trim(),body.description?.trim()||null,body.metricName.trim(),body.unit.trim(),body.direction,parseScaled(body.startValue,scale),parseScaled(body.targetValue,scale),scale,weight,security.email,now).run()}else if(body.type==="activateCycle"){const cycle=await db.prepare("SELECT * FROM performance_cycles WHERE id=? AND tenant_id=? AND status='Rascunho'").bind(body.cycleId,tenantId).first<Record<string,unknown>>();if(!cycle)return Response.json({error:"Ciclo em rascunho não encontrado."},{status:404});if(!["Administrador","Gestor"].includes(security.role)||cycle.created_by===security.email)return Response.json({error:"A ativação exige maker-checker por Administrador ou Gestor."},{status:403});const count=await db.prepare("SELECT COUNT(*) n FROM performance_goals WHERE cycle_id=? AND tenant_id=?").bind(body.cycleId,tenantId).first<Record<string,unknown>>();if(!Number(count?.n||0))return Response.json({error:"Adicione pelo menos um objetivo antes de ativar o ciclo."},{status:409});await db.prepare("UPDATE performance_cycles SET status='Ativo',activated_by=?,activated_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'").bind(security.email,now,body.cycleId,tenantId).run();await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,"ACTIVATE","performanceCycle",body.cycleId,security.email,`Ciclo ${cycle.name} ativado`,now).run()}else if(body.type==="goalCheckin"){const goal=await db.prepare("SELECT * FROM performance_goals WHERE id=? AND tenant_id=? AND status='Ativo' AND (? IS NULL OR organization_id=?)").bind(body.goalId,tenantId,organizationId,organizationId).first<Record<string,unknown>>();if(!goal)return Response.json({error:"Objetivo ativo não encontrado."},{status:404});if(security.role!=="Administrador"&&String(goal.owner_email).toLowerCase()!==security.email.toLowerCase())return Response.json({error:"Apenas o responsável ou Administrador pode registar check-in."},{status:403});await db.prepare("INSERT INTO performance_goal_checkins (id,tenant_id,goal_id,value_scaled,note,evidence,checked_by,checked_at) VALUES (?,?,?,?,?,?,?,?)").bind(id,tenantId,body.goalId,parseScaled(body.value,Number(goal.scale)),body.note?.trim()||null,body.evidence?.trim()||null,security.email,now).run()}else if(body.type==="completeGoal"){const goal=await db.prepare("SELECT g.*,(SELECT value_scaled FROM performance_goal_checkins c WHERE c.goal_id=g.id AND c.tenant_id=g.tenant_id ORDER BY c.checked_at DESC LIMIT 1) current_scaled FROM performance_goals g WHERE g.id=? AND g.tenant_id=? AND g.status='Ativo' AND (? IS NULL OR g.organization_id=?)").bind(body.goalId,tenantId,organizationId,organizationId).first<Record<string,unknown>>();if(!goal)return Response.json({error:"Objetivo ativo não encontrado."},{status:404});if(security.role!=="Administrador"&&String(goal.owner_email).toLowerCase()!==security.email.toLowerCase())return Response.json({error:"Apenas o responsável ou Administrador pode concluir."},{status:403});const current=Number(goal.current_scaled??goal.start_scaled),reached=goal.direction==="Aumentar"?current>=Number(goal.target_scaled):current<=Number(goal.target_scaled);if(!reached)return Response.json({error:"O objetivo ainda não atingiu a meta configurada."},{status:409});await db.prepare("UPDATE performance_goals SET status='Concluído',completed_at=? WHERE id=? AND tenant_id=? AND status='Ativo'").bind(now,body.goalId,tenantId).run();await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,"COMPLETE","performanceGoal",body.goalId,security.email,`Objetivo concluído: ${goal.title}`,now).run()}else return Response.json({error:"Operação de objetivos não suportada."},{status:400});return Response.json(await snapshot(),{status:201})}catch(error){return apiFailure(error,"Não foi possível processar objetivos.")}}
-
-async function payrollSnapshot(db:D1Database,tenantId:string,organizationId:string|null=null){
- const [profiles,components,runs,employees,members,payslips,batches,audit]=await Promise.all([
-  db.prepare("SELECT p.*, e.first_name||' '||e.last_name AS employee_name, e.employee_number, m.name AS dimension_member_name FROM salary_profiles p JOIN employees e ON e.id=p.employee_id LEFT JOIN dimension_members m ON m.id=p.dimension_member_id WHERE p.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY p.created_at DESC").bind(tenantId,organizationId,organizationId).all(),
-  db.prepare("SELECT c.*, e.first_name||' '||e.last_name AS employee_name FROM payroll_components c JOIN payroll_assignments a ON a.component_id=c.id AND a.tenant_id=c.tenant_id JOIN employees e ON e.id=a.employee_id WHERE c.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY c.calculation_order,c.code").bind(tenantId,organizationId,organizationId).all(),
-  db.prepare("SELECT r.* FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) ORDER BY r.period DESC,r.created_at DESC LIMIT 12").bind(tenantId,organizationId,organizationId).all(),
-  db.prepare("SELECT id,employee_number,first_name,last_name FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo' ORDER BY first_name,last_name").bind(tenantId,organizationId,organizationId).all(),
-  db.prepare("SELECT m.id,m.name,m.code,d.name AS dimension_name FROM dimension_members m JOIN financial_dimensions d ON d.id=m.dimension_id WHERE m.tenant_id=? AND m.status='Ativo' ORDER BY d.name,m.code").bind(tenantId).all(),
-  db.prepare("SELECT p.id,p.run_id,p.employee_id,p.payslip_number,p.period,p.currency,p.gross_minor,p.deduction_minor,p.employer_minor,p.net_minor,p.document_hash,p.status,p.issued_at,p.payload_json,e.employee_number,e.first_name||' '||e.last_name employee_name,o.name organization_name FROM payroll_payslips p JOIN employees e ON e.id=p.employee_id AND e.tenant_id=p.tenant_id JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id WHERE p.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY p.period DESC,e.employee_number").bind(tenantId,organizationId,organizationId).all(),
-  db.prepare("SELECT b.*,COUNT(l.id) line_count FROM payroll_payment_batches b JOIN payroll_runs r ON r.id=b.run_id AND r.tenant_id=b.tenant_id LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id LEFT JOIN payroll_payment_batch_lines l ON l.batch_id=b.id AND l.tenant_id=b.tenant_id WHERE b.tenant_id=? AND (? IS NULL OR s.organization_id=?) GROUP BY b.id ORDER BY b.period DESC,b.prepared_at DESC").bind(tenantId,organizationId,organizationId).all(),
-  organizationId?Promise.resolve({results:[]}):db.prepare("SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('salaryProfile','payrollComponent','payrollRun') ORDER BY created_at DESC LIMIT 6").bind(tenantId).all(),
- ]);return {profiles:profiles.results,components:components.results,runs:runs.results,employees:employees.results,members:members.results,payslips:payslips.results,batches:batches.results,audit:audit.results};
-}
-async function sha256(value:string){const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,"0")).join("")}
-async function payrollApi(request:Request,db:D1Database,tenantId:string,organizationId:string|null=null){
- try{await ensureSetupSchema(db);if(request.method==="GET")return Response.json(await payrollSnapshot(db,tenantId,organizationId));if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
- const body=await request.json() as Record<string,string>,created=new Date().toISOString(),recordId=uid(),actor=actorEmail(request)||"utilizador autenticado";let summary="",action="CREATE";
- if(body.type==="salaryProfile"){
-  if(!body.employeeId||!body.currency?.match(/^[A-Za-z]{3}$/)||!/^\d{4}-\d{2}-\d{2}$/.test(body.effectiveFrom||""))return Response.json({error:"Colaborador, moeda e vigência são obrigatórios."},{status:400});
-  if(!(await db.prepare("SELECT id FROM employees WHERE tenant_id=? AND id=? AND (? IS NULL OR organization_id=?)").bind(tenantId,body.employeeId,organizationId,organizationId).first()))return Response.json({error:"Colaborador fora do âmbito autorizado."},{status:403});
-  if(await db.prepare("SELECT id FROM salary_profiles WHERE tenant_id=? AND employee_id=? AND status='Ativo'").bind(tenantId,body.employeeId).first())return Response.json({error:"O colaborador já possui um perfil salarial ativo."},{status:409});
-  const base=parseMinor(body.baseAmount);summary="Perfil salarial criado";await db.prepare("INSERT INTO salary_profiles (id,tenant_id,employee_id,currency,periodicity,base_minor,effective_from,effective_to,dimension_member_id,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(recordId,tenantId,body.employeeId,body.currency.toUpperCase(),body.periodicity||"Mensal",base,body.effectiveFrom,body.effectiveTo||null,body.dimensionMemberId||null,"Ativo",created).run();
- }else if(body.type==="payrollComponent"){
-  if(!body.employeeId||!body.code?.trim()||!body.name?.trim()||!['Earning','Deduction','EmployerCost'].includes(body.category)||!['Fixed','Percentage'].includes(body.method))return Response.json({error:"Preencha colaborador, código, nome, categoria e método."},{status:400});
-  if(!(await db.prepare("SELECT id FROM employees WHERE tenant_id=? AND id=? AND (? IS NULL OR organization_id=?)").bind(tenantId,body.employeeId,organizationId,organizationId).first()))return Response.json({error:"Colaborador fora do âmbito autorizado."},{status:403});
-  if(await db.prepare("SELECT id FROM payroll_components WHERE tenant_id=? AND code=?").bind(tenantId,body.code.trim().toUpperCase()).first())return Response.json({error:"Já existe um componente com este código."},{status:409});
-  const value=body.method==="Fixed"?parseMinor(body.value):null,rate=body.method==="Percentage"?Math.round(Number(body.value.replace(",","."))*100):null;if(rate!==null&&(!Number.isInteger(rate)||rate<0||rate>100000))return Response.json({error:"Percentagem inválida."},{status:400});
-  summary=`Componente ${body.name.trim()} criado`;await db.batch([db.prepare("INSERT INTO payroll_components (id,tenant_id,code,name,category,method,value_minor,rate_bps,calculation_order,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(recordId,tenantId,body.code.trim().toUpperCase(),body.name.trim(),body.category,body.method,value,rate,Number(body.calculationOrder)||100,"Ativo",created),db.prepare("INSERT INTO payroll_assignments (id,tenant_id,employee_id,component_id,created_at) VALUES (?,?,?,?,?)").bind(uid(),tenantId,body.employeeId,recordId,created)]);
- }else if(body.type==="generatePayrollRun"){
-  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(body.period||"")||!body.currency?.match(/^[A-Za-z]{3}$/))return Response.json({error:"Período e moeda são obrigatórios."},{status:400});
-  if(await db.prepare("SELECT r.id FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id WHERE r.tenant_id=? AND r.period=? AND r.currency=? AND ((? IS NULL AND s.organization_id IS NULL) OR s.organization_id=?)").bind(tenantId,body.period,body.currency.toUpperCase(),organizationId,organizationId).first())return Response.json({error:"Já existe um processamento para este período, moeda e âmbito."},{status:409});
-  const profiles=await db.prepare("SELECT p.*,e.id AS employee_id FROM salary_profiles p JOIN employees e ON e.id=p.employee_id JOIN employee_contracts c ON c.employee_id=e.id AND c.tenant_id=e.tenant_id AND c.status='Ativo' AND c.start_date<=? AND (c.end_date IS NULL OR c.end_date>=?) WHERE p.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND p.status='Ativo' AND p.currency=? AND p.effective_from<=? AND (p.effective_to IS NULL OR p.effective_to>=?) AND e.status='Ativo'").bind(`${body.period}-31`,`${body.period}-01`,tenantId,organizationId,organizationId,body.currency.toUpperCase(),`${body.period}-31`,`${body.period}-01`).all<Record<string,unknown>>();if(!profiles.results.length)return Response.json({error:"Não existem colaboradores com contrato e perfil salarial elegíveis neste âmbito."},{status:409});
-  let grossTotal=0,dedTotal=0,employerTotal=0,netTotal=0;const statements=[] as D1PreparedStatement[];
-  for(const p of profiles.results){
-   const employeeId=String(p.employee_id),base=Number(p.base_minor),lineId=uid(),comps=await db.prepare("SELECT c.* FROM payroll_components c JOIN payroll_assignments a ON a.component_id=c.id WHERE a.tenant_id=? AND a.employee_id=? AND c.status='Ativo' ORDER BY c.calculation_order,c.code").bind(tenantId,employeeId).all<Record<string,unknown>>(),loanInstallments=await db.prepare("SELECT i.*,l.reference FROM payroll_loan_installments i JOIN payroll_loans l ON l.id=i.loan_id AND l.tenant_id=i.tenant_id WHERE i.tenant_id=? AND l.employee_id=? AND l.currency=? AND l.status='Aprovado' AND i.period=? AND i.status='Programada'").bind(tenantId,employeeId,body.currency.toUpperCase(),body.period).all<Record<string,unknown>>(),adjustments=await db.prepare("SELECT * FROM payroll_adjustments WHERE tenant_id=? AND employee_id=? AND currency=? AND payment_period=? AND status='Aprovado'").bind(tenantId,employeeId,body.currency.toUpperCase(),body.period).all<Record<string,unknown>>();
-   let gross=base,deductions=0,employer=0;const inputs=[] as Record<string,unknown>[],payrollExtraStatements=[] as D1PreparedStatement[];
-   for(const c of comps.results){const amount=c.method==="Fixed"?Number(c.value_minor):percentageAmount(base,Number(c.rate_bps));if(c.category==="Earning")gross+=amount;else if(c.category==="Deduction")deductions+=amount;else employer+=amount;inputs.push({code:c.code,category:c.category,method:c.method,amountMinor:amount})}
-   for(const installment of loanInstallments.results){const amount=Number(installment.amount_minor);deductions+=amount;inputs.push({code:`LOAN:${installment.reference}`,category:"Deduction",method:"Installment",amountMinor:amount,installmentId:installment.id});payrollExtraStatements.push(db.prepare("INSERT INTO payroll_loan_deductions VALUES (?,?,?,?,?,?,?,'Calculada',?,NULL)").bind(uid(),tenantId,installment.loan_id,installment.id,recordId,lineId,amount,created))}
-   for(const adjustment of adjustments.results){const amount=Number(adjustment.amount_minor);if(adjustment.category==="Earning")gross+=amount;else deductions+=amount;inputs.push({code:`ADJUSTMENT:${adjustment.reference}`,category:adjustment.category,method:"Retroactive",amountMinor:amount,sourcePeriod:adjustment.source_period,reason:adjustment.reason});payrollExtraStatements.push(db.prepare("INSERT INTO payroll_adjustment_applications VALUES (?,?,?,?,?,?,?,'Calculado',?,NULL)").bind(uid(),tenantId,adjustment.id,recordId,lineId,amount,adjustment.category,created))}
-   const net=gross-deductions;if(net<0)return Response.json({error:"As deduções excedem o bruto de um colaborador. Reveja prestações e componentes."},{status:409});const snapshot=JSON.stringify({employeeId,baseMinor:base,components:inputs}),hash=await sha256(snapshot);grossTotal+=gross;dedTotal+=deductions;employerTotal+=employer;netTotal+=net;statements.push(db.prepare("INSERT INTO payroll_run_lines (id,tenant_id,run_id,employee_id,base_minor,gross_minor,deduction_minor,employer_minor,net_minor,calculation_hash,input_snapshot,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(lineId,tenantId,recordId,employeeId,base,gross,deductions,employer,net,hash,snapshot,created),...payrollExtraStatements);
+      if (!body.dimensionId || !body.name?.trim() || !body.code?.trim())
+        return Response.json(
+          { error: "Dimensão, nome e código são obrigatórios." },
+          { status: 400 },
+        );
+      if (
+        await db
+          .prepare(
+            "SELECT id FROM dimension_members WHERE tenant_id=? AND dimension_id=? AND code=?",
+          )
+          .bind(tenantId, body.dimensionId, body.code.trim().toUpperCase())
+          .first()
+      )
+        return Response.json(
+          { error: "Este código já existe na dimensão." },
+          { status: 409 },
+        );
+      if (
+        body.parentId &&
+        !(await db
+          .prepare(
+            "SELECT id FROM dimension_members WHERE tenant_id=? AND dimension_id=? AND id=?",
+          )
+          .bind(tenantId, body.dimensionId, body.parentId)
+          .first())
+      )
+        return Response.json(
+          { error: "O membro superior não pertence à dimensão." },
+          { status: 400 },
+        );
+      summary = `Membro ${body.name.trim()} adicionado à dimensão`;
+      await db
+        .prepare(
+          "INSERT INTO dimension_members (id,tenant_id,dimension_id,code,name,parent_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          recordId,
+          tenantId,
+          body.dimensionId,
+          body.code.trim().toUpperCase(),
+          body.name.trim(),
+          body.parentId || null,
+          "Ativo",
+          created,
+        )
+        .run();
+    } else
+      return Response.json(
+        { error: "Operação não suportada." },
+        { status: 400 },
+      );
+    await db
+      .prepare(
+        "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        uid(),
+        tenantId,
+        body.type === "userAction"
+          ? String(body.action || "UPDATE").toUpperCase()
+          : "CREATE",
+        body.type,
+        body.type === "userAction" ? body.userId : recordId,
+        actor,
+        summary,
+        created,
+      )
+      .run();
+    return Response.json(
+      {
+        ...(await setupSnapshot(db, tenantId, organizationId)),
+        ...(issuedInvite ? { invite: issuedInvite } : {}),
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return apiFailure(
+      error,
+      "Não foi possível guardar os dados de configuração.",
+    );
   }
-  statements.unshift(db.prepare("INSERT INTO payroll_run_scopes (run_id,tenant_id,organization_id,created_at) VALUES (?,?,?,?)").bind(recordId,tenantId,organizationId,created));statements.unshift(db.prepare("INSERT INTO payroll_runs (id,tenant_id,period,currency,status,employee_count,gross_minor,deduction_minor,employer_minor,net_minor,closed_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(recordId,tenantId,body.period,body.currency.toUpperCase(),"Rascunho",profiles.results.length,grossTotal,dedTotal,employerTotal,netTotal,null,created));await db.batch(statements);summary=`Payroll ${body.period} calculado para ${profiles.results.length} colaborador(es)`;
- }else if(body.type==="issuePayslips"){
-  const run=await db.prepare("SELECT r.* FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.id=? AND r.tenant_id=? AND r.status='Fechado' AND (? IS NULL OR s.organization_id=?)").bind(body.runId,tenantId,organizationId,organizationId).first<Record<string,unknown>>();if(!run)return Response.json({error:"A emissão exige um Payroll Run fechado no âmbito autorizado."},{status:409});
-  const lines=await db.prepare("SELECT l.*,e.employee_number,e.first_name,e.last_name,e.job_title,e.organization_id,o.name organization_name FROM payroll_run_lines l JOIN employees e ON e.id=l.employee_id AND e.tenant_id=l.tenant_id JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id WHERE l.run_id=? AND l.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY e.employee_number").bind(body.runId,tenantId,organizationId,organizationId).all<Record<string,unknown>>();if(!lines.results.length)return Response.json({error:"O Payroll Run não possui linhas elegíveis."},{status:409});
-  const existing=await db.prepare("SELECT COUNT(*) n FROM payroll_payslips WHERE tenant_id=? AND run_id=?").bind(tenantId,body.runId).first<Record<string,unknown>>();if(Number(existing?.n||0)===lines.results.length){summary=`Recibos do Payroll ${run.period} já estavam emitidos`;action="ISSUE"}
-  else{const statements:D1PreparedStatement[]=[];for(const line of lines.results){const payslipNumber=`PS-${String(run.period).replace("-","")}-${String(line.employee_number)}-${String(run.id).slice(0,8).toUpperCase()}`,payload=JSON.stringify({documentType:"PAYSLIP",version:1,payslipNumber,period:run.period,currency:run.currency,employee:{id:line.employee_id,number:line.employee_number,name:`${line.first_name} ${line.last_name}`,jobTitle:line.job_title,organizationId:line.organization_id,organizationName:line.organization_name},amounts:{baseMinor:Number(line.base_minor),grossMinor:Number(line.gross_minor),deductionMinor:Number(line.deduction_minor),employerMinor:Number(line.employer_minor),netMinor:Number(line.net_minor)},calculationHash:line.calculation_hash,inputSnapshot:JSON.parse(String(line.input_snapshot))}),hash=await sha256(payload);statements.push(db.prepare("INSERT INTO payroll_payslips (id,tenant_id,run_id,run_line_id,employee_id,payslip_number,period,currency,gross_minor,deduction_minor,employer_minor,net_minor,payload_json,document_hash,status,issued_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(uid(),tenantId,run.id,line.id,line.employee_id,payslipNumber,run.period,run.currency,line.gross_minor,line.deduction_minor,line.employer_minor,line.net_minor,payload,hash,"Emitido",created))}await db.batch(statements);summary=`${lines.results.length} recibo(s) emitido(s) para Payroll ${run.period}`;action="ISSUE"}
- }else if(body.type==="preparePaymentBatch"){
-  const run=await db.prepare("SELECT r.* FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.id=? AND r.tenant_id=? AND r.status='Fechado' AND (? IS NULL OR s.organization_id=?)").bind(body.runId,tenantId,organizationId,organizationId).first<Record<string,unknown>>();if(!run)return Response.json({error:"O lote exige um Payroll Run fechado no âmbito autorizado."},{status:409});
-  const existing=await db.prepare("SELECT id FROM payroll_payment_batches WHERE tenant_id=? AND run_id=?").bind(tenantId,body.runId).first();if(existing){summary=`Lote do Payroll ${run.period} já estava preparado`;action="PREPARE"}
-  else{const slips=await db.prepare("SELECT p.id,p.employee_id,p.net_minor FROM payroll_payslips p JOIN employees e ON e.id=p.employee_id AND e.tenant_id=p.tenant_id WHERE p.tenant_id=? AND p.run_id=? AND p.status='Emitido' AND (? IS NULL OR e.organization_id=?) ORDER BY p.payslip_number").bind(tenantId,body.runId,organizationId,organizationId).all<Record<string,unknown>>();const total=slips.results.reduce((n,p)=>n+Number(p.net_minor),0);if(slips.results.length!==Number(run.employee_count)||total!==Number(run.net_minor))return Response.json({error:"Emita e reconcilie todos os recibos antes de preparar o lote."},{status:409});const batchNumber=`PB-${String(run.period).replace("-","")}-${String(run.id).slice(0,8).toUpperCase()}`,evidence=JSON.stringify({runId:run.id,period:run.period,currency:run.currency,totalMinor:total,payslips:slips.results.map(p=>({id:p.id,employeeId:p.employee_id,amountMinor:Number(p.net_minor)}))}),hash=await sha256(evidence),statements:D1PreparedStatement[]=[db.prepare("INSERT INTO payroll_payment_batches (id,tenant_id,run_id,batch_number,period,currency,employee_count,total_minor,status,evidence_hash,prepared_by,prepared_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(recordId,tenantId,run.id,batchNumber,run.period,run.currency,slips.results.length,total,"Preparado",hash,actor,created)];for(const p of slips.results)statements.push(db.prepare("INSERT INTO payroll_payment_batch_lines (id,tenant_id,batch_id,payslip_id,employee_id,amount_minor) VALUES (?,?,?,?,?,?)").bind(uid(),tenantId,recordId,p.id,p.employee_id,p.net_minor));await db.batch(statements);summary=`Lote ${batchNumber} preparado e reconciliado`;action="PREPARE"}
- }else if(body.type==="transitionPaymentBatch"){
-  const security=await securityContext(request,db);if(security instanceof Response)return security;if(security.role!=="Administrador")return Response.json({error:"Segregação de funções: aprovação e exportação do lote exigem Administrador."},{status:403});const batch=await db.prepare("SELECT b.* FROM payroll_payment_batches b JOIN payroll_runs r ON r.id=b.run_id AND r.tenant_id=b.tenant_id LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE b.id=? AND b.tenant_id=? AND (? IS NULL OR s.organization_id=?)").bind(body.batchId,tenantId,organizationId,organizationId).first<Record<string,unknown>>();if(!batch)return Response.json({error:"Lote não encontrado no âmbito autorizado."},{status:404});const next=batch.status==="Preparado"?"Aprovado":batch.status==="Aprovado"?"Exportado":"";if(!next)return Response.json({error:"O lote já está exportado."},{status:409});const result=await db.prepare(`UPDATE payroll_payment_batches SET status=?,${next==="Aprovado"?"approved_by=?,approved_at=?":"exported_by=?,exported_at=?"} WHERE id=? AND tenant_id=? AND status=?`).bind(next,actor,created,batch.id,tenantId,batch.status).run();if(!Number(result.meta.changes||0))return Response.json({error:"O lote foi alterado por outro utilizador."},{status:409});summary=`Lote ${batch.batch_number}: ${next}`;action=next.toUpperCase();
- }else if(body.type==="transitionPayrollRun"){
-  const run=await db.prepare("SELECT r.status,r.period FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.id=? AND r.tenant_id=? AND (? IS NULL OR s.organization_id=?)").bind(body.runId,tenantId,organizationId,organizationId).first<{status:string,period:string}>();if(!run)return Response.json({error:"Processamento não encontrado no âmbito autorizado."},{status:404});const security=await securityContext(request,db);if(security instanceof Response)return security;if(run.status==="Rascunho"&&security.role!=="Recursos Humanos")return Response.json({error:"Segregação de funções: a validação do Payroll pertence a Recursos Humanos."},{status:403});if(["Validado","Aprovado"].includes(run.status)&&security.role!=="Administrador")return Response.json({error:"Segregação de funções: aprovação e fecho pertencem à Administração."},{status:403});const next:{[key:string]:string}={Rascunho:"Validado",Validado:"Aprovado",Aprovado:"Fechado"};if(!next[run.status])return Response.json({error:"O processamento já está fechado."},{status:409});const transition=await db.prepare("UPDATE payroll_runs SET status=?,closed_at=? WHERE id=? AND tenant_id=? AND status=?").bind(next[run.status],next[run.status]==="Fechado"?created:null,body.runId,tenantId,run.status).run();if(!Number(transition.meta.changes||0))return Response.json({error:"O Payroll Run foi alterado por outro utilizador. Atualize os dados."},{status:409});
-  if(next[run.status]==="Fechado"){const [loanDeductions,adjustmentApplications]=await Promise.all([db.prepare("SELECT * FROM payroll_loan_deductions WHERE tenant_id=? AND run_id=? AND status='Calculada'").bind(tenantId,body.runId).all<Record<string,unknown>>(),db.prepare("SELECT * FROM payroll_adjustment_applications WHERE tenant_id=? AND run_id=? AND status='Calculado'").bind(tenantId,body.runId).all<Record<string,unknown>>()]);for(const d of loanDeductions.results){await db.batch([db.prepare("UPDATE payroll_loan_deductions SET status='Liquidada',settled_at=? WHERE id=? AND tenant_id=? AND status='Calculada'").bind(created,d.id,tenantId),db.prepare("UPDATE payroll_loan_installments SET status='Liquidada',paid_at=? WHERE id=? AND tenant_id=? AND status='Programada'").bind(created,d.installment_id,tenantId),db.prepare("UPDATE payroll_loans SET outstanding_minor=outstanding_minor-? WHERE id=? AND tenant_id=? AND status='Aprovado'").bind(d.amount_minor,d.loan_id,tenantId)]);await db.prepare("UPDATE payroll_loans SET status='Liquidado',completed_at=? WHERE id=? AND tenant_id=? AND status='Aprovado' AND outstanding_minor=0").bind(created,d.loan_id,tenantId).run()}for(const a of adjustmentApplications.results)await db.batch([db.prepare("UPDATE payroll_adjustment_applications SET status='Processado',processed_at=? WHERE id=? AND tenant_id=? AND status='Calculado'").bind(created,a.id,tenantId),db.prepare("UPDATE payroll_adjustments SET status='Processado',processed_at=? WHERE id=? AND tenant_id=? AND status='Aprovado'").bind(created,a.adjustment_id,tenantId)])}
-  summary=`Payroll ${run.period}: ${next[run.status]}`;action=next[run.status].toUpperCase();
- }else return Response.json({error:"Operação não suportada."},{status:400});
- await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,action,body.type==="transitionPayrollRun"?"payrollRun":body.type==="issuePayslips"?"payrollDocument":body.type.includes("PaymentBatch")?"paymentBatch":body.type,body.batchId||body.runId||recordId,actor,summary,created).run();return Response.json(await payrollSnapshot(db,tenantId,organizationId),{status:201});
- }catch(error){return apiFailure(error,"Não foi possível concluir a operação de Payroll.")}
 }
 
-async function workforceSnapshot(db:D1Database,url:URL,tenantId:string,organizationId:string|null=null){const period=url.searchParams.get("period")||"2026-08",currency=(url.searchParams.get("currency")||"AOA").toUpperCase(),version=url.searchParams.get("version")||"";const [runs,postings,versions,summary,audit]=await Promise.all([
- db.prepare("SELECT r.*,COUNT(w.id) AS posting_count FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id LEFT JOIN workforce_cost_postings w ON w.run_id=r.id AND w.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) AND r.status='Fechado' GROUP BY r.id ORDER BY r.period DESC").bind(tenantId,organizationId,organizationId).all(),
- db.prepare("SELECT w.*,e.first_name||' '||e.last_name AS employee_name,e.employee_number,o.name AS organization_name,m.name AS dimension_member_name FROM workforce_cost_postings w JOIN employees e ON e.id=w.employee_id JOIN organizations o ON o.id=w.organization_id LEFT JOIN dimension_members m ON m.id=w.dimension_member_id WHERE w.tenant_id=? AND (? IS NULL OR w.organization_id=?) AND w.period=? AND w.currency=? ORDER BY employee_name").bind(tenantId,organizationId,organizationId,period,currency).all(),
- db.prepare("SELECT id,name,status,fiscal_year FROM budget_versions WHERE tenant_id=? ORDER BY fiscal_year DESC,created_at DESC").bind(tenantId).all(),
- db.prepare("SELECT COALESCE((SELECT SUM(total_minor) FROM workforce_cost_postings WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?),0) AS actual_minor,COALESCE((SELECT SUM(amount_minor) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? AND scenario='Budget' AND version_id=? AND line_code='WORKFORCE'),0) AS budget_minor").bind(tenantId,organizationId,organizationId,period,currency,tenantId,organizationId,organizationId,period,currency,version).first(),
- organizationId?Promise.resolve({results:[]}):db.prepare("SELECT * FROM audit_events WHERE tenant_id=? AND entity_type='workforceCost' ORDER BY created_at DESC LIMIT 6").bind(tenantId).all(),
-]);const actual=Number(summary?.actual_minor||0),budget=Number(summary?.budget_minor||0),variance=actual-budget;return{period,currency,runs:runs.results,postings:postings.results,versions:versions.results,summary:{actualMinor:actual,budgetMinor:budget,varianceMinor:variance,varianceBps:budget?Math.trunc(variance*10000/budget):null},audit:audit.results}}
-async function workforceApi(request:Request,db:D1Database,tenantId:string,organizationId:string|null=null){try{await ensureSetupSchema(db);const url=new URL(request.url);if(request.method==="GET")return Response.json(await workforceSnapshot(db,url,tenantId,organizationId));if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});const body=await request.json() as Record<string,string>,created=new Date().toISOString(),actor=actorEmail(request)||"utilizador autenticado";
- if(body.type!=="postRun"||!body.runId)return Response.json({error:"Operação não suportada."},{status:400});const run=await db.prepare("SELECT r.* FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.id=? AND r.tenant_id=? AND (? IS NULL OR s.organization_id=?)").bind(body.runId,tenantId,organizationId,organizationId).first<Record<string,unknown>>();if(!run||run.status!=="Fechado")return Response.json({error:"Payroll Run fechado não encontrado no âmbito autorizado."},{status:409});if(await db.prepare("SELECT id FROM workforce_cost_postings WHERE tenant_id=? AND run_id=?").bind(tenantId,body.runId).first())return Response.json({error:"Este Payroll Run já foi transferido. A operação é idempotente."},{status:409});
- const lines=await db.prepare("SELECT l.*,e.organization_id,p.dimension_member_id FROM payroll_run_lines l JOIN employees e ON e.id=l.employee_id LEFT JOIN salary_profiles p ON p.employee_id=l.employee_id AND p.tenant_id=l.tenant_id AND p.status='Ativo' WHERE l.tenant_id=? AND l.run_id=? AND (? IS NULL OR e.organization_id=?)").bind(tenantId,body.runId,organizationId,organizationId).all<Record<string,unknown>>();if(!lines.results.length)return Response.json({error:"O processamento não possui linhas de cálculo no âmbito autorizado."},{status:409});const statements=[] as D1PreparedStatement[];for(const l of lines.results){const postingId=uid(),total=workforceTotal(Number(l.gross_minor),Number(l.employer_minor));statements.push(db.prepare("INSERT INTO workforce_cost_postings (id,tenant_id,run_id,run_line_id,employee_id,organization_id,dimension_member_id,period,currency,gross_minor,employer_minor,total_minor,source_hash,posted_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(postingId,tenantId,body.runId,l.id,l.employee_id,l.organization_id,l.dimension_member_id||null,run.period,run.currency,l.gross_minor,l.employer_minor,total,l.calculation_hash,created,created));statements.push(db.prepare("INSERT INTO performance_entries (id,tenant_id,organization_id,period,scenario,version_id,currency,line_code,line_name,dimension_member_id,amount_minor,source,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(uid(),tenantId,l.organization_id,run.period,"Actual",null,run.currency,"WORKFORCE","Custo da força de trabalho",l.dimension_member_id||null,total,"Payroll",created));}statements.push(db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,"POST","workforceCost",body.runId,actor,`Payroll ${run.period} transferido para Workforce Cost`,created));await db.batch(statements);return Response.json(await workforceSnapshot(db,new URL(`${url.origin}/api/workforce?period=${run.period}&currency=${run.currency}&version=${encodeURIComponent(body.versionId||"")}`),tenantId,organizationId),{status:201});
- }catch(error){return apiFailure(error,"Não foi possível concluir a operação de Workforce Cost.")}}
+async function hcmSnapshot(
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  const [employees, contracts, absenceTypes, balances, absenceRequests, audit] =
+    await Promise.all([
+      db
+        .prepare(
+          "SELECT e.*,o.name organization_name,c.id active_contract_id,c.contract_number,c.contract_type,c.start_date contract_start_date,c.end_date contract_end_date,c.work_schedule,c.weekly_minutes FROM employees e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id LEFT JOIN employee_contracts c ON c.employee_id=e.id AND c.tenant_id=e.tenant_id AND c.status='Ativo' WHERE e.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY e.employee_number",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .all(),
+      db
+        .prepare(
+          "SELECT c.*,e.employee_number,e.first_name||' '||e.last_name employee_name,o.name organization_name FROM employee_contracts c JOIN employees e ON e.id=c.employee_id AND e.tenant_id=c.tenant_id JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id WHERE c.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY c.created_at DESC",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .all(),
+      db
+        .prepare(
+          "SELECT * FROM hcm_absence_types WHERE tenant_id=? ORDER BY status,name",
+        )
+        .bind(tenantId)
+        .all(),
+      db
+        .prepare(
+          "SELECT b.*,e.employee_number,e.first_name||' '||e.last_name employee_name,t.name absence_type_name FROM hcm_absence_balances b JOIN employees e ON e.id=b.employee_id AND e.tenant_id=b.tenant_id JOIN hcm_absence_types t ON t.id=b.absence_type_id AND t.tenant_id=b.tenant_id WHERE b.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY b.fiscal_year DESC,e.employee_number",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .all(),
+      db
+        .prepare(
+          "SELECT r.*,e.employee_number,e.first_name||' '||e.last_name employee_name,o.name organization_name,t.code absence_type_code,t.name absence_type_name,t.paid,t.requires_balance FROM hcm_absence_requests r JOIN employees e ON e.id=r.employee_id AND e.tenant_id=r.tenant_id JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id JOIN hcm_absence_types t ON t.id=r.absence_type_id AND t.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY r.requested_at DESC",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .all(),
+      organizationId
+        ? Promise.resolve({ results: [] })
+        : db
+            .prepare(
+              "SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('employeeContract','absenceType','absenceBalance','absenceRequest') ORDER BY created_at DESC LIMIT 10",
+            )
+            .bind(tenantId)
+            .all(),
+    ]);
+  return {
+    employees: employees.results,
+    contracts: contracts.results,
+    absenceTypes: absenceTypes.results,
+    balances: balances.results,
+    absenceRequests: absenceRequests.results,
+    audit: audit.results,
+  };
+}
+async function hcmApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  try {
+    await ensureSetupSchema(db);
+    if (request.method === "GET")
+      return Response.json(await hcmSnapshot(db, tenantId, organizationId));
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as Record<string, string>,
+      created = new Date().toISOString(),
+      actor = actorEmail(request) || "utilizador autenticado";
+    let contractId = body.contractId,
+      summary = "",
+      action = "CREATE";
+    if (body.type === "createContract") {
+      const weeklyMinutes = Number(body.weeklyMinutes),
+        employee = await db
+          .prepare(
+            "SELECT id,hire_date FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)",
+          )
+          .bind(body.employeeId, tenantId, organizationId, organizationId)
+          .first<Record<string, unknown>>();
+      if (!employee)
+        return Response.json(
+          { error: "Colaborador fora do âmbito autorizado." },
+          { status: 403 },
+        );
+      if (
+        !body.contractNumber?.trim() ||
+        !body.contractType?.trim() ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(body.startDate || "") ||
+        !body.workSchedule?.trim() ||
+        !Number.isInteger(weeklyMinutes) ||
+        weeklyMinutes <= 0 ||
+        weeklyMinutes > 10080
+      )
+        return Response.json(
+          {
+            error:
+              "Número, tipo, início, horário e carga semanal válidos são obrigatórios.",
+          },
+          { status: 400 },
+        );
+      if (
+        body.endDate &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(body.endDate) ||
+          body.endDate < body.startDate)
+      )
+        return Response.json(
+          { error: "A data de fim não pode ser anterior ao início." },
+          { status: 400 },
+        );
+      contractId = uid();
+      await db
+        .prepare(
+          "INSERT INTO employee_contracts (id,tenant_id,created_at,employee_id,contract_number,contract_type,start_date,end_date,work_schedule,weekly_minutes,country_pack,status,activated_at,ended_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          contractId,
+          tenantId,
+          created,
+          body.employeeId,
+          body.contractNumber.trim().toUpperCase(),
+          body.contractType.trim(),
+          body.startDate,
+          body.endDate || null,
+          body.workSchedule.trim(),
+          weeklyMinutes,
+          body.countryPack?.trim() || null,
+          "Rascunho",
+          null,
+          null,
+        )
+        .run();
+      summary = `Contrato ${body.contractNumber.trim().toUpperCase()} criado em rascunho`;
+    } else if (body.type === "activateContract") {
+      const result = await db
+        .prepare(
+          "UPDATE employee_contracts SET status='Ativo',activated_at=? WHERE id=? AND tenant_id=? AND status='Rascunho' AND EXISTS (SELECT 1 FROM employees e WHERE e.id=employee_contracts.employee_id AND e.tenant_id=employee_contracts.tenant_id AND (? IS NULL OR e.organization_id=?))",
+        )
+        .bind(created, contractId, tenantId, organizationId, organizationId)
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          {
+            error: "O contrato não está disponível para ativação neste âmbito.",
+          },
+          { status: 409 },
+        );
+      summary =
+        "Contrato ativado; colaborador elegível para configuração salarial";
+      action = "ACTIVATE";
+    } else if (body.type === "endContract") {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(body.endDate || ""))
+        return Response.json(
+          { error: "Indique uma data de término válida." },
+          { status: 400 },
+        );
+      const result = await db
+        .prepare(
+          "UPDATE employee_contracts SET status='Terminado',end_date=?,ended_at=? WHERE id=? AND tenant_id=? AND status='Ativo' AND start_date<=? AND EXISTS (SELECT 1 FROM employees e WHERE e.id=employee_contracts.employee_id AND e.tenant_id=employee_contracts.tenant_id AND (? IS NULL OR e.organization_id=?))",
+        )
+        .bind(
+          body.endDate,
+          created,
+          contractId,
+          tenantId,
+          body.endDate,
+          organizationId,
+          organizationId,
+        )
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          {
+            error: "O contrato não está ativo ou a data de término é inválida.",
+          },
+          { status: 409 },
+        );
+      summary = `Contrato terminado em ${body.endDate}`;
+      action = "END";
+    } else if (body.type === "absenceType") {
+      if (organizationId)
+        return Response.json(
+          { error: "A configuração de tipos exige âmbito de todo o tenant." },
+          { status: 403 },
+        );
+      if (
+        !body.code?.trim() ||
+        !body.name?.trim() ||
+        !["Dias", "Horas"].includes(body.unit)
+      )
+        return Response.json(
+          { error: "Código, nome e unidade são obrigatórios." },
+          { status: 400 },
+        );
+      contractId = uid();
+      await db
+        .prepare(
+          "INSERT INTO hcm_absence_types (id,tenant_id,code,name,unit,paid,requires_balance,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          contractId,
+          tenantId,
+          body.code.trim().toUpperCase(),
+          body.name.trim(),
+          body.unit,
+          body.paid === "on" ? 1 : 0,
+          body.requiresBalance === "on" ? 1 : 0,
+          "Ativo",
+          created,
+        )
+        .run();
+      summary = `Tipo de ausência ${body.name.trim()} criado`;
+      action = "CONFIGURE";
+    } else if (body.type === "absenceBalance") {
+      const minutes = Number(body.allowanceMinutes),
+        employee = await db
+          .prepare(
+            "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)",
+          )
+          .bind(body.employeeId, tenantId, organizationId, organizationId)
+          .first();
+      if (
+        !employee ||
+        !Number.isInteger(minutes) ||
+        minutes < 0 ||
+        !body.absenceTypeId ||
+        !Number.isInteger(Number(body.fiscalYear))
+      )
+        return Response.json(
+          { error: "Colaborador, tipo, ano e saldo válido são obrigatórios." },
+          { status: 400 },
+        );
+      contractId = uid();
+      await db
+        .prepare(
+          "INSERT INTO hcm_absence_balances (id,tenant_id,employee_id,absence_type_id,fiscal_year,allowance_minutes,used_minutes,created_at) VALUES (?,?,?,?,?,?,0,?)",
+        )
+        .bind(
+          contractId,
+          tenantId,
+          body.employeeId,
+          body.absenceTypeId,
+          Number(body.fiscalYear),
+          minutes,
+          created,
+        )
+        .run();
+      summary = `Saldo de ausência configurado para ${body.fiscalYear}`;
+      action = "ALLOCATE";
+    } else if (body.type === "absenceRequest") {
+      const minutes = Number(body.requestedMinutes),
+        employee = await db
+          .prepare(
+            "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'",
+          )
+          .bind(body.employeeId, tenantId, organizationId, organizationId)
+          .first();
+      if (
+        !employee ||
+        !body.absenceTypeId ||
+        !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(body.startDate || "") ||
+        !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(body.endDate || "") ||
+        !Number.isInteger(minutes) ||
+        minutes <= 0
+      )
+        return Response.json(
+          {
+            error: "Colaborador ativo, tipo, datas e duração são obrigatórios.",
+          },
+          { status: 400 },
+        );
+      contractId = uid();
+      await db
+        .prepare(
+          "INSERT INTO hcm_absence_requests (id,tenant_id,employee_id,absence_type_id,start_date,end_date,requested_minutes,reason,status,requested_by,requested_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          contractId,
+          tenantId,
+          body.employeeId,
+          body.absenceTypeId,
+          body.startDate,
+          body.endDate,
+          minutes,
+          body.reason?.trim() || null,
+          "Pendente",
+          actor,
+          created,
+        )
+        .run();
+      summary = `Pedido de ausência criado de ${body.startDate} a ${body.endDate}`;
+      action = "REQUEST";
+    } else if (body.type === "decideAbsence") {
+      const decision = body.decision,
+        requestRow = await db
+          .prepare(
+            "SELECT r.*,t.requires_balance,e.organization_id FROM hcm_absence_requests r JOIN hcm_absence_types t ON t.id=r.absence_type_id AND t.tenant_id=r.tenant_id JOIN employees e ON e.id=r.employee_id AND e.tenant_id=r.tenant_id WHERE r.id=? AND r.tenant_id=? AND r.status='Pendente' AND (? IS NULL OR e.organization_id=?)",
+          )
+          .bind(body.requestId, tenantId, organizationId, organizationId)
+          .first<Record<string, unknown>>();
+      if (
+        !requestRow ||
+        !["Aprovado", "Rejeitado", "Cancelado"].includes(decision)
+      )
+        return Response.json(
+          { error: "Pedido pendente e decisão válida são obrigatórios." },
+          { status: 409 },
+        );
+      if (decision !== "Cancelado" && requestRow.requested_by === actor)
+        return Response.json(
+          {
+            error:
+              "Segregação de funções: quem criou o pedido não pode aprová-lo ou rejeitá-lo.",
+          },
+          { status: 403 },
+        );
+      contractId = body.requestId;
+      if (decision === "Aprovado" && Number(requestRow.requires_balance)) {
+        const year = Number(String(requestRow.start_date).slice(0, 4)),
+          balance = await db
+            .prepare(
+              "SELECT allowance_minutes-used_minutes available FROM hcm_absence_balances WHERE tenant_id=? AND employee_id=? AND absence_type_id=? AND fiscal_year=?",
+            )
+            .bind(
+              tenantId,
+              requestRow.employee_id,
+              requestRow.absence_type_id,
+              year,
+            )
+            .first<Record<string, unknown>>();
+        if (
+          !balance ||
+          Number(balance.available) < Number(requestRow.requested_minutes)
+        )
+          return Response.json(
+            { error: "Saldo de ausência insuficiente para aprovação." },
+            { status: 409 },
+          );
+      }
+      const result = await db
+        .prepare(
+          "UPDATE hcm_absence_requests SET status=?,decided_by=?,decided_at=?,decision_note=? WHERE id=? AND tenant_id=? AND status='Pendente'",
+        )
+        .bind(
+          decision,
+          actor,
+          created,
+          body.decisionNote?.trim() || null,
+          body.requestId,
+          tenantId,
+        )
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          { error: "O pedido foi decidido por outro utilizador." },
+          { status: 409 },
+        );
+      summary = `Pedido de ausência ${decision.toLowerCase()}`;
+      action = decision.toUpperCase();
+    } else
+      return Response.json(
+        { error: "Operação HCM não suportada." },
+        { status: 400 },
+      );
+    const entityType =
+      body.type.includes("absence") || body.type === "decideAbsence"
+        ? body.type === "absenceType"
+          ? "absenceType"
+          : body.type === "absenceBalance"
+            ? "absenceBalance"
+            : "absenceRequest"
+        : "employeeContract";
+    await db
+      .prepare(
+        "INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        uid(),
+        tenantId,
+        created,
+        action,
+        entityType,
+        contractId,
+        actor,
+        summary,
+      )
+      .run();
+    return Response.json(await hcmSnapshot(db, tenantId, organizationId), {
+      status: 201,
+    });
+  } catch (error) {
+    return apiFailure(error, "Não foi possível concluir a operação HCM.");
+  }
+}
 
-async function dashboardApi(request:Request,db:D1Database,tenantId:string,organizationId:string|null=null){try{await ensureSetupSchema(db);const u=new URL(request.url),period=u.searchParams.get("period")||"2026-08",currency=(u.searchParams.get("currency")||"AOA").toUpperCase(),version=u.searchParams.get("version")||"";const [versions,totals,trend,drivers,entries,coverage,headcount,payroll]=await Promise.all([
- db.prepare("SELECT id,name,status,fiscal_year FROM budget_versions WHERE tenant_id=? ORDER BY fiscal_year DESC,created_at DESC").bind(tenantId).all(),
- db.prepare("SELECT COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) actual_minor,COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) budget_minor,COALESCE(SUM(CASE WHEN scenario='Actual' AND line_code='WORKFORCE' THEN amount_minor ELSE 0 END),0) workforce_minor FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?").bind(version,tenantId,organizationId,organizationId,period,currency).first<Record<string,unknown>>(),
- db.prepare("SELECT period,COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) actual_minor,COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) budget_minor FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND currency=? AND period<=? GROUP BY period ORDER BY period DESC LIMIT 6").bind(version,tenantId,organizationId,organizationId,currency,period).all(),
- db.prepare("SELECT line_code,MAX(line_name) line_name,COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) actual_minor,COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) budget_minor FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? GROUP BY line_code ORDER BY line_code").bind(version,tenantId,organizationId,organizationId,period,currency).all<Record<string,unknown>>(),
- db.prepare("SELECT p.*,o.name organization_name,m.name dimension_member_name FROM performance_entries p JOIN organizations o ON o.id=p.organization_id LEFT JOIN dimension_members m ON m.id=p.dimension_member_id WHERE p.tenant_id=? AND (? IS NULL OR p.organization_id=?) AND p.period=? AND p.currency=? AND (p.scenario='Actual' OR (p.scenario='Budget' AND p.version_id=?)) ORDER BY p.created_at DESC").bind(tenantId,organizationId,organizationId,period,currency,version).all(),
- db.prepare("SELECT COUNT(DISTINCT organization_id) organizations,COUNT(DISTINCT source) sources,MAX(created_at) latest_at FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?").bind(tenantId,organizationId,organizationId,period,currency).first<Record<string,unknown>>(),
- db.prepare("SELECT COUNT(*) total FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'").bind(tenantId,organizationId,organizationId).first<Record<string,unknown>>(),
- db.prepare("SELECT r.period,r.status FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) AND r.currency=? AND r.period<=? ORDER BY r.period DESC,r.created_at DESC LIMIT 1").bind(tenantId,organizationId,organizationId,currency,period).first(),
- ]);const actual=Number(totals?.actual_minor||0),budget=Number(totals?.budget_minor||0),variance=actual-budget;return Response.json({versions:versions.results,summary:{actualMinor:actual,budgetMinor:budget,varianceMinor:variance,varianceBps:budget?Math.trunc(variance*10000/budget):null,workforceMinor:Number(totals?.workforce_minor||0),headcount:Number(headcount?.total||0)},trend:[...trend.results].reverse(),drivers:drivers.results.map(x=>({...x,actual_minor:Number(x.actual_minor),budget_minor:Number(x.budget_minor),variance_minor:Number(x.actual_minor)-Number(x.budget_minor)})),entries:entries.results,coverage:{organizations:Number(coverage?.organizations||0),sources:Number(coverage?.sources||0),latestAt:coverage?.latest_at||null},payroll:payroll||null})}catch(error){return apiFailure(error,"Não foi possível carregar o dashboard.")}}
+function parseMinor(value: string) {
+  const clean = value.trim().replace(/\s/g, "").replace(",", ".");
+  if (!/^-?\d+(\.\d{1,2})?$/.test(clean))
+    throw new Error(
+      "Indique um valor monetário válido, com até duas casas decimais.",
+    );
+  const negative = clean.startsWith("-");
+  const [whole, dec = ""] = clean.replace("-", "").split(".");
+  const minor = Number(whole) * 100 + Number(dec.padEnd(2, "0"));
+  if (!Number.isSafeInteger(minor))
+    throw new Error("Valor fora do limite permitido.");
+  return negative ? -minor : minor;
+}
+function parseScaled(value: string, scale: number) {
+  const clean = value.trim().replace(",", ".");
+  if (!/^-?\d+(\.\d{1,3})?$/.test(clean) || ![1, 10, 100, 1000].includes(scale))
+    throw new Error("Valor ou escala inválida.");
+  const scaled = Math.round(Number(clean) * scale);
+  if (!Number.isSafeInteger(scaled))
+    throw new Error("Valor fora do limite permitido.");
+  return scaled;
+}
+async function performanceSnapshot(
+  db: D1Database,
+  url: URL,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  const period =
+      url.searchParams.get("period") || new Date().toISOString().slice(0, 7),
+    currency = (url.searchParams.get("currency") || "AOA").toUpperCase(),
+    version = url.searchParams.get("version") || "";
+  const [entries, versions, organizations, members, summary, audit] =
+    await Promise.all([
+      db
+        .prepare(
+          "SELECT e.*, o.name AS organization_name, m.name AS dimension_member_name FROM performance_entries e JOIN organizations o ON o.id=e.organization_id LEFT JOIN dimension_members m ON m.id=e.dimension_member_id WHERE e.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND e.period=? AND e.currency=? AND (e.scenario='Actual' OR e.version_id=?) ORDER BY e.created_at DESC LIMIT 100",
+        )
+        .bind(
+          tenantId,
+          organizationId,
+          organizationId,
+          period,
+          currency,
+          version,
+        )
+        .all(),
+      db
+        .prepare(
+          "SELECT * FROM budget_versions WHERE tenant_id=? ORDER BY fiscal_year DESC, created_at DESC",
+        )
+        .bind(tenantId)
+        .all(),
+      db
+        .prepare(
+          "SELECT id,name,code,currency FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .all(),
+      db
+        .prepare(
+          "SELECT m.id,m.name,m.code,d.name AS dimension_name FROM dimension_members m JOIN financial_dimensions d ON d.id=m.dimension_id WHERE m.tenant_id=? AND m.status='Ativo' ORDER BY d.name,m.code",
+        )
+        .bind(tenantId)
+        .all(),
+      db
+        .prepare(
+          "SELECT COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) AS actual_minor, COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) AS budget_minor FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?",
+        )
+        .bind(
+          version,
+          tenantId,
+          organizationId,
+          organizationId,
+          period,
+          currency,
+        )
+        .first(),
+      organizationId
+        ? Promise.resolve({ results: [] })
+        : db
+            .prepare(
+              "SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('performanceEntry','budgetVersion','approveBudget') ORDER BY created_at DESC LIMIT 6",
+            )
+            .bind(tenantId)
+            .all(),
+    ]);
+  const actual = Number(summary?.actual_minor || 0),
+    budget = Number(summary?.budget_minor || 0),
+    variance = actual - budget,
+    varianceBps = budget === 0 ? null : Math.trunc((variance * 10000) / budget);
+  return {
+    period,
+    currency,
+    entries: entries.results,
+    versions: versions.results,
+    organizations: organizations.results,
+    members: members.results,
+    summary: {
+      actualMinor: actual,
+      budgetMinor: budget,
+      varianceMinor: variance,
+      varianceBps,
+    },
+    audit: audit.results,
+  };
+}
+async function performanceApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  try {
+    await ensureSetupSchema(db);
+    const url = new URL(request.url);
+    if (request.method === "GET")
+      return Response.json(
+        await performanceSnapshot(db, url, tenantId, organizationId),
+      );
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as Record<string, string>,
+      created = new Date().toISOString(),
+      recordId = uid(),
+      actor = actorEmail(request) || "utilizador autenticado";
+    let summary = "",
+      entityType = body.type;
+    if (body.type === "budgetVersion") {
+      const year = Number(body.fiscalYear);
+      if (
+        !body.name?.trim() ||
+        !Number.isInteger(year) ||
+        year < 2000 ||
+        year > 2200
+      )
+        return Response.json(
+          { error: "Nome e ano fiscal válidos são obrigatórios." },
+          { status: 400 },
+        );
+      summary = `Versão orçamental ${body.name.trim()} criada`;
+      await db
+        .prepare(
+          "INSERT INTO budget_versions (id,tenant_id,name,fiscal_year,status,approved_at,created_at) VALUES (?,?,?,?,?,?,?)",
+        )
+        .bind(
+          recordId,
+          tenantId,
+          body.name.trim(),
+          year,
+          "Rascunho",
+          null,
+          created,
+        )
+        .run();
+    } else if (body.type === "performanceEntry") {
+      if (
+        !body.organizationId ||
+        !/^\d{4}-(0[1-9]|1[0-2])$/.test(body.period || "") ||
+        !["Actual", "Budget"].includes(body.scenario) ||
+        !body.currency?.match(/^[A-Za-z]{3}$/) ||
+        !body.lineCode?.trim() ||
+        !body.lineName?.trim()
+      )
+        return Response.json(
+          { error: "Preencha organização, período, cenário, moeda e linha." },
+          { status: 400 },
+        );
+      if (
+        !(await db
+          .prepare("SELECT id FROM organizations WHERE id=? AND tenant_id=?")
+          .bind(body.organizationId, tenantId)
+          .first())
+      )
+        return Response.json(
+          { error: "Organização inválida." },
+          { status: 400 },
+        );
+      if (body.scenario === "Budget") {
+        if (!body.versionId)
+          return Response.json(
+            { error: "Selecione uma versão orçamental." },
+            { status: 400 },
+          );
+        const v = await db
+          .prepare(
+            "SELECT status FROM budget_versions WHERE id=? AND tenant_id=?",
+          )
+          .bind(body.versionId, tenantId)
+          .first<{ status: string }>();
+        if (!v || v.status !== "Rascunho")
+          return Response.json(
+            { error: "Apenas versões em rascunho aceitam lançamentos." },
+            { status: 409 },
+          );
+      }
+      if (
+        body.dimensionMemberId &&
+        !(await db
+          .prepare(
+            "SELECT id FROM dimension_members WHERE id=? AND tenant_id=?",
+          )
+          .bind(body.dimensionMemberId, tenantId)
+          .first())
+      )
+        return Response.json(
+          { error: "Membro dimensional inválido." },
+          { status: 400 },
+        );
+      const amount = parseMinor(body.amount);
+      summary = `${body.scenario === "Actual" ? "Realizado" : "Orçamento"} ${body.lineCode.trim().toUpperCase()} registado`;
+      await db
+        .prepare(
+          "INSERT INTO performance_entries (id,tenant_id,organization_id,period,scenario,version_id,currency,line_code,line_name,dimension_member_id,amount_minor,source,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          recordId,
+          tenantId,
+          body.organizationId,
+          body.period,
+          body.scenario,
+          body.scenario === "Budget" ? body.versionId : null,
+          body.currency.toUpperCase(),
+          body.lineCode.trim().toUpperCase(),
+          body.lineName.trim(),
+          body.dimensionMemberId || null,
+          amount,
+          "Manual",
+          created,
+        )
+        .run();
+    } else if (body.type === "approveBudget") {
+      const security = await securityContext(request, db);
+      if (security instanceof Response) return security;
+      if (!["Administrador", "Gestor"].includes(security.role))
+        return Response.json(
+          {
+            error:
+              "Segregação de funções: o preparador Financeiro não pode aprovar o Budget.",
+          },
+          { status: 403 },
+        );
+      const version = await db
+        .prepare(
+          "SELECT name,status FROM budget_versions WHERE id=? AND tenant_id=?",
+        )
+        .bind(body.versionId, tenantId)
+        .first<{ name: string; status: string }>();
+      if (!version || version.status !== "Rascunho")
+        return Response.json(
+          { error: "A versão não está disponível para aprovação." },
+          { status: 409 },
+        );
+      const approval = await db
+        .prepare(
+          "UPDATE budget_versions SET status='Aprovado', approved_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'",
+        )
+        .bind(created, body.versionId, tenantId)
+        .run();
+      if (!Number(approval.meta.changes || 0))
+        return Response.json(
+          {
+            error:
+              "A versão foi alterada por outro utilizador. Atualize os dados.",
+          },
+          { status: 409 },
+        );
+      summary = `Versão orçamental ${version.name} aprovada`;
+      entityType = "approveBudget";
+    } else
+      return Response.json(
+        { error: "Operação não suportada." },
+        { status: 400 },
+      );
+    await db
+      .prepare(
+        "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        uid(),
+        tenantId,
+        body.type === "approveBudget" ? "APPROVE" : "CREATE",
+        entityType,
+        body.type === "approveBudget" ? body.versionId : recordId,
+        actor,
+        summary,
+        created,
+      )
+      .run();
+    return Response.json(
+      await performanceSnapshot(
+        db,
+        new URL(
+          `${url.origin}/api/performance?period=${encodeURIComponent(body.period || url.searchParams.get("period") || new Date().toISOString().slice(0, 7))}&currency=${encodeURIComponent(body.currency || url.searchParams.get("currency") || "AOA")}&version=${encodeURIComponent(body.versionId || url.searchParams.get("version") || "")}`,
+        ),
+        tenantId,
+        organizationId,
+      ),
+      { status: 201 },
+    );
+  } catch (error) {
+    return apiFailure(
+      error,
+      "Não foi possível processar os dados financeiros.",
+    );
+  }
+}
 
-async function managementReportApi(request:Request,db:D1Database,tenantId:string,organizationId:string|null=null){try{await ensureSetupSchema(db);const u=new URL(request.url);if(request.method==="GET"){const id=u.searchParams.get("id");if(id){const row=await db.prepare("SELECT r.* FROM management_reports r LEFT JOIN management_report_scopes s ON s.report_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.id=? AND (? IS NULL OR s.organization_id=?)").bind(tenantId,id,organizationId,organizationId).first<Record<string,unknown>>();if(!row)return Response.json({error:"Relatório não encontrado."},{status:404});return Response.json({...row,payload:JSON.parse(String(row.payload_json))})}const [reports,versions]=await Promise.all([db.prepare("SELECT r.id,r.report_number,r.title,r.template,r.period,r.currency,r.status,r.input_hash,r.created_by,r.created_at FROM management_reports r LEFT JOIN management_report_scopes s ON s.report_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) ORDER BY report_number DESC LIMIT 20").bind(tenantId,organizationId,organizationId).all(),db.prepare("SELECT id,name,status,fiscal_year FROM budget_versions WHERE tenant_id=? ORDER BY fiscal_year DESC,created_at DESC").bind(tenantId).all()]);return Response.json({reports:reports.results,versions:versions.results})}if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});const b=await request.json() as Record<string,string>,period=b.period||"",currency=(b.currency||"").toUpperCase(),version=b.versionId||"";if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)||!/^[A-Z]{3}$/.test(currency)||!b.title?.trim())return Response.json({error:"Título, período e moeda válidos são obrigatórios."},{status:400});const [totals,drivers,coverage,versionRow,last]=await Promise.all([
-db.prepare("SELECT COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) actual,COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) budget,COALESCE(SUM(CASE WHEN scenario='Actual' AND line_code='WORKFORCE' THEN amount_minor ELSE 0 END),0) workforce,SUM(CASE WHEN scenario='Actual' THEN 1 ELSE 0 END) actual_entries,SUM(CASE WHEN scenario='Budget' AND version_id=? THEN 1 ELSE 0 END) budget_entries FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?").bind(version,version,tenantId,organizationId,organizationId,period,currency).first<Record<string,unknown>>(),
-db.prepare("SELECT line_code,MAX(line_name) line_name,COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) actual,COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) budget FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? GROUP BY line_code").bind(version,tenantId,organizationId,organizationId,period,currency).all<Record<string,unknown>>(),
-db.prepare("SELECT COUNT(*) entries,COUNT(DISTINCT organization_id) organizations,COUNT(DISTINCT source) sources,MAX(created_at) latest_at FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?").bind(tenantId,organizationId,organizationId,period,currency).first<Record<string,unknown>>(),
-version?db.prepare("SELECT name,status FROM budget_versions WHERE tenant_id=? AND id=?").bind(tenantId,version).first<Record<string,unknown>>():Promise.resolve(null),
-db.prepare("SELECT COALESCE(MAX(report_number),0) number FROM management_reports WHERE tenant_id=?").bind(tenantId).first<Record<string,unknown>>()]);if(!version||versionRow?.status!=="Aprovado"||Number(totals?.actual_entries||0)===0||Number(totals?.budget_entries||0)===0)return Response.json({error:"O relatório exige Actual, uma versão Budget aprovada e lançamentos comparáveis no período e moeda selecionados."},{status:409});const actual=Number(totals?.actual||0),budget=Number(totals?.budget||0),variance=actual-budget,rows=drivers.results.map(x=>({lineCode:x.line_code,lineName:x.line_name,actualMinor:Number(x.actual),budgetMinor:Number(x.budget),varianceMinor:Number(x.actual)-Number(x.budget)})).sort((a,b)=>Math.abs(b.varianceMinor)-Math.abs(a.varianceMinor)),cause=rows[0]||null,impact=variance===0?"Resultado alinhado com o Budget.":variance>0?"O Actual está acima do Budget selecionado.":"O Actual está abaixo do Budget selecionado.",recommendation=cause?.lineCode==="WORKFORCE"?"Rever a composição e a alocação do Workforce Cost no módulo de Análises.":"Rever os lançamentos e pressupostos da principal linha no Planeamento.";const payload={generatedAt:new Date().toISOString(),parameters:{period,currency,organizationId,versionId:version,versionName:String(versionRow.name),template:b.template||"Executivo"},result:{actualMinor:actual,budgetMinor:budget,varianceMinor:variance,varianceBps:budget?Math.trunc(variance*10000/budget):null,workforceMinor:Number(totals?.workforce||0)},cause,impact,perspective:`${Number(coverage?.organizations||0)} organização(ões), ${Number(coverage?.sources||0)} fonte(s) e ${Number(coverage?.entries||0)} lançamento(s) suportam esta versão.`,recommendation,drivers:rows,coverage};const snapshot=JSON.stringify(payload),hash=await sha256(snapshot),id=uid(),created=new Date().toISOString(),number=Number(last?.number||0)+1,actor=actorEmail(request)||"utilizador autenticado";await db.batch([db.prepare("INSERT INTO management_reports (id,tenant_id,created_at,report_number,title,template,period,currency,budget_version_id,status,payload_json,input_hash,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,tenantId,created,number,b.title.trim(),b.template||"Executivo",period,currency,version,"Emitido",snapshot,hash,actor),db.prepare("INSERT INTO management_report_scopes (report_id,tenant_id,organization_id,created_at) VALUES (?,?,?,?)").bind(id,tenantId,organizationId,created),db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,"GENERATE","managementReport",id,actor,`Relatório de gestão v${number} emitido`,created)]);return Response.json({id,report_number:number,title:b.title.trim(),template:b.template||"Executivo",period,currency,status:"Emitido",input_hash:hash,created_by:actor,created_at:created,payload},{status:201})}catch(error){return apiFailure(error,"Não foi possível gerar o relatório de gestão.")}}
+async function scenariosApi(
+  request: Request,
+  db: D1Database,
+  security: SecurityContext,
+) {
+  try {
+    const tenantId = security.tenantId,
+      organizationId = security.organizationId,
+      url = new URL(request.url),
+      period =
+        url.searchParams.get("period") || new Date().toISOString().slice(0, 7),
+      currency = (url.searchParams.get("currency") || "AOA").toUpperCase(),
+      versionId = url.searchParams.get("version") || "";
+    const snapshot = async () => {
+      const version = versionId
+          ? await db
+              .prepare(
+                "SELECT * FROM planning_versions WHERE id=? AND tenant_id=?",
+              )
+              .bind(versionId, tenantId)
+              .first<Record<string, unknown>>()
+          : null,
+        [versions, organizations, members, entries, totals, audit] =
+          await Promise.all([
+            db
+              .prepare(
+                "SELECT v.*,b.name base_budget_name,(SELECT COUNT(*) FROM planning_entries e WHERE e.version_id=v.id AND e.tenant_id=v.tenant_id) entry_count FROM planning_versions v LEFT JOIN budget_versions b ON b.id=v.base_budget_id AND b.tenant_id=v.tenant_id WHERE v.tenant_id=? ORDER BY v.fiscal_year DESC,v.created_at DESC",
+              )
+              .bind(tenantId)
+              .all(),
+            db
+              .prepare(
+                "SELECT id,code,name,currency FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name",
+              )
+              .bind(tenantId, organizationId, organizationId)
+              .all(),
+            db
+              .prepare(
+                "SELECT m.id,m.code,m.name,d.name dimension_name FROM dimension_members m JOIN financial_dimensions d ON d.id=m.dimension_id AND d.tenant_id=m.tenant_id WHERE m.tenant_id=? AND m.status='Ativo' ORDER BY d.name,m.code",
+              )
+              .bind(tenantId)
+              .all(),
+            versionId
+              ? db
+                  .prepare(
+                    "SELECT e.*,o.name organization_name,m.name dimension_member_name FROM planning_entries e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id LEFT JOIN dimension_members m ON m.id=e.dimension_member_id WHERE e.tenant_id=? AND e.version_id=? AND (? IS NULL OR e.organization_id=?) AND e.period=? AND e.currency=? ORDER BY e.line_code,e.created_at",
+                  )
+                  .bind(
+                    tenantId,
+                    versionId,
+                    organizationId,
+                    organizationId,
+                    period,
+                    currency,
+                  )
+                  .all()
+              : Promise.resolve({ results: [] }),
+            versionId
+              ? db
+                  .prepare(
+                    "SELECT COALESCE((SELECT SUM(amount_minor) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? AND scenario='Actual'),0) actual,COALESCE((SELECT SUM(amount_minor) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? AND scenario='Budget' AND version_id=?),0) budget,COALESCE((SELECT SUM(amount_minor) FROM planning_entries WHERE tenant_id=? AND version_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?),0) forecast",
+                  )
+                  .bind(
+                    tenantId,
+                    organizationId,
+                    organizationId,
+                    period,
+                    currency,
+                    tenantId,
+                    organizationId,
+                    organizationId,
+                    period,
+                    currency,
+                    version?.base_budget_id || "",
+                    tenantId,
+                    versionId,
+                    organizationId,
+                    organizationId,
+                    period,
+                    currency,
+                  )
+                  .first<Record<string, unknown>>()
+              : Promise.resolve({ actual: 0, budget: 0, forecast: 0 }),
+            organizationId
+              ? Promise.resolve({ results: [] })
+              : db
+                  .prepare(
+                    "SELECT * FROM audit_events WHERE tenant_id=? AND entity_type='planningVersion' ORDER BY created_at DESC LIMIT 10",
+                  )
+                  .bind(tenantId)
+                  .all(),
+          ]);
+      const actual = Number(totals?.actual || 0),
+        budget = Number(totals?.budget || 0),
+        forecast = Number(totals?.forecast || 0);
+      return {
+        period,
+        currency,
+        selectedVersion: version,
+        versions: versions.results,
+        organizations: organizations.results,
+        members: members.results,
+        entries: entries.results,
+        summary: {
+          actualMinor: actual,
+          budgetMinor: budget,
+          forecastMinor: forecast,
+          forecastVsActualMinor: forecast - actual,
+          forecastVsBudgetMinor: forecast - budget,
+        },
+        audit: audit.results,
+      };
+    };
+    if (request.method === "GET") return Response.json(await snapshot());
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as Record<string, string>,
+      now = new Date().toISOString(),
+      id = uid();
+    if (body.type === "createPlanningVersion") {
+      const year = Number(body.fiscalYear);
+      if (
+        !body.name?.trim() ||
+        !["Forecast", "Cenário"].includes(body.versionType) ||
+        !Number.isInteger(year) ||
+        year < 2000 ||
+        year > 2200
+      )
+        return Response.json(
+          { error: "Nome, tipo e ano fiscal válidos são obrigatórios." },
+          { status: 400 },
+        );
+      await db
+        .prepare(
+          "INSERT INTO planning_versions (id,tenant_id,name,version_type,fiscal_year,base_budget_id,status,created_by,created_at) VALUES (?,?,?,?,?,?,?, ?,?)",
+        )
+        .bind(
+          id,
+          tenantId,
+          body.name.trim(),
+          body.versionType,
+          year,
+          body.baseBudgetId || null,
+          "Rascunho",
+          security.email,
+          now,
+        )
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          tenantId,
+          "CREATE",
+          "planningVersion",
+          id,
+          security.email,
+          `${body.versionType} ${body.name.trim()} criado`,
+          now,
+        )
+        .run();
+    } else if (body.type === "planningEntry") {
+      if (
+        !body.versionId ||
+        !body.organizationId ||
+        !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(body.period || "") ||
+        !/^[A-Za-z]{3}$/.test(body.currency || "") ||
+        !body.lineCode?.trim() ||
+        !body.lineName?.trim()
+      )
+        return Response.json(
+          {
+            error:
+              "Versão, organização, período, moeda e linha são obrigatórios.",
+          },
+          { status: 400 },
+        );
+      if (organizationId && body.organizationId !== organizationId)
+        return Response.json(
+          { error: "Entrada fora do âmbito organizacional autorizado." },
+          { status: 403 },
+        );
+      await db
+        .prepare(
+          "INSERT INTO planning_entries (id,tenant_id,version_id,organization_id,period,currency,line_code,line_name,dimension_member_id,amount_minor,assumption_note,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          id,
+          tenantId,
+          body.versionId,
+          body.organizationId,
+          body.period,
+          body.currency.toUpperCase(),
+          body.lineCode.trim().toUpperCase(),
+          body.lineName.trim(),
+          body.dimensionMemberId || null,
+          parseMinor(body.amount),
+          body.assumptionNote?.trim() || null,
+          security.email,
+          now,
+        )
+        .run();
+    } else if (body.type === "approvePlanningVersion") {
+      const version = await db
+        .prepare(
+          "SELECT * FROM planning_versions WHERE id=? AND tenant_id=? AND status='Rascunho'",
+        )
+        .bind(body.versionId, tenantId)
+        .first<Record<string, unknown>>();
+      if (!version)
+        return Response.json(
+          { error: "Versão em rascunho não encontrada." },
+          { status: 404 },
+        );
+      if (!["Administrador", "Gestor"].includes(security.role))
+        return Response.json(
+          { error: "A aprovação exige Administrador ou Gestor." },
+          { status: 403 },
+        );
+      if (
+        String(version.created_by).toLowerCase() ===
+        security.email.toLowerCase()
+      )
+        return Response.json(
+          {
+            error:
+              "Segregação de funções: o criador não pode aprovar a própria versão.",
+          },
+          { status: 403 },
+        );
+      const count = await db
+        .prepare(
+          "SELECT COUNT(*) n FROM planning_entries WHERE tenant_id=? AND version_id=?",
+        )
+        .bind(tenantId, body.versionId)
+        .first<Record<string, unknown>>();
+      if (!Number(count?.n || 0))
+        return Response.json(
+          {
+            error:
+              "A versão precisa de pelo menos uma entrada antes da aprovação.",
+          },
+          { status: 409 },
+        );
+      const result = await db
+        .prepare(
+          "UPDATE planning_versions SET status='Aprovado',approved_by=?,approved_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'",
+        )
+        .bind(security.email, now, body.versionId, tenantId)
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          { error: "A versão foi alterada em paralelo." },
+          { status: 409 },
+        );
+      await db
+        .prepare(
+          "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          tenantId,
+          "APPROVE",
+          "planningVersion",
+          body.versionId,
+          security.email,
+          `Versão ${version.name} aprovada`,
+          now,
+        )
+        .run();
+    } else
+      return Response.json(
+        { error: "Operação de cenário não suportada." },
+        { status: 400 },
+      );
+    const next = new URL(request.url);
+    if (body.versionId) next.searchParams.set("version", body.versionId);
+    else next.searchParams.set("version", id);
+    return scenariosApi(
+      new Request(next, { method: "GET", headers: request.headers }),
+      db,
+      security,
+    );
+  } catch (error) {
+    return apiFailure(error, "Não foi possível processar Forecast e cenários.");
+  }
+}
 
-async function readinessApi(request:Request,db:D1Database,tenantId:string,organizationId:string|null,modules:string[]){try{if(request.method!=="GET")return Response.json({error:"Método não permitido."},{status:405});const row=await db.prepare("SELECT (SELECT COUNT(*) FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa') organizations,(SELECT COUNT(*) FROM financial_dimensions WHERE tenant_id=? AND status='Ativa') dimensions,(SELECT COUNT(*) FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?)) employees,(SELECT COUNT(*) FROM employee_contracts c JOIN employees e ON e.id=c.employee_id AND e.tenant_id=c.tenant_id WHERE c.tenant_id=? AND c.status='Ativo' AND (? IS NULL OR e.organization_id=?)) active_contracts,(SELECT COUNT(*) FROM salary_profiles p JOIN employees e ON e.id=p.employee_id AND e.tenant_id=p.tenant_id WHERE p.tenant_id=? AND p.status='Ativo' AND (? IS NULL OR e.organization_id=?)) salary_profiles,(SELECT COUNT(*) FROM budget_versions WHERE tenant_id=? AND status='Aprovado') approved_budgets,(SELECT COUNT(DISTINCT scenario) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND scenario IN ('Actual','Budget')) comparable_scenarios,(SELECT COUNT(*) FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.status='Fechado' AND (? IS NULL OR s.organization_id=?)) closed_payroll,(SELECT COUNT(*) FROM workforce_cost_postings WHERE tenant_id=? AND (? IS NULL OR organization_id=?)) workforce_postings,(SELECT COUNT(*) FROM management_reports r LEFT JOIN management_report_scopes s ON s.report_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?)) reports").bind(tenantId,organizationId,organizationId,tenantId,tenantId,organizationId,organizationId,tenantId,organizationId,organizationId,tenantId,organizationId,organizationId,tenantId,tenantId,organizationId,organizationId,tenantId,organizationId,organizationId,tenantId,organizationId,organizationId,tenantId,organizationId,organizationId).first<Record<string,unknown>>();const n=(key:string)=>Number(row?.[key]||0),engines=[{code:"FINANCE_FP&A",name:"Finance & FP&A",ready:n("organizations")>0&&n("dimensions")>0,status:n("organizations")>0&&n("dimensions")>0?"Pronto":"Bloqueado",evidence:`${n("organizations")} organização(ões) · ${n("dimensions")} dimensão(ões)`,next:n("organizations")?"Configurar dimensão financeira":"Configurar organização",target:"Administração"},{code:"HCM",name:"HCM",ready:n("employees")>0&&n("active_contracts")>0,status:n("employees")>0&&n("active_contracts")>0?"Pronto":"Atenção",evidence:`${n("employees")} colaborador(es) · ${n("active_contracts")} contrato(s) ativo(s)`,next:n("employees")?"Ativar contrato":"Registar colaborador",target:n("employees")?"Pessoas":"Administração"},{code:"PAYROLL",name:"Payroll",ready:n("active_contracts")>0&&n("salary_profiles")>0,status:n("active_contracts")>0&&n("salary_profiles")>0?"Pronto":"Bloqueado",evidence:`${n("active_contracts")} contrato(s) · ${n("salary_profiles")} perfil(is) salarial(is)`,next:n("active_contracts")?"Configurar perfil salarial":"Ativar contrato",target:n("active_contracts")?"Operações":"Pessoas"},{code:"WORKFORCE_PLANNING",name:"Workforce",ready:n("closed_payroll")>0,status:n("closed_payroll")>0?"Pronto":"Atenção",evidence:`${n("closed_payroll")} Payroll Run(s) fechado(s) · ${n("workforce_postings")} posting(s)`,next:n("closed_payroll")?"Transferir custos":"Fechar Payroll Run",target:n("closed_payroll")?"Análises":"Operações"},{code:"ANALYTICS_REPORTING",name:"Reporting",ready:n("approved_budgets")>0&&n("comparable_scenarios")===2,status:n("approved_budgets")>0&&n("comparable_scenarios")===2?"Pronto":"Bloqueado",evidence:`${n("approved_budgets")} Budget aprovado · ${n("comparable_scenarios")}/2 cenários · ${n("reports")} relatório(s)`,next:"Preparar Actual e Budget comparáveis",target:"Planeamento"}].filter(x=>modules.includes(x.code));return Response.json({generatedAt:new Date().toISOString(),engines,summary:{ready:engines.filter(x=>x.ready).length,total:engines.length}})}catch(error){return apiFailure(error,"Não foi possível avaliar a preparação dos motores.")}}
+async function goalsApi(
+  request: Request,
+  db: D1Database,
+  security: SecurityContext,
+) {
+  try {
+    const tenantId = security.tenantId,
+      organizationId = security.organizationId;
+    const snapshot = async () => {
+      const [cycles, goalRows, organizations, owners, audit] =
+        await Promise.all([
+          db
+            .prepare(
+              "SELECT c.*,(SELECT COUNT(*) FROM performance_goals g WHERE g.cycle_id=c.id AND g.tenant_id=c.tenant_id) goal_count FROM performance_cycles c WHERE c.tenant_id=? ORDER BY c.start_date DESC",
+            )
+            .bind(tenantId)
+            .all(),
+          db
+            .prepare(
+              "SELECT g.*,o.name organization_name,(SELECT value_scaled FROM performance_goal_checkins ci WHERE ci.goal_id=g.id AND ci.tenant_id=g.tenant_id ORDER BY ci.checked_at DESC LIMIT 1) current_scaled,(SELECT COUNT(*) FROM performance_goal_checkins ci WHERE ci.goal_id=g.id AND ci.tenant_id=g.tenant_id) checkin_count FROM performance_goals g JOIN organizations o ON o.id=g.organization_id AND o.tenant_id=g.tenant_id WHERE g.tenant_id=? AND (? IS NULL OR g.organization_id=?) ORDER BY CASE g.status WHEN 'Ativo' THEN 1 WHEN 'Rascunho' THEN 2 ELSE 3 END,g.created_at DESC",
+            )
+            .bind(tenantId, organizationId, organizationId)
+            .all<Record<string, unknown>>(),
+          db
+            .prepare(
+              "SELECT id,code,name FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name",
+            )
+            .bind(tenantId, organizationId, organizationId)
+            .all(),
+          db
+            .prepare(
+              "SELECT name,email,role FROM platform_users WHERE tenant_id=? AND status='Ativo' AND (? IS NULL OR organization_id IS NULL OR organization_id=?) ORDER BY name",
+            )
+            .bind(tenantId, organizationId, organizationId)
+            .all(),
+          organizationId
+            ? Promise.resolve({ results: [] })
+            : db
+                .prepare(
+                  "SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('performanceCycle','performanceGoal') ORDER BY created_at DESC LIMIT 12",
+                )
+                .bind(tenantId)
+                .all(),
+        ]);
+      const goals = goalRows.results.map((g) => {
+        const start = Number(g.start_scaled),
+          target = Number(g.target_scaled),
+          current =
+            g.current_scaled === null || g.current_scaled === undefined
+              ? start
+              : Number(g.current_scaled),
+          raw =
+            g.direction === "Aumentar"
+              ? ((current - start) * 10000) / (target - start)
+              : ((start - current) * 10000) / (start - target);
+        return {
+          ...g,
+          current_scaled: current,
+          progress_bps: Math.max(0, Math.min(10000, Math.trunc(raw))),
+        };
+      });
+      return {
+        cycles: cycles.results,
+        goals,
+        organizations: organizations.results,
+        owners: owners.results,
+        audit: audit.results,
+      };
+    };
+    if (request.method === "GET") return Response.json(await snapshot());
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as Record<string, string>,
+      now = new Date().toISOString(),
+      id = uid();
+    if (body.type === "createCycle") {
+      if (
+        !body.name?.trim() ||
+        !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(body.startDate || "") ||
+        !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(body.endDate || "") ||
+        body.endDate < body.startDate
+      )
+        return Response.json(
+          { error: "Nome e intervalo válido são obrigatórios." },
+          { status: 400 },
+        );
+      await db
+        .prepare(
+          "INSERT INTO performance_cycles (id,tenant_id,name,start_date,end_date,status,created_by,created_at) VALUES (?,?,?,?,?,'Rascunho',?,?)",
+        )
+        .bind(
+          id,
+          tenantId,
+          body.name.trim(),
+          body.startDate,
+          body.endDate,
+          security.email,
+          now,
+        )
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          tenantId,
+          "CREATE",
+          "performanceCycle",
+          id,
+          security.email,
+          `Ciclo ${body.name.trim()} criado`,
+          now,
+        )
+        .run();
+    } else if (body.type === "createGoal") {
+      const scale = Number(body.scale || 100),
+        weight = Math.round(
+          Number((body.weight || "").replace(",", ".")) * 100,
+        );
+      if (
+        !body.cycleId ||
+        !body.organizationId ||
+        !body.ownerEmail ||
+        !body.title?.trim() ||
+        !body.metricName?.trim() ||
+        !body.unit?.trim() ||
+        !["Aumentar", "Reduzir"].includes(body.direction) ||
+        !Number.isInteger(weight) ||
+        weight < 1 ||
+        weight > 10000
+      )
+        return Response.json(
+          {
+            error:
+              "Ciclo, organização, responsável, meta, métrica, direção e peso são obrigatórios.",
+          },
+          { status: 400 },
+        );
+      if (organizationId && body.organizationId !== organizationId)
+        return Response.json(
+          { error: "Objetivo fora do âmbito organizacional autorizado." },
+          { status: 403 },
+        );
+      await db
+        .prepare(
+          "INSERT INTO performance_goals (id,tenant_id,cycle_id,organization_id,owner_email,title,description,metric_name,unit,direction,start_scaled,target_scaled,scale,weight_bps,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Rascunho',?,?)",
+        )
+        .bind(
+          id,
+          tenantId,
+          body.cycleId,
+          body.organizationId,
+          body.ownerEmail.toLowerCase(),
+          body.title.trim(),
+          body.description?.trim() || null,
+          body.metricName.trim(),
+          body.unit.trim(),
+          body.direction,
+          parseScaled(body.startValue, scale),
+          parseScaled(body.targetValue, scale),
+          scale,
+          weight,
+          security.email,
+          now,
+        )
+        .run();
+    } else if (body.type === "activateCycle") {
+      const cycle = await db
+        .prepare(
+          "SELECT * FROM performance_cycles WHERE id=? AND tenant_id=? AND status='Rascunho'",
+        )
+        .bind(body.cycleId, tenantId)
+        .first<Record<string, unknown>>();
+      if (!cycle)
+        return Response.json(
+          { error: "Ciclo em rascunho não encontrado." },
+          { status: 404 },
+        );
+      if (
+        !["Administrador", "Gestor"].includes(security.role) ||
+        cycle.created_by === security.email
+      )
+        return Response.json(
+          {
+            error:
+              "A ativação exige maker-checker por Administrador ou Gestor.",
+          },
+          { status: 403 },
+        );
+      const count = await db
+        .prepare(
+          "SELECT COUNT(*) n FROM performance_goals WHERE cycle_id=? AND tenant_id=?",
+        )
+        .bind(body.cycleId, tenantId)
+        .first<Record<string, unknown>>();
+      if (!Number(count?.n || 0))
+        return Response.json(
+          { error: "Adicione pelo menos um objetivo antes de ativar o ciclo." },
+          { status: 409 },
+        );
+      await db
+        .prepare(
+          "UPDATE performance_cycles SET status='Ativo',activated_by=?,activated_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'",
+        )
+        .bind(security.email, now, body.cycleId, tenantId)
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          tenantId,
+          "ACTIVATE",
+          "performanceCycle",
+          body.cycleId,
+          security.email,
+          `Ciclo ${cycle.name} ativado`,
+          now,
+        )
+        .run();
+    } else if (body.type === "goalCheckin") {
+      const goal = await db
+        .prepare(
+          "SELECT * FROM performance_goals WHERE id=? AND tenant_id=? AND status='Ativo' AND (? IS NULL OR organization_id=?)",
+        )
+        .bind(body.goalId, tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>();
+      if (!goal)
+        return Response.json(
+          { error: "Objetivo ativo não encontrado." },
+          { status: 404 },
+        );
+      if (
+        security.role !== "Administrador" &&
+        String(goal.owner_email).toLowerCase() !== security.email.toLowerCase()
+      )
+        return Response.json(
+          {
+            error:
+              "Apenas o responsável ou Administrador pode registar check-in.",
+          },
+          { status: 403 },
+        );
+      await db
+        .prepare(
+          "INSERT INTO performance_goal_checkins (id,tenant_id,goal_id,value_scaled,note,evidence,checked_by,checked_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          id,
+          tenantId,
+          body.goalId,
+          parseScaled(body.value, Number(goal.scale)),
+          body.note?.trim() || null,
+          body.evidence?.trim() || null,
+          security.email,
+          now,
+        )
+        .run();
+    } else if (body.type === "completeGoal") {
+      const goal = await db
+        .prepare(
+          "SELECT g.*,(SELECT value_scaled FROM performance_goal_checkins c WHERE c.goal_id=g.id AND c.tenant_id=g.tenant_id ORDER BY c.checked_at DESC LIMIT 1) current_scaled FROM performance_goals g WHERE g.id=? AND g.tenant_id=? AND g.status='Ativo' AND (? IS NULL OR g.organization_id=?)",
+        )
+        .bind(body.goalId, tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>();
+      if (!goal)
+        return Response.json(
+          { error: "Objetivo ativo não encontrado." },
+          { status: 404 },
+        );
+      if (
+        security.role !== "Administrador" &&
+        String(goal.owner_email).toLowerCase() !== security.email.toLowerCase()
+      )
+        return Response.json(
+          { error: "Apenas o responsável ou Administrador pode concluir." },
+          { status: 403 },
+        );
+      const current = Number(goal.current_scaled ?? goal.start_scaled),
+        reached =
+          goal.direction === "Aumentar"
+            ? current >= Number(goal.target_scaled)
+            : current <= Number(goal.target_scaled);
+      if (!reached)
+        return Response.json(
+          { error: "O objetivo ainda não atingiu a meta configurada." },
+          { status: 409 },
+        );
+      await db
+        .prepare(
+          "UPDATE performance_goals SET status='Concluído',completed_at=? WHERE id=? AND tenant_id=? AND status='Ativo'",
+        )
+        .bind(now, body.goalId, tenantId)
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          tenantId,
+          "COMPLETE",
+          "performanceGoal",
+          body.goalId,
+          security.email,
+          `Objetivo concluído: ${goal.title}`,
+          now,
+        )
+        .run();
+    } else
+      return Response.json(
+        { error: "Operação de objetivos não suportada." },
+        { status: 400 },
+      );
+    return Response.json(await snapshot(), { status: 201 });
+  } catch (error) {
+    return apiFailure(error, "Não foi possível processar objetivos.");
+  }
+}
 
-async function workflowApi(request:Request,db:D1Database,tenantId:string,organizationId:string|null,role:string,email:string,modules:string[]){try{if(request.method!=="GET")return Response.json({error:"Método não permitido."},{status:405});const [absence,payroll,batches,budgets,actions,reviews,feedback,governed,history]=await Promise.all([
- modules.includes("HCM")?db.prepare("SELECT r.id,r.requested_at created_at,datetime(r.requested_at,'+2 days') due_at,e.first_name||' '||e.last_name subject,t.name detail FROM hcm_absence_requests r JOIN employees e ON e.id=r.employee_id AND e.tenant_id=r.tenant_id JOIN hcm_absence_types t ON t.id=r.absence_type_id AND t.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.status='Pendente' AND (? IS NULL OR e.organization_id=?)").bind(tenantId,organizationId,organizationId).all<Record<string,unknown>>():Promise.resolve({results:[]}),
- modules.includes("PAYROLL")?db.prepare("SELECT r.id,r.created_at,datetime(r.created_at,'+2 days') due_at,'Payroll '||r.period subject,r.status detail FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.status IN ('Rascunho','Validado','Aprovado') AND (? IS NULL OR s.organization_id=?)").bind(tenantId,organizationId,organizationId).all<Record<string,unknown>>():Promise.resolve({results:[]}),
- modules.includes("PAYROLL")?db.prepare("SELECT b.id,b.prepared_at created_at,datetime(b.prepared_at,'+1 day') due_at,b.batch_number subject,b.status detail FROM payroll_payment_batches b JOIN payroll_runs r ON r.id=b.run_id AND r.tenant_id=b.tenant_id LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE b.tenant_id=? AND b.status IN ('Preparado','Aprovado') AND (? IS NULL OR s.organization_id=?)").bind(tenantId,organizationId,organizationId).all<Record<string,unknown>>():Promise.resolve({results:[]}),
- modules.includes("FINANCE_FP&A")&&!organizationId?db.prepare("SELECT id,created_at,datetime(created_at,'+7 days') due_at,name subject,'Rascunho' detail FROM budget_versions WHERE tenant_id=? AND status='Rascunho'").bind(tenantId).all<Record<string,unknown>>():Promise.resolve({results:[]}),
- modules.includes("PERFORMANCE_MANAGEMENT")?db.prepare("SELECT id,created_at,due_date||'T23:59:59Z' due_at,title subject,status detail,owner_email FROM performance_actions WHERE tenant_id=? AND status IN ('Aberta','Em curso') AND (? IS NULL OR organization_id=?)").bind(tenantId,organizationId,organizationId).all<Record<string,unknown>>():Promise.resolve({results:[]}),
- modules.includes("PERFORMANCE_MANAGEMENT")?db.prepare("SELECT r.id,r.created_at,datetime(r.created_at,'+3 days') due_at,s.name subject,r.status detail,r.subject_email,r.reviewer_email FROM performance_reviews r JOIN platform_users s ON lower(s.email)=lower(r.subject_email) AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.status IN ('Aguardando autoavaliação','Aguardando gestor','Calibração') AND (? IS NULL OR r.organization_id=?)").bind(tenantId,organizationId,organizationId).all<Record<string,unknown>>():Promise.resolve({results:[]}),
- modules.includes("PERFORMANCE_MANAGEMENT")?db.prepare("SELECT p.id,r.created_at,r.due_date||'T23:59:59Z' due_at,s.name subject,p.relationship detail FROM feedback_360_participants p JOIN feedback_360_rounds r ON r.id=p.round_id AND r.tenant_id=p.tenant_id JOIN performance_reviews v ON v.id=r.review_id AND v.tenant_id=r.tenant_id JOIN platform_users s ON lower(s.email)=lower(v.subject_email) AND s.tenant_id=v.tenant_id WHERE p.tenant_id=? AND p.status='Pendente' AND r.status='Aberto' AND lower(p.evaluator_email)=lower(?) AND (? IS NULL OR v.organization_id=?)").bind(tenantId,email,organizationId,organizationId).all<Record<string,unknown>>():Promise.resolve({results:[]}),
- db.prepare("SELECT id,created_at,due_at,title subject,detail,source_domain domain,source_target target,priority,status,assignee_email FROM workflow_tasks WHERE tenant_id=? AND status IN ('Aberta','Em curso') AND (? IS NULL OR organization_id=?) ORDER BY due_at").bind(tenantId,organizationId,organizationId).all<Record<string,unknown>>(),
- organizationId?Promise.resolve({results:[]}):db.prepare("SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('absenceRequest','approveBudget','payrollRun','paymentBatch','performanceAction','performanceReview','competencyFramework','feedback360','workflowTask') ORDER BY created_at DESC LIMIT 20").bind(tenantId).all<Record<string,unknown>>()]);
- const now=Date.now(),decorate=(row:Record<string,unknown>,domain:string,title:string,target:string,requiredRoles:string[])=>{const due=Date.parse(String(row.due_at)),hours=(due-now)/3600000;return{id:row.id,domain,title,subject:row.subject,detail:row.detail,createdAt:row.created_at,dueAt:row.due_at,priority:hours<0?"Crítica":hours<=24?"Alta":"Normal",overdue:hours<0,target,canAct:requiredRoles.includes(role),requiredRoles}};const actionTasks=actions.results.map(x=>({...decorate(x,"Performance","Executar plano de ação","Ações",["Administrador"]),canAct:role==="Administrador"||String(x.owner_email).toLowerCase()===email.toLowerCase(),requiredRoles:["Responsável","Administrador"]})),reviewTasks=reviews.results.map(x=>{const status=String(x.detail),calibrator=["Administrador","Recursos Humanos"].includes(role)&&![x.subject_email,x.reviewer_email].some(v=>String(v).toLowerCase()===email.toLowerCase());return{...decorate(x,"Performance",status==="Aguardando autoavaliação"?"Enviar autoavaliação":status==="Aguardando gestor"?"Avaliar colaborador":"Calibrar avaliação","Avaliações",[]),canAct:status==="Aguardando autoavaliação"?String(x.subject_email).toLowerCase()===email.toLowerCase():status==="Aguardando gestor"?String(x.reviewer_email).toLowerCase()===email.toLowerCase():calibrator,requiredRoles:status==="Aguardando autoavaliação"?["Colaborador"]:status==="Aguardando gestor"?["Gestor designado"]:["RH independente","Administrador independente"]}}),feedbackTasks=feedback.results.map(x=>({...decorate(x,"Performance","Responder feedback 360°","Competências",[]),canAct:true,requiredRoles:["Avaliador designado"]})),governedTasks=governed.results.map(x=>({...decorate(x,String(x.domain),"Tarefa assumida",String(x.target),[]),priority:x.priority,canAct:String(x.assignee_email).toLowerCase()===email.toLowerCase(),requiredRoles:["Responsável designado"],persistent:true,status:x.status})),tasks=[...governedTasks,...absence.results.map(x=>decorate(x,"HCM","Decidir pedido de ausência","Ausências",["Administrador","Recursos Humanos"])),...payroll.results.map(x=>decorate(x,"Payroll",x.detail==="Rascunho"?"Validar processamento":x.detail==="Validado"?"Aprovar processamento":"Fechar processamento","Operações",x.detail==="Rascunho"?["Recursos Humanos"]:["Administrador"])),...batches.results.map(x=>decorate(x,"Payroll",x.detail==="Preparado"?"Aprovar lote de pagamento":"Confirmar exportação do lote","Operações",["Administrador"])),...budgets.results.map(x=>decorate(x,"Finance","Aprovar versão orçamental","Planeamento",["Administrador","Gestor"])),...actionTasks,...reviewTasks,...feedbackTasks].sort((a,b)=>a.dueAt.localeCompare(b.dueAt));return Response.json({generatedAt:new Date().toISOString(),tasks,history:history.results,summary:{total:tasks.length,actionable:tasks.filter(x=>x.canAct).length,overdue:tasks.filter(x=>x.overdue).length,critical:tasks.filter(x=>x.priority==="Crítica").length}})}catch(error){return apiFailure(error,"Não foi possível carregar o Workflow.")}}
+async function payrollSnapshot(
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  const [
+    profiles,
+    components,
+    runs,
+    employees,
+    members,
+    payslips,
+    batches,
+    audit,
+  ] = await Promise.all([
+    db
+      .prepare(
+        "SELECT p.*, e.first_name||' '||e.last_name AS employee_name, e.employee_number, m.name AS dimension_member_name FROM salary_profiles p JOIN employees e ON e.id=p.employee_id LEFT JOIN dimension_members m ON m.id=p.dimension_member_id WHERE p.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY p.created_at DESC",
+      )
+      .bind(tenantId, organizationId, organizationId)
+      .all(),
+    db
+      .prepare(
+        "SELECT c.*, e.first_name||' '||e.last_name AS employee_name FROM payroll_components c JOIN payroll_assignments a ON a.component_id=c.id AND a.tenant_id=c.tenant_id JOIN employees e ON e.id=a.employee_id WHERE c.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY c.calculation_order,c.code",
+      )
+      .bind(tenantId, organizationId, organizationId)
+      .all(),
+    db
+      .prepare(
+        "SELECT r.* FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) ORDER BY r.period DESC,r.created_at DESC LIMIT 12",
+      )
+      .bind(tenantId, organizationId, organizationId)
+      .all(),
+    db
+      .prepare(
+        "SELECT id,employee_number,first_name,last_name FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo' ORDER BY first_name,last_name",
+      )
+      .bind(tenantId, organizationId, organizationId)
+      .all(),
+    db
+      .prepare(
+        "SELECT m.id,m.name,m.code,d.name AS dimension_name FROM dimension_members m JOIN financial_dimensions d ON d.id=m.dimension_id WHERE m.tenant_id=? AND m.status='Ativo' ORDER BY d.name,m.code",
+      )
+      .bind(tenantId)
+      .all(),
+    db
+      .prepare(
+        "SELECT p.id,p.run_id,p.employee_id,p.payslip_number,p.period,p.currency,p.gross_minor,p.deduction_minor,p.employer_minor,p.net_minor,p.document_hash,p.status,p.issued_at,p.payload_json,e.employee_number,e.first_name||' '||e.last_name employee_name,o.name organization_name FROM payroll_payslips p JOIN employees e ON e.id=p.employee_id AND e.tenant_id=p.tenant_id JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id WHERE p.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY p.period DESC,e.employee_number",
+      )
+      .bind(tenantId, organizationId, organizationId)
+      .all(),
+    db
+      .prepare(
+        "SELECT b.*,COUNT(l.id) line_count FROM payroll_payment_batches b JOIN payroll_runs r ON r.id=b.run_id AND r.tenant_id=b.tenant_id LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id LEFT JOIN payroll_payment_batch_lines l ON l.batch_id=b.id AND l.tenant_id=b.tenant_id WHERE b.tenant_id=? AND (? IS NULL OR s.organization_id=?) GROUP BY b.id ORDER BY b.period DESC,b.prepared_at DESC",
+      )
+      .bind(tenantId, organizationId, organizationId)
+      .all(),
+    organizationId
+      ? Promise.resolve({ results: [] })
+      : db
+          .prepare(
+            "SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('salaryProfile','payrollComponent','payrollRun') ORDER BY created_at DESC LIMIT 6",
+          )
+          .bind(tenantId)
+          .all(),
+  ]);
+  return {
+    profiles: profiles.results,
+    components: components.results,
+    runs: runs.results,
+    employees: employees.results,
+    members: members.results,
+    payslips: payslips.results,
+    batches: batches.results,
+    audit: audit.results,
+  };
+}
+async function sha256(value: string) {
+  const bytes = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return [...new Uint8Array(bytes)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+async function payrollApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  try {
+    await ensureSetupSchema(db);
+    if (request.method === "GET")
+      return Response.json(await payrollSnapshot(db, tenantId, organizationId));
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as Record<string, string>,
+      created = new Date().toISOString(),
+      recordId = uid(),
+      actor = actorEmail(request) || "utilizador autenticado";
+    let summary = "",
+      action = "CREATE";
+    if (body.type === "salaryProfile") {
+      if (
+        !body.employeeId ||
+        !body.currency?.match(/^[A-Za-z]{3}$/) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(body.effectiveFrom || "")
+      )
+        return Response.json(
+          { error: "Colaborador, moeda e vigência são obrigatórios." },
+          { status: 400 },
+        );
+      if (
+        !(await db
+          .prepare(
+            "SELECT id FROM employees WHERE tenant_id=? AND id=? AND (? IS NULL OR organization_id=?)",
+          )
+          .bind(tenantId, body.employeeId, organizationId, organizationId)
+          .first())
+      )
+        return Response.json(
+          { error: "Colaborador fora do âmbito autorizado." },
+          { status: 403 },
+        );
+      if (
+        await db
+          .prepare(
+            "SELECT id FROM salary_profiles WHERE tenant_id=? AND employee_id=? AND status='Ativo'",
+          )
+          .bind(tenantId, body.employeeId)
+          .first()
+      )
+        return Response.json(
+          { error: "O colaborador já possui um perfil salarial ativo." },
+          { status: 409 },
+        );
+      const base = parseMinor(body.baseAmount);
+      summary = "Perfil salarial criado";
+      await db
+        .prepare(
+          "INSERT INTO salary_profiles (id,tenant_id,employee_id,currency,periodicity,base_minor,effective_from,effective_to,dimension_member_id,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          recordId,
+          tenantId,
+          body.employeeId,
+          body.currency.toUpperCase(),
+          body.periodicity || "Mensal",
+          base,
+          body.effectiveFrom,
+          body.effectiveTo || null,
+          body.dimensionMemberId || null,
+          "Ativo",
+          created,
+        )
+        .run();
+    } else if (body.type === "payrollComponent") {
+      if (
+        !body.employeeId ||
+        !body.code?.trim() ||
+        !body.name?.trim() ||
+        !["Earning", "Deduction", "EmployerCost"].includes(body.category) ||
+        !["Fixed", "Percentage"].includes(body.method)
+      )
+        return Response.json(
+          { error: "Preencha colaborador, código, nome, categoria e método." },
+          { status: 400 },
+        );
+      if (
+        !(await db
+          .prepare(
+            "SELECT id FROM employees WHERE tenant_id=? AND id=? AND (? IS NULL OR organization_id=?)",
+          )
+          .bind(tenantId, body.employeeId, organizationId, organizationId)
+          .first())
+      )
+        return Response.json(
+          { error: "Colaborador fora do âmbito autorizado." },
+          { status: 403 },
+        );
+      if (
+        await db
+          .prepare(
+            "SELECT id FROM payroll_components WHERE tenant_id=? AND code=?",
+          )
+          .bind(tenantId, body.code.trim().toUpperCase())
+          .first()
+      )
+        return Response.json(
+          { error: "Já existe um componente com este código." },
+          { status: 409 },
+        );
+      const value = body.method === "Fixed" ? parseMinor(body.value) : null,
+        rate =
+          body.method === "Percentage"
+            ? Math.round(Number(body.value.replace(",", ".")) * 100)
+            : null;
+      if (
+        rate !== null &&
+        (!Number.isInteger(rate) || rate < 0 || rate > 100000)
+      )
+        return Response.json(
+          { error: "Percentagem inválida." },
+          { status: 400 },
+        );
+      summary = `Componente ${body.name.trim()} criado`;
+      await db.batch([
+        db
+          .prepare(
+            "INSERT INTO payroll_components (id,tenant_id,code,name,category,method,value_minor,rate_bps,calculation_order,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            recordId,
+            tenantId,
+            body.code.trim().toUpperCase(),
+            body.name.trim(),
+            body.category,
+            body.method,
+            value,
+            rate,
+            Number(body.calculationOrder) || 100,
+            "Ativo",
+            created,
+          ),
+        db
+          .prepare(
+            "INSERT INTO payroll_assignments (id,tenant_id,employee_id,component_id,created_at) VALUES (?,?,?,?,?)",
+          )
+          .bind(uid(), tenantId, body.employeeId, recordId, created),
+      ]);
+    } else if (body.type === "generatePayrollRun") {
+      if (
+        !/^\d{4}-(0[1-9]|1[0-2])$/.test(body.period || "") ||
+        !body.currency?.match(/^[A-Za-z]{3}$/)
+      )
+        return Response.json(
+          { error: "Período e moeda são obrigatórios." },
+          { status: 400 },
+        );
+      if (
+        await db
+          .prepare(
+            "SELECT r.id FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id WHERE r.tenant_id=? AND r.period=? AND r.currency=? AND ((? IS NULL AND s.organization_id IS NULL) OR s.organization_id=?)",
+          )
+          .bind(
+            tenantId,
+            body.period,
+            body.currency.toUpperCase(),
+            organizationId,
+            organizationId,
+          )
+          .first()
+      )
+        return Response.json(
+          {
+            error:
+              "Já existe um processamento para este período, moeda e âmbito.",
+          },
+          { status: 409 },
+        );
+      const profiles = await db
+        .prepare(
+          "SELECT p.*,e.id AS employee_id FROM salary_profiles p JOIN employees e ON e.id=p.employee_id JOIN employee_contracts c ON c.employee_id=e.id AND c.tenant_id=e.tenant_id AND c.status='Ativo' AND c.start_date<=? AND (c.end_date IS NULL OR c.end_date>=?) WHERE p.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND p.status='Ativo' AND p.currency=? AND p.effective_from<=? AND (p.effective_to IS NULL OR p.effective_to>=?) AND e.status='Ativo'",
+        )
+        .bind(
+          `${body.period}-31`,
+          `${body.period}-01`,
+          tenantId,
+          organizationId,
+          organizationId,
+          body.currency.toUpperCase(),
+          `${body.period}-31`,
+          `${body.period}-01`,
+        )
+        .all<Record<string, unknown>>();
+      if (!profiles.results.length)
+        return Response.json(
+          {
+            error:
+              "Não existem colaboradores com contrato e perfil salarial elegíveis neste âmbito.",
+          },
+          { status: 409 },
+        );
+      let grossTotal = 0,
+        dedTotal = 0,
+        employerTotal = 0,
+        netTotal = 0;
+      const statements = [] as D1PreparedStatement[];
+      for (const p of profiles.results) {
+        const employeeId = String(p.employee_id),
+          base = Number(p.base_minor),
+          lineId = uid(),
+          comps = await db
+            .prepare(
+              "SELECT c.* FROM payroll_components c JOIN payroll_assignments a ON a.component_id=c.id WHERE a.tenant_id=? AND a.employee_id=? AND c.status='Ativo' ORDER BY c.calculation_order,c.code",
+            )
+            .bind(tenantId, employeeId)
+            .all<Record<string, unknown>>(),
+          loanInstallments = await db
+            .prepare(
+              "SELECT i.*,l.reference FROM payroll_loan_installments i JOIN payroll_loans l ON l.id=i.loan_id AND l.tenant_id=i.tenant_id WHERE i.tenant_id=? AND l.employee_id=? AND l.currency=? AND l.status='Aprovado' AND i.period=? AND i.status='Programada'",
+            )
+            .bind(
+              tenantId,
+              employeeId,
+              body.currency.toUpperCase(),
+              body.period,
+            )
+            .all<Record<string, unknown>>(),
+          adjustments = await db
+            .prepare(
+              "SELECT * FROM payroll_adjustments WHERE tenant_id=? AND employee_id=? AND currency=? AND payment_period=? AND status='Aprovado'",
+            )
+            .bind(
+              tenantId,
+              employeeId,
+              body.currency.toUpperCase(),
+              body.period,
+            )
+            .all<Record<string, unknown>>();
+        let gross = base,
+          deductions = 0,
+          employer = 0;
+        const inputs = [] as Record<string, unknown>[],
+          payrollExtraStatements = [] as D1PreparedStatement[];
+        for (const c of comps.results) {
+          const amount =
+            c.method === "Fixed"
+              ? Number(c.value_minor)
+              : percentageAmount(base, Number(c.rate_bps));
+          if (c.category === "Earning") gross += amount;
+          else if (c.category === "Deduction") deductions += amount;
+          else employer += amount;
+          inputs.push({
+            code: c.code,
+            category: c.category,
+            method: c.method,
+            amountMinor: amount,
+          });
+        }
+        for (const installment of loanInstallments.results) {
+          const amount = Number(installment.amount_minor);
+          deductions += amount;
+          inputs.push({
+            code: `LOAN:${installment.reference}`,
+            category: "Deduction",
+            method: "Installment",
+            amountMinor: amount,
+            installmentId: installment.id,
+          });
+          payrollExtraStatements.push(
+            db
+              .prepare(
+                "INSERT INTO payroll_loan_deductions VALUES (?,?,?,?,?,?,?,'Calculada',?,NULL)",
+              )
+              .bind(
+                uid(),
+                tenantId,
+                installment.loan_id,
+                installment.id,
+                recordId,
+                lineId,
+                amount,
+                created,
+              ),
+          );
+        }
+        for (const adjustment of adjustments.results) {
+          const amount = Number(adjustment.amount_minor);
+          if (adjustment.category === "Earning") gross += amount;
+          else deductions += amount;
+          inputs.push({
+            code: `ADJUSTMENT:${adjustment.reference}`,
+            category: adjustment.category,
+            method: "Retroactive",
+            amountMinor: amount,
+            sourcePeriod: adjustment.source_period,
+            reason: adjustment.reason,
+          });
+          payrollExtraStatements.push(
+            db
+              .prepare(
+                "INSERT INTO payroll_adjustment_applications VALUES (?,?,?,?,?,?,?,'Calculado',?,NULL)",
+              )
+              .bind(
+                uid(),
+                tenantId,
+                adjustment.id,
+                recordId,
+                lineId,
+                amount,
+                adjustment.category,
+                created,
+              ),
+          );
+        }
+        const net = gross - deductions;
+        if (net < 0)
+          return Response.json(
+            {
+              error:
+                "As deduções excedem o bruto de um colaborador. Reveja prestações e componentes.",
+            },
+            { status: 409 },
+          );
+        const snapshot = JSON.stringify({
+            employeeId,
+            baseMinor: base,
+            components: inputs,
+          }),
+          hash = await sha256(snapshot);
+        grossTotal += gross;
+        dedTotal += deductions;
+        employerTotal += employer;
+        netTotal += net;
+        statements.push(
+          db
+            .prepare(
+              "INSERT INTO payroll_run_lines (id,tenant_id,run_id,employee_id,base_minor,gross_minor,deduction_minor,employer_minor,net_minor,calculation_hash,input_snapshot,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            )
+            .bind(
+              lineId,
+              tenantId,
+              recordId,
+              employeeId,
+              base,
+              gross,
+              deductions,
+              employer,
+              net,
+              hash,
+              snapshot,
+              created,
+            ),
+          ...payrollExtraStatements,
+        );
+      }
+      statements.unshift(
+        db
+          .prepare(
+            "INSERT INTO payroll_run_scopes (run_id,tenant_id,organization_id,created_at) VALUES (?,?,?,?)",
+          )
+          .bind(recordId, tenantId, organizationId, created),
+      );
+      statements.unshift(
+        db
+          .prepare(
+            "INSERT INTO payroll_runs (id,tenant_id,period,currency,status,employee_count,gross_minor,deduction_minor,employer_minor,net_minor,closed_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            recordId,
+            tenantId,
+            body.period,
+            body.currency.toUpperCase(),
+            "Rascunho",
+            profiles.results.length,
+            grossTotal,
+            dedTotal,
+            employerTotal,
+            netTotal,
+            null,
+            created,
+          ),
+      );
+      await db.batch(statements);
+      summary = `Payroll ${body.period} calculado para ${profiles.results.length} colaborador(es)`;
+    } else if (body.type === "issuePayslips") {
+      const run = await db
+        .prepare(
+          "SELECT r.* FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.id=? AND r.tenant_id=? AND r.status='Fechado' AND (? IS NULL OR s.organization_id=?)",
+        )
+        .bind(body.runId, tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>();
+      if (!run)
+        return Response.json(
+          {
+            error:
+              "A emissão exige um Payroll Run fechado no âmbito autorizado.",
+          },
+          { status: 409 },
+        );
+      const lines = await db
+        .prepare(
+          "SELECT l.*,e.employee_number,e.first_name,e.last_name,e.job_title,e.organization_id,o.name organization_name FROM payroll_run_lines l JOIN employees e ON e.id=l.employee_id AND e.tenant_id=l.tenant_id JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id WHERE l.run_id=? AND l.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY e.employee_number",
+        )
+        .bind(body.runId, tenantId, organizationId, organizationId)
+        .all<Record<string, unknown>>();
+      if (!lines.results.length)
+        return Response.json(
+          { error: "O Payroll Run não possui linhas elegíveis." },
+          { status: 409 },
+        );
+      const existing = await db
+        .prepare(
+          "SELECT COUNT(*) n FROM payroll_payslips WHERE tenant_id=? AND run_id=?",
+        )
+        .bind(tenantId, body.runId)
+        .first<Record<string, unknown>>();
+      if (Number(existing?.n || 0) === lines.results.length) {
+        summary = `Recibos do Payroll ${run.period} já estavam emitidos`;
+        action = "ISSUE";
+      } else {
+        const statements: D1PreparedStatement[] = [];
+        for (const line of lines.results) {
+          const payslipNumber = `PS-${String(run.period).replace("-", "")}-${String(line.employee_number)}-${String(run.id).slice(0, 8).toUpperCase()}`,
+            payload = JSON.stringify({
+              documentType: "PAYSLIP",
+              version: 1,
+              payslipNumber,
+              period: run.period,
+              currency: run.currency,
+              employee: {
+                id: line.employee_id,
+                number: line.employee_number,
+                name: `${line.first_name} ${line.last_name}`,
+                jobTitle: line.job_title,
+                organizationId: line.organization_id,
+                organizationName: line.organization_name,
+              },
+              amounts: {
+                baseMinor: Number(line.base_minor),
+                grossMinor: Number(line.gross_minor),
+                deductionMinor: Number(line.deduction_minor),
+                employerMinor: Number(line.employer_minor),
+                netMinor: Number(line.net_minor),
+              },
+              calculationHash: line.calculation_hash,
+              inputSnapshot: JSON.parse(String(line.input_snapshot)),
+            }),
+            hash = await sha256(payload);
+          statements.push(
+            db
+              .prepare(
+                "INSERT INTO payroll_payslips (id,tenant_id,run_id,run_line_id,employee_id,payslip_number,period,currency,gross_minor,deduction_minor,employer_minor,net_minor,payload_json,document_hash,status,issued_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+              )
+              .bind(
+                uid(),
+                tenantId,
+                run.id,
+                line.id,
+                line.employee_id,
+                payslipNumber,
+                run.period,
+                run.currency,
+                line.gross_minor,
+                line.deduction_minor,
+                line.employer_minor,
+                line.net_minor,
+                payload,
+                hash,
+                "Emitido",
+                created,
+              ),
+          );
+        }
+        await db.batch(statements);
+        summary = `${lines.results.length} recibo(s) emitido(s) para Payroll ${run.period}`;
+        action = "ISSUE";
+      }
+    } else if (body.type === "preparePaymentBatch") {
+      const run = await db
+        .prepare(
+          "SELECT r.* FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.id=? AND r.tenant_id=? AND r.status='Fechado' AND (? IS NULL OR s.organization_id=?)",
+        )
+        .bind(body.runId, tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>();
+      if (!run)
+        return Response.json(
+          {
+            error: "O lote exige um Payroll Run fechado no âmbito autorizado.",
+          },
+          { status: 409 },
+        );
+      const existing = await db
+        .prepare(
+          "SELECT id FROM payroll_payment_batches WHERE tenant_id=? AND run_id=?",
+        )
+        .bind(tenantId, body.runId)
+        .first();
+      if (existing) {
+        summary = `Lote do Payroll ${run.period} já estava preparado`;
+        action = "PREPARE";
+      } else {
+        const slips = await db
+          .prepare(
+            "SELECT p.id,p.employee_id,p.net_minor FROM payroll_payslips p JOIN employees e ON e.id=p.employee_id AND e.tenant_id=p.tenant_id WHERE p.tenant_id=? AND p.run_id=? AND p.status='Emitido' AND (? IS NULL OR e.organization_id=?) ORDER BY p.payslip_number",
+          )
+          .bind(tenantId, body.runId, organizationId, organizationId)
+          .all<Record<string, unknown>>();
+        const total = slips.results.reduce(
+          (n, p) => n + Number(p.net_minor),
+          0,
+        );
+        if (
+          slips.results.length !== Number(run.employee_count) ||
+          total !== Number(run.net_minor)
+        )
+          return Response.json(
+            {
+              error:
+                "Emita e reconcilie todos os recibos antes de preparar o lote.",
+            },
+            { status: 409 },
+          );
+        const batchNumber = `PB-${String(run.period).replace("-", "")}-${String(run.id).slice(0, 8).toUpperCase()}`,
+          evidence = JSON.stringify({
+            runId: run.id,
+            period: run.period,
+            currency: run.currency,
+            totalMinor: total,
+            payslips: slips.results.map((p) => ({
+              id: p.id,
+              employeeId: p.employee_id,
+              amountMinor: Number(p.net_minor),
+            })),
+          }),
+          hash = await sha256(evidence),
+          statements: D1PreparedStatement[] = [
+            db
+              .prepare(
+                "INSERT INTO payroll_payment_batches (id,tenant_id,run_id,batch_number,period,currency,employee_count,total_minor,status,evidence_hash,prepared_by,prepared_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+              )
+              .bind(
+                recordId,
+                tenantId,
+                run.id,
+                batchNumber,
+                run.period,
+                run.currency,
+                slips.results.length,
+                total,
+                "Preparado",
+                hash,
+                actor,
+                created,
+              ),
+          ];
+        for (const p of slips.results)
+          statements.push(
+            db
+              .prepare(
+                "INSERT INTO payroll_payment_batch_lines (id,tenant_id,batch_id,payslip_id,employee_id,amount_minor) VALUES (?,?,?,?,?,?)",
+              )
+              .bind(
+                uid(),
+                tenantId,
+                recordId,
+                p.id,
+                p.employee_id,
+                p.net_minor,
+              ),
+          );
+        await db.batch(statements);
+        summary = `Lote ${batchNumber} preparado e reconciliado`;
+        action = "PREPARE";
+      }
+    } else if (body.type === "transitionPaymentBatch") {
+      const security = await securityContext(request, db);
+      if (security instanceof Response) return security;
+      if (security.role !== "Administrador")
+        return Response.json(
+          {
+            error:
+              "Segregação de funções: aprovação e exportação do lote exigem Administrador.",
+          },
+          { status: 403 },
+        );
+      const batch = await db
+        .prepare(
+          "SELECT b.* FROM payroll_payment_batches b JOIN payroll_runs r ON r.id=b.run_id AND r.tenant_id=b.tenant_id LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE b.id=? AND b.tenant_id=? AND (? IS NULL OR s.organization_id=?)",
+        )
+        .bind(body.batchId, tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>();
+      if (!batch)
+        return Response.json(
+          { error: "Lote não encontrado no âmbito autorizado." },
+          { status: 404 },
+        );
+      const next =
+        batch.status === "Preparado"
+          ? "Aprovado"
+          : batch.status === "Aprovado"
+            ? "Exportado"
+            : "";
+      if (!next)
+        return Response.json(
+          { error: "O lote já está exportado." },
+          { status: 409 },
+        );
+      const result = await db
+        .prepare(
+          `UPDATE payroll_payment_batches SET status=?,${next === "Aprovado" ? "approved_by=?,approved_at=?" : "exported_by=?,exported_at=?"} WHERE id=? AND tenant_id=? AND status=?`,
+        )
+        .bind(next, actor, created, batch.id, tenantId, batch.status)
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          { error: "O lote foi alterado por outro utilizador." },
+          { status: 409 },
+        );
+      summary = `Lote ${batch.batch_number}: ${next}`;
+      action = next.toUpperCase();
+    } else if (body.type === "transitionPayrollRun") {
+      const run = await db
+        .prepare(
+          "SELECT r.status,r.period FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.id=? AND r.tenant_id=? AND (? IS NULL OR s.organization_id=?)",
+        )
+        .bind(body.runId, tenantId, organizationId, organizationId)
+        .first<{ status: string; period: string }>();
+      if (!run)
+        return Response.json(
+          { error: "Processamento não encontrado no âmbito autorizado." },
+          { status: 404 },
+        );
+      const security = await securityContext(request, db);
+      if (security instanceof Response) return security;
+      if (run.status === "Rascunho" && security.role !== "Recursos Humanos")
+        return Response.json(
+          {
+            error:
+              "Segregação de funções: a validação do Payroll pertence a Recursos Humanos.",
+          },
+          { status: 403 },
+        );
+      if (
+        ["Validado", "Aprovado"].includes(run.status) &&
+        security.role !== "Administrador"
+      )
+        return Response.json(
+          {
+            error:
+              "Segregação de funções: aprovação e fecho pertencem à Administração.",
+          },
+          { status: 403 },
+        );
+      const next: { [key: string]: string } = {
+        Rascunho: "Validado",
+        Validado: "Aprovado",
+        Aprovado: "Fechado",
+      };
+      if (!next[run.status])
+        return Response.json(
+          { error: "O processamento já está fechado." },
+          { status: 409 },
+        );
+      const transition = await db
+        .prepare(
+          "UPDATE payroll_runs SET status=?,closed_at=? WHERE id=? AND tenant_id=? AND status=?",
+        )
+        .bind(
+          next[run.status],
+          next[run.status] === "Fechado" ? created : null,
+          body.runId,
+          tenantId,
+          run.status,
+        )
+        .run();
+      if (!Number(transition.meta.changes || 0))
+        return Response.json(
+          {
+            error:
+              "O Payroll Run foi alterado por outro utilizador. Atualize os dados.",
+          },
+          { status: 409 },
+        );
+      if (next[run.status] === "Fechado") {
+        const [loanDeductions, adjustmentApplications] = await Promise.all([
+          db
+            .prepare(
+              "SELECT * FROM payroll_loan_deductions WHERE tenant_id=? AND run_id=? AND status='Calculada'",
+            )
+            .bind(tenantId, body.runId)
+            .all<Record<string, unknown>>(),
+          db
+            .prepare(
+              "SELECT * FROM payroll_adjustment_applications WHERE tenant_id=? AND run_id=? AND status='Calculado'",
+            )
+            .bind(tenantId, body.runId)
+            .all<Record<string, unknown>>(),
+        ]);
+        for (const d of loanDeductions.results) {
+          await db.batch([
+            db
+              .prepare(
+                "UPDATE payroll_loan_deductions SET status='Liquidada',settled_at=? WHERE id=? AND tenant_id=? AND status='Calculada'",
+              )
+              .bind(created, d.id, tenantId),
+            db
+              .prepare(
+                "UPDATE payroll_loan_installments SET status='Liquidada',paid_at=? WHERE id=? AND tenant_id=? AND status='Programada'",
+              )
+              .bind(created, d.installment_id, tenantId),
+            db
+              .prepare(
+                "UPDATE payroll_loans SET outstanding_minor=outstanding_minor-? WHERE id=? AND tenant_id=? AND status='Aprovado'",
+              )
+              .bind(d.amount_minor, d.loan_id, tenantId),
+          ]);
+          await db
+            .prepare(
+              "UPDATE payroll_loans SET status='Liquidado',completed_at=? WHERE id=? AND tenant_id=? AND status='Aprovado' AND outstanding_minor=0",
+            )
+            .bind(created, d.loan_id, tenantId)
+            .run();
+        }
+        for (const a of adjustmentApplications.results)
+          await db.batch([
+            db
+              .prepare(
+                "UPDATE payroll_adjustment_applications SET status='Processado',processed_at=? WHERE id=? AND tenant_id=? AND status='Calculado'",
+              )
+              .bind(created, a.id, tenantId),
+            db
+              .prepare(
+                "UPDATE payroll_adjustments SET status='Processado',processed_at=? WHERE id=? AND tenant_id=? AND status='Aprovado'",
+              )
+              .bind(created, a.adjustment_id, tenantId),
+          ]);
+      }
+      summary = `Payroll ${run.period}: ${next[run.status]}`;
+      action = next[run.status].toUpperCase();
+    } else
+      return Response.json(
+        { error: "Operação não suportada." },
+        { status: 400 },
+      );
+    await db
+      .prepare(
+        "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        uid(),
+        tenantId,
+        action,
+        body.type === "transitionPayrollRun"
+          ? "payrollRun"
+          : body.type === "issuePayslips"
+            ? "payrollDocument"
+            : body.type.includes("PaymentBatch")
+              ? "paymentBatch"
+              : body.type,
+        body.batchId || body.runId || recordId,
+        actor,
+        summary,
+        created,
+      )
+      .run();
+    return Response.json(await payrollSnapshot(db, tenantId, organizationId), {
+      status: 201,
+    });
+  } catch (error) {
+    return apiFailure(
+      error,
+      "Não foi possível concluir a operação de Payroll.",
+    );
+  }
+}
 
-async function actionPlansApi(request:Request,db:D1Database,security:SecurityContext){try{const tenantId=security.tenantId,organizationId=security.organizationId;if(request.method==="GET"){const [actions,organizations,owners,audit]=await Promise.all([db.prepare("SELECT a.*,o.name organization_name FROM performance_actions a JOIN organizations o ON o.id=a.organization_id AND o.tenant_id=a.tenant_id WHERE a.tenant_id=? AND (? IS NULL OR a.organization_id=?) ORDER BY CASE a.status WHEN 'Aberta' THEN 1 WHEN 'Em curso' THEN 2 ELSE 3 END,a.due_date").bind(tenantId,organizationId,organizationId).all(),db.prepare("SELECT id,code,name FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name").bind(tenantId,organizationId,organizationId).all(),db.prepare("SELECT name,email,role,organization_id FROM platform_users WHERE tenant_id=? AND status='Ativo' AND (? IS NULL OR organization_id IS NULL OR organization_id=?) ORDER BY name").bind(tenantId,organizationId,organizationId).all(),organizationId?Promise.resolve({results:[]}):db.prepare("SELECT * FROM audit_events WHERE tenant_id=? AND entity_type='performanceAction' ORDER BY created_at DESC LIMIT 12").bind(tenantId).all()]);return Response.json({actions:actions.results,organizations:organizations.results,owners:owners.results,audit:audit.results})}if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});const body=await request.json() as Record<string,string>,now=new Date().toISOString(),id=uid();if(body.type==="createAction"){if(!body.organizationId||!body.title?.trim()||!body.ownerEmail?.trim()||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(body.dueDate||"")||!["Baixa","Normal","Alta","Crítica"].includes(body.priority))return Response.json({error:"Organização, título, responsável, prazo e prioridade são obrigatórios."},{status:400});if(organizationId&&body.organizationId!==organizationId)return Response.json({error:"A ação está fora do âmbito organizacional autorizado."},{status:403});await db.prepare("INSERT INTO performance_actions (id,tenant_id,organization_id,period,currency,source_line_code,source_context,title,description,owner_email,due_date,priority,status,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,tenantId,body.organizationId,body.period||null,body.currency?.toUpperCase()||null,body.sourceLineCode?.trim().toUpperCase()||null,body.sourceContext?.trim()||null,body.title.trim(),body.description?.trim()||null,body.ownerEmail.trim().toLowerCase(),body.dueDate,body.priority,"Aberta",security.email,now,now).run();await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,"CREATE","performanceAction",id,security.email,`Plano de ação criado: ${body.title.trim()}`,now).run()}else if(body.type==="transitionAction"){const row=await db.prepare("SELECT * FROM performance_actions WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)").bind(body.actionId,tenantId,organizationId,organizationId).first<Record<string,unknown>>();if(!row)return Response.json({error:"Plano de ação não encontrado."},{status:404});if(security.role!=="Administrador"&&String(row.owner_email).toLowerCase()!==security.email.toLowerCase())return Response.json({error:"Apenas o responsável ou Administrador pode atualizar esta ação."},{status:403});if(!["Em curso","Concluída","Cancelada"].includes(body.status))return Response.json({error:"Transição inválida."},{status:400});if(body.status==="Concluída"&&(!body.evidence||body.evidence.trim().length<3))return Response.json({error:"A conclusão exige evidência."},{status:400});const result=await db.prepare("UPDATE performance_actions SET status=?,updated_at=?,completed_at=?,completion_evidence=? WHERE id=? AND tenant_id=? AND status=?").bind(body.status,now,body.status==="Concluída"?now:null,body.status==="Concluída"?body.evidence.trim():null,body.actionId,tenantId,row.status).run();if(!Number(result.meta.changes||0))return Response.json({error:"A ação foi atualizada em paralelo."},{status:409});await db.prepare("INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenantId,body.status.toUpperCase(),"performanceAction",body.actionId,security.email,`Plano de ação: ${body.status}`,now).run()}else return Response.json({error:"Operação de ação não suportada."},{status:400});return actionPlansApi(new Request(request.url,{method:"GET",headers:request.headers}),db,security)}catch(error){return apiFailure(error,"Não foi possível processar os planos de ação.")}}
+async function workforceSnapshot(
+  db: D1Database,
+  url: URL,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  const period = url.searchParams.get("period") || "2026-08",
+    currency = (url.searchParams.get("currency") || "AOA").toUpperCase(),
+    version = url.searchParams.get("version") || "";
+  const [runs, postings, versions, summary, audit] = await Promise.all([
+    db
+      .prepare(
+        "SELECT r.*,COUNT(w.id) AS posting_count FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id LEFT JOIN workforce_cost_postings w ON w.run_id=r.id AND w.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) AND r.status='Fechado' GROUP BY r.id ORDER BY r.period DESC",
+      )
+      .bind(tenantId, organizationId, organizationId)
+      .all(),
+    db
+      .prepare(
+        "SELECT w.*,e.first_name||' '||e.last_name AS employee_name,e.employee_number,o.name AS organization_name,m.name AS dimension_member_name FROM workforce_cost_postings w JOIN employees e ON e.id=w.employee_id JOIN organizations o ON o.id=w.organization_id LEFT JOIN dimension_members m ON m.id=w.dimension_member_id WHERE w.tenant_id=? AND (? IS NULL OR w.organization_id=?) AND w.period=? AND w.currency=? ORDER BY employee_name",
+      )
+      .bind(tenantId, organizationId, organizationId, period, currency)
+      .all(),
+    db
+      .prepare(
+        "SELECT id,name,status,fiscal_year FROM budget_versions WHERE tenant_id=? ORDER BY fiscal_year DESC,created_at DESC",
+      )
+      .bind(tenantId)
+      .all(),
+    db
+      .prepare(
+        "SELECT COALESCE((SELECT SUM(total_minor) FROM workforce_cost_postings WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?),0) AS actual_minor,COALESCE((SELECT SUM(amount_minor) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? AND scenario='Budget' AND version_id=? AND line_code='WORKFORCE'),0) AS budget_minor",
+      )
+      .bind(
+        tenantId,
+        organizationId,
+        organizationId,
+        period,
+        currency,
+        tenantId,
+        organizationId,
+        organizationId,
+        period,
+        currency,
+        version,
+      )
+      .first(),
+    organizationId
+      ? Promise.resolve({ results: [] })
+      : db
+          .prepare(
+            "SELECT * FROM audit_events WHERE tenant_id=? AND entity_type='workforceCost' ORDER BY created_at DESC LIMIT 6",
+          )
+          .bind(tenantId)
+          .all(),
+  ]);
+  const actual = Number(summary?.actual_minor || 0),
+    budget = Number(summary?.budget_minor || 0),
+    variance = actual - budget;
+  return {
+    period,
+    currency,
+    runs: runs.results,
+    postings: postings.results,
+    versions: versions.results,
+    summary: {
+      actualMinor: actual,
+      budgetMinor: budget,
+      varianceMinor: variance,
+      varianceBps: budget ? Math.trunc((variance * 10000) / budget) : null,
+    },
+    audit: audit.results,
+  };
+}
+async function workforceApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  try {
+    await ensureSetupSchema(db);
+    const url = new URL(request.url);
+    if (request.method === "GET")
+      return Response.json(
+        await workforceSnapshot(db, url, tenantId, organizationId),
+      );
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as Record<string, string>,
+      created = new Date().toISOString(),
+      actor = actorEmail(request) || "utilizador autenticado";
+    if (body.type !== "postRun" || !body.runId)
+      return Response.json(
+        { error: "Operação não suportada." },
+        { status: 400 },
+      );
+    const run = await db
+      .prepare(
+        "SELECT r.* FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.id=? AND r.tenant_id=? AND (? IS NULL OR s.organization_id=?)",
+      )
+      .bind(body.runId, tenantId, organizationId, organizationId)
+      .first<Record<string, unknown>>();
+    if (!run || run.status !== "Fechado")
+      return Response.json(
+        { error: "Payroll Run fechado não encontrado no âmbito autorizado." },
+        { status: 409 },
+      );
+    if (
+      await db
+        .prepare(
+          "SELECT id FROM workforce_cost_postings WHERE tenant_id=? AND run_id=?",
+        )
+        .bind(tenantId, body.runId)
+        .first()
+    )
+      return Response.json(
+        {
+          error:
+            "Este Payroll Run já foi transferido. A operação é idempotente.",
+        },
+        { status: 409 },
+      );
+    const lines = await db
+      .prepare(
+        "SELECT l.*,e.organization_id,p.dimension_member_id FROM payroll_run_lines l JOIN employees e ON e.id=l.employee_id LEFT JOIN salary_profiles p ON p.employee_id=l.employee_id AND p.tenant_id=l.tenant_id AND p.status='Ativo' WHERE l.tenant_id=? AND l.run_id=? AND (? IS NULL OR e.organization_id=?)",
+      )
+      .bind(tenantId, body.runId, organizationId, organizationId)
+      .all<Record<string, unknown>>();
+    if (!lines.results.length)
+      return Response.json(
+        {
+          error:
+            "O processamento não possui linhas de cálculo no âmbito autorizado.",
+        },
+        { status: 409 },
+      );
+    const statements = [] as D1PreparedStatement[];
+    for (const l of lines.results) {
+      const postingId = uid(),
+        total = workforceTotal(Number(l.gross_minor), Number(l.employer_minor));
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO workforce_cost_postings (id,tenant_id,run_id,run_line_id,employee_id,organization_id,dimension_member_id,period,currency,gross_minor,employer_minor,total_minor,source_hash,posted_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            postingId,
+            tenantId,
+            body.runId,
+            l.id,
+            l.employee_id,
+            l.organization_id,
+            l.dimension_member_id || null,
+            run.period,
+            run.currency,
+            l.gross_minor,
+            l.employer_minor,
+            total,
+            l.calculation_hash,
+            created,
+            created,
+          ),
+      );
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO performance_entries (id,tenant_id,organization_id,period,scenario,version_id,currency,line_code,line_name,dimension_member_id,amount_minor,source,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            uid(),
+            tenantId,
+            l.organization_id,
+            run.period,
+            "Actual",
+            null,
+            run.currency,
+            "WORKFORCE",
+            "Custo da força de trabalho",
+            l.dimension_member_id || null,
+            total,
+            "Payroll",
+            created,
+          ),
+      );
+    }
+    statements.push(
+      db
+        .prepare(
+          "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          tenantId,
+          "POST",
+          "workforceCost",
+          body.runId,
+          actor,
+          `Payroll ${run.period} transferido para Workforce Cost`,
+          created,
+        ),
+    );
+    await db.batch(statements);
+    return Response.json(
+      await workforceSnapshot(
+        db,
+        new URL(
+          `${url.origin}/api/workforce?period=${run.period}&currency=${run.currency}&version=${encodeURIComponent(body.versionId || "")}`,
+        ),
+        tenantId,
+        organizationId,
+      ),
+      { status: 201 },
+    );
+  } catch (error) {
+    return apiFailure(
+      error,
+      "Não foi possível concluir a operação de Workforce Cost.",
+    );
+  }
+}
 
-async function integrityApi(request:Request,db:D1Database,tenantId:string,organizationId:string|null=null){try{await ensureSetupSchema(db);if(request.method!=="GET")return Response.json({error:"Método não permitido."},{status:405});const rows=await Promise.all([
- db.prepare("SELECT COUNT(*) n FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa'").bind(tenantId,organizationId,organizationId).first<Record<string,unknown>>(),
- db.prepare("SELECT COUNT(*) n FROM platform_users WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'").bind(tenantId,organizationId,organizationId).first<Record<string,unknown>>(),
- db.prepare("SELECT COUNT(*) n FROM employees e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND e.status='Ativo'").bind(tenantId,organizationId,organizationId).first<Record<string,unknown>>(),
- db.prepare("SELECT COUNT(*) n FROM dimension_members m JOIN financial_dimensions d ON d.id=m.dimension_id AND d.tenant_id=m.tenant_id WHERE m.tenant_id=? AND m.status='Ativo'").bind(tenantId).first<Record<string,unknown>>(),
- db.prepare("SELECT COUNT(DISTINCT scenario) n,COUNT(*) entries FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND scenario IN ('Actual','Budget')").bind(tenantId,organizationId,organizationId).first<Record<string,unknown>>(),
- db.prepare("SELECT COUNT(*) n FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) AND r.status='Fechado'").bind(tenantId,organizationId,organizationId).first<Record<string,unknown>>(),
- db.prepare("SELECT COALESCE(SUM(l.gross_minor+l.employer_minor),0) expected,COALESCE(SUM(w.total_minor),0) posted,COUNT(DISTINCT w.run_id) runs FROM payroll_run_lines l JOIN payroll_runs r ON r.id=l.run_id AND r.tenant_id=l.tenant_id LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id LEFT JOIN workforce_cost_postings w ON w.run_line_id=l.id AND w.tenant_id=l.tenant_id WHERE l.tenant_id=? AND (? IS NULL OR s.organization_id=?) AND r.status='Fechado'").bind(tenantId,organizationId,organizationId).first<Record<string,unknown>>(),
- db.prepare("SELECT COALESCE(SUM(w.total_minor),0) posted,COALESCE((SELECT SUM(amount_minor) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND scenario='Actual' AND source='Payroll' AND line_code='WORKFORCE'),0) actual FROM workforce_cost_postings w WHERE w.tenant_id=? AND (? IS NULL OR w.organization_id=?)").bind(tenantId,organizationId,organizationId,tenantId,organizationId,organizationId).first<Record<string,unknown>>(),
- db.prepare("SELECT r.* FROM management_reports r LEFT JOIN management_report_scopes s ON s.report_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) ORDER BY r.report_number DESC LIMIT 1").bind(tenantId,organizationId,organizationId).first<Record<string,unknown>>(),
- ]);const count=(x:Record<string,unknown>|null)=>Number(x?.n||0),payrollExpected=Number(rows[6]?.expected||0),payrollPosted=Number(rows[6]?.posted||0),financePosted=Number(rows[7]?.posted||0),financeActual=Number(rows[7]?.actual||0);let reportValid=false,reportEvidence="Nenhuma versão emitida";if(rows[8]){const payload=String(rows[8].payload_json),hash=await sha256(payload);reportValid=hash===rows[8].input_hash;reportEvidence=`v${rows[8].report_number} · hash ${hash.slice(0,12)}`}const checks=[
- {key:"organization",label:"Organization",status:count(rows[0])>0?"pass":"fail",evidence:`${count(rows[0])} organização(ões) ativa(s)`,target:"Administração"},
- {key:"user",label:"User & RBAC",status:count(rows[1])>0?"pass":"fail",evidence:`${count(rows[1])} utilizador(es) ativo(s)`,target:"Administração"},
- {key:"employee",label:"Employee",status:count(rows[2])>0?"pass":"warn",evidence:count(rows[2])?`${count(rows[2])} colaborador(es) ligado(s) a organização`:"Configuração pendente: registe o primeiro colaborador",target:"Administração"},
- {key:"dimension",label:"Financial Dimensions",status:count(rows[3])>0?"pass":"warn",evidence:count(rows[3])?`${count(rows[3])} membro(s) dimensional(is) válido(s)`:"Configuração pendente: crie uma dimensão e respetivos membros",target:"Administração"},
- {key:"performance",label:"Actual / Budget",status:Number(rows[4]?.n||0)===2?"pass":"warn",evidence:`${Number(rows[4]?.entries||0)} lançamento(s) · ${Number(rows[4]?.n||0)}/2 cenários`,target:"Planeamento"},
- {key:"payroll",label:"Payroll Run",status:count(rows[5])>0?"pass":"warn",evidence:`${count(rows[5])} run(s) fechado(s)`,target:"Operações"},
- {key:"workforce",label:"Workforce Cost",status:payrollExpected===0?"warn":payrollExpected===payrollPosted?"pass":"fail",evidence:payrollExpected===0?"Aguarda Payroll fechado e transferência de custos":`Payroll ${payrollExpected} = posting ${payrollPosted}`,target:"Análises"},
- {key:"dashboard",label:"Dashboard lineage",status:financePosted===0&&financeActual===0?"warn":financePosted===financeActual?"pass":"fail",evidence:financePosted===0&&financeActual===0?"Aguarda Workforce Cost publicado em Actual":`Posting ${financePosted} = Actual ${financeActual}`,target:"Visão geral"},
- {key:"report",label:"Management Report",status:!rows[8]?"warn":reportValid?"pass":"fail",evidence:reportEvidence,target:"Relatórios"},
- ];const failed=checks.filter(x=>x.status==="fail").length,warnings=checks.filter(x=>x.status==="warn").length;return Response.json({generatedAt:new Date().toISOString(),status:failed?"fail":warnings?"warn":"pass",summary:{passed:checks.length-failed-warnings,warnings,failed,total:checks.length},reconciliations:{payrollToWorkforce:{differenceMinor:variance(payrollPosted,payrollExpected)},workforceToFinance:{differenceMinor:variance(financeActual,financePosted)},reportHashValid:reportValid},checks})}catch(error){return apiFailure(error,"Não foi possível executar os controlos de integridade.")}}
+async function dashboardApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  try {
+    await ensureSetupSchema(db);
+    const u = new URL(request.url),
+      period = u.searchParams.get("period") || "2026-08",
+      currency = (u.searchParams.get("currency") || "AOA").toUpperCase(),
+      version = u.searchParams.get("version") || "";
+    const [
+      versions,
+      totals,
+      trend,
+      drivers,
+      entries,
+      coverage,
+      headcount,
+      payroll,
+    ] = await Promise.all([
+      db
+        .prepare(
+          "SELECT id,name,status,fiscal_year FROM budget_versions WHERE tenant_id=? ORDER BY fiscal_year DESC,created_at DESC",
+        )
+        .bind(tenantId)
+        .all(),
+      db
+        .prepare(
+          "SELECT COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) actual_minor,COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) budget_minor,COALESCE(SUM(CASE WHEN scenario='Actual' AND line_code='WORKFORCE' THEN amount_minor ELSE 0 END),0) workforce_minor FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?",
+        )
+        .bind(
+          version,
+          tenantId,
+          organizationId,
+          organizationId,
+          period,
+          currency,
+        )
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT period,COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) actual_minor,COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) budget_minor FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND currency=? AND period<=? GROUP BY period ORDER BY period DESC LIMIT 6",
+        )
+        .bind(
+          version,
+          tenantId,
+          organizationId,
+          organizationId,
+          currency,
+          period,
+        )
+        .all(),
+      db
+        .prepare(
+          "SELECT line_code,MAX(line_name) line_name,COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) actual_minor,COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) budget_minor FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? GROUP BY line_code ORDER BY line_code",
+        )
+        .bind(
+          version,
+          tenantId,
+          organizationId,
+          organizationId,
+          period,
+          currency,
+        )
+        .all<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT p.*,o.name organization_name,m.name dimension_member_name FROM performance_entries p JOIN organizations o ON o.id=p.organization_id LEFT JOIN dimension_members m ON m.id=p.dimension_member_id WHERE p.tenant_id=? AND (? IS NULL OR p.organization_id=?) AND p.period=? AND p.currency=? AND (p.scenario='Actual' OR (p.scenario='Budget' AND p.version_id=?)) ORDER BY p.created_at DESC",
+        )
+        .bind(
+          tenantId,
+          organizationId,
+          organizationId,
+          period,
+          currency,
+          version,
+        )
+        .all(),
+      db
+        .prepare(
+          "SELECT COUNT(DISTINCT organization_id) organizations,COUNT(DISTINCT source) sources,MAX(created_at) latest_at FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?",
+        )
+        .bind(tenantId, organizationId, organizationId, period, currency)
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT COUNT(*) total FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT r.period,r.status FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) AND r.currency=? AND r.period<=? ORDER BY r.period DESC,r.created_at DESC LIMIT 1",
+        )
+        .bind(tenantId, organizationId, organizationId, currency, period)
+        .first(),
+    ]);
+    const actual = Number(totals?.actual_minor || 0),
+      budget = Number(totals?.budget_minor || 0),
+      variance = actual - budget;
+    return Response.json({
+      versions: versions.results,
+      summary: {
+        actualMinor: actual,
+        budgetMinor: budget,
+        varianceMinor: variance,
+        varianceBps: budget ? Math.trunc((variance * 10000) / budget) : null,
+        workforceMinor: Number(totals?.workforce_minor || 0),
+        headcount: Number(headcount?.total || 0),
+      },
+      trend: [...trend.results].reverse(),
+      drivers: drivers.results.map((x) => ({
+        ...x,
+        actual_minor: Number(x.actual_minor),
+        budget_minor: Number(x.budget_minor),
+        variance_minor: Number(x.actual_minor) - Number(x.budget_minor),
+      })),
+      entries: entries.results,
+      coverage: {
+        organizations: Number(coverage?.organizations || 0),
+        sources: Number(coverage?.sources || 0),
+        latestAt: coverage?.latest_at || null,
+      },
+      payroll: payroll || null,
+    });
+  } catch (error) {
+    return apiFailure(error, "Não foi possível carregar o dashboard.");
+  }
+}
+
+async function managementReportApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  try {
+    await ensureSetupSchema(db);
+    const u = new URL(request.url);
+    if (request.method === "GET") {
+      const id = u.searchParams.get("id");
+      if (id) {
+        const row = await db
+          .prepare(
+            "SELECT r.* FROM management_reports r LEFT JOIN management_report_scopes s ON s.report_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.id=? AND (? IS NULL OR s.organization_id=?)",
+          )
+          .bind(tenantId, id, organizationId, organizationId)
+          .first<Record<string, unknown>>();
+        if (!row)
+          return Response.json(
+            { error: "Relatório não encontrado." },
+            { status: 404 },
+          );
+        return Response.json({
+          ...row,
+          payload: JSON.parse(String(row.payload_json)),
+        });
+      }
+      const [reports, versions] = await Promise.all([
+        db
+          .prepare(
+            "SELECT r.id,r.report_number,r.title,r.template,r.period,r.currency,r.status,r.input_hash,r.created_by,r.created_at FROM management_reports r LEFT JOIN management_report_scopes s ON s.report_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) ORDER BY report_number DESC LIMIT 20",
+          )
+          .bind(tenantId, organizationId, organizationId)
+          .all(),
+        db
+          .prepare(
+            "SELECT id,name,status,fiscal_year FROM budget_versions WHERE tenant_id=? ORDER BY fiscal_year DESC,created_at DESC",
+          )
+          .bind(tenantId)
+          .all(),
+      ]);
+      return Response.json({
+        reports: reports.results,
+        versions: versions.results,
+      });
+    }
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const b = (await request.json()) as Record<string, string>,
+      period = b.period || "",
+      currency = (b.currency || "").toUpperCase(),
+      version = b.versionId || "";
+    if (
+      !/^\d{4}-(0[1-9]|1[0-2])$/.test(period) ||
+      !/^[A-Z]{3}$/.test(currency) ||
+      !b.title?.trim()
+    )
+      return Response.json(
+        { error: "Título, período e moeda válidos são obrigatórios." },
+        { status: 400 },
+      );
+    const [totals, drivers, coverage, versionRow, last] = await Promise.all([
+      db
+        .prepare(
+          "SELECT COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) actual,COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) budget,COALESCE(SUM(CASE WHEN scenario='Actual' AND line_code='WORKFORCE' THEN amount_minor ELSE 0 END),0) workforce,SUM(CASE WHEN scenario='Actual' THEN 1 ELSE 0 END) actual_entries,SUM(CASE WHEN scenario='Budget' AND version_id=? THEN 1 ELSE 0 END) budget_entries FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?",
+        )
+        .bind(
+          version,
+          version,
+          tenantId,
+          organizationId,
+          organizationId,
+          period,
+          currency,
+        )
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT line_code,MAX(line_name) line_name,COALESCE(SUM(CASE WHEN scenario='Actual' THEN amount_minor ELSE 0 END),0) actual,COALESCE(SUM(CASE WHEN scenario='Budget' AND version_id=? THEN amount_minor ELSE 0 END),0) budget FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? GROUP BY line_code",
+        )
+        .bind(
+          version,
+          tenantId,
+          organizationId,
+          organizationId,
+          period,
+          currency,
+        )
+        .all<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT COUNT(*) entries,COUNT(DISTINCT organization_id) organizations,COUNT(DISTINCT source) sources,MAX(created_at) latest_at FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?",
+        )
+        .bind(tenantId, organizationId, organizationId, period, currency)
+        .first<Record<string, unknown>>(),
+      version
+        ? db
+            .prepare(
+              "SELECT name,status FROM budget_versions WHERE tenant_id=? AND id=?",
+            )
+            .bind(tenantId, version)
+            .first<Record<string, unknown>>()
+        : Promise.resolve(null),
+      db
+        .prepare(
+          "SELECT COALESCE(MAX(report_number),0) number FROM management_reports WHERE tenant_id=?",
+        )
+        .bind(tenantId)
+        .first<Record<string, unknown>>(),
+    ]);
+    if (
+      !version ||
+      versionRow?.status !== "Aprovado" ||
+      Number(totals?.actual_entries || 0) === 0 ||
+      Number(totals?.budget_entries || 0) === 0
+    )
+      return Response.json(
+        {
+          error:
+            "O relatório exige Actual, uma versão Budget aprovada e lançamentos comparáveis no período e moeda selecionados.",
+        },
+        { status: 409 },
+      );
+    const actual = Number(totals?.actual || 0),
+      budget = Number(totals?.budget || 0),
+      variance = actual - budget,
+      rows = drivers.results
+        .map((x) => ({
+          lineCode: x.line_code,
+          lineName: x.line_name,
+          actualMinor: Number(x.actual),
+          budgetMinor: Number(x.budget),
+          varianceMinor: Number(x.actual) - Number(x.budget),
+        }))
+        .sort((a, b) => Math.abs(b.varianceMinor) - Math.abs(a.varianceMinor)),
+      cause = rows[0] || null,
+      impact =
+        variance === 0
+          ? "Resultado alinhado com o Budget."
+          : variance > 0
+            ? "O Actual está acima do Budget selecionado."
+            : "O Actual está abaixo do Budget selecionado.",
+      recommendation =
+        cause?.lineCode === "WORKFORCE"
+          ? "Rever a composição e a alocação do Workforce Cost no módulo de Análises."
+          : "Rever os lançamentos e pressupostos da principal linha no Planeamento.";
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      parameters: {
+        period,
+        currency,
+        organizationId,
+        versionId: version,
+        versionName: String(versionRow.name),
+        template: b.template || "Executivo",
+      },
+      result: {
+        actualMinor: actual,
+        budgetMinor: budget,
+        varianceMinor: variance,
+        varianceBps: budget ? Math.trunc((variance * 10000) / budget) : null,
+        workforceMinor: Number(totals?.workforce || 0),
+      },
+      cause,
+      impact,
+      perspective: `${Number(coverage?.organizations || 0)} organização(ões), ${Number(coverage?.sources || 0)} fonte(s) e ${Number(coverage?.entries || 0)} lançamento(s) suportam esta versão.`,
+      recommendation,
+      drivers: rows,
+      coverage,
+    };
+    const snapshot = JSON.stringify(payload),
+      hash = await sha256(snapshot),
+      id = uid(),
+      created = new Date().toISOString(),
+      number = Number(last?.number || 0) + 1,
+      actor = actorEmail(request) || "utilizador autenticado";
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO management_reports (id,tenant_id,created_at,report_number,title,template,period,currency,budget_version_id,status,payload_json,input_hash,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          id,
+          tenantId,
+          created,
+          number,
+          b.title.trim(),
+          b.template || "Executivo",
+          period,
+          currency,
+          version,
+          "Emitido",
+          snapshot,
+          hash,
+          actor,
+        ),
+      db
+        .prepare(
+          "INSERT INTO management_report_scopes (report_id,tenant_id,organization_id,created_at) VALUES (?,?,?,?)",
+        )
+        .bind(id, tenantId, organizationId, created),
+      db
+        .prepare(
+          "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          tenantId,
+          "GENERATE",
+          "managementReport",
+          id,
+          actor,
+          `Relatório de gestão v${number} emitido`,
+          created,
+        ),
+    ]);
+    return Response.json(
+      {
+        id,
+        report_number: number,
+        title: b.title.trim(),
+        template: b.template || "Executivo",
+        period,
+        currency,
+        status: "Emitido",
+        input_hash: hash,
+        created_by: actor,
+        created_at: created,
+        payload,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    return apiFailure(error, "Não foi possível gerar o relatório de gestão.");
+  }
+}
+
+async function readinessApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null,
+  modules: string[],
+) {
+  try {
+    if (request.method !== "GET")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const row = await db
+      .prepare(
+        "SELECT (SELECT COUNT(*) FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa') organizations,(SELECT COUNT(*) FROM financial_dimensions WHERE tenant_id=? AND status='Ativa') dimensions,(SELECT COUNT(*) FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?)) employees,(SELECT COUNT(*) FROM employee_contracts c JOIN employees e ON e.id=c.employee_id AND e.tenant_id=c.tenant_id WHERE c.tenant_id=? AND c.status='Ativo' AND (? IS NULL OR e.organization_id=?)) active_contracts,(SELECT COUNT(*) FROM salary_profiles p JOIN employees e ON e.id=p.employee_id AND e.tenant_id=p.tenant_id WHERE p.tenant_id=? AND p.status='Ativo' AND (? IS NULL OR e.organization_id=?)) salary_profiles,(SELECT COUNT(*) FROM budget_versions WHERE tenant_id=? AND status='Aprovado') approved_budgets,(SELECT COUNT(DISTINCT scenario) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND scenario IN ('Actual','Budget')) comparable_scenarios,(SELECT COUNT(*) FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.status='Fechado' AND (? IS NULL OR s.organization_id=?)) closed_payroll,(SELECT COUNT(*) FROM workforce_cost_postings WHERE tenant_id=? AND (? IS NULL OR organization_id=?)) workforce_postings,(SELECT COUNT(*) FROM management_reports r LEFT JOIN management_report_scopes s ON s.report_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?)) reports",
+      )
+      .bind(
+        tenantId,
+        organizationId,
+        organizationId,
+        tenantId,
+        tenantId,
+        organizationId,
+        organizationId,
+        tenantId,
+        organizationId,
+        organizationId,
+        tenantId,
+        organizationId,
+        organizationId,
+        tenantId,
+        tenantId,
+        organizationId,
+        organizationId,
+        tenantId,
+        organizationId,
+        organizationId,
+        tenantId,
+        organizationId,
+        organizationId,
+        tenantId,
+        organizationId,
+        organizationId,
+      )
+      .first<Record<string, unknown>>();
+    const n = (key: string) => Number(row?.[key] || 0),
+      engines = [
+        {
+          code: "FINANCE_FP&A",
+          name: "Finance & FP&A",
+          ready: n("organizations") > 0 && n("dimensions") > 0,
+          status:
+            n("organizations") > 0 && n("dimensions") > 0
+              ? "Pronto"
+              : "Bloqueado",
+          evidence: `${n("organizations")} organização(ões) · ${n("dimensions")} dimensão(ões)`,
+          next: n("organizations")
+            ? "Configurar dimensão financeira"
+            : "Configurar organização",
+          target: "Administração",
+        },
+        {
+          code: "HCM",
+          name: "HCM",
+          ready: n("employees") > 0 && n("active_contracts") > 0,
+          status:
+            n("employees") > 0 && n("active_contracts") > 0
+              ? "Pronto"
+              : "Atenção",
+          evidence: `${n("employees")} colaborador(es) · ${n("active_contracts")} contrato(s) ativo(s)`,
+          next: n("employees") ? "Ativar contrato" : "Registar colaborador",
+          target: n("employees") ? "Pessoas" : "Administração",
+        },
+        {
+          code: "PAYROLL",
+          name: "Payroll",
+          ready: n("active_contracts") > 0 && n("salary_profiles") > 0,
+          status:
+            n("active_contracts") > 0 && n("salary_profiles") > 0
+              ? "Pronto"
+              : "Bloqueado",
+          evidence: `${n("active_contracts")} contrato(s) · ${n("salary_profiles")} perfil(is) salarial(is)`,
+          next: n("active_contracts")
+            ? "Configurar perfil salarial"
+            : "Ativar contrato",
+          target: n("active_contracts") ? "Operações" : "Pessoas",
+        },
+        {
+          code: "WORKFORCE_PLANNING",
+          name: "Workforce",
+          ready: n("closed_payroll") > 0,
+          status: n("closed_payroll") > 0 ? "Pronto" : "Atenção",
+          evidence: `${n("closed_payroll")} Payroll Run(s) fechado(s) · ${n("workforce_postings")} posting(s)`,
+          next: n("closed_payroll")
+            ? "Transferir custos"
+            : "Fechar Payroll Run",
+          target: n("closed_payroll") ? "Análises" : "Operações",
+        },
+        {
+          code: "ANALYTICS_REPORTING",
+          name: "Reporting",
+          ready: n("approved_budgets") > 0 && n("comparable_scenarios") === 2,
+          status:
+            n("approved_budgets") > 0 && n("comparable_scenarios") === 2
+              ? "Pronto"
+              : "Bloqueado",
+          evidence: `${n("approved_budgets")} Budget aprovado · ${n("comparable_scenarios")}/2 cenários · ${n("reports")} relatório(s)`,
+          next: "Preparar Actual e Budget comparáveis",
+          target: "Planeamento",
+        },
+      ].filter((x) => modules.includes(x.code));
+    return Response.json({
+      generatedAt: new Date().toISOString(),
+      engines,
+      summary: {
+        ready: engines.filter((x) => x.ready).length,
+        total: engines.length,
+      },
+    });
+  } catch (error) {
+    return apiFailure(
+      error,
+      "Não foi possível avaliar a preparação dos motores.",
+    );
+  }
+}
+
+async function workflowApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null,
+  role: string,
+  email: string,
+  modules: string[],
+) {
+  try {
+    if (request.method !== "GET")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const [
+      absence,
+      payroll,
+      batches,
+      budgets,
+      actions,
+      reviews,
+      feedback,
+      governed,
+      history,
+    ] = await Promise.all([
+      modules.includes("HCM")
+        ? db
+            .prepare(
+              "SELECT r.id,r.requested_at created_at,datetime(r.requested_at,'+2 days') due_at,e.first_name||' '||e.last_name subject,t.name detail FROM hcm_absence_requests r JOIN employees e ON e.id=r.employee_id AND e.tenant_id=r.tenant_id JOIN hcm_absence_types t ON t.id=r.absence_type_id AND t.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.status='Pendente' AND (? IS NULL OR e.organization_id=?)",
+            )
+            .bind(tenantId, organizationId, organizationId)
+            .all<Record<string, unknown>>()
+        : Promise.resolve({ results: [] }),
+      modules.includes("PAYROLL")
+        ? db
+            .prepare(
+              "SELECT r.id,r.created_at,datetime(r.created_at,'+2 days') due_at,'Payroll '||r.period subject,r.status detail FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.status IN ('Rascunho','Validado','Aprovado') AND (? IS NULL OR s.organization_id=?)",
+            )
+            .bind(tenantId, organizationId, organizationId)
+            .all<Record<string, unknown>>()
+        : Promise.resolve({ results: [] }),
+      modules.includes("PAYROLL")
+        ? db
+            .prepare(
+              "SELECT b.id,b.prepared_at created_at,datetime(b.prepared_at,'+1 day') due_at,b.batch_number subject,b.status detail FROM payroll_payment_batches b JOIN payroll_runs r ON r.id=b.run_id AND r.tenant_id=b.tenant_id LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE b.tenant_id=? AND b.status IN ('Preparado','Aprovado') AND (? IS NULL OR s.organization_id=?)",
+            )
+            .bind(tenantId, organizationId, organizationId)
+            .all<Record<string, unknown>>()
+        : Promise.resolve({ results: [] }),
+      modules.includes("FINANCE_FP&A") && !organizationId
+        ? db
+            .prepare(
+              "SELECT id,created_at,datetime(created_at,'+7 days') due_at,name subject,'Rascunho' detail FROM budget_versions WHERE tenant_id=? AND status='Rascunho'",
+            )
+            .bind(tenantId)
+            .all<Record<string, unknown>>()
+        : Promise.resolve({ results: [] }),
+      modules.includes("PERFORMANCE_MANAGEMENT")
+        ? db
+            .prepare(
+              "SELECT id,created_at,due_date||'T23:59:59Z' due_at,title subject,status detail,owner_email FROM performance_actions WHERE tenant_id=? AND status IN ('Aberta','Em curso') AND (? IS NULL OR organization_id=?)",
+            )
+            .bind(tenantId, organizationId, organizationId)
+            .all<Record<string, unknown>>()
+        : Promise.resolve({ results: [] }),
+      modules.includes("PERFORMANCE_MANAGEMENT")
+        ? db
+            .prepare(
+              "SELECT r.id,r.created_at,datetime(r.created_at,'+3 days') due_at,s.name subject,r.status detail,r.subject_email,r.reviewer_email FROM performance_reviews r JOIN platform_users s ON lower(s.email)=lower(r.subject_email) AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.status IN ('Aguardando autoavaliação','Aguardando gestor','Calibração') AND (? IS NULL OR r.organization_id=?)",
+            )
+            .bind(tenantId, organizationId, organizationId)
+            .all<Record<string, unknown>>()
+        : Promise.resolve({ results: [] }),
+      modules.includes("PERFORMANCE_MANAGEMENT")
+        ? db
+            .prepare(
+              "SELECT p.id,r.created_at,r.due_date||'T23:59:59Z' due_at,s.name subject,p.relationship detail FROM feedback_360_participants p JOIN feedback_360_rounds r ON r.id=p.round_id AND r.tenant_id=p.tenant_id JOIN performance_reviews v ON v.id=r.review_id AND v.tenant_id=r.tenant_id JOIN platform_users s ON lower(s.email)=lower(v.subject_email) AND s.tenant_id=v.tenant_id WHERE p.tenant_id=? AND p.status='Pendente' AND r.status='Aberto' AND lower(p.evaluator_email)=lower(?) AND (? IS NULL OR v.organization_id=?)",
+            )
+            .bind(tenantId, email, organizationId, organizationId)
+            .all<Record<string, unknown>>()
+        : Promise.resolve({ results: [] }),
+      db
+        .prepare(
+          "SELECT id,created_at,due_at,title subject,detail,source_domain domain,source_target target,priority,status,assignee_email FROM workflow_tasks WHERE tenant_id=? AND status IN ('Aberta','Em curso') AND (? IS NULL OR organization_id=?) ORDER BY due_at",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .all<Record<string, unknown>>(),
+      organizationId
+        ? Promise.resolve({ results: [] })
+        : db
+            .prepare(
+              "SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('absenceRequest','approveBudget','payrollRun','paymentBatch','performanceAction','performanceReview','competencyFramework','feedback360','workflowTask') ORDER BY created_at DESC LIMIT 20",
+            )
+            .bind(tenantId)
+            .all<Record<string, unknown>>(),
+    ]);
+    const now = Date.now(),
+      decorate = (
+        row: Record<string, unknown>,
+        domain: string,
+        title: string,
+        target: string,
+        requiredRoles: string[],
+      ) => {
+        const due = Date.parse(String(row.due_at)),
+          hours = (due - now) / 3600000;
+        return {
+          id: row.id,
+          domain,
+          title,
+          subject: row.subject,
+          detail: row.detail,
+          createdAt: row.created_at,
+          dueAt: row.due_at,
+          priority: hours < 0 ? "Crítica" : hours <= 24 ? "Alta" : "Normal",
+          overdue: hours < 0,
+          target,
+          canAct: requiredRoles.includes(role),
+          requiredRoles,
+        };
+      };
+    const actionTasks = actions.results.map((x) => ({
+        ...decorate(x, "Performance", "Executar plano de ação", "Ações", [
+          "Administrador",
+        ]),
+        canAct:
+          role === "Administrador" ||
+          String(x.owner_email).toLowerCase() === email.toLowerCase(),
+        requiredRoles: ["Responsável", "Administrador"],
+      })),
+      reviewTasks = reviews.results.map((x) => {
+        const status = String(x.detail),
+          calibrator =
+            ["Administrador", "Recursos Humanos"].includes(role) &&
+            ![x.subject_email, x.reviewer_email].some(
+              (v) => String(v).toLowerCase() === email.toLowerCase(),
+            );
+        return {
+          ...decorate(
+            x,
+            "Performance",
+            status === "Aguardando autoavaliação"
+              ? "Enviar autoavaliação"
+              : status === "Aguardando gestor"
+                ? "Avaliar colaborador"
+                : "Calibrar avaliação",
+            "Avaliações",
+            [],
+          ),
+          canAct:
+            status === "Aguardando autoavaliação"
+              ? String(x.subject_email).toLowerCase() === email.toLowerCase()
+              : status === "Aguardando gestor"
+                ? String(x.reviewer_email).toLowerCase() === email.toLowerCase()
+                : calibrator,
+          requiredRoles:
+            status === "Aguardando autoavaliação"
+              ? ["Colaborador"]
+              : status === "Aguardando gestor"
+                ? ["Gestor designado"]
+                : ["RH independente", "Administrador independente"],
+        };
+      }),
+      feedbackTasks = feedback.results.map((x) => ({
+        ...decorate(
+          x,
+          "Performance",
+          "Responder feedback 360°",
+          "Competências",
+          [],
+        ),
+        canAct: true,
+        requiredRoles: ["Avaliador designado"],
+      })),
+      governedTasks = governed.results.map((x) => ({
+        ...decorate(
+          x,
+          String(x.domain),
+          "Tarefa assumida",
+          String(x.target),
+          [],
+        ),
+        priority: x.priority,
+        canAct: String(x.assignee_email).toLowerCase() === email.toLowerCase(),
+        requiredRoles: ["Responsável designado"],
+        persistent: true,
+        status: x.status,
+      })),
+      tasks = [
+        ...governedTasks,
+        ...absence.results.map((x) =>
+          decorate(x, "HCM", "Decidir pedido de ausência", "Ausências", [
+            "Administrador",
+            "Recursos Humanos",
+          ]),
+        ),
+        ...payroll.results.map((x) =>
+          decorate(
+            x,
+            "Payroll",
+            x.detail === "Rascunho"
+              ? "Validar processamento"
+              : x.detail === "Validado"
+                ? "Aprovar processamento"
+                : "Fechar processamento",
+            "Operações",
+            x.detail === "Rascunho" ? ["Recursos Humanos"] : ["Administrador"],
+          ),
+        ),
+        ...batches.results.map((x) =>
+          decorate(
+            x,
+            "Payroll",
+            x.detail === "Preparado"
+              ? "Aprovar lote de pagamento"
+              : "Confirmar exportação do lote",
+            "Operações",
+            ["Administrador"],
+          ),
+        ),
+        ...budgets.results.map((x) =>
+          decorate(x, "Finance", "Aprovar versão orçamental", "Planeamento", [
+            "Administrador",
+            "Gestor",
+          ]),
+        ),
+        ...actionTasks,
+        ...reviewTasks,
+        ...feedbackTasks,
+      ].sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+    return Response.json({
+      generatedAt: new Date().toISOString(),
+      tasks,
+      history: history.results,
+      summary: {
+        total: tasks.length,
+        actionable: tasks.filter((x) => x.canAct).length,
+        overdue: tasks.filter((x) => x.overdue).length,
+        critical: tasks.filter((x) => x.priority === "Crítica").length,
+      },
+    });
+  } catch (error) {
+    return apiFailure(error, "Não foi possível carregar o Workflow.");
+  }
+}
+
+async function actionPlansApi(
+  request: Request,
+  db: D1Database,
+  security: SecurityContext,
+) {
+  try {
+    const tenantId = security.tenantId,
+      organizationId = security.organizationId;
+    if (request.method === "GET") {
+      const [actions, organizations, owners, audit] = await Promise.all([
+        db
+          .prepare(
+            "SELECT a.*,o.name organization_name FROM performance_actions a JOIN organizations o ON o.id=a.organization_id AND o.tenant_id=a.tenant_id WHERE a.tenant_id=? AND (? IS NULL OR a.organization_id=?) ORDER BY CASE a.status WHEN 'Aberta' THEN 1 WHEN 'Em curso' THEN 2 ELSE 3 END,a.due_date",
+          )
+          .bind(tenantId, organizationId, organizationId)
+          .all(),
+        db
+          .prepare(
+            "SELECT id,code,name FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name",
+          )
+          .bind(tenantId, organizationId, organizationId)
+          .all(),
+        db
+          .prepare(
+            "SELECT name,email,role,organization_id FROM platform_users WHERE tenant_id=? AND status='Ativo' AND (? IS NULL OR organization_id IS NULL OR organization_id=?) ORDER BY name",
+          )
+          .bind(tenantId, organizationId, organizationId)
+          .all(),
+        organizationId
+          ? Promise.resolve({ results: [] })
+          : db
+              .prepare(
+                "SELECT * FROM audit_events WHERE tenant_id=? AND entity_type='performanceAction' ORDER BY created_at DESC LIMIT 12",
+              )
+              .bind(tenantId)
+              .all(),
+      ]);
+      return Response.json({
+        actions: actions.results,
+        organizations: organizations.results,
+        owners: owners.results,
+        audit: audit.results,
+      });
+    }
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as Record<string, string>,
+      now = new Date().toISOString(),
+      id = uid();
+    if (body.type === "createAction") {
+      if (
+        !body.organizationId ||
+        !body.title?.trim() ||
+        !body.ownerEmail?.trim() ||
+        !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(body.dueDate || "") ||
+        !["Baixa", "Normal", "Alta", "Crítica"].includes(body.priority)
+      )
+        return Response.json(
+          {
+            error:
+              "Organização, título, responsável, prazo e prioridade são obrigatórios.",
+          },
+          { status: 400 },
+        );
+      if (organizationId && body.organizationId !== organizationId)
+        return Response.json(
+          { error: "A ação está fora do âmbito organizacional autorizado." },
+          { status: 403 },
+        );
+      await db
+        .prepare(
+          "INSERT INTO performance_actions (id,tenant_id,organization_id,period,currency,source_line_code,source_context,title,description,owner_email,due_date,priority,status,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          id,
+          tenantId,
+          body.organizationId,
+          body.period || null,
+          body.currency?.toUpperCase() || null,
+          body.sourceLineCode?.trim().toUpperCase() || null,
+          body.sourceContext?.trim() || null,
+          body.title.trim(),
+          body.description?.trim() || null,
+          body.ownerEmail.trim().toLowerCase(),
+          body.dueDate,
+          body.priority,
+          "Aberta",
+          security.email,
+          now,
+          now,
+        )
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          tenantId,
+          "CREATE",
+          "performanceAction",
+          id,
+          security.email,
+          `Plano de ação criado: ${body.title.trim()}`,
+          now,
+        )
+        .run();
+    } else if (body.type === "transitionAction") {
+      const row = await db
+        .prepare(
+          "SELECT * FROM performance_actions WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)",
+        )
+        .bind(body.actionId, tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>();
+      if (!row)
+        return Response.json(
+          { error: "Plano de ação não encontrado." },
+          { status: 404 },
+        );
+      if (
+        security.role !== "Administrador" &&
+        String(row.owner_email).toLowerCase() !== security.email.toLowerCase()
+      )
+        return Response.json(
+          {
+            error:
+              "Apenas o responsável ou Administrador pode atualizar esta ação.",
+          },
+          { status: 403 },
+        );
+      if (!["Em curso", "Concluída", "Cancelada"].includes(body.status))
+        return Response.json({ error: "Transição inválida." }, { status: 400 });
+      if (
+        body.status === "Concluída" &&
+        (!body.evidence || body.evidence.trim().length < 3)
+      )
+        return Response.json(
+          { error: "A conclusão exige evidência." },
+          { status: 400 },
+        );
+      const result = await db
+        .prepare(
+          "UPDATE performance_actions SET status=?,updated_at=?,completed_at=?,completion_evidence=? WHERE id=? AND tenant_id=? AND status=?",
+        )
+        .bind(
+          body.status,
+          now,
+          body.status === "Concluída" ? now : null,
+          body.status === "Concluída" ? body.evidence.trim() : null,
+          body.actionId,
+          tenantId,
+          row.status,
+        )
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          { error: "A ação foi atualizada em paralelo." },
+          { status: 409 },
+        );
+      await db
+        .prepare(
+          "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          uid(),
+          tenantId,
+          body.status.toUpperCase(),
+          "performanceAction",
+          body.actionId,
+          security.email,
+          `Plano de ação: ${body.status}`,
+          now,
+        )
+        .run();
+    } else
+      return Response.json(
+        { error: "Operação de ação não suportada." },
+        { status: 400 },
+      );
+    return actionPlansApi(
+      new Request(request.url, { method: "GET", headers: request.headers }),
+      db,
+      security,
+    );
+  } catch (error) {
+    return apiFailure(error, "Não foi possível processar os planos de ação.");
+  }
+}
+
+async function integrityApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  try {
+    await ensureSetupSchema(db);
+    if (request.method !== "GET")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const rows = await Promise.all([
+      db
+        .prepare(
+          "SELECT COUNT(*) n FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa'",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT COUNT(*) n FROM platform_users WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT COUNT(*) n FROM employees e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND e.status='Ativo'",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT COUNT(*) n FROM dimension_members m JOIN financial_dimensions d ON d.id=m.dimension_id AND d.tenant_id=m.tenant_id WHERE m.tenant_id=? AND m.status='Ativo'",
+        )
+        .bind(tenantId)
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT COUNT(DISTINCT scenario) n,COUNT(*) entries FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND scenario IN ('Actual','Budget')",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT COUNT(*) n FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) AND r.status='Fechado'",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT COALESCE(SUM(l.gross_minor+l.employer_minor),0) expected,COALESCE(SUM(w.total_minor),0) posted,COUNT(DISTINCT w.run_id) runs FROM payroll_run_lines l JOIN payroll_runs r ON r.id=l.run_id AND r.tenant_id=l.tenant_id LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id LEFT JOIN workforce_cost_postings w ON w.run_line_id=l.id AND w.tenant_id=l.tenant_id WHERE l.tenant_id=? AND (? IS NULL OR s.organization_id=?) AND r.status='Fechado'",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT COALESCE(SUM(w.total_minor),0) posted,COALESCE((SELECT SUM(amount_minor) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND scenario='Actual' AND source='Payroll' AND line_code='WORKFORCE'),0) actual FROM workforce_cost_postings w WHERE w.tenant_id=? AND (? IS NULL OR w.organization_id=?)",
+        )
+        .bind(
+          tenantId,
+          organizationId,
+          organizationId,
+          tenantId,
+          organizationId,
+          organizationId,
+        )
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          "SELECT r.* FROM management_reports r LEFT JOIN management_report_scopes s ON s.report_id=r.id AND s.tenant_id=r.tenant_id WHERE r.tenant_id=? AND (? IS NULL OR s.organization_id=?) ORDER BY r.report_number DESC LIMIT 1",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>(),
+    ]);
+    const count = (x: Record<string, unknown> | null) => Number(x?.n || 0),
+      payrollExpected = Number(rows[6]?.expected || 0),
+      payrollPosted = Number(rows[6]?.posted || 0),
+      financePosted = Number(rows[7]?.posted || 0),
+      financeActual = Number(rows[7]?.actual || 0);
+    let reportValid = false,
+      reportEvidence = "Nenhuma versão emitida";
+    if (rows[8]) {
+      const payload = String(rows[8].payload_json),
+        hash = await sha256(payload);
+      reportValid = hash === rows[8].input_hash;
+      reportEvidence = `v${rows[8].report_number} · hash ${hash.slice(0, 12)}`;
+    }
+    const checks = [
+      {
+        key: "organization",
+        label: "Organization",
+        status: count(rows[0]) > 0 ? "pass" : "fail",
+        evidence: `${count(rows[0])} organização(ões) ativa(s)`,
+        target: "Administração",
+      },
+      {
+        key: "user",
+        label: "User & RBAC",
+        status: count(rows[1]) > 0 ? "pass" : "fail",
+        evidence: `${count(rows[1])} utilizador(es) ativo(s)`,
+        target: "Administração",
+      },
+      {
+        key: "employee",
+        label: "Employee",
+        status: count(rows[2]) > 0 ? "pass" : "warn",
+        evidence: count(rows[2])
+          ? `${count(rows[2])} colaborador(es) ligado(s) a organização`
+          : "Configuração pendente: registe o primeiro colaborador",
+        target: "Administração",
+      },
+      {
+        key: "dimension",
+        label: "Financial Dimensions",
+        status: count(rows[3]) > 0 ? "pass" : "warn",
+        evidence: count(rows[3])
+          ? `${count(rows[3])} membro(s) dimensional(is) válido(s)`
+          : "Configuração pendente: crie uma dimensão e respetivos membros",
+        target: "Administração",
+      },
+      {
+        key: "performance",
+        label: "Actual / Budget",
+        status: Number(rows[4]?.n || 0) === 2 ? "pass" : "warn",
+        evidence: `${Number(rows[4]?.entries || 0)} lançamento(s) · ${Number(rows[4]?.n || 0)}/2 cenários`,
+        target: "Planeamento",
+      },
+      {
+        key: "payroll",
+        label: "Payroll Run",
+        status: count(rows[5]) > 0 ? "pass" : "warn",
+        evidence: `${count(rows[5])} run(s) fechado(s)`,
+        target: "Operações",
+      },
+      {
+        key: "workforce",
+        label: "Workforce Cost",
+        status:
+          payrollExpected === 0
+            ? "warn"
+            : payrollExpected === payrollPosted
+              ? "pass"
+              : "fail",
+        evidence:
+          payrollExpected === 0
+            ? "Aguarda Payroll fechado e transferência de custos"
+            : `Payroll ${payrollExpected} = posting ${payrollPosted}`,
+        target: "Análises",
+      },
+      {
+        key: "dashboard",
+        label: "Dashboard lineage",
+        status:
+          financePosted === 0 && financeActual === 0
+            ? "warn"
+            : financePosted === financeActual
+              ? "pass"
+              : "fail",
+        evidence:
+          financePosted === 0 && financeActual === 0
+            ? "Aguarda Workforce Cost publicado em Actual"
+            : `Posting ${financePosted} = Actual ${financeActual}`,
+        target: "Visão geral",
+      },
+      {
+        key: "report",
+        label: "Management Report",
+        status: !rows[8] ? "warn" : reportValid ? "pass" : "fail",
+        evidence: reportEvidence,
+        target: "Relatórios",
+      },
+    ];
+    const failed = checks.filter((x) => x.status === "fail").length,
+      warnings = checks.filter((x) => x.status === "warn").length;
+    return Response.json({
+      generatedAt: new Date().toISOString(),
+      status: failed ? "fail" : warnings ? "warn" : "pass",
+      summary: {
+        passed: checks.length - failed - warnings,
+        warnings,
+        failed,
+        total: checks.length,
+      },
+      reconciliations: {
+        payrollToWorkforce: {
+          differenceMinor: variance(payrollPosted, payrollExpected),
+        },
+        workforceToFinance: {
+          differenceMinor: variance(financeActual, financePosted),
+        },
+        reportHashValid: reportValid,
+      },
+      checks,
+    });
+  } catch (error) {
+    return apiFailure(
+      error,
+      "Não foi possível executar os controlos de integridade.",
+    );
+  }
+}
 
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
@@ -493,78 +5506,347 @@ async function integrityApi(request:Request,db:D1Database,tenantId:string,organi
 // const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
 
 const worker = {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
     const url = new URL(request.url);
-    const apiPath=url.pathname.replace(/^\/api\/v1(?=\/|$)/,"/api");
-    if(apiPath==="/api/auth/config"){
-      if(request.method!=="GET")return Response.json({error:"Método não permitido."},{status:405});
-      if(!env.NEXT_PUBLIC_SUPABASE_URL||!env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)return Response.json({error:"O serviço de identidade não está configurado."},{status:503});
-      return Response.json({url:env.NEXT_PUBLIC_SUPABASE_URL,publishableKey:env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY},{headers:{"cache-control":"public, max-age=300"}});
+    const apiPath = url.pathname.replace(/^\/api\/v1(?=\/|$)/, "/api");
+    if (apiPath === "/api/auth/config") {
+      if (request.method !== "GET")
+        return Response.json(
+          { error: "Método não permitido." },
+          { status: 405 },
+        );
+      if (
+        !env.NEXT_PUBLIC_SUPABASE_URL ||
+        !env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+      )
+        return Response.json(
+          { error: "O serviço de identidade não está configurado." },
+          { status: 503 },
+        );
+      return Response.json(
+        {
+          url: env.NEXT_PUBLIC_SUPABASE_URL,
+          publishableKey: env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+        },
+        { headers: { "cache-control": "public, max-age=300" } },
+      );
     }
-    if(apiPath.startsWith("/api/")){const authenticated=await authenticateApiRequest(request,env);if(authenticated instanceof Response)return authenticated;request=authenticated}
-    if(apiPath==="/api/invitations/accept")return invitationApi(request,env.DB);
-    if(apiPath==="/api/commerce/checkout")return commerceCheckoutApi(request,env.DB);
-    if(apiPath==="/api/commerce/payment-intent")return paymentIntentApi(request,env.DB);
-    if(apiPath==="/api/commerce/test-confirmation")return testConfirmationApi(request,env.DB);
-    if(apiPath==="/api/commerce/industry-packs")return industryPacksApi(request,env.DB);
-    if(apiPath==="/api/commerce/provision")return provisionTenantApi(request,env.DB);
-    if(apiPath==="/api/control-plane")return controlPlaneApi(request,env.DB);
+    if (apiPath.startsWith("/api/")) {
+      const authenticated = await authenticateApiRequest(request, env);
+      if (authenticated instanceof Response) return authenticated;
+      request = authenticated;
+    }
+    if (apiPath === "/api/invitations/accept")
+      return invitationApi(request, env.DB);
+    if (apiPath === "/api/commerce/checkout")
+      return commerceCheckoutApi(request, env.DB);
+    if (apiPath === "/api/commerce/payment-intent")
+      return paymentIntentApi(request, env.DB);
+    if (apiPath === "/api/commerce/test-confirmation")
+      return testConfirmationApi(request, env.DB);
+    if (apiPath === "/api/commerce/industry-packs")
+      return industryPacksApi(request, env.DB);
+    if (apiPath === "/api/commerce/provision")
+      return provisionTenantApi(request, env.DB);
+    if (apiPath === "/api/control-plane")
+      return controlPlaneApi(request, env.DB);
 
     if (apiPath.startsWith("/api/")) {
-      const security=await securityContext(request,env.DB);if(security instanceof Response)return security;
-      if(apiPath==="/api/session")return Response.json(security);
-      if(apiPath==="/api/demo-portfolio"&&request.method!=="GET"&&!hasPermission(security.permissions,"setup:write"))return denied("setup:write");
-      if(apiPath==="/api/demo-portfolio")return demoPortfolioApi(request,env.DB,security);
-      if(apiPath==="/api/openapi.json")return Response.json(openApiDocument,{headers:{"cache-control":"public, max-age=300"}});
-      const write=request.method!=="GET",required:Permission|null=(apiPath==="/api/setup"||apiPath==="/api/tenants")&&write?"setup:write":apiPath==="/api/document-hub"?(write?"document:write":"document:read"):["/api/hcm","/api/recruitment","/api/attendance","/api/employee-documents"].includes(apiPath)?(write?"hcm:write":"hcm:read"):["/api/payroll-loans","/api/payroll-adjustments"].includes(apiPath)?(write?"payroll:write":"payroll:read"):apiPath==="/api/performance"&&write?"performance:write":apiPath==="/api/scenarios"?(write?"scenario:write":"scenario:read"):apiPath==="/api/consolidation"?(write?"consolidation:write":"consolidation:read"):apiPath==="/api/financial-models"?(write?"financial-model:write":"financial-model:read"):apiPath==="/api/financial-data"?(write?"financial-data:write":"financial-data:read"):apiPath==="/api/integrations"?(write?"integration:write":"integration:read"):apiPath==="/api/financial-diagnostics"?(write?"diagnostic:write":"diagnostic:read"):apiPath==="/api/goals"?(write?"goal:write":"goal:read"):apiPath==="/api/reviews"?(write?"review:write":"review:read"):apiPath==="/api/competencies"?(write?"competency:write":"competency:read"):apiPath==="/api/actions"?(write?"action:write":"action:read"):apiPath==="/api/payroll"?(write?"payroll:write":"payroll:read"):(apiPath==="/api/workforce"||apiPath==="/api/workforce-plans")&&write?"workforce:write":apiPath==="/api/management-reports"&&write?"reports:write":["/api/workflow","/api/notifications"].includes(apiPath)?(write?"workflow:write":"workflow:read"):apiPath==="/api/integrity"?"integrity:read":null;
-      if(required&&!hasPermission(security.permissions,required))return denied(required);
-      const tenantId=security.tenantId;
-      const organizationId=security.organizationId;
-      const moduleRequired:string|null=["/api/setup","/api/document-hub"].includes(apiPath)?"CORE":["/api/hcm","/api/recruitment","/api/attendance","/api/employee-documents"].includes(apiPath)?"HCM":["/api/payroll","/api/payroll-loans","/api/payroll-adjustments"].includes(apiPath)?"PAYROLL":["/api/performance","/api/scenarios","/api/consolidation","/api/financial-models","/api/financial-data","/api/financial-diagnostics"].includes(apiPath)?"FINANCE_FP&A":apiPath==="/api/integrations"?"INTEGRATIONS":["/api/actions","/api/goals","/api/reviews","/api/competencies"].includes(apiPath)?"PERFORMANCE_MANAGEMENT":["/api/workforce","/api/workforce-plans"].includes(apiPath)?"WORKFORCE_PLANNING":apiPath==="/api/workflow"?"WORKFLOW":["/api/dashboard","/api/management-reports","/api/commercial-suite"].includes(apiPath)?"ANALYTICS_REPORTING":null;
-      if(moduleRequired&&!security.modules.includes(moduleRequired))return Response.json({error:`Módulo não contratado: ${moduleRequired}`},{status:403});
-      if(organizationId&&write&&apiPath==="/api/setup")return Response.json({error:"A administração da estrutura exige âmbito de todo o tenant."},{status:403});
-      if(organizationId&&write&&apiPath==="/api/performance"){const command=await request.clone().json() as Record<string,string>;if(command.type!=="performanceEntry"||command.organizationId!==organizationId)return Response.json({error:"A operação financeira está fora do âmbito organizacional autorizado."},{status:403})}
-      if (apiPath === "/api/tenants") return tenantsApi(request,env.DB,security);
-      if (apiPath === "/api/setup") return setupApi(request, env.DB,tenantId,organizationId);
-      if (apiPath === "/api/hcm") return hcmApi(request,env.DB,tenantId,organizationId);
-      if (apiPath === "/api/recruitment") return recruitmentApi(request,env.DB,security);
-      if (apiPath === "/api/attendance") return attendanceApi(request,env.DB,security);
-      if (apiPath === "/api/employee-documents") return employeeDocumentsApi(request,env.DB,env.BUCKET,security);
-      if (apiPath === "/api/notifications") return notificationsApi(request,env.DB,security);
-      if (apiPath === "/api/payroll-loans") return payrollLoansApi(request,env.DB,security);
-      if (apiPath === "/api/payroll-adjustments") return payrollAdjustmentsApi(request,env.DB,security);
-      if (apiPath === "/api/performance") return performanceApi(request, env.DB,tenantId,organizationId);
-      if (apiPath === "/api/scenarios") return scenariosApi(request,env.DB,security);
-      if (apiPath === "/api/consolidation") return consolidationApi(request,env.DB,security);
-      if (apiPath === "/api/financial-models") return financialModelsApi(request,env.DB,security);
-      if (apiPath === "/api/financial-data") return financialDataApi(request,env.DB,security);
-      if (apiPath === "/api/integrations") return integrationsApi(request,env.DB,security);
-      if (apiPath === "/api/financial-diagnostics") return financialDiagnosticsApi(request,env.DB,security);
-      if (apiPath === "/api/workforce-plans") return workforcePlansApi(request,env.DB,security);
-      if (apiPath === "/api/payroll") return payrollApi(request, env.DB,tenantId,organizationId);
-      if (apiPath === "/api/workforce") return workforceApi(request, env.DB,tenantId,organizationId);
-      if (apiPath === "/api/dashboard") return dashboardApi(request, env.DB,tenantId,organizationId);
-      if (apiPath === "/api/commercial-suite") return commercialSuiteApi(request,env.DB,security);
-      if (apiPath === "/api/document-hub") return documentHubApi(request,env.DB,env.BUCKET,env,security);
-      if (apiPath === "/api/management-reports") return managementReportApi(request, env.DB,tenantId,organizationId);
-      if (apiPath === "/api/readiness") return readinessApi(request,env.DB,tenantId,organizationId,security.modules);
-      if (apiPath === "/api/workflow") return workflowApi(request,env.DB,tenantId,organizationId,security.role,security.email,security.modules);
-      if (apiPath === "/api/actions") return actionPlansApi(request,env.DB,security);
-      if (apiPath === "/api/goals") return goalsApi(request,env.DB,security);
-      if (apiPath === "/api/reviews") return reviewsApi(request,env.DB,security);
-      if (apiPath === "/api/competencies") return competenciesApi(request,env.DB,security);
-      if (apiPath === "/api/integrity") return integrityApi(request, env.DB,tenantId,organizationId);
+      const security = await securityContext(request, env.DB);
+      if (security instanceof Response) return security;
+      if (apiPath === "/api/session") return Response.json(security);
+      if (
+        apiPath === "/api/demo-portfolio" &&
+        request.method !== "GET" &&
+        !hasPermission(security.permissions, "setup:write")
+      )
+        return denied("setup:write");
+      if (apiPath === "/api/demo-portfolio")
+        return demoPortfolioApi(request, env.DB, security);
+      if (apiPath === "/api/openapi.json")
+        return Response.json(openApiDocument, {
+          headers: { "cache-control": "public, max-age=300" },
+        });
+      const write = request.method !== "GET",
+        required: Permission | null =
+          (apiPath === "/api/setup" || apiPath === "/api/tenants") && write
+            ? "setup:write"
+            : apiPath === "/api/document-hub"
+              ? write
+                ? "document:write"
+                : "document:read"
+              : [
+                    "/api/hcm",
+                    "/api/recruitment",
+                    "/api/attendance",
+                    "/api/employee-documents",
+                  ].includes(apiPath)
+                ? write
+                  ? "hcm:write"
+                  : "hcm:read"
+                : ["/api/payroll-loans", "/api/payroll-adjustments"].includes(
+                      apiPath,
+                    )
+                  ? write
+                    ? "payroll:write"
+                    : "payroll:read"
+                  : apiPath === "/api/performance" && write
+                    ? "performance:write"
+                    : apiPath === "/api/scenarios"
+                      ? write
+                        ? "scenario:write"
+                        : "scenario:read"
+                      : apiPath === "/api/consolidation"
+                        ? write
+                          ? "consolidation:write"
+                          : "consolidation:read"
+                        : apiPath === "/api/financial-models"
+                          ? write
+                            ? "financial-model:write"
+                            : "financial-model:read"
+                          : apiPath === "/api/financial-data"
+                            ? write
+                              ? "financial-data:write"
+                              : "financial-data:read"
+                            : apiPath === "/api/integrations"
+                              ? write
+                                ? "integration:write"
+                                : "integration:read"
+                              : apiPath === "/api/financial-diagnostics"
+                                ? write
+                                  ? "diagnostic:write"
+                                  : "diagnostic:read"
+                                : apiPath === "/api/goals"
+                                  ? write
+                                    ? "goal:write"
+                                    : "goal:read"
+                                  : apiPath === "/api/reviews"
+                                    ? write
+                                      ? "review:write"
+                                      : "review:read"
+                                    : apiPath === "/api/competencies"
+                                      ? write
+                                        ? "competency:write"
+                                        : "competency:read"
+                                      : apiPath === "/api/actions"
+                                        ? write
+                                          ? "action:write"
+                                          : "action:read"
+                                        : apiPath === "/api/payroll"
+                                          ? write
+                                            ? "payroll:write"
+                                            : "payroll:read"
+                                          : (apiPath === "/api/workforce" ||
+                                                apiPath ===
+                                                  "/api/workforce-plans") &&
+                                              write
+                                            ? "workforce:write"
+                                            : apiPath ===
+                                                  "/api/management-reports" &&
+                                                write
+                                              ? "reports:write"
+                                              : [
+                                                    "/api/workflow",
+                                                    "/api/notifications",
+                                                  ].includes(apiPath)
+                                                ? write
+                                                  ? "workflow:write"
+                                                  : "workflow:read"
+                                                : apiPath === "/api/integrity"
+                                                  ? "integrity:read"
+                                                  : null;
+      if (required && !hasPermission(security.permissions, required))
+        return denied(required);
+      if (
+        apiPath === "/api/customer-activation" &&
+        write &&
+        !hasPermission(security.permissions, "setup:write")
+      )
+        return denied("setup:write");
+      const tenantId = security.tenantId;
+      const organizationId = security.organizationId;
+      const moduleRequired: string | null = [
+        "/api/setup",
+        "/api/document-hub",
+      ].includes(apiPath)
+        ? "CORE"
+        : [
+              "/api/hcm",
+              "/api/recruitment",
+              "/api/attendance",
+              "/api/employee-documents",
+            ].includes(apiPath)
+          ? "HCM"
+          : [
+                "/api/payroll",
+                "/api/payroll-loans",
+                "/api/payroll-adjustments",
+              ].includes(apiPath)
+            ? "PAYROLL"
+            : [
+                  "/api/performance",
+                  "/api/scenarios",
+                  "/api/consolidation",
+                  "/api/financial-models",
+                  "/api/financial-data",
+                  "/api/financial-diagnostics",
+                ].includes(apiPath)
+              ? "FINANCE_FP&A"
+              : apiPath === "/api/integrations"
+                ? "INTEGRATIONS"
+                : [
+                      "/api/actions",
+                      "/api/goals",
+                      "/api/reviews",
+                      "/api/competencies",
+                    ].includes(apiPath)
+                  ? "PERFORMANCE_MANAGEMENT"
+                  : ["/api/workforce", "/api/workforce-plans"].includes(apiPath)
+                    ? "WORKFORCE_PLANNING"
+                    : apiPath === "/api/workflow"
+                      ? "WORKFLOW"
+                      : [
+                            "/api/dashboard",
+                            "/api/management-reports",
+                            "/api/commercial-suite",
+                          ].includes(apiPath)
+                        ? "ANALYTICS_REPORTING"
+                        : null;
+      if (
+        apiPath === "/api/customer-activation" &&
+        !security.modules.includes("CORE")
+      )
+        return Response.json(
+          { error: "Módulo não contratado: CORE" },
+          { status: 403 },
+        );
+      if (moduleRequired && !security.modules.includes(moduleRequired))
+        return Response.json(
+          { error: `Módulo não contratado: ${moduleRequired}` },
+          { status: 403 },
+        );
+      if (organizationId && write && apiPath === "/api/setup")
+        return Response.json(
+          {
+            error:
+              "A administração da estrutura exige âmbito de todo o tenant.",
+          },
+          { status: 403 },
+        );
+      if (organizationId && write && apiPath === "/api/performance") {
+        const command = (await request.clone().json()) as Record<
+          string,
+          string
+        >;
+        if (
+          command.type !== "performanceEntry" ||
+          command.organizationId !== organizationId
+        )
+          return Response.json(
+            {
+              error:
+                "A operação financeira está fora do âmbito organizacional autorizado.",
+            },
+            { status: 403 },
+          );
+      }
+      if (apiPath === "/api/tenants")
+        return tenantsApi(request, env.DB, security);
+      if (apiPath === "/api/setup")
+        return setupApi(request, env.DB, tenantId, organizationId);
+      if (apiPath === "/api/hcm")
+        return hcmApi(request, env.DB, tenantId, organizationId);
+      if (apiPath === "/api/recruitment")
+        return recruitmentApi(request, env.DB, security);
+      if (apiPath === "/api/attendance")
+        return attendanceApi(request, env.DB, security);
+      if (apiPath === "/api/employee-documents")
+        return employeeDocumentsApi(request, env.DB, env.BUCKET, security);
+      if (apiPath === "/api/notifications")
+        return notificationsApi(request, env.DB, security);
+      if (apiPath === "/api/payroll-loans")
+        return payrollLoansApi(request, env.DB, security);
+      if (apiPath === "/api/payroll-adjustments")
+        return payrollAdjustmentsApi(request, env.DB, security);
+      if (apiPath === "/api/performance")
+        return performanceApi(request, env.DB, tenantId, organizationId);
+      if (apiPath === "/api/scenarios")
+        return scenariosApi(request, env.DB, security);
+      if (apiPath === "/api/consolidation")
+        return consolidationApi(request, env.DB, security);
+      if (apiPath === "/api/financial-models")
+        return financialModelsApi(request, env.DB, security);
+      if (apiPath === "/api/financial-data")
+        return financialDataApi(request, env.DB, security);
+      if (apiPath === "/api/integrations")
+        return integrationsApi(request, env.DB, security);
+      if (apiPath === "/api/financial-diagnostics")
+        return financialDiagnosticsApi(request, env.DB, security);
+      if (apiPath === "/api/workforce-plans")
+        return workforcePlansApi(request, env.DB, security);
+      if (apiPath === "/api/payroll")
+        return payrollApi(request, env.DB, tenantId, organizationId);
+      if (apiPath === "/api/workforce")
+        return workforceApi(request, env.DB, tenantId, organizationId);
+      if (apiPath === "/api/dashboard")
+        return dashboardApi(request, env.DB, tenantId, organizationId);
+      if (apiPath === "/api/commercial-suite")
+        return commercialSuiteApi(request, env.DB, security);
+      if (apiPath === "/api/document-hub")
+        return documentHubApi(request, env.DB, env.BUCKET, env, security);
+      if (apiPath === "/api/customer-activation")
+        return customerActivationApi(request, env.DB, security);
+      if (apiPath === "/api/management-reports")
+        return managementReportApi(request, env.DB, tenantId, organizationId);
+      if (apiPath === "/api/readiness")
+        return readinessApi(
+          request,
+          env.DB,
+          tenantId,
+          organizationId,
+          security.modules,
+        );
+      if (apiPath === "/api/workflow")
+        return workflowApi(
+          request,
+          env.DB,
+          tenantId,
+          organizationId,
+          security.role,
+          security.email,
+          security.modules,
+        );
+      if (apiPath === "/api/actions")
+        return actionPlansApi(request, env.DB, security);
+      if (apiPath === "/api/goals") return goalsApi(request, env.DB, security);
+      if (apiPath === "/api/reviews")
+        return reviewsApi(request, env.DB, security);
+      if (apiPath === "/api/competencies")
+        return competenciesApi(request, env.DB, security);
+      if (apiPath === "/api/integrity")
+        return integrityApi(request, env.DB, tenantId, organizationId);
     }
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
-      return handleImageOptimization(request, {
-        fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),
-        transformImage: async (body, { width, format, quality }) => {
-          const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
-          return result.response();
+      return handleImageOptimization(
+        request,
+        {
+          fetchAsset: (path) =>
+            env.ASSETS.fetch(new Request(new URL(path, request.url))),
+          transformImage: async (body, { width, format, quality }) => {
+            const result = await env.IMAGES.input(body)
+              .transform(width > 0 ? { width } : {})
+              .output({ format, quality });
+            return result.response();
+          },
         },
-      }, allowedWidths);
+        allowedWidths,
+      );
     }
 
     return handler.fetch(request, env, ctx);

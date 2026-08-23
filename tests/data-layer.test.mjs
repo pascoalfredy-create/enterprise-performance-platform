@@ -252,8 +252,8 @@ test("workflow transitions are sequential and protected by database state",()=>{
 });
 
 test("API state changes use compare-and-set updates",()=>{
- assert.match(worker,/status='Rascunho'\"\)\.bind\(created,body\.versionId,tenantId\)/);
- assert.match(worker,/AND status=\?\"\)\.bind\(next\[run\.status\]/);
+ assert.match(worker,/status='Rascunho'[\s\S]{0,120}\.bind\([\s\S]{0,80}created,[\s\S]{0,40}body\.versionId,[\s\S]{0,40}tenantId/);
+ assert.match(worker,/AND status=\?[\s\S]{0,120}\.bind\([\s\S]{0,80}next\[run\.status\]/);
  assert.match(worker,/transition\.meta\.changes/);
  assert.match(worker,/approval\.meta\.changes/);
 });

@@ -1,33 +1,226 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {openApiDocument as spec} from "../lib/openapi.ts";
-test("publishes OpenAPI 3.1 with stable v1 server",()=>{assert.equal(spec.openapi,"3.1.0");assert.equal(spec.servers[0].url,"/api/v1")});
-test("documents every vertical slice API",()=>{for(const path of ["/session","/setup","/hcm","/recruitment","/attendance","/performance","/payroll","/payroll-loans","/payroll-adjustments","/workforce","/dashboard","/management-reports","/readiness","/integrity"])assert.ok(spec.paths[path],path)});
-test("documents tenant memberships and paid provisioning",()=>{assert.ok(spec.paths["/tenants"]?.get);assert.equal(spec.paths["/tenants"]?.post,undefined);assert.equal(spec.paths["/commerce/provision"]?.post?.["x-permission"],"commerce:provision")});
-test("documents invitation acceptance",()=>{assert.ok(spec.paths["/invitations/accept"]?.post);assert.ok(spec.paths["/invitations/accept"].post.responses["403"])});
-test("write operations declare permissions and auth errors",()=>{for(const path of ["/setup","/hcm","/performance","/payroll","/workforce","/management-reports"]){const post=spec.paths[path].post;assert.ok(post["x-permission"]);assert.ok(post.responses["401"]);assert.ok(post.responses["403"])}});
-test("HCM read and write contracts declare sensitive-data permissions",()=>{assert.equal(spec.paths["/hcm"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/hcm"].post["x-permission"],"hcm:write")});
-test("Payroll reads including payslips require sensitive-data permission",()=>{assert.equal(spec.paths["/payroll"].get["x-permission"],"payroll:read");assert.equal(spec.paths["/payroll"].post["x-permission"],"payroll:write")});
-test("workflow inbox publishes its read permission",()=>{assert.equal(spec.paths["/workflow"].get["x-permission"],"workflow:read")});
-test("performance actions publish read and write permissions",()=>{assert.equal(spec.paths["/actions"].get["x-permission"],"action:read");assert.equal(spec.paths["/actions"].post["x-permission"],"action:write")});
-test("forecast scenarios publish explicit permissions",()=>{assert.equal(spec.paths["/scenarios"].get["x-permission"],"scenario:read");assert.equal(spec.paths["/scenarios"].post["x-permission"],"scenario:write")});
-test("performance goals publish explicit permissions",()=>{assert.equal(spec.paths["/goals"].get["x-permission"],"goal:read");assert.equal(spec.paths["/goals"].post["x-permission"],"goal:write")});
-test("performance reviews publish explicit permissions",()=>{assert.equal(spec.paths["/reviews"].get["x-permission"],"review:read");assert.equal(spec.paths["/reviews"].post["x-permission"],"review:write")});
-test("competencies and feedback publish explicit permissions",()=>{assert.equal(spec.paths["/competencies"].get["x-permission"],"competency:read");assert.equal(spec.paths["/competencies"].post["x-permission"],"competency:write")});
-test("control plane contract is operator protected",()=>{assert.equal(spec.paths["/control-plane"].get["x-permission"],"operator");assert.equal(spec.paths["/control-plane"].post["x-permission"],"operator")});
-test("consolidation contract declares segregated read and write permissions",()=>{assert.equal(spec.paths["/consolidation"].get["x-permission"],"consolidation:read");assert.equal(spec.paths["/consolidation"].post["x-permission"],"consolidation:write")});
-test("financial modelling contract declares read and write permissions",()=>{assert.equal(spec.paths["/financial-models"].get["x-permission"],"financial-model:read");assert.equal(spec.paths["/financial-models"].post["x-permission"],"financial-model:write")});
-test("financial ingestion contract declares read and write permissions",()=>{assert.equal(spec.paths["/financial-data"].get["x-permission"],"financial-data:read");assert.equal(spec.paths["/financial-data"].post["x-permission"],"financial-data:write")});
-test("diagnostics contract declares read and write permissions",()=>{assert.equal(spec.paths["/financial-diagnostics"].get["x-permission"],"diagnostic:read");assert.equal(spec.paths["/financial-diagnostics"].post["x-permission"],"diagnostic:write")});
-test("headcount planning declares governed workforce writes",()=>{assert.equal(spec.paths["/workforce-plans"].post["x-permission"],"workforce:write")});
-test("recruitment uses sensitive HCM permissions",()=>{assert.equal(spec.paths["/recruitment"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/recruitment"].post["x-permission"],"hcm:write")});
-test("attendance uses sensitive HCM permissions",()=>{assert.equal(spec.paths["/attendance"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/attendance"].post["x-permission"],"hcm:write")});
-test("loans use sensitive payroll permissions",()=>{assert.equal(spec.paths["/payroll-loans"].get["x-permission"],"payroll:read");assert.equal(spec.paths["/payroll-loans"].post["x-permission"],"payroll:write")});
-test("retroactive adjustments use sensitive payroll permissions",()=>{assert.equal(spec.paths["/payroll-adjustments"].get["x-permission"],"payroll:read");assert.equal(spec.paths["/payroll-adjustments"].post["x-permission"],"payroll:write")});
-test("integration hub publishes explicit permissions",()=>{assert.equal(spec.paths["/integrations"].get["x-permission"],"integration:read");assert.equal(spec.paths["/integrations"].post["x-permission"],"integration:write")});
-test("employee documents use sensitive HCM permissions",()=>{assert.equal(spec.paths["/employee-documents"].get["x-permission"],"hcm:read");assert.equal(spec.paths["/employee-documents"].post["x-permission"],"hcm:write")});
-test("notifications reuse governed workflow permission",()=>{assert.equal(spec.paths["/notifications"].get["x-permission"],"workflow:read")});
-test("governed alert tasks require workflow write permission",()=>{assert.equal(spec.paths["/notifications"].post["x-permission"],"workflow:write")});
-test("documents the restricted idempotent demo portfolio",()=>{assert.equal(spec.paths["/demo-portfolio"].post["x-permission"],"setup:write")});
-test("documents the commercial validation suite",()=>{assert.ok(spec.paths["/commercial-suite"].get)});
-test("documents governed document hub and OCR permissions",()=>{assert.equal(spec.paths["/document-hub"].get["x-permission"],"document:read");assert.equal(spec.paths["/document-hub"].post["x-permission"],"document:write")});
+import { openApiDocument as spec } from "../lib/openapi.ts";
+test("publishes OpenAPI 3.1 with stable v1 server", () => {
+  assert.equal(spec.openapi, "3.1.0");
+  assert.equal(spec.servers[0].url, "/api/v1");
+});
+test("documents every vertical slice API", () => {
+  for (const path of [
+    "/session",
+    "/setup",
+    "/hcm",
+    "/recruitment",
+    "/attendance",
+    "/performance",
+    "/payroll",
+    "/payroll-loans",
+    "/payroll-adjustments",
+    "/workforce",
+    "/dashboard",
+    "/management-reports",
+    "/readiness",
+    "/integrity",
+  ])
+    assert.ok(spec.paths[path], path);
+});
+test("documents tenant memberships and paid provisioning", () => {
+  assert.ok(spec.paths["/tenants"]?.get);
+  assert.equal(spec.paths["/tenants"]?.post, undefined);
+  assert.equal(
+    spec.paths["/commerce/provision"]?.post?.["x-permission"],
+    "commerce:provision",
+  );
+});
+test("documents invitation acceptance", () => {
+  assert.ok(spec.paths["/invitations/accept"]?.post);
+  assert.ok(spec.paths["/invitations/accept"].post.responses["403"]);
+});
+test("write operations declare permissions and auth errors", () => {
+  for (const path of [
+    "/setup",
+    "/hcm",
+    "/performance",
+    "/payroll",
+    "/workforce",
+    "/management-reports",
+  ]) {
+    const post = spec.paths[path].post;
+    assert.ok(post["x-permission"]);
+    assert.ok(post.responses["401"]);
+    assert.ok(post.responses["403"]);
+  }
+});
+test("HCM read and write contracts declare sensitive-data permissions", () => {
+  assert.equal(spec.paths["/hcm"].get["x-permission"], "hcm:read");
+  assert.equal(spec.paths["/hcm"].post["x-permission"], "hcm:write");
+});
+test("Payroll reads including payslips require sensitive-data permission", () => {
+  assert.equal(spec.paths["/payroll"].get["x-permission"], "payroll:read");
+  assert.equal(spec.paths["/payroll"].post["x-permission"], "payroll:write");
+});
+test("workflow inbox publishes its read permission", () => {
+  assert.equal(spec.paths["/workflow"].get["x-permission"], "workflow:read");
+});
+test("performance actions publish read and write permissions", () => {
+  assert.equal(spec.paths["/actions"].get["x-permission"], "action:read");
+  assert.equal(spec.paths["/actions"].post["x-permission"], "action:write");
+});
+test("forecast scenarios publish explicit permissions", () => {
+  assert.equal(spec.paths["/scenarios"].get["x-permission"], "scenario:read");
+  assert.equal(spec.paths["/scenarios"].post["x-permission"], "scenario:write");
+});
+test("performance goals publish explicit permissions", () => {
+  assert.equal(spec.paths["/goals"].get["x-permission"], "goal:read");
+  assert.equal(spec.paths["/goals"].post["x-permission"], "goal:write");
+});
+test("performance reviews publish explicit permissions", () => {
+  assert.equal(spec.paths["/reviews"].get["x-permission"], "review:read");
+  assert.equal(spec.paths["/reviews"].post["x-permission"], "review:write");
+});
+test("competencies and feedback publish explicit permissions", () => {
+  assert.equal(
+    spec.paths["/competencies"].get["x-permission"],
+    "competency:read",
+  );
+  assert.equal(
+    spec.paths["/competencies"].post["x-permission"],
+    "competency:write",
+  );
+});
+test("control plane contract is operator protected", () => {
+  assert.equal(spec.paths["/control-plane"].get["x-permission"], "operator");
+  assert.equal(spec.paths["/control-plane"].post["x-permission"], "operator");
+});
+test("consolidation contract declares segregated read and write permissions", () => {
+  assert.equal(
+    spec.paths["/consolidation"].get["x-permission"],
+    "consolidation:read",
+  );
+  assert.equal(
+    spec.paths["/consolidation"].post["x-permission"],
+    "consolidation:write",
+  );
+});
+test("financial modelling contract declares read and write permissions", () => {
+  assert.equal(
+    spec.paths["/financial-models"].get["x-permission"],
+    "financial-model:read",
+  );
+  assert.equal(
+    spec.paths["/financial-models"].post["x-permission"],
+    "financial-model:write",
+  );
+});
+test("financial ingestion contract declares read and write permissions", () => {
+  assert.equal(
+    spec.paths["/financial-data"].get["x-permission"],
+    "financial-data:read",
+  );
+  assert.equal(
+    spec.paths["/financial-data"].post["x-permission"],
+    "financial-data:write",
+  );
+});
+test("diagnostics contract declares read and write permissions", () => {
+  assert.equal(
+    spec.paths["/financial-diagnostics"].get["x-permission"],
+    "diagnostic:read",
+  );
+  assert.equal(
+    spec.paths["/financial-diagnostics"].post["x-permission"],
+    "diagnostic:write",
+  );
+});
+test("headcount planning declares governed workforce writes", () => {
+  assert.equal(
+    spec.paths["/workforce-plans"].post["x-permission"],
+    "workforce:write",
+  );
+});
+test("recruitment uses sensitive HCM permissions", () => {
+  assert.equal(spec.paths["/recruitment"].get["x-permission"], "hcm:read");
+  assert.equal(spec.paths["/recruitment"].post["x-permission"], "hcm:write");
+});
+test("attendance uses sensitive HCM permissions", () => {
+  assert.equal(spec.paths["/attendance"].get["x-permission"], "hcm:read");
+  assert.equal(spec.paths["/attendance"].post["x-permission"], "hcm:write");
+});
+test("loans use sensitive payroll permissions", () => {
+  assert.equal(
+    spec.paths["/payroll-loans"].get["x-permission"],
+    "payroll:read",
+  );
+  assert.equal(
+    spec.paths["/payroll-loans"].post["x-permission"],
+    "payroll:write",
+  );
+});
+test("retroactive adjustments use sensitive payroll permissions", () => {
+  assert.equal(
+    spec.paths["/payroll-adjustments"].get["x-permission"],
+    "payroll:read",
+  );
+  assert.equal(
+    spec.paths["/payroll-adjustments"].post["x-permission"],
+    "payroll:write",
+  );
+});
+test("integration hub publishes explicit permissions", () => {
+  assert.equal(
+    spec.paths["/integrations"].get["x-permission"],
+    "integration:read",
+  );
+  assert.equal(
+    spec.paths["/integrations"].post["x-permission"],
+    "integration:write",
+  );
+});
+test("employee documents use sensitive HCM permissions", () => {
+  assert.equal(
+    spec.paths["/employee-documents"].get["x-permission"],
+    "hcm:read",
+  );
+  assert.equal(
+    spec.paths["/employee-documents"].post["x-permission"],
+    "hcm:write",
+  );
+});
+test("notifications reuse governed workflow permission", () => {
+  assert.equal(
+    spec.paths["/notifications"].get["x-permission"],
+    "workflow:read",
+  );
+});
+test("governed alert tasks require workflow write permission", () => {
+  assert.equal(
+    spec.paths["/notifications"].post["x-permission"],
+    "workflow:write",
+  );
+});
+test("documents the restricted idempotent demo portfolio", () => {
+  assert.equal(
+    spec.paths["/demo-portfolio"].post["x-permission"],
+    "setup:write",
+  );
+});
+test("documents the commercial validation suite", () => {
+  assert.ok(spec.paths["/commercial-suite"].get);
+});
+test("documents governed document hub and OCR permissions", () => {
+  assert.equal(
+    spec.paths["/document-hub"].get["x-permission"],
+    "document:read",
+  );
+  assert.equal(
+    spec.paths["/document-hub"].post["x-permission"],
+    "document:write",
+  );
+});
+test("documents customer activation and subscription change governance", () => {
+  assert.ok(spec.paths["/customer-activation"].get);
+  assert.equal(
+    spec.paths["/customer-activation"].post["x-permission"],
+    "setup:write",
+  );
+});
