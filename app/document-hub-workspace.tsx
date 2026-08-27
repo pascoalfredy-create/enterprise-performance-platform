@@ -2,6 +2,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch } from "../lib/api-client";
 import "./document-hub.css";
+import "./ocr-review.css";
 type Folder = { id: string; module_code: string; name: string };
 type Doc = {
   id: string;
@@ -14,6 +15,9 @@ type Doc = {
   status: string;
   ocr_status: string;
   ocr_confidence_bps?: number;
+  ocr_payload_json?: string;
+  ocr_validated_payload_json?: string;
+  ocr_provider?: string;
   evidence_hash: string;
 };
 type Data = {
@@ -21,6 +25,7 @@ type Data = {
   documents: Doc[];
   modules: string[];
   ocrConfigured: boolean;
+  ocrProvider?: string | null;
 };
 const names: Record<string, string> = {
   CORE: "Administração",
@@ -39,9 +44,12 @@ export function DocumentHubWorkspace() {
       documents: [],
       modules: [],
       ocrConfigured: false,
+      ocrProvider: null,
     }),
     [module, setModule] = useState(""),
     [modal, setModal] = useState(""),
+    [review, setReview] = useState<Doc | null>(null),
+    [correctedPayload, setCorrectedPayload] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const load = () =>
@@ -70,6 +78,22 @@ export function DocumentHubWorkspace() {
     }
     setData(b);
     setModal("");
+  }
+  async function validateOcr(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!review) return;
+    const fields = Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<string, string>;
+    setBusy(true);
+    const r = await apiFetch("/api/v1/document-hub", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "validate", documentId: review.id, note: fields.note, correctedPayload }),
+      }),
+      b = await r.json();
+    setBusy(false);
+    if (!r.ok) return setError(b.error);
+    setData(b);
+    setReview(null);
   }
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -162,7 +186,7 @@ export function DocumentHubWorkspace() {
           <span>Fila OCR</span>
           <strong>{pending}</strong>
           <small>
-            {data.ocrConfigured ? "Motor configurado" : "Conector pendente"}
+            {data.ocrConfigured ? `${data.ocrProvider || "Motor"} configurado` : "Conector pendente"}
           </small>
         </article>
         <article>
@@ -262,18 +286,16 @@ export function DocumentHubWorkspace() {
                         </button>
                       )}
                       {x.status === "Carregado" && (
-                        <button
-                          disabled={busy}
-                          onClick={() =>
-                            command({
-                              type: "validate",
-                              documentId: x.id,
-                              note: "Documento e metadados conferidos.",
-                            })
-                          }
-                        >
-                          Validar
-                        </button>
+                        x.ocr_status === "Extraído" ? (
+                          <button onClick={() => {
+                            setReview(x);
+                            setCorrectedPayload(JSON.stringify(JSON.parse(x.ocr_payload_json || "{}"), null, 2));
+                          }}>Rever OCR</button>
+                        ) : (
+                          <button disabled={busy} onClick={() => command({ type: "validate", documentId: x.id, note: "Documento e metadados conferidos." })}>
+                            Validar
+                          </button>
+                        )
                       )}
                     </td>
                   </tr>
@@ -287,6 +309,29 @@ export function DocumentHubWorkspace() {
         <div className="dh-error">
           {error}
           <button onClick={() => setError("")}>×</button>
+        </div>
+      )}
+      {review && (
+        <div className="modal-inline dh-review-modal">
+          <form onSubmit={validateOcr}>
+            <header>
+              <div><small>REVISÃO HUMANA</small><h2>Confirmar extração OCR</h2></div>
+              <button type="button" onClick={() => setReview(null)}>×</button>
+            </header>
+            <div className="dh-review-summary">
+              <span><b>Documento</b>{review.title}</span>
+              <span><b>Motor</b>{review.ocr_provider || data.ocrProvider || "API OCR"}</span>
+              <span><b>Confiança</b>{((review.ocr_confidence_bps || 0) / 100).toFixed(1)}%</span>
+            </div>
+            <label>Campos extraídos e corrigidos
+              <textarea rows={12} value={correctedPayload} onChange={(event) => setCorrectedPayload(event.target.value)} required />
+            </label>
+            <label>Nota de validação
+              <textarea name="note" rows={3} required defaultValue="Campos comparados com o documento original e confirmados pelo revisor." />
+            </label>
+            <p>A validação preserva o original, a extração, as correções e o respetivo hash no audit trail.</p>
+            <footer><button type="button" onClick={() => setReview(null)}>Cancelar</button><button className="primary" disabled={busy}>{busy ? "A validar…" : "Validar extração"}</button></footer>
+          </form>
         </div>
       )}
       {modal && (

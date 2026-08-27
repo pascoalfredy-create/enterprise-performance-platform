@@ -6,7 +6,11 @@ type Security = {
   role: string;
   modules: string[];
 };
-type Env = { OCR_API_URL?: string; OCR_API_KEY?: string };
+type Env = {
+  OCR_API_URL?: string;
+  OCR_API_KEY?: string;
+  OCR_PROVIDER?: string;
+};
 const uid = () => crypto.randomUUID();
 const hash = async (v: ArrayBuffer) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", v))]
@@ -54,6 +58,7 @@ export async function documentHubApi(
           documents: docs.results,
           modules: s.modules.filter((x) => modules.includes(x)),
           ocrConfigured: !!env.OCR_API_URL,
+          ocrProvider: env.OCR_API_URL ? env.OCR_PROVIDER || "API OCR" : null,
         };
       };
     if (request.method === "GET") {
@@ -299,29 +304,43 @@ export async function documentHubApi(
         if (!response.ok) throw new Error("OCR provider failed");
         const result = (await response.json()) as {
           fields?: Record<string, unknown>;
+          data?: { fields?: Record<string, unknown>; confidence?: number };
           confidenceBps?: number;
+          confidence?: number;
         };
-        await db
-          .prepare(
-            "UPDATE module_documents SET ocr_status='Extraído',ocr_confidence_bps=?,ocr_payload_json=? WHERE id=? AND tenant_id=? AND ocr_status='Em processamento'",
-          )
-          .bind(
-            Math.max(
-              0,
-              Math.min(10000, Math.trunc(Number(result.confidenceBps || 0))),
-            ),
-            JSON.stringify(result.fields || {}),
-            doc.id,
-            t,
-          )
-          .run();
+        const fields = result.fields || result.data?.fields || {},
+          rawConfidence =
+            result.confidenceBps ??
+            (Number(result.confidence ?? result.data?.confidence ?? 0) <= 1
+              ? Number(result.confidence ?? result.data?.confidence ?? 0) * 10000
+              : Number(result.confidence ?? result.data?.confidence ?? 0) * 100),
+          confidence = Math.max(0, Math.min(10000, Math.trunc(rawConfidence))),
+          payload = JSON.stringify(fields),
+          payloadHash = await hash(new TextEncoder().encode(payload).buffer),
+          provider = env.OCR_PROVIDER || "API OCR";
+        await db.batch([
+          db
+            .prepare(
+              "UPDATE module_documents SET ocr_status='Extraído',ocr_confidence_bps=?,ocr_payload_json=?,ocr_provider=?,ocr_processed_at=? WHERE id=? AND tenant_id=? AND ocr_status='Em processamento'",
+            )
+            .bind(confidence, payload, provider, now, doc.id, t),
+          db
+            .prepare(
+              "INSERT INTO document_ocr_events VALUES (?,?,?,?,?,?,?,?,?)",
+            )
+            .bind(uid(), t, doc.id, "Processado", provider, confidence, payloadHash, s.email, now),
+        ]);
       } catch {
-        await db
-          .prepare(
-            "UPDATE module_documents SET ocr_status='Falhou' WHERE id=? AND tenant_id=? AND ocr_status='Em processamento'",
-          )
-          .bind(doc.id, t)
-          .run();
+        await db.batch([
+          db
+            .prepare(
+              "UPDATE module_documents SET ocr_status='Falhou' WHERE id=? AND tenant_id=? AND ocr_status='Em processamento'",
+            )
+            .bind(doc.id, t),
+          db
+            .prepare("INSERT INTO document_ocr_events VALUES (?,?,?,?,?,?,?,?,?)")
+            .bind(uid(), t, doc.id, "Falhou", env.OCR_PROVIDER || "API OCR", null, null, s.email, now),
+        ]);
         return Response.json(
           {
             error:
@@ -336,12 +355,32 @@ export async function documentHubApi(
           { error: "Documento e nota de validação são obrigatórios." },
           { status: 400 },
         );
-      await db
-        .prepare(
-          "UPDATE module_documents SET status='Validado',ocr_status=CASE WHEN ocr_status='Extraído' THEN 'Validado' ELSE ocr_status END,validated_by=?,validated_at=?,validation_note=? WHERE id=? AND tenant_id=? AND status='Carregado'",
-        )
-        .bind(s.email, now, body.note.trim(), body.documentId, t)
-        .run();
+      let correctedPayload: string | null = null;
+      if (body.correctedPayload) {
+        try {
+          correctedPayload = JSON.stringify(JSON.parse(body.correctedPayload));
+        } catch {
+          return Response.json({ error: "Os campos corrigidos não contêm JSON válido." }, { status: 400 });
+        }
+      }
+      const document = await db
+        .prepare("SELECT ocr_status,ocr_provider,ocr_confidence_bps,ocr_payload_json FROM module_documents WHERE id=? AND tenant_id=? AND status='Carregado'")
+        .bind(body.documentId, t)
+        .first<Record<string, unknown>>();
+      if (!document)
+        return Response.json({ error: "Documento carregado não encontrado." }, { status: 404 });
+      const payload = correctedPayload || (document.ocr_payload_json ? String(document.ocr_payload_json) : null),
+        payloadHash = payload ? await hash(new TextEncoder().encode(payload).buffer) : null;
+      await db.batch([
+        db
+          .prepare(
+            "UPDATE module_documents SET status='Validado',ocr_status=CASE WHEN ocr_status='Extraído' THEN 'Validado' ELSE ocr_status END,validated_by=?,validated_at=?,validation_note=?,ocr_validated_payload_json=? WHERE id=? AND tenant_id=? AND status='Carregado'",
+          )
+          .bind(s.email, now, body.note.trim(), payload, body.documentId, t),
+        db
+          .prepare("INSERT INTO document_ocr_events VALUES (?,?,?,?,?,?,?,?,?)")
+          .bind(uid(), t, body.documentId, "Validado", document.ocr_provider || null, document.ocr_confidence_bps || null, payloadHash, s.email, now),
+      ]);
     } else
       return Response.json({ error: "Comando inválido." }, { status: 400 });
     return Response.json(await snapshot());

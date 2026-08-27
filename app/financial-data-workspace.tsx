@@ -1,7 +1,13 @@
 "use client";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../lib/api-client";
+import {
+  financialCsvTemplate,
+  parseFinancialCsv,
+  type AssistedRow,
+} from "../lib/assisted-import";
 import "./financial-data.css";
+import "./assisted-import.css";
 type Line = {
   id: string;
   code: string;
@@ -74,6 +80,9 @@ export function FinancialDataWorkspace() {
     [view, setView] = useState("Importações"),
     [selected, setSelected] = useState(""),
     [modal, setModal] = useState(""),
+    [importFile, setImportFile] = useState(""),
+    [importRows, setImportRows] = useState<AssistedRow[]>([]),
+    [importErrors, setImportErrors] = useState<string[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const load = useCallback(
@@ -118,28 +127,40 @@ export function FinancialDataWorkspace() {
       new FormData(e.currentTarget).entries(),
     ) as Record<string, string>;
     if (modal === "createBatch") {
-      const raw = fields.csv || "",
-        rows = raw
-          .split(/\r?\n/)
-          .map((x) => x.trim())
-          .filter(Boolean)
-          .map((line, index) => {
-            const parts = line.includes(";")
-              ? line.split(";")
-              : line.split(",");
-            if (index === 0 && /code|codigo|código/i.test(parts[0]))
-              return null;
-            return {
-              code: (parts[0] || "").trim(),
-              description: (parts[1] || parts[0] || "").trim(),
-              amount: (parts.slice(2).join(".") || "").trim(),
-            };
-          })
-          .filter(Boolean);
-      fields.rows = JSON.stringify(rows);
-      delete fields.csv;
+      if (!importRows.length || importErrors.length || importRows.some((x) => x.errors.length)) {
+        setError("Corrija os erros do ficheiro antes de criar o lote.");
+        return;
+      }
+      fields.rows = JSON.stringify(
+        importRows.map(({ code, description, amount }) => ({ code, description, amount })),
+      );
+      fields.fileName = importFile;
     }
     await command({ type: modal, ...fields });
+  }
+  async function chooseImport(file?: File) {
+    setError("");
+    setImportRows([]);
+    setImportErrors([]);
+    setImportFile(file?.name || "");
+    if (!file) return;
+    if (!/\.csv$/i.test(file.name) || file.size > 5 * 1024 * 1024) {
+      setImportErrors(["Selecione um CSV até 5 MB."]);
+      return;
+    }
+    const result = parseFinancialCsv(await file.text());
+    setImportRows(result.rows);
+    setImportErrors(result.errors);
+  }
+  function downloadTemplate() {
+    const url = URL.createObjectURL(
+      new Blob([financialCsvTemplate], { type: "text/csv;charset=utf-8" }),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "template-actual-financeiro.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
   const pending = data.rows.filter((x) => !x.line_code).length,
     total = data.batches.reduce((n, x) => n + x.row_count, 0),
@@ -164,8 +185,16 @@ export function FinancialDataWorkspace() {
           <button className="secundario" onClick={() => setModal("createLine")}>
             ＋ Linha financeira
           </button>
-          <button className="primario" onClick={() => setModal("createBatch")}>
-            ↑ Importar Actual
+          <button
+            className="primario"
+            onClick={() => {
+              setImportFile("");
+              setImportRows([]);
+              setImportErrors([]);
+              setModal("createBatch");
+            }}
+          >
+            ↑ Importação assistida
           </button>
         </div>
       </header>
@@ -375,7 +404,7 @@ export function FinancialDataWorkspace() {
                     ? "Nova linha financeira"
                     : modal === "createMapping"
                       ? "Novo mapping"
-                      : "Importar lote Actual"}
+                      : "Importação assistida de Actual"}
                 </h2>
               </div>
               <button type="button" onClick={() => setModal("")}>
@@ -464,6 +493,11 @@ export function FinancialDataWorkspace() {
               </>
             ) : (
               <>
+                <div className="fd-import-steps" aria-label="Etapas da importação">
+                  <span className={importFile ? "done" : "active"}>1 · Ficheiro</span>
+                  <span className={importRows.length ? "done" : ""}>2 · Validar</span>
+                  <span>3 · Aprovar e publicar</span>
+                </div>
                 <label>
                   Organização
                   <select name="organizationId" required>
@@ -499,26 +533,50 @@ export function FinancialDataWorkspace() {
                       placeholder="ERP / Excel"
                     />
                   </label>
-                  <label>
-                    Nome do ficheiro
+                </div>
+                <section className="fd-dropzone">
+                  <div>
+                    <b>{importFile || "Selecione o balancete em CSV"}</b>
+                    <small>Cabeçalhos reconhecidos: código, descrição e valor · máximo 5 MB</small>
+                  </div>
+                  <label className="primario">
+                    Escolher CSV
                     <input
-                      name="fileName"
-                      required
-                      placeholder="balancete-2026-08.csv"
+                      type="file"
+                      accept=".csv,text/csv"
+                      onChange={(event) => chooseImport(event.target.files?.[0])}
                     />
                   </label>
-                </div>
-                <label>
-                  CSV: código;descrição;valor
-                  <textarea
-                    name="csv"
-                    rows={8}
-                    required
-                    placeholder={
-                      "codigo;descricao;valor\n701;Receita de serviços;1500000,00"
-                    }
-                  />
-                </label>
+                  <button type="button" className="secundario" onClick={downloadTemplate}>
+                    ↓ Descarregar template
+                  </button>
+                </section>
+                {!!(importErrors.length || importRows.some((x) => x.errors.length)) && (
+                  <div className="fd-validation-errors" role="alert">
+                    <b>Validação requer atenção</b>
+                    {[...importErrors, ...importRows.flatMap((row) => row.errors.map((x) => `Linha ${row.rowNumber}: ${x}`))]
+                      .slice(0, 6)
+                      .map((message) => <span key={message}>{message}</span>)}
+                  </div>
+                )}
+                {!!importRows.length && (
+                  <div className="fd-preview">
+                    <header>
+                      <b>Pré-visualização determinística</b>
+                      <em>{importRows.length} linha(s) · {importRows.filter((x) => !x.errors.length).length} válidas</em>
+                    </header>
+                    <table>
+                      <thead><tr><th>Linha</th><th>Código</th><th>Descrição</th><th>Valor</th><th>Estado</th></tr></thead>
+                      <tbody>{importRows.slice(0, 8).map((row) => (
+                        <tr key={row.rowNumber}>
+                          <td>{row.rowNumber}</td><td><code>{row.code || "—"}</code></td>
+                          <td>{row.description || "—"}</td><td>{row.amount || "—"}</td>
+                          <td className={row.errors.length ? "bad" : "good"}>{row.errors.length ? "Corrigir" : "Válida"}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                )}
               </>
             )}
             {error && <p className="erro-form">{error}</p>}
@@ -530,7 +588,10 @@ export function FinancialDataWorkspace() {
               >
                 Cancelar
               </button>
-              <button className="primario" disabled={busy}>
+              <button
+                className="primario"
+                disabled={busy || (modal === "createBatch" && (!importRows.length || !!importErrors.length || importRows.some((x) => x.errors.length)))}
+              >
                 {busy ? "A processar…" : "Confirmar"}
               </button>
             </footer>
