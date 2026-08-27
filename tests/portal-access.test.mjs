@@ -418,10 +418,17 @@ test("enterprise shell exposes search profile help and legal trust surfaces", ()
   assert.doesNotMatch(layout, /codex-preview/);
 });
 test("top enterprise shortcuts and help are functional", () => {
-  for (const target of ["Visão geral", "Planeamento", "Pessoas", "Workflow"])
+  for (const target of ["Visão geral", "Planeamento", "RH Dashboard", "Workflow"])
     assert.match(page, new RegExp(`setModulo\\([\\s\\S]{0,180}${target}`));
   assert.match(page, /setCommandMode\("help"\)/);
   assert.match(page, /ctrlKey\s*\|\|\s*e\.metaKey/);
+});
+test("RH presents Payroll as a governed submodule", () => {
+  assert.match(page, /name: "RH"/);
+  assert.match(page, /accessCodes: \["HCM", "PAYROLL"\]/);
+  assert.match(page, /Payroll Runs[\s\S]{0,100}requires: "PAYROLL"/);
+  assert.doesNotMatch(page, /name: "Payroll"/);
+  assert.match(page, /HrManagerSuite/);
 });
 test("registration records acceptance against accessible legal documents", () => {
   const registration = fs.readFileSync(

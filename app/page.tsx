@@ -21,6 +21,7 @@ import { DocumentHubWorkspace } from "./document-hub-workspace";
 import { CustomerActivationWorkspace } from "./customer-activation-workspace";
 import { FinanceSuite } from "./finance-suite";
 import { AnalyticsSuite } from "./analytics-suite";
+import { HrManagerSuite } from "./hr-manager-suite";
 import "./dashboard.css";
 import "./report.css";
 import "./integrity.css";
@@ -41,11 +42,13 @@ type ModuleItem = {
   target?: string;
   document?: boolean;
   future?: boolean;
+  requires?: string;
 };
 const moduleCatalog: Array<{
   code: string;
   name: string;
   icon: string;
+  accessCodes?: string[];
   items: ModuleItem[];
 }> = [
   {
@@ -95,9 +98,11 @@ const moduleCatalog: Array<{
   },
   {
     code: "HCM",
-    name: "HCM",
+    name: "RH",
     icon: "♙",
+    accessCodes: ["HCM", "PAYROLL"],
     items: [
+      { label: "Visão do Gestor RH", target: "RH Dashboard" },
       { label: "Employee Master", target: "Administração" },
       { label: "Contratos", target: "Pessoas" },
       { label: "Recrutamento e onboarding", target: "Recrutamento" },
@@ -108,20 +113,12 @@ const moduleCatalog: Array<{
         target: "Documentos HCM",
         document: true,
       },
-    ],
-  },
-  {
-    code: "PAYROLL",
-    name: "Payroll",
-    icon: "▤",
-    items: [
-      { label: "Perfis salariais", target: "Operações" },
-      { label: "Componentes", target: "Operações" },
-      { label: "Payroll Runs", target: "Operações" },
-      { label: "Empréstimos e adiantamentos", target: "Empréstimos" },
-      { label: "Retroativos e ajustes", target: "Retroativos" },
-      { label: "Payslips", target: "Operações", document: true },
-      { label: "Payment batches", target: "Operações", document: true },
+      { label: "Payroll · Perfis e componentes", target: "Operações", requires: "PAYROLL" },
+      { label: "Payroll Runs", target: "Operações", requires: "PAYROLL" },
+      { label: "Empréstimos e adiantamentos", target: "Empréstimos", requires: "PAYROLL" },
+      { label: "Retroativos e ajustes", target: "Retroativos", requires: "PAYROLL" },
+      { label: "Payslips", target: "Operações", document: true, requires: "PAYROLL" },
+      { label: "Payment batches", target: "Operações", document: true, requires: "PAYROLL" },
     ],
   },
   {
@@ -232,7 +229,7 @@ export default function Home() {
               body.modules.includes("FINANCE_FP&A")
                 ? "Planeamento"
                 : body.modules.includes("HCM")
-                  ? "Pessoas"
+                  ? "RH Dashboard"
                   : "Administração",
             );
           return;
@@ -426,6 +423,7 @@ export default function Home() {
           <button
             className={
               [
+                "RH Dashboard",
                 "Pessoas",
                 "Recrutamento",
                 "Assiduidade",
@@ -437,11 +435,13 @@ export default function Home() {
             }
             onClick={() =>
               setModulo(
-                sessao.modules.includes("HCM") ? "Pessoas" : "Administração",
+                sessao.modules.includes("HCM") || sessao.modules.includes("PAYROLL")
+                  ? "RH Dashboard"
+                  : "Administração",
               )
             }
           >
-            Pessoas
+            RH
           </button>
           <button
             className={modulo === "Workflow" ? "ativo" : ""}
@@ -474,7 +474,11 @@ export default function Home() {
           </button>
           <nav aria-label="Módulos e submódulos">
             {moduleCatalog
-              .filter((domain) => sessao.modules.includes(domain.code))
+              .filter((domain) =>
+                (domain.accessCodes || [domain.code]).some((code) =>
+                  sessao.modules.includes(code),
+                ),
+              )
               .map((domain) => {
                 const open = openDomain === domain.code;
                 return (
@@ -492,7 +496,13 @@ export default function Home() {
                     </button>
                     {open && (
                       <div className="domain-items">
-                        {domain.items.map((item) => (
+                        {domain.items
+                          .filter((item) =>
+                            item.requires
+                              ? sessao.modules.includes(item.requires)
+                              : true,
+                          )
+                          .map((item) => (
                           <button
                             key={item.label}
                             disabled={item.future}
@@ -584,6 +594,8 @@ export default function Home() {
             <ConsolidationWorkspace />
           ) : modulo === "Pessoas" ? (
             <PeopleWorkspace />
+          ) : modulo === "RH Dashboard" ? (
+            <HrManagerSuite onNavigate={setModulo} />
           ) : modulo === "Recrutamento" ? (
             <RecruitmentWorkspace />
           ) : modulo === "Assiduidade" ? (
@@ -645,9 +657,14 @@ export default function Home() {
         onClose={() => setCommandMode(null)}
         onNavigate={setModulo}
         entries={moduleCatalog
-          .filter((d) => sessao.modules.includes(d.code))
+          .filter((d) =>
+            (d.accessCodes || [d.code]).some((code) =>
+              sessao.modules.includes(code),
+            ),
+          )
           .flatMap((d) =>
             d.items
+              .filter((i) => !i.requires || sessao.modules.includes(i.requires))
               .filter((i) => i.target)
               .map((i) => ({
                 domain: d.name,
