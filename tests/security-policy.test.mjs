@@ -39,7 +39,8 @@ test("checkout is server-priced idempotent and precedes tenant provisioning",()=
 });
 test("test payment confirmation is segregated from customer checkout",()=>{
  assert.match(source,/async function paymentIntentApi/);
- assert.match(compact,/provider:\"PROXYPAY_TEST\"/);
+ assert.match(compact,/provider:\"PAYPAY_SANDBOX\"/);
+ assert.match(source,/Pagamentos reais nunca podem ser confirmados pelo simulador/);
  assert.match(source,/async function testConfirmationApi/);
  assert.match(source,/role='Platform Owner'/);
  assert.match(source,/payment\.confirmed/);

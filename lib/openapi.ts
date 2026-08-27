@@ -89,14 +89,14 @@ export const openApiDocument = {
     },
     "/commerce/payment-intent": {
       post: write(
-        "Create test payment intent from persisted checkout",
+        "Create PayPay sandbox payment intent from persisted checkout",
         "Identity",
         "commerce:checkout",
       ),
     },
     "/commerce/test-confirmation": {
       post: write(
-        "Confirm test payment as Platform Owner",
+        "Process a segregated PayPay sandbox webhook as Platform Owner",
         "Identity",
         "commerce:test-confirm",
       ),

@@ -39,8 +39,9 @@ import { demoPortfolioApi } from "./demo-portfolio";
 import { commercialSuiteApi } from "./commercial-suite";
 import { documentHubApi } from "./document-hub";
 import { customerActivationApi } from "./customer-activation";
+import { payPayReadiness, payPaySandboxReference, type PayPayEnv } from "./paypay";
 
-interface Env {
+interface Env extends PayPayEnv {
   ASSETS: Fetcher;
   DB: D1Database;
   BUCKET: R2Bucket;
@@ -399,7 +400,8 @@ async function commerceCheckoutApi(request: Request, db: D1Database) {
         amountMinor: calculated.totalMinor,
       }),
       idempotencyKey = await sha256(fingerprint);
-    const existing = await db
+    const readiness = payPayReadiness(env),
+      existing = await db
       .prepare("SELECT * FROM checkout_sessions WHERE idempotency_key=?")
       .bind(idempotencyKey)
       .first();
@@ -481,7 +483,7 @@ async function commerceAccount(request: Request, db: D1Database) {
     .bind(subject, email)
     .first<Record<string, unknown>>();
 }
-async function paymentIntentApi(request: Request, db: D1Database) {
+async function paymentIntentApi(request: Request, db: D1Database, env: Env) {
   try {
     if (request.method !== "POST")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
@@ -516,12 +518,18 @@ async function paymentIntentApi(request: Request, db: D1Database) {
       )
       .bind(checkout.id)
       .first();
-    if (existing) return Response.json({ payment: existing, idempotent: true });
+    if (existing)
+      return Response.json({ payment: { ...existing, readiness }, idempotent: true });
+    if (readiness.mode === "production")
+      return Response.json(
+        { error: readiness.productionReady ? "A ativação do adaptador de produção aguarda os parâmetros finais da PayPay." : "A configuração PayPay de produção está incompleta.", readiness },
+        { status: 503 },
+      );
     const invoiceId = uid(),
       paymentId = uid(),
       created = new Date().toISOString(),
       expires = String(checkout.expires_at),
-      reference = `TEST-${paymentId.replaceAll("-", "").slice(0, 12).toUpperCase()}`,
+      reference = payPaySandboxReference(paymentId),
       invoiceNumber = `TEST-${invoiceId.replaceAll("-", "").slice(0, 10).toUpperCase()}`,
       amount = Number(checkout.amount_minor);
     await db.batch([
@@ -551,7 +559,7 @@ async function paymentIntentApi(request: Request, db: D1Database) {
         .bind(
           paymentId,
           invoiceId,
-          "PROXYPAY_TEST",
+          "PAYPAY_SANDBOX",
           reference,
           amount,
           "AOA",
@@ -572,10 +580,10 @@ async function paymentIntentApi(request: Request, db: D1Database) {
         .bind(
           uid(),
           account.id,
-          "payment.test_intent_created",
+          "payment.sandbox_intent_created",
           "payment_intent",
           paymentId,
-          `Intenção de teste ${reference} criada`,
+          `Intenção PayPay sandbox ${reference} criada`,
           await sha256(`${paymentId}|${amount}|AOA|${created}`),
           created,
         ),
@@ -586,13 +594,14 @@ async function paymentIntentApi(request: Request, db: D1Database) {
           id: paymentId,
           invoice_id: invoiceId,
           invoice_number: invoiceNumber,
-          provider: "PROXYPAY_TEST",
+          provider: "PAYPAY_SANDBOX",
           provider_reference: reference,
           amount_minor: amount,
           currency: "AOA",
           status: "Pendente",
           tax_status: "Pendente configuração",
           expires_at: expires,
+          readiness,
         },
         idempotent: false,
       },
@@ -650,6 +659,11 @@ async function testConfirmationApi(request: Request, db: D1Database) {
         { error: "Intenção de pagamento não encontrada." },
         { status: 404 },
       );
+    if (payment.provider !== "PAYPAY_SANDBOX")
+      return Response.json(
+        { error: "Pagamentos reais nunca podem ser confirmados pelo simulador." },
+        { status: 403 },
+      );
     if (payment.status === "Confirmado")
       return Response.json({ payment: { ...payment }, idempotent: true });
     if (payment.status !== "Pendente")
@@ -685,7 +699,7 @@ async function testConfirmationApi(request: Request, db: D1Database) {
         )
         .bind(
           uid(),
-          "PROXYPAY_TEST",
+          "PAYPAY_SANDBOX",
           externalEventId,
           "payment.confirmed",
           payloadHash,
@@ -700,10 +714,10 @@ async function testConfirmationApi(request: Request, db: D1Database) {
         .bind(
           uid(),
           payment.account_id,
-          "payment.test_confirmed",
+          "payment.sandbox_webhook_processed",
           "payment_intent",
           String(payment.id),
-          `Pagamento de teste confirmado por ${email}`,
+          `Webhook PayPay sandbox processado por ${email}`,
           payloadHash,
           now,
         ),
@@ -5545,7 +5559,7 @@ const worker = {
     if (apiPath === "/api/commerce/checkout")
       return commerceCheckoutApi(request, env.DB);
     if (apiPath === "/api/commerce/payment-intent")
-      return paymentIntentApi(request, env.DB);
+      return paymentIntentApi(request, env.DB, env);
     if (apiPath === "/api/commerce/test-confirmation")
       return testConfirmationApi(request, env.DB);
     if (apiPath === "/api/commerce/industry-packs")
