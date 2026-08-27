@@ -22,6 +22,12 @@ import { CustomerActivationWorkspace } from "./customer-activation-workspace";
 import { FinanceSuite } from "./finance-suite";
 import { AnalyticsSuite } from "./analytics-suite";
 import { HrManagerSuite } from "./hr-manager-suite";
+import { PayrollCountryControls } from "./payroll-country-controls";
+import {
+  platformLanguages,
+  translate,
+  type PlatformLocale,
+} from "../lib/platform-i18n";
 import "./dashboard.css";
 import "./report.css";
 import "./integrity.css";
@@ -192,6 +198,7 @@ export default function Home() {
     [sessionError, setSessionError] = useState(""),
     [notificationsOpen, setNotificationsOpen] = useState(false),
     [notificationCount, setNotificationCount] = useState(0),
+    [locale, setLocale] = useState<PlatformLocale>("pt"),
     [commandMode, setCommandMode] = useState<
       "search" | "help" | "profile" | null
     >(null),
@@ -214,6 +221,16 @@ export default function Home() {
       };
       tenants: Array<{ id: string; name: string; role: string }>;
     } | null>(null);
+  useEffect(() => {
+    const saved = localStorage.getItem("ep_locale") as PlatformLocale | null;
+    if (saved && saved in platformLanguages) setLocale(saved);
+  }, []);
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    localStorage.setItem("ep_locale", locale);
+    window.dispatchEvent(new CustomEvent("ep:locale", { detail: locale }));
+  }, [locale]);
+  const tr = (value: string) => translate(locale, value);
   useEffect(() => {
     apiFetch("/api/session")
       .then(async (r) => ({ ok: r.ok, body: await r.json() }))
@@ -312,15 +329,27 @@ export default function Home() {
           <span>Enterprise Performance</span>
         </div>
         <div className="product-context">
-          <small>ESPAÇO DE TRABALHO</small>
+          <small>{tr("ESPAÇO DE TRABALHO")}</small>
           <b>{modulo}</b>
         </div>
         <div className="acoes">
+          <label className="locale-select" title="Idioma / Language">
+            <span>◎</span>
+            <select
+              aria-label="Idioma da plataforma"
+              value={locale}
+              onChange={(e) => setLocale(e.target.value as PlatformLocale)}
+            >
+              {Object.entries(platformLanguages).map(([code, name]) => (
+                <option key={code} value={code}>{name}</option>
+              ))}
+            </select>
+          </label>
           <button
             className="pesquisa-global"
             onClick={() => setCommandMode("search")}
           >
-            ⌕ <span>Pesquisar</span>
+            ⌕ <span>{tr("Pesquisar")}</span>
             <kbd>⌘K</kbd>
           </button>
           <button
@@ -395,7 +424,7 @@ export default function Home() {
             className={modulo === "Visão geral" ? "ativo" : ""}
             onClick={() => setModulo("Visão geral")}
           >
-            Resumo
+            {tr("Resumo")}
           </button>
           <button
             className={
@@ -418,7 +447,7 @@ export default function Home() {
               )
             }
           >
-            Desempenho
+            {tr("Desempenho")}
           </button>
           <button
             className={
@@ -441,24 +470,24 @@ export default function Home() {
               )
             }
           >
-            RH
+            {tr("RH")}
           </button>
           <button
             className={modulo === "Workflow" ? "ativo" : ""}
             onClick={() => setModulo("Workflow")}
           >
-            Atividades
+            {tr("Atividades")}
           </button>
         </div>
         <button className="ajuda" onClick={() => setCommandMode("help")}>
-          ? Ajuda
+          ? {tr("Ajuda")}
         </button>
       </div>
       <div className="workspace-layout">
         <aside className="module-sidebar">
           <header>
-            <small>MÓDULOS CONTRATADOS</small>
-            <span>{sessao.modules.length} ativos</span>
+            <small>{tr("MÓDULOS CONTRATADOS")}</small>
+            <span>{sessao.modules.length} {tr("ativos")}</span>
           </header>
           <button
             className={
@@ -468,8 +497,8 @@ export default function Home() {
           >
             <i>⌂</i>
             <span>
-              <b>Início</b>
-              <small>Visão executiva</small>
+              <b>{tr("Início")}</b>
+              <small>{tr("Visão executiva")}</small>
             </span>
           </button>
           <nav aria-label="Módulos e submódulos">
@@ -491,7 +520,7 @@ export default function Home() {
                       onClick={() => setOpenDomain(open ? "" : domain.code)}
                     >
                       <i>{domain.icon}</i>
-                      <span>{domain.name}</span>
+                      <span>{tr(domain.name)}</span>
                       <em>{open ? "−" : "+"}</em>
                     </button>
                     {open && (
@@ -512,7 +541,7 @@ export default function Home() {
                             }
                           >
                             <span>
-                              {item.document ? "▧" : "·"} {item.label}
+                              {item.document ? "▧" : "·"} {tr(item.label)}
                             </span>
                             {item.future ? (
                               <em>Em preparação</em>
@@ -605,7 +634,10 @@ export default function Home() {
           ) : modulo === "Documentos HCM" ? (
             <EmployeeDocumentsWorkspace />
           ) : modulo === "Operações" ? (
-            <PayrollFoundation />
+            <>
+              <PayrollCountryControls />
+              <PayrollFoundation />
+            </>
           ) : modulo === "Empréstimos" ? (
             <PayrollLoansWorkspace />
           ) : modulo === "Retroativos" ? (

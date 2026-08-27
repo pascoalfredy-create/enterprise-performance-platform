@@ -54,6 +54,7 @@ body.ui-scale,.ui-scale .site{background:var(--nav-canvas);color:var(--nav-ink)}
 .ui-scale :where(.exec-grid,.people-grid,.pay-grid,.perf-grid,.wf-grid,.actions-grid,.goals-grid,.scenario-grid,.workflow-grid,.review-layout,.dg-grid,.fd-grid,.fm-grid,.consolidation-grid){gap:16px!important}
 .ui-scale :where(.exec-grid,.people-grid,.pay-grid,.perf-grid,.wf-grid,.actions-grid,.goals-grid,.scenario-grid,.workflow-grid,.review-layout,.dg-grid,.fd-grid,.fm-grid,.consolidation-grid)>*{align-self:stretch}
 .ui-scale :where(.cartao)>:last-child{margin-bottom:0}
+.ui-scale .locale-select{display:flex;align-items:center;gap:4px;padding:3px 7px;border:1px solid #dfe5eb;border-radius:9px;background:#fff}.ui-scale .locale-select>span{color:#087e73}.ui-scale .locale-select select{max-width:92px;border:0;background:transparent;color:#445267;font-size:10px;outline:0}
 
 @media(max-width:1320px){
  .ui-scale .module-sidebar{grid-template-columns:108px minmax(0,1fr)}
