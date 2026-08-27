@@ -5843,6 +5843,10 @@ const worker = {
         return competenciesApi(request, env.DB, security);
       if (apiPath === "/api/integrity")
         return integrityApi(request, env.DB, tenantId, organizationId);
+      return Response.json(
+        { error: "Endpoint da API não encontrado.", path: apiPath },
+        { status: 404 },
+      );
     }
 
     if (url.pathname === "/_vinext/image") {

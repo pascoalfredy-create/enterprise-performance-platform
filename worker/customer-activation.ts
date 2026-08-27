@@ -1,3 +1,5 @@
+import { classifyDataError } from "../lib/api-error";
+
 type Security = {
   tenantId: string;
   organizationId: string | null;
@@ -13,6 +15,7 @@ export async function customerActivationApi(
   db: D1Database,
   security: Security,
 ) {
+  try {
   if (security.role !== "Administrador" || security.organizationId)
     return Response.json(
       { error: "A ativação exige Administrador com âmbito de todo o tenant." },
@@ -49,7 +52,7 @@ export async function customerActivationApi(
           .first(),
         db
           .prepare(
-            "SELECT (SELECT COUNT(*) FROM organizations WHERE tenant_id=? AND status='Ativa') organizations,(SELECT COUNT(*) FROM tenant_memberships WHERE tenant_id=? AND status='Ativo') users,(SELECT COUNT(*) FROM employees WHERE tenant_id=? AND status='Ativo') employees,(SELECT COUNT(*) FROM financial_dimensions WHERE tenant_id=? AND status='Ativa') dimensions,(SELECT COUNT(*) FROM performance_entries WHERE tenant_id=?) financial_entries,(SELECT COUNT(*) FROM payroll_runs WHERE tenant_id=?) payroll_runs,(SELECT COUNT(*) FROM management_reports WHERE tenant_id=?) reports,(SELECT COUNT(*) FROM integration_runs WHERE tenant_id=?) integration_runs,(SELECT COUNT(*) FROM module_documents WHERE tenant_id=?) documents,(SELECT COUNT(*) FROM workflow_tasks WHERE tenant_id=?) workflow_tasks",
+            "SELECT (SELECT COUNT(*) FROM organizations WHERE tenant_id=? AND status='Ativa') organizations,(SELECT COUNT(*) FROM platform_users WHERE tenant_id=? AND status='Ativo') users,(SELECT COUNT(*) FROM employees WHERE tenant_id=? AND status='Ativo') employees,(SELECT COUNT(*) FROM financial_dimensions WHERE tenant_id=? AND status='Ativa') dimensions,(SELECT COUNT(*) FROM performance_entries WHERE tenant_id=?) financial_entries,(SELECT COUNT(*) FROM payroll_runs WHERE tenant_id=?) payroll_runs,(SELECT COUNT(*) FROM management_reports WHERE tenant_id=?) reports,(SELECT COUNT(*) FROM integration_runs WHERE tenant_id=?) integration_runs,(SELECT COUNT(*) FROM module_documents WHERE tenant_id=?) documents,(SELECT COUNT(*) FROM workflow_tasks WHERE tenant_id=?) workflow_tasks",
           )
           .bind(
             tenant,
@@ -232,4 +235,14 @@ export async function customerActivationApi(
     throw error;
   }
   return Response.json(await snapshot(), { status: 201 });
+  } catch (error) {
+    const failure = classifyDataError(
+      error,
+      "Não foi possível avaliar a ativação da empresa.",
+    );
+    return Response.json(
+      { error: failure.message, code: failure.code },
+      { status: failure.status },
+    );
+  }
 }

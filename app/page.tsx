@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { apiFetch } from "../lib/api-client";
+import { apiFetch, readApiJson } from "../lib/api-client";
 import { CompetenciesWorkspace } from "./competencies-workspace";
 import { ConsolidationWorkspace } from "./consolidation-workspace";
 import { FinancialModelsWorkspace } from "./financial-models-workspace";
@@ -834,16 +834,28 @@ function ConfiguracaoReal() {
     [dimensaoAtiva, setDimensaoAtiva] = useState(""),
     [erro, setErro] = useState(""),
     [inviteLink, setInviteLink] = useState(""),
+    [aCarregar, setACarregar] = useState(true),
     [aEnviar, setAEnviar] = useState(false);
-  const carregar = () =>
-    apiFetch("/api/setup")
+  const carregar = () => {
+    setACarregar(true);
+    setErro("");
+    return apiFetch("/api/v1/setup")
       .then(async (r) => {
-        const d = await r.json();
-        if (!r.ok || !Array.isArray(d.organizations)) throw new Error(d.error);
-        return d;
+        const d = await readApiJson<Partial<SetupData> & { error?: string }>(r);
+        if (!r.ok) throw new Error(d.error || "Não foi possível carregar os registos.");
+        return {
+          organizations: Array.isArray(d.organizations) ? d.organizations : [],
+          users: Array.isArray(d.users) ? d.users : [],
+          employees: Array.isArray(d.employees) ? d.employees : [],
+          audit: Array.isArray(d.audit) ? d.audit : [],
+          dimensions: Array.isArray(d.dimensions) ? d.dimensions : [],
+          dimensionMembers: Array.isArray(d.dimensionMembers) ? d.dimensionMembers : [],
+        };
       })
       .then(setDados)
-      .catch(() => setErro("Não foi possível carregar os registos."));
+      .catch((error) => setErro(error.message || "Não foi possível carregar os registos."))
+      .finally(() => setACarregar(false));
+  };
   useEffect(() => {
     carregar();
   }, []);
@@ -862,7 +874,7 @@ function ConfiguracaoReal() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const body = await res.json();
+    const body = await readApiJson<SetupData & { error?: string; invite?: { token: string } }>(res);
     setAEnviar(false);
     if (!res.ok) {
       setErro(body.error || "Não foi possível guardar.");
@@ -888,7 +900,7 @@ function ConfiguracaoReal() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "userAction", userId, action, role }),
     });
-    const body = await res.json();
+    const body = await readApiJson<SetupData & { error?: string; invite?: { token: string } }>(res);
     setAEnviar(false);
     if (!res.ok) {
       setErro(body.error || "Não foi possível alterar o acesso.");
@@ -918,6 +930,13 @@ function ConfiguracaoReal() {
         </div>
         <b>{total} registos ativos</b>
       </div>
+      {aCarregar && <div className="activation-loading"><i /><span>A carregar organização, acessos e dimensões…</span></div>}
+      {erro && !aCarregar && (
+        <div className="activation-error">
+          <span>{erro}</span>
+          <button type="button" onClick={carregar}>Tentar novamente</button>
+        </div>
+      )}
       <div className="progresso">
         <i
           style={{

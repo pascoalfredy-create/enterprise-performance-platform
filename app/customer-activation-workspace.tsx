@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { apiFetch } from "../lib/api-client";
+import { apiFetch, readApiJson } from "../lib/api-client";
 import "./customer-activation.css";
 
 type Activation = {
@@ -75,7 +75,7 @@ export function CustomerActivationWorkspace({
   const load = () =>
     apiFetch("/api/v1/customer-activation")
       .then(async (r) => {
-        const body = await r.json();
+        const body = await readApiJson<Activation & { error?: string }>(r);
         if (!r.ok) throw new Error(body.error);
         setData(body);
       })
@@ -88,7 +88,8 @@ export function CustomerActivationWorkspace({
     event.preventDefault();
     setBusy(true);
     setError("");
-    const payload = Object.fromEntries(
+    try {
+      const payload = Object.fromEntries(
         new FormData(event.currentTarget).entries(),
       ),
       response = await apiFetch("/api/v1/customer-activation", {
@@ -96,14 +97,18 @@ export function CustomerActivationWorkspace({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ type: "requestChange", ...payload }),
       }),
-      body = await response.json();
-    setBusy(false);
-    if (!response.ok) {
-      setError(body.error || "Não foi possível registar o pedido.");
-      return;
+      body = await readApiJson<Activation & { error?: string }>(response);
+      if (!response.ok) {
+        setError(body.error || "Não foi possível registar o pedido.");
+        return;
+      }
+      setData(body);
+      setModal(false);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Não foi possível registar o pedido.");
+    } finally {
+      setBusy(false);
     }
-    setData(body);
-    setModal(false);
   }
 
   if (!data)

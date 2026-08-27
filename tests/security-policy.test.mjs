@@ -87,6 +87,13 @@ test("session exposes deterministic tenant onboarding readiness",()=>{
  assert.match(source,/SELECT COUNT\(\*\) n FROM financial_dimensions/);
  assert.match(source,/onboarding\.complete=onboarding\.organizations>0/);
 });
+test("customer activation uses the current membership source and always returns JSON errors",()=>{
+ const activation=fs.readFileSync(new URL("../worker/customer-activation.ts",import.meta.url),"utf8");
+ assert.match(activation,/COUNT\(\*\) FROM platform_users WHERE tenant_id=\? AND status='Ativo'/);
+ assert.doesNotMatch(activation,/FROM tenant_memberships/);
+ assert.match(activation,/classifyDataError/);
+ assert.match(source,/Endpoint da API não encontrado/);
+});
 test("operational readiness is derived by engine and reports fail closed",()=>{
  assert.match(source,/async function readinessApi/);
  for(const field of ["active_contracts","salary_profiles","approved_budgets","comparable_scenarios","closed_payroll","workforce_postings"])assert.match(source,new RegExp(field));
