@@ -19,6 +19,7 @@ import { DemoPortfolioLoader } from "./demo-portfolio-loader";
 import { CommercialSuite } from "./commercial-suite";
 import { DocumentHubWorkspace } from "./document-hub-workspace";
 import { CustomerActivationWorkspace } from "./customer-activation-workspace";
+import { FinanceSuite } from "./finance-suite";
 import "./dashboard.css";
 import "./report.css";
 import "./integrity.css";
@@ -64,6 +65,14 @@ const moduleCatalog: Array<{
     name: "Finance & FP&A",
     icon: "◫",
     items: [
+      { label: "Cockpit do CFO", target: "Cockpit CFO" },
+      { label: "Demonstrações integradas", target: "Demonstrações" },
+      { label: "Actual · Budget · Forecast", target: "Performance Financeira" },
+      { label: "Variance Bridge", target: "Desvios Financeiros" },
+      { label: "Tesouraria e liquidez", target: "Tesouraria" },
+      { label: "Working Capital", target: "Working Capital" },
+      { label: "Rentabilidade e custos", target: "Rentabilidade" },
+      { label: "Management Pack", target: "Management Pack", document: true },
       { label: "Dados, catálogo e mappings", target: "Dados financeiros" },
       { label: "Actual e Budget", target: "Planeamento" },
       { label: "Versões orçamentais", target: "Planeamento", document: true },
@@ -544,6 +553,22 @@ export default function Home() {
             <DocumentHubWorkspace />
           ) : modulo === "Dados financeiros" ? (
             <FinancialDataWorkspace />
+          ) : modulo === "Cockpit CFO" ? (
+            <FinanceSuite initialView="Cockpit CFO" />
+          ) : modulo === "Demonstrações" ? (
+            <FinanceSuite initialView="Demonstrações" />
+          ) : modulo === "Performance Financeira" ? (
+            <FinanceSuite initialView="Performance" />
+          ) : modulo === "Desvios Financeiros" ? (
+            <FinanceSuite initialView="Desvios" />
+          ) : modulo === "Tesouraria" ? (
+            <FinanceSuite initialView="Tesouraria" />
+          ) : modulo === "Working Capital" ? (
+            <FinanceSuite initialView="Working Capital" />
+          ) : modulo === "Rentabilidade" ? (
+            <FinanceSuite initialView="Rentabilidade" />
+          ) : modulo === "Management Pack" ? (
+            <FinanceSuite initialView="Management Pack" />
           ) : modulo === "Planeamento" ? (
             <PerformanceControl />
           ) : modulo === "Cenários" ? (
