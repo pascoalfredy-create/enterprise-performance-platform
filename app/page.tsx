@@ -20,6 +20,7 @@ import { CommercialSuite } from "./commercial-suite";
 import { DocumentHubWorkspace } from "./document-hub-workspace";
 import { CustomerActivationWorkspace } from "./customer-activation-workspace";
 import { FinanceSuite } from "./finance-suite";
+import { AnalyticsSuite } from "./analytics-suite";
 import "./dashboard.css";
 import "./report.css";
 import "./integrity.css";
@@ -155,10 +156,10 @@ const moduleCatalog: Array<{
     icon: "▥",
     items: [
       { label: "Dashboard executivo", target: "Visão geral" },
-      { label: "Cockpits por perfil", target: "Centro Comercial" },
+      { label: "Cockpits por perfil", target: "Cockpits por perfil" },
       {
         label: "Catálogo de relatórios",
-        target: "Centro Comercial",
+        target: "Catálogo Analytics",
         document: true,
       },
       { label: "Demonstração guiada", target: "Centro Comercial" },
@@ -603,6 +604,10 @@ export default function Home() {
             <WorkforcePlansWorkspace />
           ) : modulo === "Centro Comercial" ? (
             <CommercialSuite onNavigate={setModulo} />
+          ) : modulo === "Cockpits por perfil" ? (
+            <AnalyticsSuite initialView="profiles" />
+          ) : modulo === "Catálogo Analytics" ? (
+            <AnalyticsSuite initialView="reports" />
           ) : modulo === "Relatórios" ? (
             <ManagementReport />
           ) : modulo === "Workflow" ? (
@@ -623,7 +628,7 @@ export default function Home() {
               <ApiContract />
             </>
           ) : modulo === "Visão geral" ? (
-            <ExecutiveDashboard onNavigate={setModulo} />
+            <AnalyticsSuite initialView="executive" />
           ) : (
             <ModuleUnavailable />
           )}
