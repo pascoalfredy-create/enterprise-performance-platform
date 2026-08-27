@@ -90,10 +90,13 @@ test("modules fit the available width without horizontal scrolling", () => {
   assert.match(navigationRefresh, /max-width:1880px/);
 });
 test("contracted modules expose governed submodules and documents", () => {
+  const i18n = fs.readFileSync(new URL("../lib/platform-i18n.ts", import.meta.url), "utf8");
   assert.match(page, /const moduleCatalog/);
   assert.match(page, /document:\s*true/);
   assert.match(page, /Em preparação/);
-  assert.match(page, /MÓDULOS CONTRATADOS/);
+  assert.match(i18n, /"shell\.subscribedModules":"MÓDULOS CONTRATADOS"/);
+  assert.match(page, /msg\("shell\.subscribedModules"\)/);
+  assert.doesNotMatch(i18n, /function translate/);
 });
 test("portal no longer creates tenants outside commerce", () => {
   assert.doesNotMatch(page, /api\/v1\/tenants/);

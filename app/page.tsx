@@ -25,7 +25,8 @@ import { HrManagerSuite } from "./hr-manager-suite";
 import { PayrollCountryControls } from "./payroll-country-controls";
 import {
   platformLanguages,
-  translate,
+  message,
+  type MessageKey,
   type PlatformLocale,
 } from "../lib/platform-i18n";
 import "./dashboard.css";
@@ -230,7 +231,17 @@ export default function Home() {
     localStorage.setItem("ep_locale", locale);
     window.dispatchEvent(new CustomEvent("ep:locale", { detail: locale }));
   }, [locale]);
-  const tr = (value: string) => translate(locale, value);
+  const msg = (key: MessageKey) => message(locale, key);
+  const moduleNameKey: Record<string, MessageKey> = {
+    CORE: "module.admin",
+    "FINANCE_FP&A": "module.finance",
+    HCM: "module.hr",
+    WORKFORCE_PLANNING: "module.workforce",
+    PERFORMANCE_MANAGEMENT: "module.performance",
+    ANALYTICS_REPORTING: "module.analytics",
+    WORKFLOW: "module.workflow",
+    INTEGRATIONS: "module.integrations",
+  };
   useEffect(() => {
     apiFetch("/api/session")
       .then(async (r) => ({ ok: r.ok, body: await r.json() }))
@@ -329,7 +340,7 @@ export default function Home() {
           <span>Enterprise Performance</span>
         </div>
         <div className="product-context">
-          <small>{tr("ESPAÇO DE TRABALHO")}</small>
+          <small>{msg("shell.workspace")}</small>
           <b>{modulo}</b>
         </div>
         <div className="acoes">
@@ -349,7 +360,7 @@ export default function Home() {
             className="pesquisa-global"
             onClick={() => setCommandMode("search")}
           >
-            ⌕ <span>{tr("Pesquisar")}</span>
+            ⌕ <span>{msg("shell.search")}</span>
             <kbd>⌘K</kbd>
           </button>
           <button
@@ -424,7 +435,7 @@ export default function Home() {
             className={modulo === "Visão geral" ? "ativo" : ""}
             onClick={() => setModulo("Visão geral")}
           >
-            {tr("Resumo")}
+            {msg("shell.overview")}
           </button>
           <button
             className={
@@ -447,7 +458,7 @@ export default function Home() {
               )
             }
           >
-            {tr("Desempenho")}
+            {msg("shell.performance")}
           </button>
           <button
             className={
@@ -470,24 +481,24 @@ export default function Home() {
               )
             }
           >
-            {tr("RH")}
+            {msg("shell.hr")}
           </button>
           <button
             className={modulo === "Workflow" ? "ativo" : ""}
             onClick={() => setModulo("Workflow")}
           >
-            {tr("Atividades")}
+            {msg("shell.activities")}
           </button>
         </div>
         <button className="ajuda" onClick={() => setCommandMode("help")}>
-          ? {tr("Ajuda")}
+          ? {msg("shell.help")}
         </button>
       </div>
       <div className="workspace-layout">
         <aside className="module-sidebar">
           <header>
-            <small>{tr("MÓDULOS CONTRATADOS")}</small>
-            <span>{sessao.modules.length} {tr("ativos")}</span>
+            <small>{msg("shell.subscribedModules")}</small>
+            <span>{sessao.modules.length} {msg("shell.active")}</span>
           </header>
           <button
             className={
@@ -497,8 +508,8 @@ export default function Home() {
           >
             <i>⌂</i>
             <span>
-              <b>{tr("Início")}</b>
-              <small>{tr("Visão executiva")}</small>
+              <b>{msg("shell.home")}</b>
+              <small>{msg("shell.executiveView")}</small>
             </span>
           </button>
           <nav aria-label="Módulos e submódulos">
@@ -520,7 +531,7 @@ export default function Home() {
                       onClick={() => setOpenDomain(open ? "" : domain.code)}
                     >
                       <i>{domain.icon}</i>
-                      <span>{tr(domain.name)}</span>
+                      <span>{msg(moduleNameKey[domain.code])}</span>
                       <em>{open ? "−" : "+"}</em>
                     </button>
                     {open && (
@@ -541,7 +552,7 @@ export default function Home() {
                             }
                           >
                             <span>
-                              {item.document ? "▧" : "·"} {tr(item.label)}
+                              {item.document ? "▧" : "·"} {item.label}
                             </span>
                             {item.future ? (
                               <em>Em preparação</em>
