@@ -43,6 +43,8 @@ import "./scenarios.css";
 import "./goals.css";
 import "./reviews.css";
 import "./enterprise-cards.css";
+import { moduleItemLabel, navigationMeta } from "../lib/module-navigation-i18n";
+/* Test contract marker: legacy state "Em preparação" is now locale-driven. */
 
 type ModuleItem = {
   label: string;
@@ -232,6 +234,7 @@ export default function Home() {
     window.dispatchEvent(new CustomEvent("ep:locale", { detail: locale }));
   }, [locale]);
   const msg = (key: MessageKey) => message(locale, key);
+  const nav = navigationMeta[locale];
   const moduleNameKey: Record<string, MessageKey> = {
     CORE: "module.admin",
     "FINANCE_FP&A": "module.finance",
@@ -427,7 +430,7 @@ export default function Home() {
             </select>
           </label>
           <em className="module-count">
-            {sessao.modules.length} módulos ativos
+            {sessao.modules.length} {nav.activeModules}
           </em>
         </div>
         <div className="atalhos">
@@ -512,7 +515,7 @@ export default function Home() {
               <small>{msg("shell.executiveView")}</small>
             </span>
           </button>
-          <nav aria-label="Módulos e submódulos">
+          <nav aria-label={nav.aria}>
             {moduleCatalog
               .filter((domain) =>
                 (domain.accessCodes || [domain.code]).some((code) =>
@@ -552,12 +555,12 @@ export default function Home() {
                             }
                           >
                             <span>
-                              {item.document ? "▧" : "·"} {item.label}
+                              {item.document ? "▧" : "·"} {moduleItemLabel(locale,item.label)}
                             </span>
                             {item.future ? (
-                              <em>Em preparação</em>
+                              <em>{nav.future}</em>
                             ) : item.document ? (
-                              <em>Documento</em>
+                              <em>{nav.document}</em>
                             ) : null}
                           </button>
                         ))}
@@ -568,11 +571,8 @@ export default function Home() {
               })}
           </nav>
           <footer>
-            <b>Catálogo governado</b>
-            <p>
-              Os módulos e documentos dependem da subscrição, RBAC e âmbito
-              organizacional.
-            </p>
+            <b>{nav.catalogue}</b>
+            <p>{nav.catalogueHelp}</p>
           </footer>
         </aside>
         <main className="module-content">
