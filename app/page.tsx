@@ -595,7 +595,7 @@ export default function Home() {
                 sessao.tenantName.toLowerCase().includes("calculo sutil"))
             }
           />
-          <EngineReadiness onNavigate={setModulo} />
+          <EngineReadiness onNavigate={setModulo} locale={locale} />
           {modulo === "Ativação" ? (
             <CustomerActivationWorkspace onNavigate={setModulo} />
           ) : modulo === "Administração" ? (
@@ -801,8 +801,10 @@ type Readiness = {
 };
 function EngineReadiness({
   onNavigate,
+  locale,
 }: {
   onNavigate: (target: string) => void;
+  locale: PlatformLocale;
 }) {
   const [data, setData] = useState<Readiness | null>(null),
     [open, setOpen] = useState(false);
@@ -814,17 +816,24 @@ function EngineReadiness({
       });
   }, []);
   if (!data?.engines.length) return null;
+  const c = {
+    pt:{title:"Preparação dos motores",ready:"prontos",hide:"Ocultar detalhes −",show:"Ver pré-requisitos +",open:"Abrir motor",next:"Próxima ação",ok:"Pronto para operar",blocked:"Requer configuração",evidence:"Os pré-requisitos técnicos e de negócio foram avaliados.",action:"Concluir os pré-requisitos indicados"},
+    en:{title:"Engine readiness",ready:"ready",hide:"Hide details −",show:"View prerequisites +",open:"Open engine",next:"Next action",ok:"Ready to operate",blocked:"Configuration required",evidence:"Technical and business prerequisites have been assessed.",action:"Complete the indicated prerequisites"},
+    es:{title:"Preparación de los motores",ready:"listos",hide:"Ocultar detalles −",show:"Ver requisitos +",open:"Abrir motor",next:"Siguiente acción",ok:"Listo para operar",blocked:"Requiere configuración",evidence:"Se evaluaron los requisitos técnicos y de negocio.",action:"Completar los requisitos indicados"},
+    fr:{title:"Préparation des moteurs",ready:"prêts",hide:"Masquer les détails −",show:"Voir les prérequis +",open:"Ouvrir le moteur",next:"Action suivante",ok:"Prêt à fonctionner",blocked:"Configuration requise",evidence:"Les prérequis techniques et métier ont été évalués.",action:"Compléter les prérequis indiqués"},
+    ru:{title:"Готовность модулей",ready:"готово",hide:"Скрыть сведения −",show:"Показать требования +",open:"Открыть модуль",next:"Следующее действие",ok:"Готово к работе",blocked:"Требуется настройка",evidence:"Технические и бизнес-требования проверены.",action:"Выполнить указанные требования"}
+  }[locale];
   return (
     <section className={open ? "engine-readiness open" : "engine-readiness"}>
       <button className="readiness-summary" onClick={() => setOpen(!open)}>
         <span>
           <i>{data.summary.ready === data.summary.total ? "✓" : "!"}</i>
-          <b>Preparação dos motores</b>
+          <b>{c.title}</b>
           <small>
-            {data.summary.ready}/{data.summary.total} prontos
+            {data.summary.ready}/{data.summary.total} {c.ready}
           </small>
         </span>
-        <em>{open ? "Ocultar detalhes −" : "Ver pré-requisitos +"}</em>
+        <em>{open ? c.hide : c.show}</em>
       </button>
       {open && (
         <div className="readiness-engines">
@@ -837,12 +846,12 @@ function EngineReadiness({
                 <i>{engine.ready ? "✓" : "!"}</i>
                 <span>
                   <b>{engine.name}</b>
-                  <small>{engine.status}</small>
+                  <small>{locale === "pt" ? engine.status : engine.ready ? c.ok : c.blocked}</small>
                 </span>
               </header>
-              <p>{engine.evidence}</p>
+              <p>{locale === "pt" ? engine.evidence : c.evidence}</p>
               <button onClick={() => onNavigate(engine.target)}>
-                {engine.ready ? "Abrir motor" : "Próxima ação"}: {engine.next} →
+                {engine.ready ? c.open : c.next}: {locale === "pt" ? engine.next : c.action} →
               </button>
             </article>
           ))}
