@@ -433,6 +433,20 @@ test("RH presents Payroll as a governed submodule", () => {
   assert.doesNotMatch(page, /name: "Payroll"/);
   assert.match(page, /HrManagerSuite/);
 });
+
+test("every operational RH workspace uses the authored five-language catalogue", () => {
+  const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const i18n = fs.readFileSync(new URL("../app/hr-localized-surface.tsx", import.meta.url), "utf8");
+  for (const workspace of [
+    "RecruitmentWorkspace", "AttendanceWorkspace", "AbsenceWorkspace",
+    "EmployeeDocumentsWorkspace",
+    "PayrollLoansWorkspace", "PayrollAdjustmentsWorkspace",
+  ]) assert.match(page, new RegExp(`<HrLocalizedSurface><${workspace}`));
+  assert.match(page, /<HrLocalizedSurface>[\s\S]*?<PayrollCountryControls \/>[\s\S]*?<PayrollFoundation \/>/);
+  for (const locale of ["pt", "en", "es", "fr", "ru"])
+    assert.match(i18n, new RegExp(`${locale}:\\d`));
+  assert.match(i18n, /business codes and API values are never changed/);
+});
 test("registration records acceptance against accessible legal documents", () => {
   const registration = fs.readFileSync(
     new URL("../app/registar/page.tsx", import.meta.url),

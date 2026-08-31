@@ -45,6 +45,7 @@ import "./reviews.css";
 import "./enterprise-cards.css";
 import { moduleItemLabel, navigationMeta } from "../lib/module-navigation-i18n";
 import { usePlatformLocale } from "./use-platform-locale";
+import { HrLocalizedSurface } from "./hr-localized-surface";
 /* Test contract marker: legacy state "Em preparação" is now locale-driven. */
 
 type ModuleItem = {
@@ -638,22 +639,22 @@ export default function Home() {
           ) : modulo === "RH Dashboard" ? (
             <HrManagerSuite onNavigate={setModulo} />
           ) : modulo === "Recrutamento" ? (
-            <RecruitmentWorkspace />
+            <HrLocalizedSurface><RecruitmentWorkspace /></HrLocalizedSurface>
           ) : modulo === "Assiduidade" ? (
-            <AttendanceWorkspace />
+            <HrLocalizedSurface><AttendanceWorkspace /></HrLocalizedSurface>
           ) : modulo === "Ausências" ? (
-            <AbsenceWorkspace />
+            <HrLocalizedSurface><AbsenceWorkspace /></HrLocalizedSurface>
           ) : modulo === "Documentos HCM" ? (
-            <EmployeeDocumentsWorkspace />
+            <HrLocalizedSurface><EmployeeDocumentsWorkspace /></HrLocalizedSurface>
           ) : modulo === "Operações" ? (
-            <>
+            <HrLocalizedSurface>
               <PayrollCountryControls />
               <PayrollFoundation />
-            </>
+            </HrLocalizedSurface>
           ) : modulo === "Empréstimos" ? (
-            <PayrollLoansWorkspace />
+            <HrLocalizedSurface><PayrollLoansWorkspace /></HrLocalizedSurface>
           ) : modulo === "Retroativos" ? (
-            <PayrollAdjustmentsWorkspace />
+            <HrLocalizedSurface><PayrollAdjustmentsWorkspace /></HrLocalizedSurface>
           ) : modulo === "Análises" ? (
             <WorkforceCost />
           ) : modulo === "Headcount" ? (
