@@ -44,6 +44,7 @@ import "./goals.css";
 import "./reviews.css";
 import "./enterprise-cards.css";
 import { moduleItemLabel, navigationMeta } from "../lib/module-navigation-i18n";
+import { usePlatformLocale } from "./use-platform-locale";
 /* Test contract marker: legacy state "Em preparação" is now locale-driven. */
 
 type ModuleItem = {
@@ -1632,7 +1633,27 @@ type HcmData = {
   audit: AuditEvent[];
 };
 const hcmEmpty: HcmData = { employees: [], contracts: [], audit: [] };
+type ContractCopy={title:string;intro:string;newContract:string;employees:string;employeeHint:string;activeContracts:string;activeHint:string;pending:string;pendingHint:string;coverage:string;coverageHint:string;contracts:string;lifecycle:string;records:string;week:string;activate:string;end:string;empty:string;emptyHint:string;audit:string;recent:string;auditEmpty:string;next:string;nextText:string;modal:string;employee:string;select:string;contractNumber:string;type:string;typePlaceholder:string;start:string;endDate:string;schedule:string;schedulePlaceholder:string;weekly:string;countryPack:string;countryPlaceholder:string;cancel:string;saving:string;draft:string;endPrompt:string;loadError:string;actionError:string;statuses:Record<string,string>;values:Record<string,string>;auditEnded:string};
+const contractCopy:Record<PlatformLocale,ContractCopy>={
+pt:{title:"Pessoas, vínculos e responsabilidade",intro:"O colaborador pertence à organização; o contrato governa a elegibilidade operacional e salarial.",newContract:"＋ Novo contrato",employees:"Colaboradores",employeeHint:"Employee master no âmbito atual",activeContracts:"Contratos ativos",activeHint:"Elegíveis para configuração salarial",pending:"Aguardam ativação",pendingHint:"Requerem validação de RH",coverage:"Cobertura contratual",coverageHint:"Ativos sobre colaboradores",contracts:"CONTRATOS",lifecycle:"Ciclo de vida auditável",records:"registos",week:"semana",activate:"Ativar",end:"Terminar",empty:"Ainda não existem contratos.",emptyHint:"Use a ação acima para começar.",audit:"AUDITORIA HCM",recent:"Alterações recentes",auditEmpty:"As transições contratuais aparecerão aqui.",next:"Próximas capacidades",nextText:"Recrutamento, onboarding, assiduidade, ausências, desempenho e formação são geridos em espaços próprios.",modal:"Novo vínculo laboral",employee:"Colaborador",select:"Selecionar",contractNumber:"Número do contrato",type:"Tipo",typePlaceholder:"Ex.: Sem termo",start:"Data de início",endDate:"Data de fim",schedule:"Horário de trabalho",schedulePlaceholder:"Ex.: Segunda a sexta, 08h–17h",weekly:"Carga semanal (minutos)",countryPack:"Country Pack opcional",countryPlaceholder:"Ex.: AO-BASE",cancel:"Cancelar",saving:"A guardar…",draft:"Criar rascunho",endPrompt:"Data de término (AAAA-MM-DD)",loadError:"Não foi possível carregar os contratos.",actionError:"Não foi possível concluir a operação.",statuses:{Ativo:"Ativo",Rascunho:"Rascunho",Terminado:"Terminado"},values:{"Sem termo":"Sem termo","Segunda a sexta · 08:00–17:00":"Segunda a sexta · 08:00–17:00"},auditEnded:"Contrato terminado"},
+en:{title:"People, employment relationships and accountability",intro:"The employee belongs to the organisation; the contract governs operational and payroll eligibility.",newContract:"＋ New contract",employees:"Employees",employeeHint:"Employee master in the current scope",activeContracts:"Active contracts",activeHint:"Eligible for payroll configuration",pending:"Awaiting activation",pendingHint:"Require HR validation",coverage:"Contract coverage",coverageHint:"Active contracts over employees",contracts:"CONTRACTS",lifecycle:"Auditable lifecycle",records:"records",week:"week",activate:"Activate",end:"End",empty:"No contracts yet.",emptyHint:"Use the action above to get started.",audit:"HCM AUDIT",recent:"Recent changes",auditEmpty:"Contract transitions will appear here.",next:"Related capabilities",nextText:"Recruitment, onboarding, attendance, leave, performance and learning are managed in dedicated workspaces.",modal:"New employment relationship",employee:"Employee",select:"Select",contractNumber:"Contract number",type:"Type",typePlaceholder:"E.g. Indefinite",start:"Start date",endDate:"End date",schedule:"Work schedule",schedulePlaceholder:"E.g. Monday to Friday, 08:00–17:00",weekly:"Weekly workload (minutes)",countryPack:"Optional Country Pack",countryPlaceholder:"E.g. AO-BASE",cancel:"Cancel",saving:"Saving…",draft:"Create draft",endPrompt:"End date (YYYY-MM-DD)",loadError:"Contracts could not be loaded.",actionError:"The operation could not be completed.",statuses:{Ativo:"Active",Rascunho:"Draft",Terminado:"Ended"},values:{"Sem termo":"Indefinite","Segunda a sexta · 08:00–17:00":"Monday to Friday · 08:00–17:00"},auditEnded:"Contract ended"},
+es:{title:"Personas, relaciones laborales y responsabilidad",intro:"El empleado pertenece a la organización; el contrato gobierna la elegibilidad operativa y salarial.",newContract:"＋ Nuevo contrato",employees:"Empleados",employeeHint:"Maestro de empleados en el ámbito actual",activeContracts:"Contratos activos",activeHint:"Elegibles para configuración salarial",pending:"Pendientes de activación",pendingHint:"Requieren validación de RR. HH.",coverage:"Cobertura contractual",coverageHint:"Contratos activos sobre empleados",contracts:"CONTRATOS",lifecycle:"Ciclo de vida auditable",records:"registros",week:"semana",activate:"Activar",end:"Finalizar",empty:"Todavía no hay contratos.",emptyHint:"Utilice la acción superior para comenzar.",audit:"AUDITORÍA HCM",recent:"Cambios recientes",auditEmpty:"Las transiciones contractuales aparecerán aquí.",next:"Capacidades relacionadas",nextText:"Selección, incorporación, asistencia, ausencias, rendimiento y formación se gestionan en espacios propios.",modal:"Nueva relación laboral",employee:"Empleado",select:"Seleccionar",contractNumber:"Número de contrato",type:"Tipo",typePlaceholder:"Ej.: Indefinido",start:"Fecha de inicio",endDate:"Fecha de fin",schedule:"Horario de trabajo",schedulePlaceholder:"Ej.: Lunes a viernes, 08:00–17:00",weekly:"Carga semanal (minutos)",countryPack:"Country Pack opcional",countryPlaceholder:"Ej.: AO-BASE",cancel:"Cancelar",saving:"Guardando…",draft:"Crear borrador",endPrompt:"Fecha de finalización (AAAA-MM-DD)",loadError:"No se pudieron cargar los contratos.",actionError:"No se pudo completar la operación.",statuses:{Ativo:"Activo",Rascunho:"Borrador",Terminado:"Finalizado"},values:{"Sem termo":"Indefinido","Segunda a sexta · 08:00–17:00":"Lunes a viernes · 08:00–17:00"},auditEnded:"Contrato finalizado"},
+fr:{title:"Personnel, relations contractuelles et responsabilité",intro:"Le salarié appartient à l’organisation ; le contrat régit l’éligibilité opérationnelle et salariale.",newContract:"＋ Nouveau contrat",employees:"Salariés",employeeHint:"Référentiel employés dans le périmètre actuel",activeContracts:"Contrats actifs",activeHint:"Éligibles à la configuration de paie",pending:"En attente d’activation",pendingHint:"Nécessitent une validation RH",coverage:"Couverture contractuelle",coverageHint:"Contrats actifs rapportés aux salariés",contracts:"CONTRATS",lifecycle:"Cycle de vie auditable",records:"enregistrements",week:"semaine",activate:"Activer",end:"Terminer",empty:"Aucun contrat pour le moment.",emptyHint:"Utilisez l’action ci-dessus pour commencer.",audit:"AUDIT HCM",recent:"Modifications récentes",auditEmpty:"Les transitions contractuelles apparaîtront ici.",next:"Capacités associées",nextText:"Recrutement, intégration, présence, absences, performance et formation sont gérés dans des espaces dédiés.",modal:"Nouvelle relation de travail",employee:"Salarié",select:"Sélectionner",contractNumber:"Numéro de contrat",type:"Type",typePlaceholder:"Ex. : Durée indéterminée",start:"Date de début",endDate:"Date de fin",schedule:"Horaire de travail",schedulePlaceholder:"Ex. : Lundi à vendredi, 08:00–17:00",weekly:"Charge hebdomadaire (minutes)",countryPack:"Country Pack facultatif",countryPlaceholder:"Ex. : AO-BASE",cancel:"Annuler",saving:"Enregistrement…",draft:"Créer le brouillon",endPrompt:"Date de fin (AAAA-MM-JJ)",loadError:"Impossible de charger les contrats.",actionError:"Impossible de terminer l’opération.",statuses:{Ativo:"Actif",Rascunho:"Brouillon",Terminado:"Terminé"},values:{"Sem termo":"Durée indéterminée","Segunda a sexta · 08:00–17:00":"Lundi à vendredi · 08:00–17:00"},auditEnded:"Contrat terminé"},
+ru:{title:"Персонал, трудовые отношения и ответственность",intro:"Сотрудник относится к организации; договор определяет операционную доступность и право на расчёт зарплаты.",newContract:"＋ Новый договор",employees:"Сотрудники",employeeHint:"Справочник сотрудников в текущей области",activeContracts:"Активные договоры",activeHint:"Допущены к настройке зарплаты",pending:"Ожидают активации",pendingHint:"Требуют проверки HR",coverage:"Охват договорами",coverageHint:"Активные договоры к числу сотрудников",contracts:"ДОГОВОРЫ",lifecycle:"Контролируемый жизненный цикл",records:"записей",week:"неделю",activate:"Активировать",end:"Завершить",empty:"Договоров пока нет.",emptyHint:"Используйте действие выше, чтобы начать.",audit:"АУДИТ HCM",recent:"Последние изменения",auditEmpty:"Переходы договоров появятся здесь.",next:"Связанные возможности",nextText:"Подбор, адаптация, учёт времени, отсутствия, эффективность и обучение управляются в отдельных разделах.",modal:"Новые трудовые отношения",employee:"Сотрудник",select:"Выбрать",contractNumber:"Номер договора",type:"Тип",typePlaceholder:"Напр.: Бессрочный",start:"Дата начала",endDate:"Дата окончания",schedule:"График работы",schedulePlaceholder:"Напр.: Понедельник–пятница, 08:00–17:00",weekly:"Недельная нагрузка (минуты)",countryPack:"Необязательный Country Pack",countryPlaceholder:"Напр.: AO-BASE",cancel:"Отмена",saving:"Сохранение…",draft:"Создать черновик",endPrompt:"Дата окончания (ГГГГ-ММ-ДД)",loadError:"Не удалось загрузить договоры.",actionError:"Не удалось выполнить операцию.",statuses:{Ativo:"Активен",Rascunho:"Черновик",Terminado:"Завершён"},values:{"Sem termo":"Бессрочный","Segunda a sexta · 08:00–17:00":"Понедельник–пятница · 08:00–17:00"},auditEnded:"Договор завершён"}};
 function PeopleWorkspace() {
+  const locale=usePlatformLocale(), copy=contractCopy[locale], localeCode={pt:"pt-AO",en:"en-GB",es:"es-ES",fr:"fr-FR",ru:"ru-RU"}[locale];
+  const sectionLabel={pt:"RH · CADASTRO DE COLABORADORES",en:"HR · EMPLOYEE MASTER",es:"RR. HH. · MAESTRO DE EMPLEADOS",fr:"RH · RÉFÉRENTIEL EMPLOYÉS",ru:"HR · СПРАВОЧНИК СОТРУДНИКОВ"}[locale];
+  const modalLabel={pt:"RH · CONTRATO",en:"HR · CONTRACT",es:"RR. HH. · CONTRATO",fr:"RH · CONTRAT",ru:"HR · ДОГОВОР"}[locale];
+  const localizeAudit=(summary:string)=>{
+    if(locale==="pt") return summary;
+    const prefixes:Record<Exclude<PlatformLocale,"pt">,Array<[string,string]>>={
+      en:[["Contrato terminado","Contract ended"],["Contrato ativado","Contract activated"],["Contrato criado","Contract created"]],
+      es:[["Contrato terminado","Contrato finalizado"],["Contrato ativado","Contrato activado"],["Contrato criado","Contrato creado"]],
+      fr:[["Contrato terminado","Contrat terminé"],["Contrato ativado","Contrat activé"],["Contrato criado","Contrat créé"]],
+      ru:[["Contrato terminado","Договор завершён"],["Contrato ativado","Договор активирован"],["Contrato criado","Договор создан"]],
+    };
+    return prefixes[locale].reduce((value,[source,target])=>value.replace(new RegExp(`^${source}`),target),summary);
+  };
   const [data, setData] = useState<HcmData>(hcmEmpty),
     [modal, setModal] = useState(false),
     [error, setError] = useState(""),
@@ -1645,7 +1666,7 @@ function PeopleWorkspace() {
         setData(body);
       })
       .catch((e) =>
-        setError(e.message || "Não foi possível carregar Pessoas."),
+        setError(locale === "pt" ? (e.message || copy.loadError) : copy.loadError),
       );
   useEffect(() => {
     load();
@@ -1679,7 +1700,7 @@ function PeopleWorkspace() {
     const endDate =
       type === "endContract"
         ? window.prompt(
-            "Data de término (AAAA-MM-DD)",
+            copy.endPrompt,
             new Date().toISOString().slice(0, 10),
           )
         : undefined;
@@ -1693,7 +1714,7 @@ function PeopleWorkspace() {
       body = await response.json();
     setBusy(false);
     if (!response.ok) {
-      setError(body.error);
+      setError(locale === "pt" ? body.error : copy.actionError);
       return;
     }
     setData(body);
@@ -1704,124 +1725,114 @@ function PeopleWorkspace() {
     <section className="people-workspace">
       <div className="people-top">
         <div>
-          <span>HCM · EMPLOYEE MASTER</span>
-          <h1>Pessoas, vínculos e responsabilidade</h1>
-          <p>
-            O colaborador pertence à organização; o contrato governa a
-            elegibilidade operacional e salarial.
-          </p>
+          <span>{sectionLabel}</span>
+          <h1>{copy.title}</h1><p>{copy.intro}</p>
         </div>
         <button className="primario" onClick={() => setModal(true)}>
-          ＋ Novo contrato
+          {copy.newContract}
         </button>
       </div>
       <section className="people-kpis">
         <article>
-          <span>Colaboradores</span>
+          <span>{copy.employees}</span>
           <strong>{data.employees.length}</strong>
-          <small>Employee master no âmbito atual</small>
+          <small>{copy.employeeHint}</small>
         </article>
         <article>
-          <span>Contratos ativos</span>
+          <span>{copy.activeContracts}</span>
           <strong>{active}</strong>
-          <small>Elegíveis para configuração salarial</small>
+          <small>{copy.activeHint}</small>
         </article>
         <article className={pending ? "attention" : ""}>
-          <span>Aguardam ativação</span>
+          <span>{copy.pending}</span>
           <strong>{pending}</strong>
-          <small>Requerem validação de RH</small>
+          <small>{copy.pendingHint}</small>
         </article>
         <article>
-          <span>Cobertura contratual</span>
+          <span>{copy.coverage}</span>
           <strong>
             {data.employees.length
               ? `${Math.round((active / data.employees.length) * 100)}%`
               : "—"}
           </strong>
-          <small>Ativos sobre colaboradores</small>
+          <small>{copy.coverageHint}</small>
         </article>
       </section>
       <div className="people-grid">
         <article className="cartao people-list">
           <div className="cab">
             <div>
-              <span>CONTRATOS</span>
-              <h2>Ciclo de vida auditável</h2>
+              <span>{copy.contracts}</span><h2>{copy.lifecycle}</h2>
             </div>
-            <em>{data.contracts.length} registos</em>
+            <em>{data.contracts.length} {copy.records}</em>
           </div>
           {data.contracts.length ? (
-            data.contracts.map((c) => (
-              <div className="contract-row" key={c.id}>
+            data.contracts.map((contract) => (
+              <div className="contract-row" key={contract.id}>
                 <i>
-                  {c.employee_name
+                  {contract.employee_name
                     .split(" ")
                     .map((x) => x[0])
                     .join("")
                     .slice(0, 2)}
                 </i>
                 <span>
-                  <b>{c.employee_name}</b>
+                  <b>{contract.employee_name}</b>
                   <small>
-                    {c.employee_number} · {c.organization_name}
+                    {contract.employee_number} · {contract.organization_name}
                   </small>
                 </span>
                 <p>
-                  <b>{c.contract_number}</b>
+                  <b>{contract.contract_number}</b>
                   <small>
-                    {c.contract_type} · {c.work_schedule} ·{" "}
-                    {Math.round(c.weekly_minutes / 60)}h/semana
+                    {copy.values[contract.contract_type]||contract.contract_type} · {copy.values[contract.work_schedule]||contract.work_schedule} ·{" "}
+                    {Math.round(contract.weekly_minutes / 60)}h/{copy.week}
                   </small>
                 </p>
-                <em className={c.status.toLowerCase()}>{c.status}</em>
+                <em className={contract.status.toLowerCase()}>{copy.statuses[contract.status]||contract.status}</em>
                 <div>
-                  {c.status === "Rascunho" && (
+                  {contract.status === "Rascunho" && (
                     <button
                       disabled={busy}
-                      onClick={() => transition(c.id, "activateContract")}
+                      onClick={() => transition(contract.id, "activateContract")}
                     >
-                      Ativar
+                      {copy.activate}
                     </button>
                   )}
-                  {c.status === "Ativo" && (
+                  {contract.status === "Ativo" && (
                     <button
                       disabled={busy}
-                      onClick={() => transition(c.id, "endContract")}
+                      onClick={() => transition(contract.id, "endContract")}
                     >
-                      Terminar
+                      {copy.end}
                     </button>
                   )}
                 </div>
               </div>
             ))
           ) : (
-            <Vazio texto="Ainda não existem contratos." />
+            <div className="vazio-lista"><i>＋</i><b>{copy.empty}</b><small>{copy.emptyHint}</small></div>
           )}
         </article>
         <aside className="cartao people-audit">
-          <span>AUDITORIA HCM</span>
-          <h2>Alterações recentes</h2>
+          <span>{copy.audit}</span><h2>{copy.recent}</h2>
           {data.audit.length ? (
             data.audit.map((a) => (
               <div key={a.id}>
                 <i>✓</i>
                 <span>
-                  <b>{a.summary}</b>
+                  <b>{localizeAudit(a.summary)}</b>
                   <small>
-                    {a.actor} · {new Date(a.created_at).toLocaleString("pt-AO")}
+                    {a.actor} · {new Date(a.created_at).toLocaleString(localeCode)}
                   </small>
                 </span>
               </div>
             ))
           ) : (
-            <p>As transições contratuais aparecerão aqui.</p>
+            <p>{copy.auditEmpty}</p>
           )}
           <footer>
-            <b>Próximas capacidades</b>
-            <p>
-              Recrutamento, onboarding, assiduidade, ausências, desempenho e
-              formação serão adicionados como slices próprios.
-            </p>
+            <b>{copy.next}</b><p>{copy.nextText}</p>
           </footer>
         </aside>
       </div>
@@ -1831,17 +1842,17 @@ function PeopleWorkspace() {
           <form onSubmit={submit}>
             <header>
               <div>
-                <small>HCM · CONTRATO</small>
-                <h2>Novo vínculo laboral</h2>
+                <small>{modalLabel}</small>
+                <h2>{copy.modal}</h2>
               </div>
               <button type="button" onClick={() => setModal(false)}>
                 ×
               </button>
             </header>
             <label>
-              Colaborador
+              {copy.employee}
               <select name="employeeId" required>
-                <option value="">Selecionar</option>
+                <option value="">{copy.select}</option>
                 {data.employees.map((x) => (
                   <option key={x.id} value={x.id}>
                     {x.employee_number} · {x.first_name} {x.last_name}
@@ -1851,39 +1862,39 @@ function PeopleWorkspace() {
             </label>
             <div>
               <label>
-                Número do contrato
+                {copy.contractNumber}
                 <input name="contractNumber" required />
               </label>
               <label>
-                Tipo
+                {copy.type}
                 <input
                   name="contractType"
                   required
-                  placeholder="Ex.: Sem termo"
+                  placeholder={copy.typePlaceholder}
                 />
               </label>
             </div>
             <div>
               <label>
-                Data de início
+                {copy.start}
                 <input name="startDate" type="date" required />
               </label>
               <label>
-                Data de fim
+                {copy.endDate}
                 <input name="endDate" type="date" />
               </label>
             </div>
             <label>
-              Horário de trabalho
+              {copy.schedule}
               <input
                 name="workSchedule"
                 required
-                placeholder="Ex.: Segunda a sexta, 08h–17h"
+                placeholder={copy.schedulePlaceholder}
               />
             </label>
             <div>
               <label>
-                Carga semanal (minutos)
+                {copy.weekly}
                 <input
                   name="weeklyMinutes"
                   type="number"
@@ -1894,8 +1905,8 @@ function PeopleWorkspace() {
                 />
               </label>
               <label>
-                Country Pack opcional
-                <input name="countryPack" placeholder="Ex.: AO-BASE" />
+                {copy.countryPack}
+                <input name="countryPack" placeholder={copy.countryPlaceholder} />
               </label>
             </div>
             {error && <p className="erro-form">{error}</p>}
@@ -1905,10 +1916,10 @@ function PeopleWorkspace() {
                 className="secundario"
                 onClick={() => setModal(false)}
               >
-                Cancelar
+                {copy.cancel}
               </button>
               <button className="primario" disabled={busy}>
-                {busy ? "A guardar…" : "Criar rascunho"}
+                {busy ? copy.saving : copy.draft}
               </button>
             </footer>
           </form>
