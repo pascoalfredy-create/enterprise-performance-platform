@@ -437,15 +437,19 @@ test("RH presents Payroll as a governed submodule", () => {
 test("every operational RH workspace uses the authored five-language catalogue", () => {
   const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   const i18n = fs.readFileSync(new URL("../app/hr-localized-surface.tsx", import.meta.url), "utf8");
-  for (const workspace of [
-    "RecruitmentWorkspace", "AttendanceWorkspace", "AbsenceWorkspace",
-    "EmployeeDocumentsWorkspace",
-    "PayrollLoansWorkspace", "PayrollAdjustmentsWorkspace",
-  ]) assert.match(page, new RegExp(`<HrLocalizedSurface><${workspace}`));
-  assert.match(page, /<HrLocalizedSurface>[\s\S]*?<PayrollCountryControls \/>[\s\S]*?<PayrollFoundation \/>/);
+  assert.match(page, /<PlatformLocalizedSurface>[\s\S]*?<RecruitmentWorkspace \/>[\s\S]*?<PayrollFoundation \/>[\s\S]*?<PayrollAdjustmentsWorkspace \/>[\s\S]*?<\/PlatformLocalizedSurface>/);
   for (const locale of ["pt", "en", "es", "fr", "ru"])
     assert.match(i18n, new RegExp(`${locale}:\\d`));
   assert.match(i18n, /business codes and API values are never changed/);
+});
+
+test("all modules cards and accessibility labels inherit platform localization", () => {
+  const i18n = fs.readFileSync(new URL("../app/hr-localized-surface.tsx", import.meta.url), "utf8");
+  assert.match(page, /<PlatformLocalizedSurface>[\s\S]*?<EnterpriseCommandCenter[\s\S]*?<\/PlatformLocalizedSurface>/);
+  assert.match(i18n, /SHOW_TEXT/);
+  assert.match(i18n, /\[placeholder\],\[title\],\[aria-label\]/);
+  assert.match(i18n, /const wordRows:Array/);
+  assert.match(i18n, /function translateText/);
 });
 test("registration records acceptance against accessible legal documents", () => {
   const registration = fs.readFileSync(

@@ -45,7 +45,7 @@ import "./reviews.css";
 import "./enterprise-cards.css";
 import { moduleItemLabel, navigationMeta } from "../lib/module-navigation-i18n";
 import { usePlatformLocale } from "./use-platform-locale";
-import { HrLocalizedSurface } from "./hr-localized-surface";
+import { PlatformLocalizedSurface } from "./hr-localized-surface";
 /* Test contract marker: legacy state "Em preparação" is now locale-driven. */
 
 type ModuleItem = {
@@ -338,6 +338,7 @@ export default function Home() {
     );
   return (
     <div className="site">
+      <PlatformLocalizedSurface>
       {inviteStatus && <div className="invite-feedback">{inviteStatus}</div>}
       <header className="topo">
         <div className="marca">
@@ -639,22 +640,22 @@ export default function Home() {
           ) : modulo === "RH Dashboard" ? (
             <HrManagerSuite onNavigate={setModulo} />
           ) : modulo === "Recrutamento" ? (
-            <HrLocalizedSurface><RecruitmentWorkspace /></HrLocalizedSurface>
+            <RecruitmentWorkspace />
           ) : modulo === "Assiduidade" ? (
-            <HrLocalizedSurface><AttendanceWorkspace /></HrLocalizedSurface>
+            <AttendanceWorkspace />
           ) : modulo === "Ausências" ? (
-            <HrLocalizedSurface><AbsenceWorkspace /></HrLocalizedSurface>
+            <AbsenceWorkspace />
           ) : modulo === "Documentos HCM" ? (
-            <HrLocalizedSurface><EmployeeDocumentsWorkspace /></HrLocalizedSurface>
+            <EmployeeDocumentsWorkspace />
           ) : modulo === "Operações" ? (
-            <HrLocalizedSurface>
+            <>
               <PayrollCountryControls />
               <PayrollFoundation />
-            </HrLocalizedSurface>
+            </>
           ) : modulo === "Empréstimos" ? (
-            <HrLocalizedSurface><PayrollLoansWorkspace /></HrLocalizedSurface>
+            <PayrollLoansWorkspace />
           ) : modulo === "Retroativos" ? (
-            <HrLocalizedSurface><PayrollAdjustmentsWorkspace /></HrLocalizedSurface>
+            <PayrollAdjustmentsWorkspace />
           ) : modulo === "Análises" ? (
             <WorkforceCost />
           ) : modulo === "Headcount" ? (
@@ -726,6 +727,7 @@ export default function Home() {
           organization: sessao.organizationName,
         }}
       />
+      </PlatformLocalizedSurface>
     </div>
   );
 }
