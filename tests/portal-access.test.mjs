@@ -448,8 +448,9 @@ test("all modules cards and accessibility labels inherit platform localization",
   assert.match(page, /<PlatformLocalizedSurface>[\s\S]*?<EnterpriseCommandCenter[\s\S]*?<\/PlatformLocalizedSurface>/);
   assert.match(i18n, /SHOW_TEXT/);
   assert.match(i18n, /\[placeholder\],\[title\],\[aria-label\]/);
-  assert.match(i18n, /const wordRows:Array/);
   assert.match(i18n, /function translateText/);
+  assert.match(i18n, /Token-by-token substitution is deliberately forbidden/);
+  assert.doesNotMatch(i18n, /out\.replace\(\/\[\\p\{L\}/);
 });
 test("registration records acceptance against accessible legal documents", () => {
   const registration = fs.readFileSync(
