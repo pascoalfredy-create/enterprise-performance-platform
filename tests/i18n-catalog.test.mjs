@@ -5,7 +5,7 @@ import fs from "node:fs";
 
 test("i18n inventory is recursive and cannot regress",()=>{
   const result=JSON.parse(execFileSync(process.execPath,["scripts/audit-i18n.mjs"],{encoding:"utf8"}));
-  assert.ok(result.untranslated<=500,`i18n debt increased to ${result.untranslated}`);
+  assert.ok(result.untranslated<=363,`i18n debt increased to ${result.untranslated}`);
   assert.ok(Object.keys(result.files).some(file=>file.includes("onboarding/")));
 });
 
