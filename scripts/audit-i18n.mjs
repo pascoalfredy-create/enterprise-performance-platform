@@ -8,7 +8,7 @@ const translated = new Set(
     JSON.parse(`"${match[1]}"`).replace(/\s+/g, " ").trim(),
   ),
 );
-const technical = /^(?:[\d.,%+−→·×✓↗↓▧● ]+|Actual|Budget|Forecast|Payroll|HCM|HR|RBAC|OCR|API|OpenAPI|IFRS|FP&A|SFTP|CSV|PDF|JPG|PNG|AOA|USD|EUR|EBITDA|OPEX|CAPEX)$/;
+const technical = /^(?:[\d.,%+−→·×✓↗↓▧● ]+(?:M|AOA|USD|EUR)?(?:\s+(?:AOA|USD|EUR))?|Actual|Budget|Forecast|Payroll|HCM|HR|RBAC|OCR|API|OpenAPI|IFRS|FP&A|SFTP|CSV|PDF|JPG|PNG|AOA|USD|EUR|EBITDA|OPEX|CAPEX)$/;
 const findings = [];
 const files=[];
 function walk(directory,relative="") { for(const entry of fs.readdirSync(directory,{withFileTypes:true})){const name=path.join(relative,entry.name);if(entry.isDirectory())walk(new URL(`${entry.name}/`,directory),name);else if(entry.name.endsWith(".tsx"))files.push({name,url:new URL(entry.name,directory)})} }

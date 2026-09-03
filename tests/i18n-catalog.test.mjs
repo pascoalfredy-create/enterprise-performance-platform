@@ -5,7 +5,7 @@ import fs from "node:fs";
 
 test("i18n inventory is recursive and cannot regress",()=>{
   const result=JSON.parse(execFileSync(process.execPath,["scripts/audit-i18n.mjs"],{encoding:"utf8"}));
-  assert.ok(result.untranslated<=512,`i18n debt increased to ${result.untranslated}`);
+  assert.ok(result.untranslated<=443,`i18n debt increased to ${result.untranslated}`);
   assert.ok(Object.keys(result.files).some(file=>file.includes("onboarding/")));
   for(const file of ["app/integrations-workspace.tsx","app/document-hub-workspace.tsx"]){
     assert.equal(result.files[file],undefined,`${file} must remain fully catalogued`);
