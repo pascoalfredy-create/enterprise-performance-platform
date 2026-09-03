@@ -5,7 +5,11 @@ import type { PlatformLocale } from "../lib/platform-i18n";
 const supported: PlatformLocale[] = ["pt", "en", "es", "fr", "ru"];
 
 export function usePlatformLocale() {
-  const [locale, setLocale] = useState<PlatformLocale>("pt");
+  const [locale, setLocale] = useState<PlatformLocale>(() => {
+    if (typeof window === "undefined") return "pt";
+    const value = localStorage.getItem("ep_locale") as PlatformLocale | null;
+    return value && supported.includes(value) ? value : "pt";
+  });
   useEffect(() => {
     const read = () => {
       const value = localStorage.getItem("ep_locale") as PlatformLocale | null;

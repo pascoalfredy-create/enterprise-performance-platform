@@ -14,3 +14,18 @@ test("localization uses complete authored phrases only",()=>{
   assert.match(source,/Token-by-token substitution is deliberately forbidden/);
   assert.match(source,/maps\[locale\]\.get\(value\)\?\?value/);
 });
+
+test("locale is loaded before module content is first rendered",()=>{
+  const hook=fs.readFileSync(new URL("../app/use-platform-locale.ts",import.meta.url),"utf8");
+  assert.match(hook,/useState<PlatformLocale>\(\(\) =>/);
+  assert.match(hook,/localStorage\.getItem\("ep_locale"\)/);
+});
+
+test("finance and HR executive suites localize their complete headers",()=>{
+  const finance=fs.readFileSync(new URL("../app/finance-suite.tsx",import.meta.url),"utf8");
+  const hr=fs.readFileSync(new URL("../app/hr-manager-suite.tsx",import.meta.url),"utf8");
+  assert.match(finance,/ФИНАНСОВАЯ ЭФФЕКТИВНОСТЬ И УПРАВЛЕНИЕ РЕШЕНИЯМИ/);
+  assert.match(finance,/Оборотный капитал/);
+  assert.match(finance,/Управленческий пакет/);
+  assert.match(hr,/УПРАВЛЕНИЕ ПЕРСОНАЛОМ И ЗАРПЛАТОЙ/);
+});
