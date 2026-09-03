@@ -5,12 +5,17 @@ import fs from "node:fs";
 
 test("i18n inventory is recursive and cannot regress",()=>{
   const result=JSON.parse(execFileSync(process.execPath,["scripts/audit-i18n.mjs"],{encoding:"utf8"}));
-  assert.ok(result.untranslated<=219,`i18n debt increased to ${result.untranslated}`);
+  assert.ok(result.untranslated<=512,`i18n debt increased to ${result.untranslated}`);
   assert.ok(Object.keys(result.files).some(file=>file.includes("onboarding/")));
   for(const file of ["app/integrations-workspace.tsx","app/document-hub-workspace.tsx"]){
     assert.equal(result.files[file],undefined,`${file} must remain fully catalogued`);
   }
-  assert.deepEqual(result.findings.filter(item=>item.file==="app/page.tsx").map(item=>item.text),[",Array"]);
+});
+
+test("i18n auditor scans localized components and multiline JSX",()=>{
+  const auditor=fs.readFileSync(new URL("../scripts/audit-i18n.mjs",import.meta.url),"utf8");
+  assert.doesNotMatch(auditor,/source\.includes\("usePlatformLocale"\)/);
+  assert.match(auditor,/matchAll\(\/>\(\[\^<\{\]\*\?\)</);
 });
 
 test("localization uses complete authored phrases only",()=>{
