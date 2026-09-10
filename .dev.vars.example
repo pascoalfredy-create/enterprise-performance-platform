@@ -1,0 +1,24 @@
+# Copy this file to .dev.vars (gitignored) and fill in your own Supabase
+# project's values for local development with `npm run dev`.
+#
+# Get these from: Supabase Dashboard -> your project -> Project Settings -> API
+#   NEXT_PUBLIC_SUPABASE_URL is the "Project URL".
+#   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is the "anon public" key.
+#
+# Never put a service_role key here or anywhere in this app: the browser
+# only ever receives the publishable/anon key, via /api/auth/config.
+
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-anon-public-key
+
+# Required to bootstrap the first Platform Owner in the operator control
+# plane (worker/control-plane.ts). Use your own email.
+PLATFORM_OWNER_EMAIL=you@example.com
+
+# Optional: only needed to exercise real PayPay calls instead of the sandbox.
+# PAYPAY_MODE=sandbox
+# PAYPAY_API_URL=
+# PAYPAY_PARTNER_ID=
+# PAYPAY_API_KEY=
+# PAYPAY_API_SECRET=
+# PAYPAY_WEBHOOK_SECRET=
