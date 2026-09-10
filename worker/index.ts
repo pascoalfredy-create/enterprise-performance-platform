@@ -250,13 +250,16 @@ for (const role of [
   "Gestor",
 ])
   rolePermissions[role].push("document:write");
-const workspaceEmail = (request: Request) =>
-  request.headers.get("oai-authenticated-user-email") ||
-  request.headers.get("x-openai-user-email") ||
-  "";
+// Identity comes exclusively from a server-verified Supabase bearer session
+// (see authenticateApiRequest below), which stamps x-ep-verified-user-email
+// after checking the token. This platform is deployed as a direct SaaS on
+// its own domain, not behind a trusted gateway that injects identity
+// headers, so any "oai-authenticated-user-email"/"x-openai-user-email"
+// header on an inbound request is attacker-controlled and MUST NOT be
+// trusted as identity — doing so would let anyone impersonate any account
+// by setting a header on a plain HTTP request.
 const actorEmail = (request: Request) =>
   request.headers.get("x-ep-verified-user-email") ||
-  workspaceEmail(request) ||
   (new URL(request.url).hostname === "terminal.local"
     ? "admin@preview.local"
     : "");
@@ -266,9 +269,7 @@ async function authenticateApiRequest(
 ): Promise<Request | Response> {
   const authorization = request.headers.get("authorization") || "";
   if (!authorization.startsWith("Bearer "))
-    return workspaceEmail(request)
-      ? request
-      : Response.json({ error: "Autenticação necessária." }, { status: 401 });
+    return Response.json({ error: "Autenticação necessária." }, { status: 401 });
   if (
     !env.NEXT_PUBLIC_SUPABASE_URL ||
     !env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY

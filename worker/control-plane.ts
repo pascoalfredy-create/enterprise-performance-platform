@@ -16,13 +16,14 @@ const hash = async (value: string) =>
   )
     .map((x) => x.toString(16).padStart(2, "0"))
     .join("");
+// x-ep-verified-user-email is only ever set by authenticateApiRequest()
+// (worker/index.ts) after verifying a Supabase bearer session server-side.
+// This is the operator control plane, so it must never fall back to a raw
+// "oai-authenticated-user-email"/"x-openai-user-email" request header —
+// those are attacker-controlled on a directly reachable domain and would
+// let anyone grant themselves Platform Owner access.
 const actor = (request: Request) =>
-  String(
-    request.headers.get("x-ep-verified-user-email") ||
-      request.headers.get("oai-authenticated-user-email") ||
-      request.headers.get("x-openai-user-email") ||
-      "",
-  ).toLowerCase();
+  String(request.headers.get("x-ep-verified-user-email") || "").toLowerCase();
 async function operatorContext(request: Request, db: D1Database) {
   const email = actor(request),
     subject =
