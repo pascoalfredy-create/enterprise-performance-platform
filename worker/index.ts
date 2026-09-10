@@ -47,6 +47,7 @@ interface Env extends PayPayEnv {
   BUCKET: R2Bucket;
   NEXT_PUBLIC_SUPABASE_URL?: string;
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?: string;
+  PLATFORM_OWNER_EMAIL?: string;
   OCR_API_URL?: string;
   OCR_API_KEY?: string;
   IMAGES: {
@@ -263,6 +264,25 @@ const actorEmail = (request: Request) =>
   (new URL(request.url).hostname === "terminal.local"
     ? "admin@preview.local"
     : "");
+// Reads the "aal" (Authenticator Assurance Level) claim Supabase embeds in
+// its access-token JWT ("aal1" = password/OTP only, "aal2" = MFA verified
+// this session). We decode the payload ourselves purely as a cheap way to
+// read that claim — it is never trusted on its own, only after the token
+// has already round-tripped through Supabase's /auth/v1/user below, which
+// is what actually rejects a forged or expired token.
+function bearerAal(authorization: string): string | null {
+  try {
+    const jwt = authorization.slice("Bearer ".length),
+      payload = jwt.split(".")[1];
+    if (!payload) return null;
+    const base64 = payload.replaceAll("-", "+").replaceAll("_", "/"),
+      padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4),
+      claims = JSON.parse(atob(padded)) as { aal?: string };
+    return claims.aal || null;
+  } catch {
+    return null;
+  }
+}
 async function authenticateApiRequest(
   request: Request,
   env: Env,
@@ -315,6 +335,7 @@ async function authenticateApiRequest(
   );
   const name = String(user.user_metadata?.display_name || user.email);
   headers.set("x-ep-verified-user-name", name);
+  headers.set("x-ep-verified-user-aal", bearerAal(authorization) || "aal1");
   return new Request(request, { headers });
 }
 async function commerceCheckoutApi(request: Request, db: D1Database) {
@@ -5568,7 +5589,7 @@ const worker = {
     if (apiPath === "/api/commerce/provision")
       return provisionTenantApi(request, env.DB);
     if (apiPath === "/api/control-plane")
-      return controlPlaneApi(request, env.DB);
+      return controlPlaneApi(request, env.DB, env.PLATFORM_OWNER_EMAIL);
 
     if (apiPath.startsWith("/api/")) {
       const security = await securityContext(request, env.DB);

@@ -9,8 +9,10 @@ CREATE TABLE `operator_users` (
  `updated_at` text NOT NULL
 );
 
-INSERT INTO `operator_users` (`id`,`email_normalized`,`identity_subject`,`role`,`status`,`mfa_required`,`created_at`,`updated_at`)
-VALUES ('platform-owner-pascoal','pascoalfredy@gmail.com',NULL,'Platform Owner','Ativo',1,'2026-08-19T00:00:00.000Z','2026-08-19T00:00:00.000Z');
+-- The first Platform Owner is bootstrapped at runtime from the
+-- PLATFORM_OWNER_EMAIL environment variable (see
+-- worker/control-plane.ts:ensureFirstOperator), not seeded here, so
+-- ownership can move without editing migration history.
 
 CREATE TABLE `billing_invoices` (
  `id` text PRIMARY KEY NOT NULL,

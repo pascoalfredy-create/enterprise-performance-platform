@@ -6,6 +6,7 @@ type Operator = {
   identity_subject?: string;
   role: "Platform Owner" | "Billing Operator" | "Support Auditor";
   status: string;
+  mfa_required: number;
 };
 const uid = () => crypto.randomUUID();
 const hash = async (value: string) =>
@@ -24,10 +25,14 @@ const hash = async (value: string) =>
 // let anyone grant themselves Platform Owner access.
 const actor = (request: Request) =>
   String(request.headers.get("x-ep-verified-user-email") || "").toLowerCase();
-async function operatorContext(request: Request, db: D1Database) {
+async function operatorContext(
+  request: Request,
+  db: D1Database,
+): Promise<Operator | Response | null> {
   const email = actor(request),
     subject =
-      request.headers.get("x-ep-verified-user-sub") || `workspace:${email}`;
+      request.headers.get("x-ep-verified-user-sub") || `workspace:${email}`,
+    aal = request.headers.get("x-ep-verified-user-aal") || "aal1";
   if (!email) return null;
   const row = await db
     .prepare(
@@ -37,6 +42,19 @@ async function operatorContext(request: Request, db: D1Database) {
     .first<Operator>();
   if (!row) return null;
   if (row.identity_subject && row.identity_subject !== subject) return null;
+  // The control plane spans every tenant, so an operator flagged
+  // mfa_required must have completed MFA in THIS session (Supabase's aal2),
+  // not merely have a factor enrolled — a stolen password-only session must
+  // not be enough to reach Platform Owner / Billing Operator actions.
+  if (row.mfa_required && aal !== "aal2")
+    return Response.json(
+      {
+        error:
+          "Esta conta de operador exige autenticação multifator (MFA) para aceder ao control plane.",
+        code: "mfa_required",
+      },
+      { status: 403 },
+    );
   if (!row.identity_subject)
     await db
       .prepare(
@@ -57,9 +75,29 @@ const apiError = (error: unknown) => {
   );
 };
 
-export async function controlPlaneApi(request: Request, db: D1Database) {
+async function ensureFirstOperator(db: D1Database, ownerEmail?: string) {
+  if (!ownerEmail) return;
+  const existing = await db
+    .prepare("SELECT COUNT(*) n FROM operator_users")
+    .first<{ n: number }>();
+  if (Number(existing?.n || 0) > 0) return;
+  const now = new Date().toISOString();
+  await db
+    .prepare(
+      "INSERT INTO operator_users (id,email_normalized,identity_subject,role,status,mfa_required,created_at,updated_at) VALUES (?,?,NULL,'Platform Owner','Ativo',1,?,?)",
+    )
+    .bind(uid(), ownerEmail.trim().toLowerCase(), now, now)
+    .run();
+}
+export async function controlPlaneApi(
+  request: Request,
+  db: D1Database,
+  ownerEmail?: string,
+) {
   try {
+    await ensureFirstOperator(db, ownerEmail);
     const operator = await operatorContext(request, db);
+    if (operator instanceof Response) return operator;
     if (!operator)
       return Response.json(
         { error: "Acesso reservado a operadores autorizados." },
