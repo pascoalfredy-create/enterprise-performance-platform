@@ -227,7 +227,10 @@ export default function Home() {
       tenants: Array<{ id: string; name: string; role: string }>;
     } | null>(null);
   useEffect(() => {
+    // localStorage is unavailable during SSR, so the persisted locale can only
+    // be read after mount; the "pt" default above keeps server/client markup in sync.
     const saved = localStorage.getItem("ep_locale") as PlatformLocale | null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved && saved in platformLanguages) setLocale(saved);
   }, []);
   useEffect(() => {
@@ -960,6 +963,9 @@ function ConfiguracaoReal() {
       .finally(() => setACarregar(false));
   };
   useEffect(() => {
+    // carregar() is also reused to refresh data after mutations below; the
+    // loading/error resets it performs are intentional, not incidental.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     carregar();
   }, []);
   async function submeter(e: FormEvent<HTMLFormElement>) {
@@ -1672,7 +1678,11 @@ function PeopleWorkspace() {
         setError(locale === "pt" ? (e.message || copy.loadError) : copy.loadError),
       );
   useEffect(() => {
+    // Intentionally fetch once on mount only; load() is recreated per render
+    // (it closes over the current locale for error copy) but must not
+    // re-trigger a refetch every time the language switches.
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -5315,6 +5325,7 @@ const dashEmpty: DashData = {
   coverage: { organizations: 0, sources: 0, latestAt: null },
   payroll: null,
 };
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- superseded by the dashboard rendered from the main route; kept for reference
 function ExecutiveDashboard({
   onNavigate,
 }: {

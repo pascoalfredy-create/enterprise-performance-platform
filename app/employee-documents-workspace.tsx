@@ -121,7 +121,10 @@ export function EmployeeDocumentsWorkspace() {
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  // Wall-clock cutoffs for the expiry window; inherently impure, and not
+  // memoized so a long-lived session keeps re-evaluating "soon" correctly.
   const today = new Date().toISOString().slice(0, 10),
+    // eslint-disable-next-line react-hooks/purity
     soon = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     expiring = data.documents.filter(
       (x) =>

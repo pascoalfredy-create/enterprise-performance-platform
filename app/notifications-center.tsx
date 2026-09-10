@@ -1,5 +1,5 @@
 "use client";
-import{useEffect,useState}from"react";
+import{useCallback,useEffect,useState}from"react";
 import{apiFetch}from"../lib/api-client";
 import"./notifications.css";
 import"./notification-tasks.css";
@@ -7,8 +7,8 @@ type Alert={id:string;domain:string;title:string;detail:string;dueAt:string;targ
 type Data={generatedAt:string;items:Alert[];summary:{total:number;actionable:number;critical:number;claimed:number}};
 export function NotificationsCenter({open,onClose,onNavigate,onCount}:{open:boolean;onClose:()=>void;onNavigate:(target:string)=>void;onCount:(count:number)=>void}){
  const[data,setData]=useState<Data|null>(null),[error,setError]=useState(""),[busy,setBusy]=useState("");
- const load=()=>apiFetch("/api/v1/notifications").then(async r=>{const b=await r.json();if(!r.ok)throw new Error(b.error);setData(b);onCount(b.summary.total)}).catch(e=>setError(e.message));
- useEffect(()=>{load()},[open,onCount]);
+ const load=useCallback(()=>apiFetch("/api/v1/notifications").then(async r=>{const b=await r.json();if(!r.ok)throw new Error(b.error);setData(b);onCount(b.summary.total)}).catch(e=>setError(e.message)),[onCount]);
+ useEffect(()=>{load()},[open,load]);
  async function command(payload:Record<string,string>){setBusy(payload.taskId||`${payload.domain}-${payload.sourceId}`);setError("");const r=await apiFetch("/api/v1/notifications",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)}),b=await r.json();setBusy("");if(!r.ok){setError(b.error||"Não foi possível atualizar a tarefa.");return}load()}
  function claim(x:Alert){return command({type:"claim",sourceId:x.id,domain:x.domain,title:x.title,detail:x.detail,target:x.target,dueAt:x.dueAt,severity:x.severity})}
  function complete(x:Alert){const evidence=window.prompt("Indique a evidência objetiva da conclusão:")||"";if(evidence.trim().length<3)return;return command({type:"transition",taskId:String(x.taskId),status:"Concluída",evidence})}

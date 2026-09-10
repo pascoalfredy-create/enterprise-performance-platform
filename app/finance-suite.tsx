@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { PlatformLocale } from "../lib/platform-i18n";
 import { usePlatformLocale } from "./use-platform-locale";
 import "./finance-suite.css";
@@ -37,7 +37,6 @@ ru:{cycle:"ДЕНЕЖНЫЙ ЦИКЛ",ccc:"Цикл конверсии дене�
 
 const packages = ["Cockpit CFO","Demonstrações","Performance","Desvios","Tesouraria","Working Capital","Rentabilidade","Management Pack"] as const;
 type View=(typeof packages)[number];
-const months=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago"];
 const actual=[318,334,351,362,389,407,421,438], budget=[310,326,343,365,380,398,415,432], forecast=[318,334,351,362,389,407,426,449];
 const money=(n:number)=>`${new Intl.NumberFormat("pt-PT",{maximumFractionDigits:1}).format(n)} M AOA`;
 const pct=(n:number)=>`${n>0?"+":""}${n.toFixed(1)}%`;

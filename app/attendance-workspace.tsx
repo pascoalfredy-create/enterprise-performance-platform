@@ -2,7 +2,8 @@
 import {FormEvent,useEffect,useState} from "react";
 import {apiFetch} from "../lib/api-client";
 import "./attendance.css";
-type Data={shifts:Array<any>;employees:Array<any>;assignments:Array<any>;entries:Array<any>;timesheets:Array<any>};
+type Row=Record<string,string|number|boolean|null>;
+type Data={shifts:Array<Row>;employees:Array<Row>;assignments:Array<Row>;entries:Array<Row>;timesheets:Array<Row>};
 const empty:Data={shifts:[],employees:[],assignments:[],entries:[],timesheets:[]};
 const hm=(v:number|null)=>v==null?"—":`${Math.floor(v/60)}h ${v%60}m`;
 export function AttendanceWorkspace(){

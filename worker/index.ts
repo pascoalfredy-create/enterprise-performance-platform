@@ -400,8 +400,7 @@ async function commerceCheckoutApi(request: Request, db: D1Database) {
         amountMinor: calculated.totalMinor,
       }),
       idempotencyKey = await sha256(fingerprint);
-    const readiness = payPayReadiness(env),
-      existing = await db
+    const existing = await db
       .prepare("SELECT * FROM checkout_sessions WHERE idempotency_key=?")
       .bind(idempotencyKey)
       .first();
@@ -512,6 +511,7 @@ async function paymentIntentApi(request: Request, db: D1Database, env: Env) {
         { error: "O checkout expirou. Crie um novo rascunho." },
         { status: 410 },
       );
+    const readiness = payPayReadiness(env);
     const existing = await db
       .prepare(
         "SELECT p.*,i.invoice_number,i.status invoice_status,i.tax_status FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id WHERE i.checkout_id=?",
