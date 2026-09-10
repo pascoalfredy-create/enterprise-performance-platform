@@ -2,6 +2,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "../../lib/api-client";
+import { PlatformLocalizedSurface } from "../hr-localized-surface";
 import "./platform.css";
 
 type Tenant = {
@@ -160,23 +161,28 @@ export default function PlatformConsole() {
     );
   if (error && !data)
     return (
+      <PlatformLocalizedSurface>
       <main className="operator-denied">
         <b>EP CONTROL</b>
         <h1>Acesso não autorizado</h1>
         <p>{error}</p>
         <Link href="/">Voltar à plataforma</Link>
       </main>
+      </PlatformLocalizedSurface>
     );
   if (!data)
     return (
+      <PlatformLocalizedSurface>
       <main className="operator-denied">
         <b>EP CONTROL</b>
         <h1>A validar operador</h1>
         <p>Estamos a confirmar identidade, função e estado operacional.</p>
       </main>
+      </PlatformLocalizedSurface>
     );
   const owner = data.operator.role === "Platform Owner";
   return (
+    <PlatformLocalizedSurface>
     <main className="platform-console">
       <header className="platform-header">
         <div>
@@ -573,5 +579,6 @@ export default function PlatformConsole() {
         </div>
       )}
     </main>
+    </PlatformLocalizedSurface>
   );
 }

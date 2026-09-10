@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { PlatformLocalizedSurface } from "../../hr-localized-surface";
 import "../../auth.css";
 import "./provision.css";
 
@@ -127,6 +128,7 @@ export default function Empresa() {
   }
   if (result)
     return (
+      <PlatformLocalizedSurface>
       <main className="provision-page">
         <header className="provision-top">
           <Link href="/" className="auth-brand">
@@ -179,8 +181,10 @@ export default function Empresa() {
           </Link>
         </section>
       </main>
+      </PlatformLocalizedSurface>
     );
   return (
+    <PlatformLocalizedSurface>
     <main className="provision-page">
       <header className="provision-top">
         <Link href="/" className="auth-brand">
@@ -333,5 +337,6 @@ export default function Empresa() {
         </form>
       </section>
     </main>
+    </PlatformLocalizedSurface>
   );
 }
