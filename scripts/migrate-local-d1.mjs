@@ -13,8 +13,17 @@
 // script does not replicate), so re-running the full loop on an
 // already-migrated database would fail. Instead we check for a table only
 // the last migration creates and skip entirely if it is already there.
+//
+// The check query is written to a temp .sql file and run via --file,
+// never passed as a multi-word --command string: on Windows,
+// execFileSync's shell:true hands the argument list to cmd.exe as a
+// plain joined string, which splits unquoted spaces back into separate
+// arguments — "SELECT name FROM ..." arrives at wrangler as five
+// unrelated arguments instead of one. A single file path has no such
+// problem.
 import { execFileSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,7 +34,7 @@ const configPath = path.join(scriptsDir, "local-d1.wrangler.toml");
 const persistTo = path.join(projectRoot, ".wrangler", "state");
 const isWindows = process.platform === "win32";
 
-function wranglerD1(args) {
+function wranglerD1File(filePath, extraArgs = []) {
   return execFileSync(
     "npx",
     [
@@ -38,20 +47,27 @@ function wranglerD1(args) {
       configPath,
       "--persist-to",
       persistTo,
-      ...args,
+      "--file",
+      filePath,
+      ...extraArgs,
     ],
     { cwd: projectRoot, shell: isWindows },
   );
 }
 
 const marker = "document_ocr_events";
-const check = JSON.parse(
-  wranglerD1([
-    "--json",
-    "--command",
-    `SELECT name FROM sqlite_master WHERE type='table' AND name='${marker}'`,
-  ]).toString("utf8"),
+const tmpDir = mkdtempSync(path.join(tmpdir(), "epp-d1-check-"));
+const checkFile = path.join(tmpDir, "check.sql");
+writeFileSync(
+  checkFile,
+  `SELECT name FROM sqlite_master WHERE type='table' AND name='${marker}';`,
 );
+let check;
+try {
+  check = JSON.parse(wranglerD1File(checkFile, ["--json"]).toString("utf8"));
+} finally {
+  rmSync(tmpDir, { recursive: true, force: true });
+}
 if (check[0]?.results?.length) {
   console.log("Local D1 database already has the full schema — nothing to do.");
   process.exit();
