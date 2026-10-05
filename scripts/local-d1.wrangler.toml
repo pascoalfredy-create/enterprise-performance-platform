@@ -1,0 +1,13 @@
+# Used only by `npm run db:migrate:local` to apply the drizzle/*.sql
+# migrations to the local D1 database created by `npm run dev`. This file
+# is never read by vite.config.ts / npm run dev itself (the Cloudflare
+# vite plugin gets its D1 binding inline from .openai/hosting.json), so it
+# exists purely to give the `wrangler d1` CLI the binding name/id it needs
+# to find the same local database under .wrangler/state.
+name = "epp-local-migrate"
+compatibility_date = "2024-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "site-creator-d1"
+database_id = "00000000-0000-4000-8000-000000000000"
