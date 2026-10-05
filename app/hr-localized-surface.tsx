@@ -706,10 +706,20 @@ const wordRows:Array<[string,string,string,string,string]>=[
 function translateText(value:string,locale:PlatformLocale){return maps[locale].get(value)??value}
 
 export function HrLocalizedSurface({children}:{children:ReactNode}){
-  const locale=usePlatformLocale(),root=useRef<HTMLDivElement>(null),originals=useRef(new WeakMap<Node,string>()),mutating=useRef(false);
+  const locale=usePlatformLocale(),root=useRef<HTMLDivElement>(null),mutating=useRef(false);
   useEffect(()=>{
     const host=root.current;if(!host)return;
-    const apply=()=>{mutating.current=true;const walker=document.createTreeWalker(host,NodeFilter.SHOW_TEXT);let node:Node|null;while((node=walker.nextNode())){const current=node.nodeValue??"",currentKey=current.trim().replace(/\s+/g," "),known=canonical.get(currentKey),stored=originals.current.get(node),raw=known?current.replace(current.trim(),known):(stored??current);originals.current.set(node,raw);const lead=raw.match(/^\s*/)?.[0]||"",tail=raw.match(/\s*$/)?.[0]||"",key=raw.trim().replace(/\s+/g," "),next=key?lead+translateText(key,locale)+tail:raw;if(node.nodeValue!==next)node.nodeValue=next;}host.querySelectorAll<HTMLElement>("[placeholder],[title],[aria-label]").forEach(el=>{for(const attr of ["placeholder","title","aria-label"]){if(!el.hasAttribute(attr))continue;const dataKey=`platformPt${attr.replace(/-([a-z])/g,(_,x)=>x.toUpperCase()).replace(/^./,x=>x.toUpperCase())}`;const current=el.getAttribute(attr)||"",raw=canonical.get(current)||(el.dataset as unknown as Record<string,string>)[dataKey]||current;if(!(el.dataset as unknown as Record<string,string>)[dataKey])(el.dataset as unknown as Record<string,string>)[dataKey]=raw;const next=translateText(raw,locale);if(current!==next)el.setAttribute(attr,next)}});mutating.current=false;};
+    const apply=()=>{mutating.current=true;const walker=document.createTreeWalker(host,NodeFilter.SHOW_TEXT);let node:Node|null;while((node=walker.nextNode())){
+      // `current` is the live DOM text. When it matches a catalogued phrase
+      // (in any locale) we recover the Portuguese source via `canonical` so a
+      // node already showing a translated value survives further locale
+      // switches. When it does NOT match any catalogued phrase, `current` is
+      // the authoritative value — it is either untranslatable dynamic content
+      // (a name, an email, a number) or text we have never seen. Falling back
+      // to the node's previously-cached value here, as earlier code did,
+      // fought React: any time dynamic content replaced text we had cached,
+      // this observer immediately reverted the DOM to the stale cached value.
+      const current=node.nodeValue??"",currentKey=current.trim().replace(/\s+/g," "),known=canonical.get(currentKey),raw=known?current.replace(current.trim(),known):current;const lead=raw.match(/^\s*/)?.[0]||"",tail=raw.match(/\s*$/)?.[0]||"",key=raw.trim().replace(/\s+/g," "),next=key?lead+translateText(key,locale)+tail:raw;if(node.nodeValue!==next)node.nodeValue=next;}host.querySelectorAll<HTMLElement>("[placeholder],[title],[aria-label]").forEach(el=>{for(const attr of ["placeholder","title","aria-label"]){if(!el.hasAttribute(attr))continue;const dataKey=`platformPt${attr.replace(/-([a-z])/g,(_,x)=>x.toUpperCase()).replace(/^./,x=>x.toUpperCase())}`;const current=el.getAttribute(attr)||"",raw=canonical.get(current)||(el.dataset as unknown as Record<string,string>)[dataKey]||current;if(!(el.dataset as unknown as Record<string,string>)[dataKey])(el.dataset as unknown as Record<string,string>)[dataKey]=raw;const next=translateText(raw,locale);if(current!==next)el.setAttribute(attr,next)}});mutating.current=false;};
     apply();const observer=new MutationObserver(()=>{if(!mutating.current)queueMicrotask(apply)});observer.observe(host,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["placeholder"]});return()=>observer.disconnect();
   },[locale]);
   return <div ref={root} lang={locale} className="hr-localized-surface" style={{display:"contents"}}>{children}</div>;
