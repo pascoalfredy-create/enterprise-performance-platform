@@ -36,12 +36,18 @@
 // actually-empty database (confirmed via the D1 dashboard console: only
 // Cloudflare's own internal _cf_KV table existed).
 //
-// So instead of inspecting query *output*, this checks query *outcome*:
-// try to read one row from the marker table itself (not sqlite_master).
-// If that succeeds, the table — and so the full schema — exists. If it
-// fails with "no such table", it doesn't. Any other failure is a real
-// problem and is left to fail loudly rather than being treated as
-// "needs migration".
+// So instead, this tries to read one row from the marker table itself
+// (not sqlite_master). It still turned out unsafe to key the decision off
+// wrangler's own exit code alone: the exact same --file + SELECT-against-
+// a-missing-table combination reported a clean exit twice in a row
+// against the real production database immediately after a run that
+// never got past the very first migration file — if the exit code
+// reliably reflected the query's own success, that isn't possible. So
+// the check now text-matches "no such table" in the captured output
+// unconditionally (regardless of exit code) and only falls back to the
+// exit code when that text isn't present; any failure that isn't "no
+// such table" is a real problem and is left to fail loudly rather than
+// being treated as "needs migration".
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -74,8 +80,19 @@ function locationArgs() {
 // unrelated arguments instead of one. A single file path has no such
 // problem.
 function runWranglerD1File(filePath) {
+  // Capture output on success too, not just in the catch block: this
+  // check's whole premise (query the marker table, read success/failure)
+  // turned out to be unsafe to base purely on exit code — wrangler's own
+  // apply loop below proved a real SQL error (CREATE TABLE ... already
+  // exists) does exit non-zero against --remote, but this exact
+  // --file + SELECT-against-a-missing-table combination still reported
+  // ok:true against the real production database twice in a row right
+  // after a run that had gotten no further than the very first migration
+  // file, which cannot be true if the exit code reliably reflected the
+  // query's own outcome. Text-match "no such table" in the output
+  // unconditionally below, rather than trusting the exit code alone.
   try {
-    execFileSync(
+    const stdout = execFileSync(
       "npx",
       [
         "wrangler",
@@ -89,8 +106,8 @@ function runWranglerD1File(filePath) {
         filePath,
       ],
       { cwd: projectRoot, shell: isWindows },
-    );
-    return { ok: true };
+    ).toString("utf8");
+    return { ok: true, output: stdout };
   } catch (error) {
     return {
       ok: false,
@@ -110,11 +127,12 @@ try {
   rmSync(tmpDir, { recursive: true, force: true });
 }
 
-if (check.ok) {
+if (/no such table/i.test(check.output ?? "")) {
+  // proceed below
+} else if (check.ok) {
   console.log(`${target} D1 database already has the full schema — nothing to do.`);
   process.exit();
-}
-if (!/no such table/i.test(check.output)) {
+} else {
   console.error(check.output);
   console.error(`Could not determine whether the ${target} D1 database is migrated.`);
   process.exitCode = 1;
