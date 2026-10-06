@@ -15,7 +15,8 @@
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "i18n:audit": "node scripts/audit-i18n.mjs",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
-    "db:migrate:local": "node scripts/migrate-local-d1.mjs"
+    "db:migrate:local": "node scripts/migrate-local-d1.mjs",
+    "deploy": "npm run build && node scripts/patch-production-wrangler.mjs && node scripts/migrate-local-d1.mjs --remote --config dist/server/wrangler.json && npx wrangler deploy --config dist/server/wrangler.json"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
