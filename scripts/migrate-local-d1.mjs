@@ -95,7 +95,16 @@ writeFileSync(
 );
 let check;
 try {
-  check = JSON.parse(wranglerD1File(checkFile, ["--json"]).toString("utf8"));
+  const raw = wranglerD1File(checkFile, ["--json"]).toString("utf8");
+  // In --remote mode wrangler writes a "Checking if file needs uploading"
+  // progress line to stdout before the --json result (locally it doesn't),
+  // so the result is never the first character of stdout — find where the
+  // JSON array actually starts instead of parsing the whole capture.
+  const jsonStart = raw.indexOf("[");
+  if (jsonStart === -1) {
+    throw new Error(`wrangler d1 execute produced no JSON array:\n${raw}`);
+  }
+  check = JSON.parse(raw.slice(jsonStart));
 } finally {
   rmSync(tmpDir, { recursive: true, force: true });
 }
