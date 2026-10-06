@@ -1401,8 +1401,16 @@ const apiFailure = (error: unknown, fallback: string) => {
   // unrecognized error, by design (never leak internals to the client) — so
   // without this, a 500 here is otherwise unobservable: nothing else logs
   // the real error, and it never reaches Cloudflare's own top-level
-  // exception reporting because it's already caught.
-  if (failure.status >= 500) console.error("[apiFailure]", error);
+  // exception reporting because it's already caught. D1's own errors
+  // (D1DatabaseSessionAlwaysPrimary._sendOrThrow) carry the real SQLite
+  // message in `.cause`, not in `.message`/`.stack`, so console.error(error)
+  // alone only shows an unhelpful internal stack — log all three.
+  if (failure.status >= 500)
+    console.error("[apiFailure]", {
+      message: error instanceof Error ? error.message : String(error),
+      cause: error instanceof Error ? error.cause : undefined,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
   return Response.json(
     { error: failure.message, code: failure.code },
     { status: failure.status },
