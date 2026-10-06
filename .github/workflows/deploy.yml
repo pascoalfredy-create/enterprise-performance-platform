@@ -20,6 +20,15 @@ jobs:
 
       - run: npm run build
 
+      - name: Diagnose Cloudflare auth
+        run: |
+          echo "CLOUDFLARE_API_TOKEN length: ${#CLOUDFLARE_API_TOKEN}"
+          echo "CLOUDFLARE_ACCOUNT_ID length: ${#CLOUDFLARE_ACCOUNT_ID}"
+          npx wrangler whoami
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Prepare production config
         run: node scripts/patch-production-wrangler.mjs
         env:
