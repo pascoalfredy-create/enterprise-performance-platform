@@ -1,4 +1,4 @@
-CREATE TABLE `budget_versions` (
+CREATE TABLE IF NOT EXISTS `budget_versions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE `budget_versions` (
 	`approved_at` text
 );
 --> statement-breakpoint
-CREATE TABLE `performance_entries` (
+CREATE TABLE IF NOT EXISTS `performance_entries` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,

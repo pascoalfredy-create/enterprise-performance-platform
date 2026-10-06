@@ -1,4 +1,4 @@
-CREATE TABLE `operator_users` (
+CREATE TABLE IF NOT EXISTS `operator_users` (
  `id` text PRIMARY KEY NOT NULL,
  `email_normalized` text NOT NULL UNIQUE,
  `identity_subject` text UNIQUE,
@@ -14,7 +14,7 @@ CREATE TABLE `operator_users` (
 -- worker/control-plane.ts:ensureFirstOperator), not seeded here, so
 -- ownership can move without editing migration history.
 
-CREATE TABLE `billing_invoices` (
+CREATE TABLE IF NOT EXISTS `billing_invoices` (
  `id` text PRIMARY KEY NOT NULL,
  `checkout_id` text NOT NULL UNIQUE,
  `account_id` text NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE `billing_invoices` (
  FOREIGN KEY (`account_id`) REFERENCES `commerce_accounts` (`id`)
 );
 
-CREATE TABLE `payment_intents` (
+CREATE TABLE IF NOT EXISTS `payment_intents` (
  `id` text PRIMARY KEY NOT NULL,
  `invoice_id` text NOT NULL UNIQUE,
  `provider` text NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE `payment_intents` (
  FOREIGN KEY (`invoice_id`) REFERENCES `billing_invoices` (`id`)
 );
 
-CREATE TABLE `billing_events` (
+CREATE TABLE IF NOT EXISTS `billing_events` (
  `id` text PRIMARY KEY NOT NULL,
  `provider` text NOT NULL,
  `external_event_id` text NOT NULL UNIQUE,
@@ -57,7 +57,7 @@ CREATE TABLE `billing_events` (
  `processed_at` text
 );
 
-CREATE INDEX `billing_invoices_account_status_idx` ON `billing_invoices` (`account_id`,`status`,`created_at` DESC);
-CREATE INDEX `payment_intents_status_expiry_idx` ON `payment_intents` (`status`,`expires_at`);
+CREATE INDEX IF NOT EXISTS `billing_invoices_account_status_idx` ON `billing_invoices` (`account_id`,`status`,`created_at` DESC);
+CREATE INDEX IF NOT EXISTS `payment_intents_status_expiry_idx` ON `payment_intents` (`status`,`expires_at`);
 CREATE TRIGGER `billing_events_no_update` BEFORE UPDATE ON `billing_events` BEGIN SELECT RAISE(ABORT,'billing event is immutable'); END;
 CREATE TRIGGER `billing_events_no_delete` BEFORE DELETE ON `billing_events` BEGIN SELECT RAISE(ABORT,'billing event is immutable'); END;

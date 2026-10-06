@@ -1,4 +1,4 @@
-CREATE TABLE `audit_events` (
+CREATE TABLE IF NOT EXISTS `audit_events` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE `audit_events` (
 	`summary` text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `employees` (
+CREATE TABLE IF NOT EXISTS `employees` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE `employees` (
 	`status` text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `organizations` (
+CREATE TABLE IF NOT EXISTS `organizations` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE `organizations` (
 	`status` text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `platform_users` (
+CREATE TABLE IF NOT EXISTS `platform_users` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,

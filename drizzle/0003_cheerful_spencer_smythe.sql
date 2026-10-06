@@ -1,4 +1,4 @@
-CREATE TABLE `payroll_assignments` (
+CREATE TABLE IF NOT EXISTS `payroll_assignments` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,
@@ -6,7 +6,7 @@ CREATE TABLE `payroll_assignments` (
 	`component_id` text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `payroll_components` (
+CREATE TABLE IF NOT EXISTS `payroll_components` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE `payroll_components` (
 	`status` text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `payroll_run_lines` (
+CREATE TABLE IF NOT EXISTS `payroll_run_lines` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE `payroll_run_lines` (
 	`input_snapshot` text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `payroll_runs` (
+CREATE TABLE IF NOT EXISTS `payroll_runs` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE `payroll_runs` (
 	`closed_at` text
 );
 --> statement-breakpoint
-CREATE TABLE `salary_profiles` (
+CREATE TABLE IF NOT EXISTS `salary_profiles` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,

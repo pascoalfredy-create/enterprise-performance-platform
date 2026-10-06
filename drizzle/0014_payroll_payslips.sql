@@ -1,4 +1,4 @@
-CREATE TABLE `payroll_payslips` (
+CREATE TABLE IF NOT EXISTS `payroll_payslips` (
  `id` text PRIMARY KEY NOT NULL,
  `tenant_id` text NOT NULL,
  `run_id` text NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE `payroll_payslips` (
  UNIQUE (`tenant_id`,`payslip_number`)
 );
 
-CREATE INDEX `payroll_payslips_tenant_period_idx` ON `payroll_payslips` (`tenant_id`,`period`,`status`);
+CREATE INDEX IF NOT EXISTS `payroll_payslips_tenant_period_idx` ON `payroll_payslips` (`tenant_id`,`period`,`status`);
 CREATE TRIGGER `payslip_requires_closed_run` BEFORE INSERT ON `payroll_payslips`
 WHEN NOT EXISTS (SELECT 1 FROM `payroll_runs` WHERE `id`=NEW.`run_id` AND `tenant_id`=NEW.`tenant_id` AND `status`='Fechado')
 BEGIN SELECT RAISE(ABORT,'payslip requires closed payroll'); END;

@@ -1,12 +1,12 @@
-CREATE TABLE `employee_contracts` (
+CREATE TABLE IF NOT EXISTS `employee_contracts` (
  `id` text PRIMARY KEY NOT NULL,`tenant_id` text NOT NULL,`created_at` text NOT NULL,`employee_id` text NOT NULL,
  `contract_number` text NOT NULL,`contract_type` text NOT NULL,`start_date` text NOT NULL,`end_date` text,
  `work_schedule` text NOT NULL,`weekly_minutes` integer NOT NULL,`country_pack` text,`status` text NOT NULL,
  `activated_at` text,`ended_at` text
 );
-CREATE UNIQUE INDEX `employee_contracts_number_uq` ON `employee_contracts` (`tenant_id`,`contract_number`);
-CREATE UNIQUE INDEX `employee_contracts_one_active_uq` ON `employee_contracts` (`tenant_id`,`employee_id`) WHERE `status`='Ativo';
-CREATE INDEX `employee_contracts_employee_status_idx` ON `employee_contracts` (`tenant_id`,`employee_id`,`status`);
+CREATE UNIQUE INDEX IF NOT EXISTS `employee_contracts_number_uq` ON `employee_contracts` (`tenant_id`,`contract_number`);
+CREATE UNIQUE INDEX IF NOT EXISTS `employee_contracts_one_active_uq` ON `employee_contracts` (`tenant_id`,`employee_id`) WHERE `status`='Ativo';
+CREATE INDEX IF NOT EXISTS `employee_contracts_employee_status_idx` ON `employee_contracts` (`tenant_id`,`employee_id`,`status`);
 
 INSERT INTO `employee_contracts` (`id`,`tenant_id`,`created_at`,`employee_id`,`contract_number`,`contract_type`,`start_date`,`end_date`,`work_schedule`,`weekly_minutes`,`country_pack`,`status`,`activated_at`,`ended_at`)
 SELECT 'legacy-'||`id`,`tenant_id`,`created_at`,`id`,'LEGACY-'||`employee_number`,'Legado',`hire_date`,NULL,'Não definido',2400,NULL,'Ativo',`created_at`,NULL FROM `employees`;

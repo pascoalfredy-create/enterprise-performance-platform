@@ -1,4 +1,4 @@
-CREATE TABLE `subscriptions` (
+CREATE TABLE IF NOT EXISTS `subscriptions` (
  `id` text PRIMARY KEY NOT NULL,
  `account_id` text NOT NULL,
  `checkout_id` text NOT NULL UNIQUE,
@@ -14,7 +14,7 @@ CREATE TABLE `subscriptions` (
  FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
 );
 
-CREATE TABLE `module_entitlements` (
+CREATE TABLE IF NOT EXISTS `module_entitlements` (
  `id` text PRIMARY KEY NOT NULL,
  `tenant_id` text NOT NULL,
  `subscription_id` text NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE `module_entitlements` (
  UNIQUE (`tenant_id`,`module_code`)
 );
 
-CREATE TABLE `provisioning_orders` (
+CREATE TABLE IF NOT EXISTS `provisioning_orders` (
  `id` text PRIMARY KEY NOT NULL,
  `payment_id` text NOT NULL UNIQUE,
  `account_id` text NOT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE `provisioning_orders` (
  FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
 );
 
-CREATE INDEX `subscriptions_account_status_idx` ON `subscriptions` (`account_id`,`status`);
-CREATE INDEX `module_entitlements_tenant_status_idx` ON `module_entitlements` (`tenant_id`,`status`);
+CREATE INDEX IF NOT EXISTS `subscriptions_account_status_idx` ON `subscriptions` (`account_id`,`status`);
+CREATE INDEX IF NOT EXISTS `module_entitlements_tenant_status_idx` ON `module_entitlements` (`tenant_id`,`status`);
 CREATE TRIGGER `subscription_tenant_immutable` BEFORE UPDATE OF `tenant_id`,`checkout_id`,`account_id` ON `subscriptions` BEGIN SELECT RAISE(ABORT,'subscription ownership is immutable'); END;
 CREATE TRIGGER `provisioning_ownership_immutable` BEFORE UPDATE OF `payment_id`,`account_id`,`checkout_id`,`tenant_id` ON `provisioning_orders` BEGIN SELECT RAISE(ABORT,'provisioning ownership is immutable'); END;

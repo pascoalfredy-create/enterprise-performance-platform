@@ -22,7 +22,7 @@ import {
 } from "../lib/commercial-catalog";
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
-import { controlPlaneApi } from "./control-plane";
+import { controlPlaneApi, ensureFirstOperator } from "./control-plane";
 import { consolidationApi } from "./consolidation";
 import { financialModelsApi } from "./financial-models";
 import { financialDataApi } from "./financial-data";
@@ -636,10 +636,19 @@ async function paymentIntentApi(request: Request, db: D1Database, env: Env) {
     );
   }
 }
-async function testConfirmationApi(request: Request, db: D1Database) {
+async function testConfirmationApi(
+  request: Request,
+  db: D1Database,
+  ownerEmail?: string,
+) {
   try {
     if (request.method !== "POST")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
+    // The first Platform Owner row is normally seeded by visiting the
+    // control plane (controlPlaneApi), which this sandbox test-confirmation
+    // flow doesn't require anyone to have done — without this, the lookup
+    // below always 403s on a fresh deploy even for the real owner's email.
+    await ensureFirstOperator(db, ownerEmail);
     const email = actorEmail(request).toLowerCase(),
       subject =
         request.headers.get("x-ep-verified-user-sub") || `workspace:${email}`,
@@ -5597,7 +5606,7 @@ const worker = {
     if (apiPath === "/api/commerce/payment-intent")
       return paymentIntentApi(request, env.DB, env);
     if (apiPath === "/api/commerce/test-confirmation")
-      return testConfirmationApi(request, env.DB);
+      return testConfirmationApi(request, env.DB, env.PLATFORM_OWNER_EMAIL);
     if (apiPath === "/api/commerce/industry-packs")
       return industryPacksApi(request, env.DB);
     if (apiPath === "/api/commerce/provision")

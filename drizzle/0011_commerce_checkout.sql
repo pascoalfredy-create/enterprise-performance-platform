@@ -1,4 +1,4 @@
-CREATE TABLE `commerce_accounts` (
+CREATE TABLE IF NOT EXISTS `commerce_accounts` (
  `id` text PRIMARY KEY NOT NULL,
  `identity_subject` text NOT NULL UNIQUE,
  `email_normalized` text NOT NULL UNIQUE,
@@ -7,7 +7,7 @@ CREATE TABLE `commerce_accounts` (
  `updated_at` text NOT NULL
 );
 
-CREATE TABLE `checkout_sessions` (
+CREATE TABLE IF NOT EXISTS `checkout_sessions` (
  `id` text PRIMARY KEY NOT NULL,
  `account_id` text NOT NULL,
  `catalog_version` text NOT NULL,
@@ -25,10 +25,10 @@ CREATE TABLE `checkout_sessions` (
  FOREIGN KEY (`account_id`) REFERENCES `commerce_accounts` (`id`)
 );
 
-CREATE INDEX `checkout_sessions_account_created_idx` ON `checkout_sessions` (`account_id`,`created_at` DESC);
-CREATE INDEX `checkout_sessions_status_expiry_idx` ON `checkout_sessions` (`status`,`expires_at`);
+CREATE INDEX IF NOT EXISTS `checkout_sessions_account_created_idx` ON `checkout_sessions` (`account_id`,`created_at` DESC);
+CREATE INDEX IF NOT EXISTS `checkout_sessions_status_expiry_idx` ON `checkout_sessions` (`status`,`expires_at`);
 
-CREATE TABLE `commerce_audit_events` (
+CREATE TABLE IF NOT EXISTS `commerce_audit_events` (
  `id` text PRIMARY KEY NOT NULL,
  `account_id` text NOT NULL,
  `event_type` text NOT NULL,
@@ -40,6 +40,6 @@ CREATE TABLE `commerce_audit_events` (
  FOREIGN KEY (`account_id`) REFERENCES `commerce_accounts` (`id`)
 );
 
-CREATE INDEX `commerce_audit_account_time_idx` ON `commerce_audit_events` (`account_id`,`occurred_at` DESC);
+CREATE INDEX IF NOT EXISTS `commerce_audit_account_time_idx` ON `commerce_audit_events` (`account_id`,`occurred_at` DESC);
 CREATE TRIGGER `commerce_audit_no_update` BEFORE UPDATE ON `commerce_audit_events` BEGIN SELECT RAISE(ABORT,'commerce audit is immutable'); END;
 CREATE TRIGGER `commerce_audit_no_delete` BEFORE DELETE ON `commerce_audit_events` BEGIN SELECT RAISE(ABORT,'commerce audit is immutable'); END;

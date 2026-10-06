@@ -1,4 +1,4 @@
-CREATE TABLE `management_reports` (
+CREATE TABLE IF NOT EXISTS `management_reports` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,

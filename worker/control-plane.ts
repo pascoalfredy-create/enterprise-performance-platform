@@ -75,7 +75,7 @@ const apiError = (error: unknown) => {
   );
 };
 
-async function ensureFirstOperator(db: D1Database, ownerEmail?: string) {
+export async function ensureFirstOperator(db: D1Database, ownerEmail?: string) {
   if (!ownerEmail) return;
   const existing = await db
     .prepare("SELECT COUNT(*) n FROM operator_users")

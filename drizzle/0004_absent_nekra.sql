@@ -1,4 +1,4 @@
-CREATE TABLE `workforce_cost_postings` (
+CREATE TABLE IF NOT EXISTS `workforce_cost_postings` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,

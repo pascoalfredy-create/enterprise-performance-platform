@@ -1,4 +1,4 @@
-CREATE TABLE `dimension_members` (
+CREATE TABLE IF NOT EXISTS `dimension_members` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE `dimension_members` (
 	`status` text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE `financial_dimensions` (
+CREATE TABLE IF NOT EXISTS `financial_dimensions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,
 	`created_at` text NOT NULL,
