@@ -93,21 +93,44 @@ writeFileSync(
   checkFile,
   `SELECT name FROM sqlite_master WHERE type='table' AND name='${marker}';`,
 );
+function extractJsonResult(raw) {
+  const trimmed = raw.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Local mode's stdout is exactly the JSON result, so the trimmed parse
+    // above handles it. In --remote mode wrangler writes a "Checking if
+    // file needs uploading" progress line (and, in some terminal widths, a
+    // leading box-drawing/ANSI preamble) before the --json result, so a
+    // naive indexOf("[") can land on a stray bracket inside that preamble
+    // or ANSI color code rather than the real result — that caused the
+    // very first production migration check to silently parse into
+    // something falsy-but-not-throwing and skip every migration against an
+    // actually-empty database. wrangler --json pretty-prints its result
+    // starting at column 0, so scan backwards for the last line that opens
+    // a JSON value and is itself parseable through to the end of the
+    // output; that is unambiguously the real result, never a bracket
+    // embedded mid-line in progress text.
+    const lines = trimmed.split("\n");
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (!/^[[{]/.test(lines[i])) continue;
+      try {
+        return JSON.parse(lines.slice(i).join("\n"));
+      } catch {
+        // keep scanning further back
+      }
+    }
+    throw new Error(`wrangler d1 execute produced no parseable JSON:\n${raw}`);
+  }
+}
+
 let check;
 try {
-  const raw = wranglerD1File(checkFile, ["--json"]).toString("utf8");
-  // In --remote mode wrangler writes a "Checking if file needs uploading"
-  // progress line to stdout before the --json result (locally it doesn't),
-  // so the result is never the first character of stdout — find where the
-  // JSON array actually starts instead of parsing the whole capture.
-  const jsonStart = raw.indexOf("[");
-  if (jsonStart === -1) {
-    throw new Error(`wrangler d1 execute produced no JSON array:\n${raw}`);
-  }
-  check = JSON.parse(raw.slice(jsonStart));
+  check = extractJsonResult(wranglerD1File(checkFile, ["--json"]).toString("utf8"));
 } finally {
   rmSync(tmpDir, { recursive: true, force: true });
 }
+console.log("Schema check result:", JSON.stringify(check));
 if (check[0]?.results?.length) {
   console.log(`${target} D1 database already has the full schema — nothing to do.`);
   process.exit();
