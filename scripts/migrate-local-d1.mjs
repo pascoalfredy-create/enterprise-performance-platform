@@ -20,16 +20,28 @@
 // Not every migration's CREATE TABLE uses IF NOT EXISTS (the drizzle
 // generator assumes its own once-only migration tracking, which this
 // script does not replicate), so re-running the full loop on an
-// already-migrated database would fail. Instead we check for a table only
-// the last migration creates and skip entirely if it is already there.
+// already-migrated database would fail. Instead we check whether a table
+// only the last migration creates already exists, and skip entirely if
+// it does.
 //
-// The check query is written to a temp .sql file and run via --file,
-// never passed as a multi-word --command string: on Windows,
-// execFileSync's shell:true hands the argument list to cmd.exe as a
-// plain joined string, which splits unquoted spaces back into separate
-// arguments — "SELECT name FROM ..." arrives at wrangler as five
-// unrelated arguments instead of one. A single file path has no such
-// problem.
+// That check used to SELECT the table's name out of sqlite_master and
+// inspect the JSON --json result for a matching row. In --local mode
+// that JSON is exactly what you'd expect (an empty `results` array, or
+// one row). In --remote mode, this wrangler version's --json output for
+// that query is NOT the matching rows at all — it's a stats summary
+// object (`{"Total queries executed":1,"Rows read":1,...}`), present
+// whether or not the table exists, which made `results.length` truthy
+// either way and caused the very first production deploy to report
+// "already has the full schema" and skip every migration against an
+// actually-empty database (confirmed via the D1 dashboard console: only
+// Cloudflare's own internal _cf_KV table existed).
+//
+// So instead of inspecting query *output*, this checks query *outcome*:
+// try to read one row from the marker table itself (not sqlite_master).
+// If that succeeds, the table — and so the full schema — exists. If it
+// fails with "no such table", it doesn't. Any other failure is a real
+// problem and is left to fail loudly rather than being treated as
+// "needs migration".
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -48,19 +60,22 @@ const configPath = configFlagIndex !== -1
   ? path.resolve(projectRoot, args[configFlagIndex + 1])
   : path.join(scriptsDir, "local-d1.wrangler.toml");
 const persistTo = path.join(projectRoot, ".wrangler", "state");
+const target = isRemote ? "remote" : "local";
 
 function locationArgs() {
   return isRemote ? ["--remote"] : ["--local", "--persist-to", persistTo];
 }
 
-function wranglerD1File(filePath, extraArgs = []) {
-  // Captured (non-"inherit") stdio means a failure throws with stdout/stderr
-  // as raw Buffers, and Node's default uncaught-exception printer renders
-  // those as a wall of byte numbers instead of the actual wrangler/Cloudflare
-  // error text — decode and print them ourselves before rethrowing so CI
-  // logs stay readable.
+// The check query is written to a temp .sql file and run via --file,
+// never passed as a multi-word --command string: on Windows,
+// execFileSync's shell:true hands the argument list to cmd.exe as a
+// plain joined string, which splits unquoted spaces back into separate
+// arguments — "SELECT name FROM ..." arrives at wrangler as five
+// unrelated arguments instead of one. A single file path has no such
+// problem.
+function runWranglerD1File(filePath) {
   try {
-    return execFileSync(
+    execFileSync(
       "npx",
       [
         "wrangler",
@@ -72,67 +87,37 @@ function wranglerD1File(filePath, extraArgs = []) {
         ...locationArgs(),
         "--file",
         filePath,
-        ...extraArgs,
       ],
       { cwd: projectRoot, shell: isWindows },
     );
+    return { ok: true };
   } catch (error) {
-    const stdout = error.stdout?.toString("utf8");
-    const stderr = error.stderr?.toString("utf8");
-    if (stdout) console.error(stdout);
-    if (stderr) console.error(stderr);
-    throw new Error(`wrangler d1 execute failed (exit ${error.status}).`);
+    return {
+      ok: false,
+      output: (error.stdout?.toString("utf8") ?? "") + (error.stderr?.toString("utf8") ?? ""),
+    };
   }
 }
 
-const target = isRemote ? "remote" : "local";
 const marker = "document_ocr_events";
 const tmpDir = mkdtempSync(path.join(tmpdir(), "epp-d1-check-"));
 const checkFile = path.join(tmpDir, "check.sql");
-writeFileSync(
-  checkFile,
-  `SELECT name FROM sqlite_master WHERE type='table' AND name='${marker}';`,
-);
-function extractJsonResult(raw) {
-  const trimmed = raw.trim();
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    // Local mode's stdout is exactly the JSON result, so the trimmed parse
-    // above handles it. In --remote mode wrangler writes a "Checking if
-    // file needs uploading" progress line (and, in some terminal widths, a
-    // leading box-drawing/ANSI preamble) before the --json result, so a
-    // naive indexOf("[") can land on a stray bracket inside that preamble
-    // or ANSI color code rather than the real result — that caused the
-    // very first production migration check to silently parse into
-    // something falsy-but-not-throwing and skip every migration against an
-    // actually-empty database. wrangler --json pretty-prints its result
-    // starting at column 0, so scan backwards for the last line that opens
-    // a JSON value and is itself parseable through to the end of the
-    // output; that is unambiguously the real result, never a bracket
-    // embedded mid-line in progress text.
-    const lines = trimmed.split("\n");
-    for (let i = lines.length - 1; i >= 0; i--) {
-      if (!/^[[{]/.test(lines[i])) continue;
-      try {
-        return JSON.parse(lines.slice(i).join("\n"));
-      } catch {
-        // keep scanning further back
-      }
-    }
-    throw new Error(`wrangler d1 execute produced no parseable JSON:\n${raw}`);
-  }
-}
-
+writeFileSync(checkFile, `SELECT 1 FROM ${marker} LIMIT 1;`);
 let check;
 try {
-  check = extractJsonResult(wranglerD1File(checkFile, ["--json"]).toString("utf8"));
+  check = runWranglerD1File(checkFile);
 } finally {
   rmSync(tmpDir, { recursive: true, force: true });
 }
-console.log("Schema check result:", JSON.stringify(check));
-if (check[0]?.results?.length) {
+
+if (check.ok) {
   console.log(`${target} D1 database already has the full schema — nothing to do.`);
+  process.exit();
+}
+if (!/no such table/i.test(check.output)) {
+  console.error(check.output);
+  console.error(`Could not determine whether the ${target} D1 database is migrated.`);
+  process.exitCode = 1;
   process.exit();
 }
 
