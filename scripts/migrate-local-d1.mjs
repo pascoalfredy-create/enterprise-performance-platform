@@ -54,22 +54,35 @@ function locationArgs() {
 }
 
 function wranglerD1File(filePath, extraArgs = []) {
-  return execFileSync(
-    "npx",
-    [
-      "wrangler",
-      "d1",
-      "execute",
-      "site-creator-d1",
-      "--config",
-      configPath,
-      ...locationArgs(),
-      "--file",
-      filePath,
-      ...extraArgs,
-    ],
-    { cwd: projectRoot, shell: isWindows },
-  );
+  // Captured (non-"inherit") stdio means a failure throws with stdout/stderr
+  // as raw Buffers, and Node's default uncaught-exception printer renders
+  // those as a wall of byte numbers instead of the actual wrangler/Cloudflare
+  // error text — decode and print them ourselves before rethrowing so CI
+  // logs stay readable.
+  try {
+    return execFileSync(
+      "npx",
+      [
+        "wrangler",
+        "d1",
+        "execute",
+        "site-creator-d1",
+        "--config",
+        configPath,
+        ...locationArgs(),
+        "--file",
+        filePath,
+        ...extraArgs,
+      ],
+      { cwd: projectRoot, shell: isWindows },
+    );
+  } catch (error) {
+    const stdout = error.stdout?.toString("utf8");
+    const stderr = error.stderr?.toString("utf8");
+    if (stdout) console.error(stdout);
+    if (stderr) console.error(stderr);
+    throw new Error(`wrangler d1 execute failed (exit ${error.status}).`);
+  }
 }
 
 const target = isRemote ? "remote" : "local";
