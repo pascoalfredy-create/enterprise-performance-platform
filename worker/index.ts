@@ -1397,6 +1397,12 @@ const denied = (permission: Permission) =>
   );
 const apiFailure = (error: unknown, fallback: string) => {
   const failure = classifyDataError(error, fallback);
+  // classifyDataError only ever returns the generic fallback message for an
+  // unrecognized error, by design (never leak internals to the client) — so
+  // without this, a 500 here is otherwise unobservable: nothing else logs
+  // the real error, and it never reaches Cloudflare's own top-level
+  // exception reporting because it's already caught.
+  if (failure.status >= 500) console.error("[apiFailure]", error);
   return Response.json(
     { error: failure.message, code: failure.code },
     { status: failure.status },

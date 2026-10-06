@@ -13,6 +13,20 @@
 // straight from .dev.vars, which is intentionally committed to this repo
 // (it holds only the publishable Supabase key and the owner's email — no
 // secrets) so local dev and production always agree.
+//
+// It also sets assets.not_found_handling: "none" and assets.binding:
+// "ASSETS". The Cloudflare vite-plugin's build output declares an assets
+// directory but leaves not_found_handling unset, and most app routes
+// (SSR pages with no prerendered .html file) aren't literal files in that
+// directory — so without "none", Cloudflare's static-asset layer answers
+// a direct load/reload of those routes with a bare 404 instead of letting
+// the request fall through to the Worker's own routing in worker/index.ts,
+// which is what actually renders them. vinext's own `vinext deploy`
+// generates wrangler config with this same setting for the same reason
+// (see node_modules/vinext/dist/deploy.js); it's just that `vinext build`
+// doesn't apply it to the config it emits. worker/index.ts also expects an
+// `env.ASSETS` binding (for /_vinext/image), which needs assets.binding
+// set explicitly — it isn't implied by the directory alone.
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,6 +57,11 @@ config.vars = { ...config.vars, ...vars };
 for (const db of config.d1_databases ?? []) {
   db.database_id = databaseId;
 }
+config.assets = {
+  ...config.assets,
+  not_found_handling: "none",
+  binding: config.assets?.binding ?? "ASSETS",
+};
 
 writeFileSync(wranglerPath, JSON.stringify(config, null, 2));
 console.log(`Patched ${path.relative(projectRoot, wranglerPath)} with production D1 id and ${Object.keys(vars).length} var(s).`);
