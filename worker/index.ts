@@ -26,6 +26,7 @@ import { controlPlaneApi, ensureFirstOperator } from "./control-plane";
 import { consolidationApi } from "./consolidation";
 import { financialModelsApi } from "./financial-models";
 import { financialCockpitApi, financialDataApi } from "./financial-data";
+import { hrCockpitApi } from "./hr-data";
 import { financialDiagnosticsApi } from "./financial-diagnostics";
 import { workforcePlansApi } from "./workforce-plans";
 import { recruitmentApi } from "./recruitment";
@@ -5643,6 +5644,7 @@ const worker = {
                     "/api/recruitment",
                     "/api/attendance",
                     "/api/employee-documents",
+                    "/api/hr-cockpit",
                   ].includes(apiPath)
                 ? write
                   ? "hcm:write"
@@ -5739,6 +5741,7 @@ const worker = {
               "/api/recruitment",
               "/api/attendance",
               "/api/employee-documents",
+              "/api/hr-cockpit",
             ].includes(apiPath)
           ? "HCM"
           : [
@@ -5821,6 +5824,8 @@ const worker = {
         return setupApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/hcm")
         return hcmApi(request, env.DB, tenantId, organizationId);
+      if (apiPath === "/api/hr-cockpit")
+        return hrCockpitApi(request, env.DB, security);
       if (apiPath === "/api/recruitment")
         return recruitmentApi(request, env.DB, security);
       if (apiPath === "/api/attendance")
