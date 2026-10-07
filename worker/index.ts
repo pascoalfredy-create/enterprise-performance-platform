@@ -25,7 +25,7 @@ import { competenciesApi } from "./competencies";
 import { controlPlaneApi, ensureFirstOperator } from "./control-plane";
 import { consolidationApi } from "./consolidation";
 import { financialModelsApi } from "./financial-models";
-import { financialDataApi } from "./financial-data";
+import { financialCockpitApi, financialDataApi } from "./financial-data";
 import { financialDiagnosticsApi } from "./financial-diagnostics";
 import { workforcePlansApi } from "./workforce-plans";
 import { recruitmentApi } from "./recruitment";
@@ -5667,7 +5667,8 @@ const worker = {
                           ? write
                             ? "financial-model:write"
                             : "financial-model:read"
-                          : apiPath === "/api/financial-data"
+                          : apiPath === "/api/financial-data" ||
+                              apiPath === "/api/financial-cockpit"
                             ? write
                               ? "financial-data:write"
                               : "financial-data:read"
@@ -5752,6 +5753,7 @@ const worker = {
                   "/api/consolidation",
                   "/api/financial-models",
                   "/api/financial-data",
+                  "/api/financial-cockpit",
                   "/api/financial-diagnostics",
                 ].includes(apiPath)
               ? "FINANCE_FP&A"
@@ -5841,6 +5843,8 @@ const worker = {
         return financialModelsApi(request, env.DB, security);
       if (apiPath === "/api/financial-data")
         return financialDataApi(request, env.DB, security);
+      if (apiPath === "/api/financial-cockpit")
+        return financialCockpitApi(request, env.DB, security);
       if (apiPath === "/api/integrations")
         return integrationsApi(request, env.DB, security);
       if (apiPath === "/api/financial-diagnostics")

@@ -447,3 +447,96 @@ export async function financialDataApi(
     return fail(error);
   }
 }
+
+// Real, data-backed replacement for the Cockpit CFO view in
+// app/finance-suite.tsx, which previously showed the same hardcoded
+// numbers for every tenant regardless of what they'd actually entered.
+// Aggregates performance_entries directly rather than inventing a
+// synthetic P&L: classification (Receita/Custo/...) comes from
+// financial_line_catalog when a line was imported through the mapped CSV
+// pipeline in this file, but entries created by hand via /api/performance
+// (worker/index.ts's performanceApi) carry only a free-text line_code with
+// no catalog row, so the LEFT JOIN intentionally falls back to "Outro"
+// instead of excluding them.
+export async function financialCockpitApi(
+  request: Request,
+  db: D1Database,
+  security: Security,
+) {
+  try {
+    if (request.method !== "GET")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const tenant = security.tenantId,
+      scope = security.organizationId,
+      url = new URL(request.url),
+      currency = (url.searchParams.get("currency") || "AOA").toUpperCase();
+    const [latest, anyData] = await Promise.all([
+      db
+        .prepare(
+          "SELECT MAX(period) period FROM performance_entries WHERE tenant_id=? AND scenario='Actual' AND currency=? AND (? IS NULL OR organization_id=?)",
+        )
+        .bind(tenant, currency, scope, scope)
+        .first<{ period: string | null }>(),
+      db
+        .prepare("SELECT 1 FROM performance_entries WHERE tenant_id=? LIMIT 1")
+        .bind(tenant)
+        .first(),
+    ]);
+    const period =
+      url.searchParams.get("period") ||
+      latest?.period ||
+      new Date().toISOString().slice(0, 7);
+    const approvedBudget = await db
+      .prepare(
+        "SELECT id,name FROM budget_versions WHERE tenant_id=? AND status='Aprovado' ORDER BY approved_at DESC LIMIT 1",
+      )
+      .bind(tenant)
+      .first<{ id: string; name: string }>();
+    const classificationQuery =
+      "SELECT COALESCE(l.classification,'Outro') classification,SUM(e.amount_minor) total FROM performance_entries e LEFT JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code WHERE e.tenant_id=? AND e.scenario=? AND e.period=? AND e.currency=? AND (? IS NULL OR e.organization_id=?)";
+    const [actualRows, budgetRows] = await Promise.all([
+      db
+        .prepare(`${classificationQuery} AND e.version_id IS NULL GROUP BY classification`)
+        .bind(tenant, "Actual", period, currency, scope, scope)
+        .all<{ classification: string; total: number }>(),
+      approvedBudget
+        ? db
+            .prepare(`${classificationQuery} AND e.version_id=? GROUP BY classification`)
+            .bind(tenant, "Budget", period, currency, scope, scope, approvedBudget.id)
+            .all<{ classification: string; total: number }>()
+        : Promise.resolve({ results: [] as { classification: string; total: number }[] }),
+    ]);
+    const sum = (
+      rows: { classification: string; total: number }[],
+      cls: string,
+    ) => rows.find((r) => r.classification === cls)?.total ?? 0;
+    // Sign-agnostic on purpose: a mapped import line can store costs as
+    // negative (per its financial_line_catalog sign_mode), but a manually
+    // typed /api/performance entry has no sign convention at all — abs()
+    // makes "revenue minus the size of costs" correct either way.
+    const net = (rows: { classification: string; total: number }[]) =>
+      sum(rows, "Receita") - Math.abs(sum(rows, "Custo"));
+    return Response.json({
+      period,
+      currency,
+      hasData: Boolean(anyData),
+      hasPeriodData: actualRows.results.length > 0,
+      hasBudget: Boolean(approvedBudget),
+      budgetVersionName: approvedBudget?.name ?? null,
+      actual: {
+        revenue: sum(actualRows.results, "Receita"),
+        costs: sum(actualRows.results, "Custo"),
+        net: net(actualRows.results),
+        classifications: actualRows.results,
+      },
+      budget: {
+        revenue: sum(budgetRows.results, "Receita"),
+        costs: sum(budgetRows.results, "Custo"),
+        net: net(budgetRows.results),
+        classifications: budgetRows.results,
+      },
+    });
+  } catch (error) {
+    return fail(error);
+  }
+}
