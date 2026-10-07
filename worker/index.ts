@@ -27,6 +27,7 @@ import { consolidationApi } from "./consolidation";
 import { financialModelsApi } from "./financial-models";
 import { financialCockpitApi, financialDataApi } from "./financial-data";
 import { hrCockpitApi } from "./hr-data";
+import { executiveCockpitApi } from "./analytics-data";
 import { financialDiagnosticsApi } from "./financial-diagnostics";
 import { workforcePlansApi } from "./workforce-plans";
 import { recruitmentApi } from "./recruitment";
@@ -5777,6 +5778,7 @@ const worker = {
                             "/api/dashboard",
                             "/api/management-reports",
                             "/api/commercial-suite",
+                            "/api/executive-cockpit",
                           ].includes(apiPath)
                         ? "ANALYTICS_REPORTING"
                         : null;
@@ -5864,6 +5866,8 @@ const worker = {
         return dashboardApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/commercial-suite")
         return commercialSuiteApi(request, env.DB, security);
+      if (apiPath === "/api/executive-cockpit")
+        return executiveCockpitApi(request, env.DB, security);
       if (apiPath === "/api/document-hub")
         return documentHubApi(request, env.DB, env.BUCKET, env, security);
       if (apiPath === "/api/customer-activation")
