@@ -26,6 +26,11 @@ import { controlPlaneApi, ensureFirstOperator } from "./control-plane";
 import { consolidationApi } from "./consolidation";
 import { financialModelsApi } from "./financial-models";
 import { financialCockpitApi, financialDataApi } from "./financial-data";
+import {
+  financialProfitabilityApi,
+  financialStatementsApi,
+  financialTrendApi,
+} from "./financial-statements";
 import { hrCockpitApi } from "./hr-data";
 import { executiveCockpitApi } from "./analytics-data";
 import { financialDiagnosticsApi } from "./financial-diagnostics";
@@ -5670,8 +5675,13 @@ const worker = {
                           ? write
                             ? "financial-model:write"
                             : "financial-model:read"
-                          : apiPath === "/api/financial-data" ||
-                              apiPath === "/api/financial-cockpit"
+                          : [
+                                "/api/financial-data",
+                                "/api/financial-cockpit",
+                                "/api/financial-trend",
+                                "/api/financial-statements",
+                                "/api/financial-profitability",
+                              ].includes(apiPath)
                             ? write
                               ? "financial-data:write"
                               : "financial-data:read"
@@ -5760,6 +5770,9 @@ const worker = {
                   "/api/financial-models",
                   "/api/financial-data",
                   "/api/financial-cockpit",
+                  "/api/financial-trend",
+                  "/api/financial-statements",
+                  "/api/financial-profitability",
                   "/api/financial-diagnostics",
                 ].includes(apiPath)
               ? "FINANCE_FP&A"
@@ -5856,6 +5869,12 @@ const worker = {
         return financialDataApi(request, env.DB, security);
       if (apiPath === "/api/financial-cockpit")
         return financialCockpitApi(request, env.DB, security);
+      if (apiPath === "/api/financial-trend")
+        return financialTrendApi(request, env.DB, security);
+      if (apiPath === "/api/financial-statements")
+        return financialStatementsApi(request, env.DB, security);
+      if (apiPath === "/api/financial-profitability")
+        return financialProfitabilityApi(request, env.DB, security);
       if (apiPath === "/api/integrations")
         return integrationsApi(request, env.DB, security);
       if (apiPath === "/api/financial-diagnostics")
