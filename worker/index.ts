@@ -38,7 +38,7 @@ import {
   hrPeopleApi,
   hrTalentApi,
 } from "./hr-data";
-import { executiveCockpitApi } from "./analytics-data";
+import { executiveCockpitApi, moduleHealthApi } from "./analytics-data";
 import { financialDiagnosticsApi } from "./financial-diagnostics";
 import { workforcePlansApi } from "./workforce-plans";
 import { recruitmentApi } from "./recruitment";
@@ -5811,6 +5811,7 @@ const worker = {
                             "/api/management-reports",
                             "/api/commercial-suite",
                             "/api/executive-cockpit",
+                            "/api/module-health",
                           ].includes(apiPath)
                         ? "ANALYTICS_REPORTING"
                         : null;
@@ -5914,6 +5915,8 @@ const worker = {
         return commercialSuiteApi(request, env.DB, security);
       if (apiPath === "/api/executive-cockpit")
         return executiveCockpitApi(request, env.DB, security);
+      if (apiPath === "/api/module-health")
+        return moduleHealthApi(request, env.DB, security);
       if (apiPath === "/api/document-hub")
         return documentHubApi(request, env.DB, env.BUCKET, env, security);
       if (apiPath === "/api/customer-activation")
