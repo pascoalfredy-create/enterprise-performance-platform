@@ -70,9 +70,15 @@ const moduleCatalog: Array<{
       { label: "Ativação e subscrição", target: "Ativação" },
       { label: "Organização", target: "Administração" },
       { label: "Utilizadores e RBAC", target: "Administração" },
-      { label: "Dimensões financeiras", target: "Administração" },
       { label: "Document Hub e OCR", target: "Documentos" },
       { label: "Registo de auditoria", target: "Controlo", document: true },
+      { label: "Tarefas e aprovações", target: "Workflow", requires: "WORKFLOW" },
+      {
+        label: "Histórico de decisões",
+        target: "Workflow",
+        document: true,
+        requires: "WORKFLOW",
+      },
     ],
   },
   {
@@ -87,7 +93,7 @@ const moduleCatalog: Array<{
       { label: "Tesouraria e liquidez", target: "Tesouraria" },
       { label: "Working Capital", target: "Working Capital" },
       { label: "Rentabilidade e custos", target: "Rentabilidade" },
-      { label: "Management Pack", target: "Management Pack", document: true },
+      { label: "Dimensões financeiras", target: "Administração" },
       { label: "Dados, catálogo e mappings", target: "Dados financeiros" },
       { label: "Actual e Budget", target: "Planeamento" },
       { label: "Versões orçamentais", target: "Planeamento", document: true },
@@ -176,15 +182,6 @@ const moduleCatalog: Array<{
     ],
   },
   {
-    code: "WORKFLOW",
-    name: "Workflow",
-    icon: "⇄",
-    items: [
-      { label: "Tarefas e aprovações", target: "Workflow" },
-      { label: "Histórico de decisões", target: "Workflow", document: true },
-    ],
-  },
-  {
     code: "INTEGRATIONS",
     name: "Integration Hub",
     icon: "⌁",
@@ -247,7 +244,6 @@ export default function Home() {
     WORKFORCE_PLANNING: "module.workforce",
     PERFORMANCE_MANAGEMENT: "module.performance",
     ANALYTICS_REPORTING: "module.analytics",
-    WORKFLOW: "module.workflow",
     INTEGRATIONS: "module.integrations",
   };
   let breadcrumb: { domain: string; item: string } | null = null;
@@ -646,8 +642,6 @@ export default function Home() {
             <FinanceSuite initialView="Working Capital" onNavigate={setModulo} />
           ) : modulo === "Rentabilidade" ? (
             <FinanceSuite initialView="Rentabilidade" onNavigate={setModulo} />
-          ) : modulo === "Management Pack" ? (
-            <FinanceSuite initialView="Management Pack" onNavigate={setModulo} />
           ) : modulo === "Planeamento" ? (
             <PerformanceControl />
           ) : modulo === "Cenários" ? (
