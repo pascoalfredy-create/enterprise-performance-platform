@@ -442,9 +442,6 @@ export default function Home() {
               ))}
             </select>
           </label>
-          <em className="module-count">
-            {sessao.modules.length} {nav.activeModules}
-          </em>
         </div>
         <button className="ajuda" onClick={() => setCommandMode("help")}>
           ? {msg("shell.help")}
