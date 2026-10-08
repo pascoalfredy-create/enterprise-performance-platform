@@ -275,3 +275,124 @@ export async function financialProfitabilityApi(
     return fail(error);
   }
 }
+
+export async function financialVarianceApi(
+  request: Request,
+  db: D1Database,
+  security: Security,
+) {
+  try {
+    if (request.method !== "GET")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const tenant = security.tenantId,
+      scope = security.organizationId,
+      url = new URL(request.url),
+      currency = (url.searchParams.get("currency") || "AOA").toUpperCase();
+    const latest = await db
+      .prepare(
+        "SELECT MAX(period) period FROM performance_entries WHERE tenant_id=? AND scenario='Actual' AND currency=? AND (? IS NULL OR organization_id=?)",
+      )
+      .bind(tenant, currency, scope, scope)
+      .first<{ period: string | null }>();
+    const period = url.searchParams.get("period") || latest?.period || null;
+    const approvedBudget = period
+      ? await db
+          .prepare(
+            "SELECT id FROM budget_versions WHERE tenant_id=? AND status='Aprovado' ORDER BY approved_at DESC LIMIT 1",
+          )
+          .bind(tenant)
+          .first<{ id: string }>()
+      : null;
+    if (!period || !approvedBudget)
+      return Response.json({
+        hasData: false,
+        period,
+        currency,
+        hasBudget: Boolean(approvedBudget),
+      });
+    const byLine =
+      "SELECT e.line_code,e.line_name,COALESCE(l.classification,'Outro') classification,SUM(e.amount_minor) total FROM performance_entries e LEFT JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code WHERE e.tenant_id=? AND e.scenario=? AND e.period=? AND e.currency=? AND (? IS NULL OR e.organization_id=?)";
+    const [actualRows, budgetRows] = await Promise.all([
+      db
+        .prepare(`${byLine} AND e.version_id IS NULL GROUP BY e.line_code,e.line_name,classification`)
+        .bind(tenant, "Actual", period, currency, scope, scope)
+        .all<{
+          line_code: string;
+          line_name: string;
+          classification: string;
+          total: number;
+        }>(),
+      db
+        .prepare(`${byLine} AND e.version_id=? GROUP BY e.line_code,e.line_name,classification`)
+        .bind(tenant, "Budget", period, currency, scope, scope, approvedBudget.id)
+        .all<{
+          line_code: string;
+          line_name: string;
+          classification: string;
+          total: number;
+        }>(),
+    ]);
+    if (!actualRows.results.length && !budgetRows.results.length)
+      return Response.json({
+        hasData: false,
+        period,
+        currency,
+        hasBudget: true,
+      });
+    type Line = { name: string; classification: string; actual: number; budget: number };
+    const lines = new Map<string, Line>();
+    for (const r of actualRows.results)
+      lines.set(r.line_code, {
+        name: r.line_name,
+        classification: r.classification,
+        actual: r.total,
+        budget: 0,
+      });
+    for (const r of budgetRows.results) {
+      const existing = lines.get(r.line_code);
+      if (existing) existing.budget = r.total;
+      else
+        lines.set(r.line_code, {
+          name: r.line_name,
+          classification: r.classification,
+          actual: 0,
+          budget: r.total,
+        });
+    }
+    const contribution = (line: Line) =>
+      line.classification === "Custo"
+        ? Math.abs(line.budget) - Math.abs(line.actual)
+        : line.actual - line.budget;
+    const sum = (rows: { classification: string; total: number }[], cls: string) =>
+      rows.filter((r) => r.classification === cls).reduce((a, r) => a + r.total, 0);
+    const net = (rows: { classification: string; total: number }[]) =>
+      sum(rows, "Receita") - Math.abs(sum(rows, "Custo"));
+    const actualNet = net(actualRows.results),
+      budgetNet = net(budgetRows.results);
+    const drivers = Array.from(lines.entries())
+      .map(([code, line]) => ({
+        lineCode: code,
+        lineName: line.name,
+        classification: line.classification,
+        contribution: contribution(line),
+      }))
+      .filter((d) => d.contribution !== 0)
+      .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+    const topDrivers = drivers.slice(0, 6);
+    const topContribution = topDrivers.reduce((a, d) => a + d.contribution, 0);
+    const residual = actualNet - budgetNet - topContribution;
+    return Response.json({
+      hasData: true,
+      period,
+      currency,
+      hasBudget: true,
+      actualNet,
+      budgetNet,
+      netVariance: actualNet - budgetNet,
+      drivers: topDrivers,
+      residual,
+    });
+  } catch (error) {
+    return fail(error);
+  }
+}

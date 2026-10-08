@@ -30,6 +30,7 @@ import {
   financialProfitabilityApi,
   financialStatementsApi,
   financialTrendApi,
+  financialVarianceApi,
 } from "./financial-statements";
 import {
   hrCockpitApi,
@@ -5690,6 +5691,7 @@ const worker = {
                                 "/api/financial-trend",
                                 "/api/financial-statements",
                                 "/api/financial-profitability",
+                                "/api/financial-variance",
                               ].includes(apiPath)
                             ? write
                               ? "financial-data:write"
@@ -5784,6 +5786,7 @@ const worker = {
                   "/api/financial-trend",
                   "/api/financial-statements",
                   "/api/financial-profitability",
+                  "/api/financial-variance",
                   "/api/financial-diagnostics",
                 ].includes(apiPath)
               ? "FINANCE_FP&A"
@@ -5893,6 +5896,8 @@ const worker = {
         return financialStatementsApi(request, env.DB, security);
       if (apiPath === "/api/financial-profitability")
         return financialProfitabilityApi(request, env.DB, security);
+      if (apiPath === "/api/financial-variance")
+        return financialVarianceApi(request, env.DB, security);
       if (apiPath === "/api/integrations")
         return integrationsApi(request, env.DB, security);
       if (apiPath === "/api/financial-diagnostics")
