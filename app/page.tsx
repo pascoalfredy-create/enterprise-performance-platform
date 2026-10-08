@@ -72,6 +72,7 @@ const moduleCatalog: Array<{
       { label: "Utilizadores e RBAC", target: "Administração" },
       { label: "Document Hub e OCR", target: "Documentos" },
       { label: "Registo de auditoria", target: "Controlo", document: true },
+      { label: "Demonstração guiada", target: "Centro Comercial" },
       { label: "Tarefas e aprovações", target: "Workflow", requires: "WORKFLOW" },
       {
         label: "Histórico de decisões",
@@ -101,7 +102,7 @@ const moduleCatalog: Array<{
       { label: "Diagnóstico financeiro", target: "Diagnóstico" },
       {
         label: "Atratividade de investimento",
-        target: "Diagnóstico",
+        target: "Investimento",
         document: true,
       },
       { label: "Drivers e plano de negócios", target: "Modelação" },
@@ -176,7 +177,6 @@ const moduleCatalog: Array<{
         target: "Catálogo Analytics",
         document: true,
       },
-      { label: "Demonstração guiada", target: "Centro Comercial" },
       { label: "Management Reports", target: "Relatórios", document: true },
       { label: "Templates de reporte", target: "Relatórios", document: true },
     ],
@@ -648,6 +648,8 @@ export default function Home() {
             <ScenariosWorkspace />
           ) : modulo === "Diagnóstico" ? (
             <FinancialDiagnosticsWorkspace />
+          ) : modulo === "Investimento" ? (
+            <FinancialDiagnosticsWorkspace initialView="Investimento" />
           ) : modulo === "Modelação" ? (
             <FinancialModelsWorkspace />
           ) : modulo === "Cash-flow" ? (

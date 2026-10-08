@@ -164,9 +164,13 @@ const roles = [
   ["EQUITY", "Capital próprio"],
   ["OPERATING_CASH_FLOW", "Fluxo operacional"],
 ];
-export function FinancialDiagnosticsWorkspace() {
+export function FinancialDiagnosticsWorkspace({
+  initialView = "Diagnóstico",
+}: {
+  initialView?: string;
+} = {}) {
   const [data, setData] = useState<Data>(empty),
-    [view, setView] = useState("Diagnóstico"),
+    [view, setView] = useState(initialView),
     [modal, setModal] = useState(""),
     [selected, setSelected] = useState(""),
     [selectedCase, setSelectedCase] = useState(""),
