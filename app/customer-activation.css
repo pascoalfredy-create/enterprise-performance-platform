@@ -8,7 +8,7 @@
   gap: 20px;
   padding: 22px;
   border-radius: 14px;
-  background: linear-gradient(125deg, #102b4c, #15506b 70%, #087f76);
+  background: linear-gradient(125deg, #102b4c, #15506b 70%, #0a8a7d);
   color: #fff;
 }
 .activation-hero small,
@@ -74,7 +74,7 @@
 }
 .activation-plan header em.active {
   background: #def3ec;
-  color: #087f76;
+  color: #0a8a7d;
 }
 .activation-plan dl {
   display: grid;
@@ -106,8 +106,8 @@
   border: 0;
   border-radius: 8px;
   padding: 8px 11px;
-  background: #f6a623;
-  color: #142b47;
+  background: #f5a126;
+  color: #173455;
   font-size: 10px;
   font-weight: 800;
 }
@@ -123,7 +123,7 @@
 .activation-context > div {
   display: grid;
   padding: 10px;
-  border-left: 3px solid #087f76;
+  border-left: 3px solid #0a8a7d;
   background: #f1f8f6;
 }
 .activation-context span {
@@ -161,7 +161,7 @@
 .activation-checklist article.complete > i,
 .activation-maturity article > i.used {
   background: #def3ec;
-  color: #087f76;
+  color: #0a8a7d;
 }
 .activation-checklist article span,
 .activation-imports article span,
@@ -220,7 +220,7 @@
   width: 28px;
   height: 28px;
   border: 3px solid #dce7ea;
-  border-top-color: #087f76;
+  border-top-color: #0a8a7d;
   border-radius: 50%;
   animation: activation-spin 0.8s linear infinite;
 }
