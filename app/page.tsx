@@ -250,6 +250,17 @@ export default function Home() {
     WORKFLOW: "module.workflow",
     INTEGRATIONS: "module.integrations",
   };
+  let breadcrumb: { domain: string; item: string } | null = null;
+  for (const domain of moduleCatalog) {
+    const item = domain.items.find((i) => i.target === modulo);
+    if (item) {
+      breadcrumb = {
+        domain: msg(moduleNameKey[domain.code]),
+        item: moduleItemLabel(locale, item.label),
+      };
+      break;
+    }
+  }
   useEffect(() => {
     apiFetch("/api/session")
       .then(async (r) => ({ ok: r.ok, body: await r.json() }))
@@ -582,6 +593,17 @@ export default function Home() {
           </footer>
         </aside>
         <main className="module-content">
+          {breadcrumb && modulo !== "Visão geral" && (
+            <nav className="module-breadcrumb" aria-label={nav.breadcrumbAria}>
+              <button onClick={() => setModulo("Visão geral")}>
+                {msg("shell.home")}
+              </button>
+              <span>/</span>
+              <span>{breadcrumb.domain}</span>
+              <span>/</span>
+              <span className="current">{breadcrumb.item}</span>
+            </nav>
+          )}
           {!sessao.onboarding.complete && sessao.role === "Administrador" && (
             <TenantOnboarding
               state={sessao.onboarding}
@@ -611,21 +633,21 @@ export default function Home() {
           ) : modulo === "Dados financeiros" ? (
             <FinancialDataWorkspace />
           ) : modulo === "Cockpit CFO" ? (
-            <FinanceSuite initialView="Cockpit CFO" />
+            <FinanceSuite initialView="Cockpit CFO" onNavigate={setModulo} />
           ) : modulo === "Demonstrações" ? (
-            <FinanceSuite initialView="Demonstrações" />
+            <FinanceSuite initialView="Demonstrações" onNavigate={setModulo} />
           ) : modulo === "Performance Financeira" ? (
-            <FinanceSuite initialView="Performance" />
+            <FinanceSuite initialView="Performance" onNavigate={setModulo} />
           ) : modulo === "Desvios Financeiros" ? (
-            <FinanceSuite initialView="Desvios" />
+            <FinanceSuite initialView="Desvios" onNavigate={setModulo} />
           ) : modulo === "Tesouraria" ? (
-            <FinanceSuite initialView="Tesouraria" />
+            <FinanceSuite initialView="Tesouraria" onNavigate={setModulo} />
           ) : modulo === "Working Capital" ? (
-            <FinanceSuite initialView="Working Capital" />
+            <FinanceSuite initialView="Working Capital" onNavigate={setModulo} />
           ) : modulo === "Rentabilidade" ? (
-            <FinanceSuite initialView="Rentabilidade" />
+            <FinanceSuite initialView="Rentabilidade" onNavigate={setModulo} />
           ) : modulo === "Management Pack" ? (
-            <FinanceSuite initialView="Management Pack" />
+            <FinanceSuite initialView="Management Pack" onNavigate={setModulo} />
           ) : modulo === "Planeamento" ? (
             <PerformanceControl />
           ) : modulo === "Cenários" ? (

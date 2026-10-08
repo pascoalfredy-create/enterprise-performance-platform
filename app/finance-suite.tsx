@@ -5,13 +5,13 @@ import { usePlatformLocale } from "./use-platform-locale";
 import { apiFetch } from "../lib/api-client";
 import "./finance-suite.css";
 
-type RealCopy={loading:string;error:string;emptyTitle:string;emptyText:string;revenue:string;costs:string;net:string;budget:string;variance:string;noBudget:string;periodLabel:string;previewLabel:string;previewText:string;marginLabel:string;noRoleData:string;noCashFlowData:string;noUnitData:string;otherLines:string};
+type RealCopy={loading:string;error:string;emptyTitle:string;emptyText:string;revenue:string;costs:string;net:string;budget:string;variance:string;noBudget:string;periodLabel:string;previewLabel:string;previewText:string;marginLabel:string;noRoleData:string;noCashFlowData:string;noUnitData:string;otherLines:string;openFinancialData:string;openPlanning:string};
 const rc:Record<PlatformLocale,RealCopy>={
-pt:{loading:"A carregar dados reais…",error:"Não foi possível carregar os dados financeiros.",emptyTitle:"Ainda sem dados financeiros",emptyText:"Este cockpit mostra apenas números reais da sua empresa — ainda não há nenhum valor registado. Importe o primeiro fecho em \"Dados financeiros\" ou registe um valor manual em \"Planeamento\".",revenue:"Receita (real)",costs:"Custos (real)",net:"Resultado (real)",budget:"Orçamento aprovado",variance:"Desvio vs orçamento",noBudget:"Ainda sem orçamento aprovado para comparar.",periodLabel:"Período com dados",previewLabel:"PRÉ-VISUALIZAÇÃO",previewText:"Os valores desta secção são ilustrativos — ainda não estão ligados aos dados reais da empresa.",marginLabel:"Margem",noRoleData:"Ainda sem linhas classificadas como Ativo/Passivo/Capital para calcular o balanço — configure os papéis contabilísticos em \"Dados financeiros\".",noCashFlowData:"Ainda sem linhas classificadas por categoria de fluxo de caixa.",noUnitData:"Ainda sem dados reais por unidade de negócio para este período.",otherLines:"Outras linhas"},
-en:{loading:"Loading real data…",error:"Could not load financial data.",emptyTitle:"No financial data yet",emptyText:"This cockpit only shows your company's real numbers — nothing has been recorded yet. Import your first close under \"Financial data\" or add a manual entry under \"Planning\".",revenue:"Revenue (actual)",costs:"Costs (actual)",net:"Net result (actual)",budget:"Approved budget",variance:"Variance vs budget",noBudget:"No approved budget to compare against yet.",periodLabel:"Period with data",previewLabel:"PREVIEW",previewText:"The values in this section are illustrative — not yet connected to the company's real data.",marginLabel:"Margin",noRoleData:"No lines classified as Asset/Liability/Equity yet to compute the balance sheet — set accounting roles under \"Financial data\".",noCashFlowData:"No lines classified by cash-flow category yet.",noUnitData:"No real data by business unit for this period yet.",otherLines:"Other lines"},
-es:{loading:"Cargando datos reales…",error:"No se pudieron cargar los datos financieros.",emptyTitle:"Aún sin datos financieros",emptyText:"Este cockpit solo muestra los números reales de su empresa — todavía no hay ningún valor registrado. Importe el primer cierre en \"Datos financieros\" o registre un valor manual en \"Planificación\".",revenue:"Ingresos (real)",costs:"Costes (real)",net:"Resultado (real)",budget:"Presupuesto aprobado",variance:"Desviación vs presupuesto",noBudget:"Todavía sin presupuesto aprobado para comparar.",periodLabel:"Período con datos",previewLabel:"VISTA PREVIA",previewText:"Los valores de esta sección son ilustrativos — aún no están conectados a los datos reales de la empresa.",marginLabel:"Margen",noRoleData:"Todavía sin líneas clasificadas como Activo/Pasivo/Capital para calcular el balance — configure los roles contables en \"Datos financieros\".",noCashFlowData:"Todavía sin líneas clasificadas por categoría de flujo de caja.",noUnitData:"Todavía sin datos reales por unidad de negocio para este período.",otherLines:"Otras líneas"},
-fr:{loading:"Chargement des données réelles…",error:"Impossible de charger les données financières.",emptyTitle:"Aucune donnée financière pour l’instant",emptyText:"Ce cockpit n’affiche que les chiffres réels de votre entreprise — aucune valeur n’a encore été enregistrée. Importez votre première clôture dans « Données financières » ou ajoutez une saisie manuelle dans « Planification ».",revenue:"Chiffre d’affaires (réel)",costs:"Coûts (réel)",net:"Résultat (réel)",budget:"Budget approuvé",variance:"Écart vs budget",noBudget:"Pas encore de budget approuvé pour comparer.",periodLabel:"Période avec données",previewLabel:"APERÇU",previewText:"Les valeurs de cette section sont illustratives — pas encore connectées aux données réelles de l’entreprise.",marginLabel:"Marge",noRoleData:"Aucune ligne classée Actif/Passif/Capitaux propres pour calculer le bilan — configurez les rôles comptables dans « Données financières ».",noCashFlowData:"Aucune ligne classée par catégorie de flux de trésorerie pour l’instant.",noUnitData:"Aucune donnée réelle par unité d’activité pour cette période.",otherLines:"Autres lignes"},
-ru:{loading:"Загрузка реальных данных…",error:"Не удалось загрузить финансовые данные.",emptyTitle:"Пока нет финансовых данных",emptyText:"Эта панель показывает только реальные цифры вашей компании — пока ничего не зарегистрировано. Импортируйте первое закрытие периода в разделе «Финансовые данные» или добавьте значение вручную в «Планировании».",revenue:"Выручка (факт)",costs:"Затраты (факт)",net:"Результат (факт)",budget:"Утверждённый бюджет",variance:"Отклонение от бюджета",noBudget:"Пока нет утверждённого бюджета для сравнения.",periodLabel:"Период с данными",previewLabel:"ПРЕДПРОСМОТР",previewText:"Значения в этом разделе иллюстративны — ещё не связаны с реальными данными компании.",marginLabel:"Маржа",noRoleData:"Пока нет строк с ролью Актив/Обязательство/Капитал для расчёта баланса — настройте бухгалтерские роли в разделе «Финансовые данные».",noCashFlowData:"Пока нет строк, классифицированных по категории денежного потока.",noUnitData:"Пока нет реальных данных по бизнес-единицам за этот период.",otherLines:"Остальные статьи"}};
+pt:{loading:"A carregar dados reais…",error:"Não foi possível carregar os dados financeiros.",emptyTitle:"Ainda sem dados financeiros",emptyText:"Este cockpit mostra apenas números reais da sua empresa — ainda não há nenhum valor registado. Importe o primeiro fecho em \"Dados financeiros\" ou registe um valor manual em \"Planeamento\".",revenue:"Receita (real)",costs:"Custos (real)",net:"Resultado (real)",budget:"Orçamento aprovado",variance:"Desvio vs orçamento",noBudget:"Ainda sem orçamento aprovado para comparar.",periodLabel:"Período com dados",previewLabel:"PRÉ-VISUALIZAÇÃO",previewText:"Os valores desta secção são ilustrativos — ainda não estão ligados aos dados reais da empresa.",marginLabel:"Margem",noRoleData:"Ainda sem linhas classificadas como Ativo/Passivo/Capital para calcular o balanço — configure os papéis contabilísticos em \"Dados financeiros\".",noCashFlowData:"Ainda sem linhas classificadas por categoria de fluxo de caixa.",noUnitData:"Ainda sem dados reais por unidade de negócio para este período.",otherLines:"Outras linhas",openFinancialData:"Abrir Dados financeiros →",openPlanning:"Abrir Planeamento →"},
+en:{loading:"Loading real data…",error:"Could not load financial data.",emptyTitle:"No financial data yet",emptyText:"This cockpit only shows your company's real numbers — nothing has been recorded yet. Import your first close under \"Financial data\" or add a manual entry under \"Planning\".",revenue:"Revenue (actual)",costs:"Costs (actual)",net:"Net result (actual)",budget:"Approved budget",variance:"Variance vs budget",noBudget:"No approved budget to compare against yet.",periodLabel:"Period with data",previewLabel:"PREVIEW",previewText:"The values in this section are illustrative — not yet connected to the company's real data.",marginLabel:"Margin",noRoleData:"No lines classified as Asset/Liability/Equity yet to compute the balance sheet — set accounting roles under \"Financial data\".",noCashFlowData:"No lines classified by cash-flow category yet.",noUnitData:"No real data by business unit for this period yet.",otherLines:"Other lines",openFinancialData:"Open Financial data →",openPlanning:"Open Planning →"},
+es:{loading:"Cargando datos reales…",error:"No se pudieron cargar los datos financieros.",emptyTitle:"Aún sin datos financieros",emptyText:"Este cockpit solo muestra los números reales de su empresa — todavía no hay ningún valor registrado. Importe el primer cierre en \"Datos financieros\" o registre un valor manual en \"Planificación\".",revenue:"Ingresos (real)",costs:"Costes (real)",net:"Resultado (real)",budget:"Presupuesto aprobado",variance:"Desviación vs presupuesto",noBudget:"Todavía sin presupuesto aprobado para comparar.",periodLabel:"Período con datos",previewLabel:"VISTA PREVIA",previewText:"Los valores de esta sección son ilustrativos — aún no están conectados a los datos reales de la empresa.",marginLabel:"Margen",noRoleData:"Todavía sin líneas clasificadas como Activo/Pasivo/Capital para calcular el balance — configure los roles contables en \"Datos financieros\".",noCashFlowData:"Todavía sin líneas clasificadas por categoría de flujo de caja.",noUnitData:"Todavía sin datos reales por unidad de negocio para este período.",otherLines:"Otras líneas",openFinancialData:"Abrir Datos financieros →",openPlanning:"Abrir Planificación →"},
+fr:{loading:"Chargement des données réelles…",error:"Impossible de charger les données financières.",emptyTitle:"Aucune donnée financière pour l’instant",emptyText:"Ce cockpit n’affiche que les chiffres réels de votre entreprise — aucune valeur n’a encore été enregistrée. Importez votre première clôture dans « Données financières » ou ajoutez une saisie manuelle dans « Planification ».",revenue:"Chiffre d’affaires (réel)",costs:"Coûts (réel)",net:"Résultat (réel)",budget:"Budget approuvé",variance:"Écart vs budget",noBudget:"Pas encore de budget approuvé pour comparer.",periodLabel:"Période avec données",previewLabel:"APERÇU",previewText:"Les valeurs de cette section sont illustratives — pas encore connectées aux données réelles de l’entreprise.",marginLabel:"Marge",noRoleData:"Aucune ligne classée Actif/Passif/Capitaux propres pour calculer le bilan — configurez les rôles comptables dans « Données financières ».",noCashFlowData:"Aucune ligne classée par catégorie de flux de trésorerie pour l’instant.",noUnitData:"Aucune donnée réelle par unité d’activité pour cette période.",otherLines:"Autres lignes",openFinancialData:"Ouvrir Données financières →",openPlanning:"Ouvrir Planification →"},
+ru:{loading:"Загрузка реальных данных…",error:"Не удалось загрузить финансовые данные.",emptyTitle:"Пока нет финансовых данных",emptyText:"Эта панель показывает только реальные цифры вашей компании — пока ничего не зарегистрировано. Импортируйте первое закрытие периода в разделе «Финансовые данные» или добавьте значение вручную в «Планировании».",revenue:"Выручка (факт)",costs:"Затраты (факт)",net:"Результат (факт)",budget:"Утверждённый бюджет",variance:"Отклонение от бюджета",noBudget:"Пока нет утверждённого бюджета для сравнения.",periodLabel:"Период с данными",previewLabel:"ПРЕДПРОСМОТР",previewText:"Значения в этом разделе иллюстративны — ещё не связаны с реальными данными компании.",marginLabel:"Маржа",noRoleData:"Пока нет строк с ролью Актив/Обязательство/Капитал для расчёта баланса — настройте бухгалтерские роли в разделе «Финансовые данные».",noCashFlowData:"Пока нет строк, классифицированных по категории денежного потока.",noUnitData:"Пока нет реальных данных по бизнес-единицам за этот период.",otherLines:"Остальные статьи",openFinancialData:"Открыть Финансовые данные →",openPlanning:"Открыть Планирование →"}};
 
 const fc:Record<PlatformLocale,Record<string,string>>={
 pt:{title:"Centro de decisão do CFO",intro:"Resultado, liquidez, risco e ação numa visão financeira integrada e auditável.",company:"Empresa",period:"Período",comparison:"Comparação",group:"Grupo consolidado",angola:"Operações Angola",corporate:"Serviços Corporativos",aug:"Agosto 2026",jul:"Julho 2026",quarter:"2.º Trimestre 2026",previous:"Actual vs Ano anterior",export:"Exportar Pack ↓",tabs:"Pacotes financeiros",statements:"Demonstrações",performance:"Performance",variance:"Desvios",treasury:"Tesouraria",profitability:"Rentabilidade",drawer:"DRILL-THROUGH · EVIDÊNCIA",reconciled:"Valor reconciliado com a origem, dimensão organizacional, período e versão selecionados.",other:"Outras unidades",source:"Fonte: Actual aprovado · Mapping FIN-REV-01 · Atualizado no fecho de Agosto",revenue:"Receita",above:"Acima do Budget",ebitda:"EBITDA",pressure:"Pressão logística",net:"Resultado líquido",interest:"Juros inferiores",cash:"Caixa disponível",runway:"Runway: 7,4 meses",detail:"abrir detalhe →",trend:"TENDÊNCIA",trendTitle:"Receita · Actual, Budget e Forecast",openPerformance:"Abrir performance",liquidity:"LIQUIDEZ",cashForecast:"Previsão de caixa · 13 semanas",openTreasury:"Abrir tesouraria",available:"M AOA disponíveis",minimum:"Mínimo projetado",buffer:"Buffer de liquidez",explanation:"EXPLICAÇÃO",ebitdaMove:"O que moveu o EBITDA",bridge:"Ver bridge",priceMix:"Preço e mix",volume:"Volume",logistics:"Logística",fx:"Câmbio",action:"AÇÃO",priorities:"Prioridades financeiras",pack:"Management Pack",high:"Alta",medium:"Média",monitor:"Monitorizar",renegotiate:"Renegociar prazo dos 3 maiores clientes",ownerTreasury:"Responsável: Tesouraria · 5 dias",reviewTransport:"Rever contrato de transporte",ownerOps:"Responsável: Operações · 12 dias",covenant:"Covenant dívida líquida/EBITDA",margin:"Margem atual: 0,7×"},
@@ -50,7 +50,7 @@ const actual=[318,334,351,362,389,407,421,438], budget=[310,326,343,365,380,398,
 const money=(n:number)=>`${new Intl.NumberFormat("pt-PT",{maximumFractionDigits:1}).format(n)} M AOA`;
 const pct=(n:number)=>`${n>0?"+":""}${n.toFixed(1)}%`;
 
-export function FinanceSuite({initialView="Cockpit CFO"}:{initialView?:View}){
+export function FinanceSuite({initialView="Cockpit CFO",onNavigate}:{initialView?:View;onNavigate?:(x:string)=>void}){
  const locale=usePlatformLocale(),c=fc[locale],d=fd[locale],r=frx[locale],z=closeCopy[locale],t=rc[locale];
  const [view,setView]=useState<View>(initialView),[period,setPeriod]=useState("Agosto 2026"),[scenario,setScenario]=useState("Actual vs Budget"),[entity,setEntity]=useState("Grupo consolidado");
  const variance=actual[7]-budget[7], variancePct=variance/budget[7]*100;
@@ -58,20 +58,20 @@ export function FinanceSuite({initialView="Cockpit CFO"}:{initialView?:View}){
  return <section className="finance-suite">
   <header className="finance-hero"><div><span>{locale==="es"?"RENDIMIENTO FINANCIERO Y GESTIÓN DE DECISIONES":locale==="fr"?"PERFORMANCE FINANCIÈRE ET GESTION DES DÉCISIONS":locale==="ru"?"ФИНАНСОВАЯ ЭФФЕКТИВНОСТЬ И УПРАВЛЕНИЕ РЕШЕНИЯМИ":"FINANCE PERFORMANCE & DECISION MANAGEMENT"}</span><h1>{c.title}</h1><p>{c.intro}</p></div><div className="finance-controls"><label>{c.company}<select value={entity} onChange={e=>setEntity(e.target.value)}><option>{c.group}</option><option>{c.angola}</option><option>{c.corporate}</option></select></label><label>{c.period}<select value={period} onChange={e=>setPeriod(e.target.value)}><option>{c.aug}</option><option>{c.jul}</option><option>{c.quarter}</option></select></label><label>{c.comparison}<select value={scenario} onChange={e=>setScenario(e.target.value)}><option>{locale==="es"?"Real vs Presupuesto":locale==="fr"?"Réel vs Budget":locale==="ru"?"Факт к бюджету":"Actual vs Budget"}</option><option>{locale==="es"?"Real vs Previsión":locale==="fr"?"Réel vs Prévision":locale==="ru"?"Факт к прогнозу":"Actual vs Forecast"}</option><option>{c.previous}</option></select></label><button onClick={exportPack}>{c.export}</button></div></header>
   <nav className="finance-tabs" aria-label={c.tabs}>{packages.map((x,i)=><button key={x} className={view===x?"active":""} onClick={()=>setView(x)}><i>{i+1}</i>{x==="Cockpit CFO"?(locale==="es"?"Cockpit del CFO":locale==="fr"?"Cockpit du CFO":locale==="ru"?"Панель CFO":"Cockpit CFO"):x==="Demonstrações"?c.statements:x==="Performance"?c.performance:x==="Desvios"?c.variance:x==="Tesouraria"?c.treasury:x==="Working Capital"?(locale==="es"?"Capital circulante":locale==="fr"?"Besoin en fonds de roulement":locale==="ru"?"Оборотный капитал":"Working Capital"):x==="Rentabilidade"?c.profitability:(locale==="es"?"Paquete de gestión":locale==="fr"?"Pack de gestion":locale==="ru"?"Управленческий пакет":"Management Pack")}</button>)}</nav>
-  {view==="Cockpit CFO"&&<Cockpit locale={locale}/>}
-  {view==="Demonstrações"&&<StatementsReal locale={locale} d={d}/>}
-  {view==="Performance"&&<><TrendReal locale={locale} d={d}/><PreviewBanner t={t}/><Performance d={d}/></>}
-  {view==="Desvios"&&<><VarianceReal locale={locale} r={r}/><PreviewBanner t={t}/><Bridges r={r}/></>}
-  {view==="Tesouraria"&&<><DebtReal locale={locale} r={r}/><PreviewBanner t={t}/><Treasury r={r}/></>}
-  {view==="Working Capital"&&<><WorkingCapitalReal locale={locale} z={z}/><PreviewBanner t={t}/><WorkingCapital z={z}/></>}
-  {view==="Rentabilidade"&&<><ProfitabilityReal locale={locale} z={z}/><PreviewBanner t={t}/><Profitability z={z}/></>}
+  {view==="Cockpit CFO"&&<Cockpit locale={locale} onNavigate={onNavigate}/>}
+  {view==="Demonstrações"&&<StatementsReal locale={locale} d={d} onNavigate={onNavigate}/>}
+  {view==="Performance"&&<><TrendReal locale={locale} d={d} onNavigate={onNavigate}/><PreviewBanner t={t}/><Performance d={d}/></>}
+  {view==="Desvios"&&<><VarianceReal locale={locale} r={r} onNavigate={onNavigate}/><PreviewBanner t={t}/><Bridges r={r}/></>}
+  {view==="Tesouraria"&&<><DebtReal locale={locale} r={r} onNavigate={onNavigate}/><PreviewBanner t={t}/><Treasury r={r}/></>}
+  {view==="Working Capital"&&<><WorkingCapitalReal locale={locale} z={z} onNavigate={onNavigate}/><PreviewBanner t={t}/><WorkingCapital z={z}/></>}
+  {view==="Rentabilidade"&&<><ProfitabilityReal locale={locale} z={z} onNavigate={onNavigate}/><PreviewBanner t={t}/><Profitability z={z}/></>}
   {view==="Management Pack"&&<><PreviewBanner t={t}/><ManagementPack onExport={exportPack} z={z}/></>}
  </section>
 }
 
 type CockpitTotals={revenue:number;costs:number;net:number;classifications:{classification:string;total:number}[]};
 type CockpitData={period:string;currency:string;hasData:boolean;hasPeriodData:boolean;hasBudget:boolean;budgetVersionName:string|null;actual:CockpitTotals;budget:CockpitTotals};
-function Cockpit({locale}:{locale:PlatformLocale}){
+function Cockpit({locale,onNavigate}:{locale:PlatformLocale;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:CockpitData}>({status:"loading"});
  useEffect(()=>{
@@ -85,7 +85,7 @@ function Cockpit({locale}:{locale:PlatformLocale}){
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
- if(!data.hasData||!data.hasPeriodData)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.emptyText}</p></article>;
+ if(!data.hasData||!data.hasPeriodData)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.emptyText}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data","planning"]}/></article>;
  const moneyReal=(minor:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:data.currency,maximumFractionDigits:0}).format(minor/100);
  const variance=data.actual.net-data.budget.net;
  return <><section className="finance-kpis">
@@ -98,11 +98,15 @@ function Cockpit({locale}:{locale:PlatformLocale}){
  <p className="status-note">{t.periodLabel}: {data.period}</p></>
 }
 function PreviewBanner({t}:{t:RealCopy}){return <div className="preview-banner"><b>{t.previewLabel}</b><span>{t.previewText}</span></div>}
+function EmptyCta({t,onNavigate,targets}:{t:RealCopy;onNavigate?:(x:string)=>void;targets:("data"|"planning")[]}){
+ if(!onNavigate)return null;
+ return <div className="empty-cta">{targets.includes("data")&&<button onClick={()=>onNavigate("Dados financeiros")}>{t.openFinancialData}</button>}{targets.includes("planning")&&<button onClick={()=>onNavigate("Planeamento")}>{t.openPlanning}</button>}</div>
+}
 function CardTitle({tag,title,action,onClick}:{tag:string;title:string;action?:string;onClick?:()=>void}){return <header className="card-title"><div><span>{tag}</span><h2>{title}</h2></div>{action&&<button onClick={onClick}>{action} →</button>}</header>}
 function RealMetricRows({rows,moneyReal}:{rows:[string,number][];moneyReal:(n:number)=>string}){return <div className="metric-rows">{rows.map(x=><div key={x[0]}><span>{x[0]}</span><b className={x[1]<0?"bad":undefined}>{moneyReal(x[1])}</b></div>)}</div>}
 
 type TrendData={hasData:boolean;currency:string;hasBudget?:boolean;series?:{period:string;actual:{revenue:number;costs:number;net:number};budget:{revenue:number;costs:number;net:number}}[]};
-function TrendReal({locale,d}:{locale:PlatformLocale;d:DeepCopy}){
+function TrendReal({locale,d,onNavigate}:{locale:PlatformLocale;d:DeepCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:TrendData}>({status:"loading"});
  useEffect(()=>{
@@ -116,13 +120,13 @@ function TrendReal({locale,d}:{locale:PlatformLocale;d:DeepCopy}){
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
- if(!data.hasData||!data.series?.length)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.emptyText}</p></article>;
+ if(!data.hasData||!data.series?.length)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.emptyText}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data","planning"]}/></article>;
  const max=Math.max(1,...data.series.flatMap(s=>[s.actual.revenue,s.budget.revenue]))*1.15;
  return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag="ACTUAL · BUDGET" title={d.performanceTitle}/><div className="trend-chart"><div className="chart-legend"><span><i className="a"/>{d.actual}</span><span><i className="b"/>{d.budget}</span></div><div className="bars">{data.series.map(s=><div key={s.period}><section><i className="b" style={{height:`${s.budget.revenue/max*100}%`}}/><i className="a" style={{height:`${s.actual.revenue/max*100}%`}}/></section><small>{s.period}</small></div>)}</div></div></article></div>
 }
 
 type StatementsData={hasData:boolean;period:string|null;currency?:string;income:{precise:boolean;revenue:number;costs?:number;cogs?:number;grossMargin?:number;opex?:number;operatingResult?:number;netResult:number}|null;balanceSheet:{assets:number;liabilities:number;equity:number;netDebt:number;grossDebt:number;cash:number}|null;cashFlow:{operational:number;investing:number;financing:number;net:number}|null;workingCapital:{dso:number;dio:number;dpo:number;ccc:number}|null};
-function StatementsReal({locale,d}:{locale:PlatformLocale;d:DeepCopy}){
+function StatementsReal({locale,d,onNavigate}:{locale:PlatformLocale;d:DeepCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:StatementsData}>({status:"loading"});
  useEffect(()=>{
@@ -136,19 +140,19 @@ function StatementsReal({locale,d}:{locale:PlatformLocale;d:DeepCopy}){
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
- if(!data.hasData)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.emptyText}</p></article>;
+ if(!data.hasData)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.emptyText}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data","planning"]}/></article>;
  const moneyReal=(minor:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:data.currency||"AOA",maximumFractionDigits:0}).format(minor/100);
  const income=data.income;
  const incomeRows:[string,number][]=income?(income.precise?[[d.incomeRows[0],income.revenue],[d.incomeRows[1],-income.cogs!],[d.incomeRows[2],income.grossMargin!],[d.incomeRows[3],-income.opex!],[d.incomeRows[4],income.operatingResult!],[d.incomeRows[5],income.netResult]]:[[d.incomeRows[0],income.revenue],[d.incomeRows[1],-(income.costs||0)],[d.incomeRows[5],income.netResult]]):[];
  return <div className="finance-grid">
-  <article className="finance-card span2"><CardTitle tag={d.integrated} title={d.income}/>{income?<RealMetricRows rows={incomeRows} moneyReal={moneyReal}/>:<p className="status-note">{t.emptyText}</p>}</article>
-  <article className="finance-card"><CardTitle tag={d.balance} title={d.position}/>{data.balanceSheet?<RealMetricRows rows={d.balanceRows.map((label,i)=>[label,[data.balanceSheet!.assets,data.balanceSheet!.liabilities,data.balanceSheet!.equity,data.balanceSheet!.netDebt][i]])} moneyReal={moneyReal}/>:<p className="status-note">{t.noRoleData}</p>}</article>
-  <article className="finance-card"><CardTitle tag={d.cashflow} title={d.cashReconciliation}/>{data.cashFlow?<RealMetricRows rows={d.cashRows.map((label,i)=>[label,[data.cashFlow!.operational,data.cashFlow!.investing,data.cashFlow!.financing,data.cashFlow!.net][i]])} moneyReal={moneyReal}/>:<p className="status-note">{t.noCashFlowData}</p>}</article>
+  <article className="finance-card span2"><CardTitle tag={d.integrated} title={d.income}/>{income?<RealMetricRows rows={incomeRows} moneyReal={moneyReal}/>:<><p className="status-note">{t.emptyText}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data","planning"]}/></>}</article>
+  <article className="finance-card"><CardTitle tag={d.balance} title={d.position}/>{data.balanceSheet?<RealMetricRows rows={d.balanceRows.map((label,i)=>[label,[data.balanceSheet!.assets,data.balanceSheet!.liabilities,data.balanceSheet!.equity,data.balanceSheet!.netDebt][i]])} moneyReal={moneyReal}/>:<><p className="status-note">{t.noRoleData}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data"]}/></>}</article>
+  <article className="finance-card"><CardTitle tag={d.cashflow} title={d.cashReconciliation}/>{data.cashFlow?<RealMetricRows rows={d.cashRows.map((label,i)=>[label,[data.cashFlow!.operational,data.cashFlow!.investing,data.cashFlow!.financing,data.cashFlow!.net][i]])} moneyReal={moneyReal}/>:<><p className="status-note">{t.noCashFlowData}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data"]}/></>}</article>
  </div>
 }
 
 type ProfitabilityData={hasData:boolean;period:string|null;currency?:string;units:{name:string;revenue:number;costs:number;margin:number;marginPct:number|null}[]};
-function ProfitabilityReal({locale,z}:{locale:PlatformLocale;z:ClosingCopy}){
+function ProfitabilityReal({locale,z,onNavigate}:{locale:PlatformLocale;z:ClosingCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:ProfitabilityData}>({status:"loading"});
  useEffect(()=>{
@@ -162,12 +166,12 @@ function ProfitabilityReal({locale,z}:{locale:PlatformLocale;z:ClosingCopy}){
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
- if(!data.hasData)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.noUnitData}</p></article>;
+ if(!data.hasData)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.noUnitData}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data"]}/></article>;
  const moneyReal=(minor:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:data.currency||"AOA",maximumFractionDigits:0}).format(minor/100);
  return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag={z.multi} title={z.marginUnit}/><div className="finance-table"><table><thead><tr><th>{z.unit}</th><th>{z.revenue}</th><th>{t.marginLabel}</th><th>{z.signal}</th></tr></thead><tbody>{data.units.map(u=><tr key={u.name}><th>{u.name}</th><td>{moneyReal(u.revenue)}</td><td className={u.margin>=0?"good":"bad"}>{u.marginPct!==null?`${u.marginPct.toFixed(1)}%`:"—"}</td><td><em className={u.marginPct!==null&&u.marginPct>10?"good":"bad"}>{u.marginPct!==null&&u.marginPct>10?z.creator:z.review}</em></td></tr>)}</tbody></table></div></article></div>
 }
 
-function DebtReal({locale,r}:{locale:PlatformLocale;r:RiskCopy}){
+function DebtReal({locale,r,onNavigate}:{locale:PlatformLocale;r:RiskCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:StatementsData}>({status:"loading"});
  useEffect(()=>{
@@ -181,12 +185,12 @@ function DebtReal({locale,r}:{locale:PlatformLocale;r:RiskCopy}){
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
- if(!data.hasData||!data.balanceSheet)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.noRoleData}</p></article>;
+ if(!data.hasData||!data.balanceSheet)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.noRoleData}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data"]}/></article>;
  const moneyReal=(minor:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:data.currency||"AOA",maximumFractionDigits:0}).format(minor/100);
  return <div className="finance-grid"><article className="finance-card"><CardTitle tag={r.debt} title={r.financing}/><RealMetricRows rows={[[r.debtRows[0],data.balanceSheet.grossDebt],[r.debtRows[1],data.balanceSheet.netDebt]]} moneyReal={moneyReal}/></article></div>
 }
 
-function WorkingCapitalReal({locale,z}:{locale:PlatformLocale;z:ClosingCopy}){
+function WorkingCapitalReal({locale,z,onNavigate}:{locale:PlatformLocale;z:ClosingCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:StatementsData}>({status:"loading"});
  useEffect(()=>{
@@ -200,7 +204,7 @@ function WorkingCapitalReal({locale,z}:{locale:PlatformLocale;z:ClosingCopy}){
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
- if(!data.hasData||!data.workingCapital)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.noRoleData}</p></article>;
+ if(!data.hasData||!data.workingCapital)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.noRoleData}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data"]}/></article>;
  const days=(n:number)=>`${n.toFixed(0)} dias`;
  return <div className="finance-grid"><article className="finance-card"><CardTitle tag={z.cycle} title={z.ccc}/><div className="score"><strong>{days(data.workingCapital.ccc)}</strong></div><div className="metric-rows"><div><span>{z.cycleRows[0].replace(/\s*·.*/,"")}</span><b>{days(data.workingCapital.dso)}</b></div><div><span>{z.cycleRows[1].replace(/\s*·.*/,"")}</span><b>{days(data.workingCapital.dio)}</b></div><div><span>{z.cycleRows[2].replace(/\s*·.*/,"")}</span><b>{days(data.workingCapital.dpo)}</b></div></div></article></div>
 }
@@ -209,7 +213,7 @@ function Performance({d}:{d:DeepCopy}){return <div className="finance-grid"><art
 function Bridges({r}:{r:RiskCopy}){return <div className="finance-grid"><article className="finance-card"><CardTitle tag={r.causes} title={r.classification}/><MetricRows rows={r.causeRows.map((x,i)=>[x,[-9.1,-4.6,-5.8,-7.9][i]])}/></article><article className="finance-card"><CardTitle tag={r.impact} title={r.annual}/><div className="score warning"><strong>−38,6 M</strong><span>{r.annualRisk}</span></div></article></div>}
 
 type VarianceData={hasData:boolean;period:string|null;currency?:string;hasBudget:boolean;actualNet?:number;budgetNet?:number;netVariance?:number;drivers?:{lineCode:string;lineName:string;classification:string;contribution:number}[];residual?:number};
-function VarianceReal({locale,r}:{locale:PlatformLocale;r:RiskCopy}){
+function VarianceReal({locale,r,onNavigate}:{locale:PlatformLocale;r:RiskCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:VarianceData}>({status:"loading"});
  useEffect(()=>{
@@ -223,7 +227,7 @@ function VarianceReal({locale,r}:{locale:PlatformLocale;r:RiskCopy}){
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
- if(!data.hasData||!data.drivers)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{data.hasBudget===false?t.noBudget:t.emptyText}</p></article>;
+ if(!data.hasData||!data.drivers)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{data.hasBudget===false?t.noBudget:t.emptyText}</p><EmptyCta t={t} onNavigate={onNavigate} targets={data.hasBudget===false?["planning"]:["data","planning"]}/></article>;
  const moneyReal=(minor:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:data.currency||"AOA",maximumFractionDigits:0}).format(minor/100);
  const bars=[
   {label:r.bridgeRows[0],value:data.budgetNet||0,kind:"base"},
