@@ -420,9 +420,8 @@ test("enterprise shell exposes search profile help and legal trust surfaces", ()
   assert.match(command, /\/privacidade/);
   assert.doesNotMatch(layout, /codex-preview/);
 });
-test("top enterprise shortcuts and help are functional", () => {
-  for (const target of ["Visão geral", "Planeamento", "RH Dashboard", "Workflow"])
-    assert.match(page, new RegExp(`setModulo\\([\\s\\S]{0,180}${target}`));
+test("redundant top shortcuts bar is gone, help and command palette remain", () => {
+  assert.doesNotMatch(page, /className="atalhos"/);
   assert.match(page, /setCommandMode\("help"\)/);
   assert.match(page, /ctrlKey\s*\|\|\s*e\.metaKey/);
 });

@@ -446,66 +446,6 @@ export default function Home() {
             {sessao.modules.length} {nav.activeModules}
           </em>
         </div>
-        <div className="atalhos">
-          <button
-            className={modulo === "Visão geral" ? "ativo" : ""}
-            onClick={() => setModulo("Visão geral")}
-          >
-            {msg("shell.overview")}
-          </button>
-          <button
-            className={
-              [
-                "Planeamento",
-                "Cenários",
-                "Diagnóstico",
-                "Modelação",
-                "Cash-flow",
-                "Consolidação",
-              ].includes(modulo)
-                ? "ativo"
-                : ""
-            }
-            onClick={() =>
-              setModulo(
-                sessao.modules.includes("FINANCE_FP&A")
-                  ? "Planeamento"
-                  : "Objetivos",
-              )
-            }
-          >
-            {msg("shell.performance")}
-          </button>
-          <button
-            className={
-              [
-                "RH Dashboard",
-                "Pessoas",
-                "Recrutamento",
-                "Assiduidade",
-                "Ausências",
-                "Documentos HCM",
-              ].includes(modulo)
-                ? "ativo"
-                : ""
-            }
-            onClick={() =>
-              setModulo(
-                sessao.modules.includes("HCM") || sessao.modules.includes("PAYROLL")
-                  ? "RH Dashboard"
-                  : "Administração",
-              )
-            }
-          >
-            {msg("shell.hr")}
-          </button>
-          <button
-            className={modulo === "Workflow" ? "ativo" : ""}
-            onClick={() => setModulo("Workflow")}
-          >
-            {msg("shell.activities")}
-          </button>
-        </div>
         <button className="ajuda" onClick={() => setCommandMode("help")}>
           ? {msg("shell.help")}
         </button>

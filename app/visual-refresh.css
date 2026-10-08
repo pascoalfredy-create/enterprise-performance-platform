@@ -25,10 +25,6 @@ body.ui-scale{color:var(--ep-text)}
 .ui-scale .subnav{min-height:58px;padding:0 28px;background:#fffefa;border-bottom:1px solid var(--ep-line);box-shadow:none}
 .ui-scale .empresa>span{background:var(--ep-teal-soft);color:var(--ep-teal);border-radius:10px}
 .ui-scale .empresa select{color:var(--ep-navy-900);font-weight:800}
-.ui-scale .atalhos{align-self:stretch;gap:5px}
-.ui-scale .atalhos button{position:relative;padding:0 14px;color:#747b73;background:transparent!important;border:0!important;border-radius:0!important}
-.ui-scale .atalhos button.ativo{color:var(--ep-navy-900);font-weight:800}
-.ui-scale .atalhos button.ativo:after{content:"";position:absolute;left:14px;right:14px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--ep-teal)}
 
 /* Strong navigation contrast separates product from workspace */
 .ui-scale .workspace-layout{max-width:none;grid-template-columns:270px minmax(0,1fr)}
