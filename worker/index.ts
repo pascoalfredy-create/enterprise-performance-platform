@@ -5735,6 +5735,8 @@ const worker = {
       const moduleRequired: string | null = [
         "/api/setup",
         "/api/document-hub",
+        "/api/readiness",
+        "/api/integrity",
       ].includes(apiPath)
         ? "CORE"
         : [
@@ -5772,7 +5774,9 @@ const worker = {
                   ? "PERFORMANCE_MANAGEMENT"
                   : ["/api/workforce", "/api/workforce-plans"].includes(apiPath)
                     ? "WORKFORCE_PLANNING"
-                    : apiPath === "/api/workflow"
+                    : ["/api/workflow", "/api/notifications"].includes(
+                          apiPath,
+                        )
                       ? "WORKFLOW"
                       : [
                             "/api/dashboard",
