@@ -343,7 +343,7 @@ export function WorkforcePlansWorkspace() {
                     </select>
                   </label>
                   <label>
-                    Efetivos
+                    Headcount
                     <input name="headcount" type="number" min="0" required />
                   </label>
                 </div>

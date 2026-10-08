@@ -109,7 +109,7 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Crie ou selecione um plano e registe as necessidades por período.","Create or select a plan and record requirements by period.","Cree o seleccione un plan y registre las necesidades por período.","Créez ou sélectionnez un plan et enregistrez les besoins par période.","Создайте или выберите план и внесите потребности по периодам."],
 ["GOVERNAÇÃO","GOVERNANCE","GOBERNANZA","GOUVERNANCE","УПРАВЛЕНИЕ"],
 ["PLANEAMENTO DE EFETIVOS","HEADCOUNT PLANNING","PLANIFICACIÓN DE DOTACIÓN","PLANIFICATION DES EFFECTIFS","ПЛАНИРОВАНИЕ ЧИСЛЕННОСТИ"],
-["Efetivos","Headcount","Dotación","Effectif","Численность"],
+["Headcount","Headcount","Dotación","Effectif","Численность"],
 ["Custo mensal unitário","Monthly unit cost","Coste unitario mensual","Coût unitaire mensuel","Месячная стоимость единицы"],
 ["CENTRO DE DOCUMENTOS EMPRESARIAL","ENTERPRISE DOCUMENT HUB","CENTRO DOCUMENTAL EMPRESARIAL","CENTRE DOCUMENTAIRE D’ENTREPRISE","КОРПОРАТИВНЫЙ ЦЕНТР ДОКУМЕНТОВ"],
 ["Upload privado, versões, hash, OCR assistido e validação humana.","Private upload, versions, hash, assisted OCR and human validation.","Carga privada, versiones, hash, OCR asistido y validación humana.","Dépôt privé, versions, empreinte, OCR assisté et validation humaine.","Закрытая загрузка, версии, хэш, OCR и проверка человеком."],
