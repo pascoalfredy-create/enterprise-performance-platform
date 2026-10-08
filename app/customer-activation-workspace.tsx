@@ -369,10 +369,10 @@ export function CustomerActivationWorkspace({
               Bundle pretendido
               <select name="requestedBundle">
                 <option value="">Não aplicável</option>
-                <option>FINANCE</option>
-                <option>PEOPLE</option>
-                <option>PERFORMANCE</option>
-                <option>ENTERPRISE</option>
+                <option value="FINANCE">FINANÇAS</option>
+                <option value="PEOPLE">PESSOAS</option>
+                <option value="PERFORMANCE">PERFORMANCE</option>
+                <option value="ENTERPRISE">ENTERPRISE</option>
               </select>
             </label>
             <label>

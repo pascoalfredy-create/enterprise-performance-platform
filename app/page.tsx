@@ -1477,7 +1477,7 @@ function ConfiguracaoReal() {
                   <input name="name" required autoFocus />
                 </label>
                 <label>
-                  Email
+                  E-mail
                   <input name="email" type="email" required />
                 </label>
                 <div>
@@ -2368,7 +2368,7 @@ function WorkflowInbox({
     <section className="workflow">
       <div className="workflow-top">
         <div>
-          <span>WORKFLOW & APPROVALS</span>
+          <span>FLUXO DE TRABALHO E APROVAÇÕES</span>
           <h1>Decisões pendentes num único lugar</h1>
           <p>
             A caixa de trabalho lê o estado real de cada motor; não duplica nem
@@ -2694,7 +2694,7 @@ function GoalsWorkspace() {
         </article>
         <aside className="cartao goal-cycles">
           <span>CICLOS</span>
-          <h2>Governance</h2>
+          <h2>Governança</h2>
           {data.cycles.map((c) => (
             <div key={c.id}>
               <span>
@@ -3854,7 +3854,7 @@ function ScenariosWorkspace() {
     <section className="scenarios">
       <div className="scenarios-top">
         <div>
-          <span>FINANCE & FP&A · FORECAST</span>
+          <span>FINANÇAS E FP&A · FORECAST</span>
           <h1>Antecipar resultados sem alterar o Actual</h1>
           <p>
             Versões independentes, pressupostos explícitos e comparação
@@ -3975,7 +3975,7 @@ function ScenariosWorkspace() {
         </article>
         <aside className="cartao scenario-versions">
           <span>VERSÕES</span>
-          <h2>Governance</h2>
+          <h2>Governança</h2>
           {data.versions.map((v) => (
             <button
               key={v.id}
@@ -4007,7 +4007,7 @@ function ScenariosWorkspace() {
           <form onSubmit={submit}>
             <header>
               <div>
-                <small>FP&A · PLANNING VERSION</small>
+                <small>FP&A · VERSÃO DE PLANEAMENTO</small>
                 <h2>
                   {modal === "createPlanningVersion"
                     ? "Nova versão"
@@ -5632,7 +5632,7 @@ function ManagementReport() {
     <section className="reports">
       <div className="reports-top">
         <div>
-          <span>MANAGEMENT REPORTING</span>
+          <span>RELATÓRIOS DE GESTÃO</span>
           <h1>Da performance à recomendação executiva</h1>
           <p>
             Versões imutáveis, parâmetros explícitos e narrativa suportada pelos
@@ -5659,7 +5659,7 @@ function ManagementReport() {
               />
             </label>
             <label>
-              Template
+              Modelo
               <select name="template">
                 <option>Executivo</option>
                 <option>Controller</option>

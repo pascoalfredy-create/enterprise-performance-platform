@@ -107,7 +107,7 @@ export function WorkforcePlansWorkspace() {
     <section className="headcount">
       <header>
         <div>
-          <span>WORKFORCE PLANNING · HEADCOUNT</span>
+          <span>PLANEAMENTO DE EFETIVOS · DOTAÇÃO</span>
           <h1>Pessoas certas, custo previsto, decisão governada</h1>
           <p>
             Plano por função, departamento e período, comparado com o quadro e
@@ -237,7 +237,7 @@ export function WorkforcePlansWorkspace() {
           )}
         </article>
         <aside className="cartao hc-control">
-          <span>GOVERNANCE</span>
+          <span>GOVERNAÇÃO</span>
           <h2>Controlo do plano</h2>
           <dl>
             <dt>Estado</dt>
@@ -268,7 +268,7 @@ export function WorkforcePlansWorkspace() {
           <form onSubmit={submit}>
             <header>
               <div>
-                <small>HEADCOUNT PLANNING</small>
+                <small>PLANEAMENTO DE EFETIVOS</small>
                 <h2>{modal === "createPlan" ? "Novo plano" : "Nova linha"}</h2>
               </div>
               <button type="button" onClick={() => setModal("")}>
@@ -343,7 +343,7 @@ export function WorkforcePlansWorkspace() {
                     </select>
                   </label>
                   <label>
-                    Headcount
+                    Efetivos
                     <input name="headcount" type="number" min="0" required />
                   </label>
                 </div>

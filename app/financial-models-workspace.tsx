@@ -144,7 +144,7 @@ export function FinancialModelsWorkspace({
     <section className="financial-models">
       <header className="fm-top">
         <div>
-          <span>FINANCE & FP&A · BUSINESS PLANNING</span>
+          <span>FINANÇAS E FP&A · PLANEAMENTO DE NEGÓCIO</span>
           <h1>Do pressuposto à liquidez, sem caixas negras</h1>
           <p>
             Plano de negócios mensal, drivers, resultados, CAPEX, financiamento
@@ -340,7 +340,7 @@ export function FinancialModelsWorkspace({
           <article className="cartao fm-evidence">
             <div className="cab">
               <div>
-                <span>LINEAGE</span>
+                <span>RASTREABILIDADE</span>
                 <h2>Evidência determinística</h2>
               </div>
             </div>
@@ -438,7 +438,7 @@ export function FinancialModelsWorkspace({
           <form onSubmit={submit}>
             <header>
               <div>
-                <small>FINANCIAL MODEL</small>
+                <small>MODELO FINANCEIRO</small>
                 <h2>
                   {modal === "createModel"
                     ? "Novo plano financeiro"

@@ -174,7 +174,7 @@ export function FinancialDataWorkspace() {
     <section className="financial-data">
       <header className="fd-top">
         <div>
-          <span>FINANCE & FP&A · DATA FOUNDATION</span>
+          <span>FINANÇAS E FP&A · BASE DE DADOS</span>
           <h1>Dados de qualquer ERP, com mapping antes do Actual</h1>
           <p>
             Catálogo financeiro próprio, códigos de origem, validação segregada
@@ -398,7 +398,7 @@ export function FinancialDataWorkspace() {
           <form onSubmit={submit}>
             <header>
               <div>
-                <small>FINANCIAL DATA</small>
+                <small>DADOS FINANCEIROS</small>
                 <h2>
                   {modal === "createLine"
                     ? "Nova linha financeira"

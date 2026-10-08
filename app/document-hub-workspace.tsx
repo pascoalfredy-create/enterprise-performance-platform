@@ -146,7 +146,7 @@ export function DocumentHubWorkspace() {
     <section className="document-hub">
       <header className="dh-hero">
         <div>
-          <small>ENTERPRISE DOCUMENT HUB</small>
+          <small>CENTRO DE DOCUMENTOS EMPRESARIAL</small>
           <h1>Documentos organizados por módulo</h1>
           <p>
             Upload privado, versões, hash, OCR assistido e validação humana.
@@ -339,7 +339,7 @@ export function DocumentHubWorkspace() {
           <form onSubmit={submit}>
             <header>
               <div>
-                <small>DOCUMENT HUB</small>
+                <small>CENTRO DE DOCUMENTOS</small>
                 <h2>
                   {modal === "folder" ? "Nova pasta" : "Carregar documento"}
                 </h2>

@@ -143,7 +143,7 @@ export function ConsolidationWorkspace() {
     <section className="consolidation">
       <div className="consolidation-top">
         <div>
-          <span>FINANCE & FP&A · CONSOLIDATION</span>
+          <span>FINANÇAS E FP&A · CONSOLIDAÇÃO</span>
           <h1>Várias empresas, uma visão financeira comparável</h1>
           <p>
             Câmbio versionado, conversão rastreável e eliminações documentadas.
@@ -430,7 +430,7 @@ export function ConsolidationWorkspace() {
           <form onSubmit={submit}>
             <header>
               <div>
-                <small>FINANCIAL CONSOLIDATION</small>
+                <small>CONSOLIDAÇÃO FINANCEIRA</small>
                 <h2>
                   {modal === "createRateSet"
                     ? "Nova tabela de taxas"

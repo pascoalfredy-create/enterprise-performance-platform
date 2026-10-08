@@ -245,7 +245,7 @@ export function FinancialDiagnosticsWorkspace({
     <section className="diagnostics">
       <header className="dg-top">
         <div>
-          <span>FINANCE & FP&A · DIAGNOSTICS & INVESTMENT</span>
+          <span>FINANÇAS E FP&A · DIAGNÓSTICO E INVESTIMENTO</span>
           <h1>Da situação financeira à decisão de investimento</h1>
           <p>
             Rácios explicáveis, score configurável, recomendações, VPL, TIR,
@@ -570,7 +570,7 @@ export function FinancialDiagnosticsWorkspace({
           <article className="cartao dg-frameworks">
             <div className="cab">
               <div>
-                <span>FRAMEWORKS</span>
+                <span>ENQUADRAMENTOS</span>
                 <h2>Pesos e regras configuráveis</h2>
               </div>
             </div>
