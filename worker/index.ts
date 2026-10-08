@@ -31,7 +31,12 @@ import {
   financialStatementsApi,
   financialTrendApi,
 } from "./financial-statements";
-import { hrCockpitApi } from "./hr-data";
+import {
+  hrCockpitApi,
+  hrPayrollCostApi,
+  hrPeopleApi,
+  hrTalentApi,
+} from "./hr-data";
 import { executiveCockpitApi } from "./analytics-data";
 import { financialDiagnosticsApi } from "./financial-diagnostics";
 import { workforcePlansApi } from "./workforce-plans";
@@ -5651,16 +5656,20 @@ const worker = {
                     "/api/attendance",
                     "/api/employee-documents",
                     "/api/hr-cockpit",
+                    "/api/hr-people",
+                    "/api/hr-payroll-cost",
                   ].includes(apiPath)
                 ? write
                   ? "hcm:write"
                   : "hcm:read"
-                : ["/api/payroll-loans", "/api/payroll-adjustments"].includes(
-                      apiPath,
-                    )
-                  ? write
-                    ? "payroll:write"
-                    : "payroll:read"
+                : apiPath === "/api/hr-talent"
+                  ? "review:read"
+                  : ["/api/payroll-loans", "/api/payroll-adjustments"].includes(
+                        apiPath,
+                      )
+                    ? write
+                      ? "payroll:write"
+                      : "payroll:read"
                   : apiPath === "/api/performance" && write
                     ? "performance:write"
                     : apiPath === "/api/scenarios"
@@ -5755,6 +5764,8 @@ const worker = {
               "/api/attendance",
               "/api/employee-documents",
               "/api/hr-cockpit",
+              "/api/hr-people",
+              "/api/hr-payroll-cost",
             ].includes(apiPath)
           ? "HCM"
           : [
@@ -5783,6 +5794,7 @@ const worker = {
                       "/api/goals",
                       "/api/reviews",
                       "/api/competencies",
+                      "/api/hr-talent",
                     ].includes(apiPath)
                   ? "PERFORMANCE_MANAGEMENT"
                   : ["/api/workforce", "/api/workforce-plans"].includes(apiPath)
@@ -5845,6 +5857,12 @@ const worker = {
         return hcmApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/hr-cockpit")
         return hrCockpitApi(request, env.DB, security);
+      if (apiPath === "/api/hr-people")
+        return hrPeopleApi(request, env.DB, security);
+      if (apiPath === "/api/hr-payroll-cost")
+        return hrPayrollCostApi(request, env.DB, security);
+      if (apiPath === "/api/hr-talent")
+        return hrTalentApi(request, env.DB, security);
       if (apiPath === "/api/recruitment")
         return recruitmentApi(request, env.DB, security);
       if (apiPath === "/api/attendance")
