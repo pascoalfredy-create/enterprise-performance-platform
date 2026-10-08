@@ -169,11 +169,20 @@ export async function financialStatementsApi(
       liabilities =
         currentLiabilities + r("LONGTERM_DEBT") + r("OTHER_NONCURRENT_LIABILITY"),
       equity = r("EQUITY"),
-      netDebt = r("CURRENT_DEBT") + r("LONGTERM_DEBT") - r("CASH");
+      grossDebt = r("CURRENT_DEBT") + r("LONGTERM_DEBT"),
+      netDebt = grossDebt - r("CASH");
     const hasBalance = hasRoles && assets > 0;
     const balanceSheet = hasBalance
-      ? { assets, liabilities, equity, netDebt }
+      ? { assets, liabilities, equity, netDebt, grossDebt, cash: r("CASH") }
       : null;
+    const hasWorkingCapital = hasRoles && r("REVENUE") > 0;
+    let workingCapital: { dso: number; dio: number; dpo: number; ccc: number } | null = null;
+    if (hasWorkingCapital) {
+      const dso = (r("RECEIVABLES") / r("REVENUE")) * 30,
+        dio = r("COGS") > 0 ? (r("INVENTORY") / r("COGS")) * 30 : 0,
+        dpo = r("COGS") > 0 ? (r("PAYABLES") / r("COGS")) * 30 : 0;
+      workingCapital = { dso, dio, dpo, ccc: dso + dio - dpo };
+    }
     const operational = num(cash, "Operacional"),
       investing = num(cash, "Investimento"),
       financing = num(cash, "Financiamento"),
@@ -195,6 +204,7 @@ export async function financialStatementsApi(
       income,
       balanceSheet,
       cashFlow,
+      workingCapital,
     });
   } catch (error) {
     return fail(error);

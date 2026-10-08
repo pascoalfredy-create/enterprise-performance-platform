@@ -62,8 +62,8 @@ export function FinanceSuite({initialView="Cockpit CFO"}:{initialView?:View}){
   {view==="Demonstrações"&&<StatementsReal locale={locale} d={d}/>}
   {view==="Performance"&&<><TrendReal locale={locale} d={d}/><PreviewBanner t={t}/><Performance d={d}/></>}
   {view==="Desvios"&&<><PreviewBanner t={t}/><Bridges r={r}/></>}
-  {view==="Tesouraria"&&<><PreviewBanner t={t}/><Treasury r={r}/></>}
-  {view==="Working Capital"&&<><PreviewBanner t={t}/><WorkingCapital z={z}/></>}
+  {view==="Tesouraria"&&<><DebtReal locale={locale} r={r}/><PreviewBanner t={t}/><Treasury r={r}/></>}
+  {view==="Working Capital"&&<><WorkingCapitalReal locale={locale} z={z}/><PreviewBanner t={t}/><WorkingCapital z={z}/></>}
   {view==="Rentabilidade"&&<><ProfitabilityReal locale={locale} z={z}/><PreviewBanner t={t}/><Profitability z={z}/></>}
   {view==="Management Pack"&&<><PreviewBanner t={t}/><ManagementPack onExport={exportPack} z={z}/></>}
  </section>
@@ -121,7 +121,7 @@ function TrendReal({locale,d}:{locale:PlatformLocale;d:DeepCopy}){
  return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag="ACTUAL · BUDGET" title={d.performanceTitle}/><div className="trend-chart"><div className="chart-legend"><span><i className="a"/>{d.actual}</span><span><i className="b"/>{d.budget}</span></div><div className="bars">{data.series.map(s=><div key={s.period}><section><i className="b" style={{height:`${s.budget.revenue/max*100}%`}}/><i className="a" style={{height:`${s.actual.revenue/max*100}%`}}/></section><small>{s.period}</small></div>)}</div></div></article></div>
 }
 
-type StatementsData={hasData:boolean;period:string|null;currency?:string;income:{precise:boolean;revenue:number;costs?:number;cogs?:number;grossMargin?:number;opex?:number;operatingResult?:number;netResult:number}|null;balanceSheet:{assets:number;liabilities:number;equity:number;netDebt:number}|null;cashFlow:{operational:number;investing:number;financing:number;net:number}|null};
+type StatementsData={hasData:boolean;period:string|null;currency?:string;income:{precise:boolean;revenue:number;costs?:number;cogs?:number;grossMargin?:number;opex?:number;operatingResult?:number;netResult:number}|null;balanceSheet:{assets:number;liabilities:number;equity:number;netDebt:number;grossDebt:number;cash:number}|null;cashFlow:{operational:number;investing:number;financing:number;net:number}|null;workingCapital:{dso:number;dio:number;dpo:number;ccc:number}|null};
 function StatementsReal({locale,d}:{locale:PlatformLocale;d:DeepCopy}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:StatementsData}>({status:"loading"});
@@ -166,10 +166,48 @@ function ProfitabilityReal({locale,z}:{locale:PlatformLocale;z:ClosingCopy}){
  const moneyReal=(minor:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:data.currency||"AOA",maximumFractionDigits:0}).format(minor/100);
  return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag={z.multi} title={z.marginUnit}/><div className="finance-table"><table><thead><tr><th>{z.unit}</th><th>{z.revenue}</th><th>{t.marginLabel}</th><th>{z.signal}</th></tr></thead><tbody>{data.units.map(u=><tr key={u.name}><th>{u.name}</th><td>{moneyReal(u.revenue)}</td><td className={u.margin>=0?"good":"bad"}>{u.marginPct!==null?`${u.marginPct.toFixed(1)}%`:"—"}</td><td><em className={u.marginPct!==null&&u.marginPct>10?"good":"bad"}>{u.marginPct!==null&&u.marginPct>10?z.creator:z.review}</em></td></tr>)}</tbody></table></div></article></div>
 }
+
+function DebtReal({locale,r}:{locale:PlatformLocale;r:RiskCopy}){
+ const t=rc[locale];
+ const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:StatementsData}>({status:"loading"});
+ useEffect(()=>{
+  let active=true;
+  apiFetch("/api/financial-statements")
+   .then(async res=>({ok:res.ok,body:await res.json() as StatementsData}))
+   .then(({ok,body})=>{if(active)setState(ok?{status:"ready",data:body}:{status:"error"})})
+   .catch(()=>{if(active)setState({status:"error"})});
+  return ()=>{active=false};
+ },[]);
+ if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
+ if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
+ const {data}=state;
+ if(!data.hasData||!data.balanceSheet)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.noRoleData}</p></article>;
+ const moneyReal=(minor:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:data.currency||"AOA",maximumFractionDigits:0}).format(minor/100);
+ return <div className="finance-grid"><article className="finance-card"><CardTitle tag={r.debt} title={r.financing}/><RealMetricRows rows={[[r.debtRows[0],data.balanceSheet.grossDebt],[r.debtRows[1],data.balanceSheet.netDebt]]} moneyReal={moneyReal}/></article></div>
+}
+
+function WorkingCapitalReal({locale,z}:{locale:PlatformLocale;z:ClosingCopy}){
+ const t=rc[locale];
+ const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:StatementsData}>({status:"loading"});
+ useEffect(()=>{
+  let active=true;
+  apiFetch("/api/financial-statements")
+   .then(async res=>({ok:res.ok,body:await res.json() as StatementsData}))
+   .then(({ok,body})=>{if(active)setState(ok?{status:"ready",data:body}:{status:"error"})})
+   .catch(()=>{if(active)setState({status:"error"})});
+  return ()=>{active=false};
+ },[]);
+ if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
+ if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
+ const {data}=state;
+ if(!data.hasData||!data.workingCapital)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.noRoleData}</p></article>;
+ const days=(n:number)=>`${n.toFixed(0)} dias`;
+ return <div className="finance-grid"><article className="finance-card"><CardTitle tag={z.cycle} title={z.ccc}/><div className="score"><strong>{days(data.workingCapital.ccc)}</strong></div><div className="metric-rows"><div><span>{z.cycleRows[0].replace(/\s*·.*/,"")}</span><b>{days(data.workingCapital.dso)}</b></div><div><span>{z.cycleRows[1].replace(/\s*·.*/,"")}</span><b>{days(data.workingCapital.dio)}</b></div><div><span>{z.cycleRows[2].replace(/\s*·.*/,"")}</span><b>{days(data.workingCapital.dpo)}</b></div></div></article></div>
+}
 function MetricRows({rows}:{rows:[string,number][]}){return <div className="metric-rows">{rows.map(x=><div key={x[0]}><span>{x[0]}</span><b>{money(x[1])}</b></div>)}</div>}
 function Performance({d}:{d:DeepCopy}){return <div className="finance-grid"><article className="finance-card"><CardTitle tag={d.forecastQuality} title={d.quality}/><div className="score"><strong>94,2%</strong><span>{d.qualityDelta}</span></div><MetricRows rows={d.forecastRows.map((x,i)=>[x,[5284,988,236][i]])}/></article><article className="finance-card"><CardTitle tag={d.drivers} title={d.assumptions}/><ul className="driver-list">{d.assumptionRows.map((x,i)=><li key={x}><b>{x}</b><em>{["+4,2%","+2,6%","1 012 AOA","18,4%"][i]}</em></li>)}</ul></article></div>}
 function Bridges({r}:{r:RiskCopy}){const values=[[85,"base"],[9.8,"up"],[5.7,"up"],[-2.9,"down"],[-8.6,"down"],[-6.6,"down"],[82.4,"total"]] as const;return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag={r.bridge} title={r.bridgeTitle}/><div className="bridge">{r.bridgeRows.map((label,i)=><div key={label}><span>{label}</span><i className={values[i][1]} style={{height:`${Math.max(22,Math.abs(values[i][0])*2.1)}px`}}/><b>{values[i][0]>0?"+":""}{values[i][0]} M</b></div>)}</div></article><article className="finance-card"><CardTitle tag={r.causes} title={r.classification}/><MetricRows rows={r.causeRows.map((x,i)=>[x,[-9.1,-4.6,-5.8,-7.9][i]])}/></article><article className="finance-card"><CardTitle tag={r.impact} title={r.annual}/><div className="score warning"><strong>−38,6 M</strong><span>{r.annualRisk}</span></div></article></div>}
-function Treasury({r}:{r:RiskCopy}){const weeks=[214,202,187,192,174,158,146,132,126,139,151,168,183];return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag={r.cash13} title={r.projected}/><div className="line-bars">{weeks.map((x,i)=><div key={i}><i style={{height:`${x/2.4}px`}}/><b>{x}</b><small>{r.week}{i+1}</small></div>)}</div></article><article className="finance-card"><CardTitle tag={r.bank} title={r.currency}/><MetricRows rows={r.bankRows.map((x,i)=>[x,[124.6,76.2,14][i]])}/></article><article className="finance-card"><CardTitle tag={r.debt} title={r.financing}/><MetricRows rows={r.debtRows.map((x,i)=>[x,[515.8,301,72.5][i]])}/><p className="status-note good">✓ {r.covenantOk}</p></article></div>}
-function WorkingCapital({z}:{z:ClosingCopy}){const agingValues=[[184,64],[58,20],[27,9],[12,4],[8,3]];return <div className="finance-grid"><article className="finance-card"><CardTitle tag={z.cycle} title={z.ccc}/><div className="score"><strong>{z.days}</strong><span>{z.quarter}</span></div><MetricRows rows={z.cycleRows.map((x,i)=>[x,[286,144,209][i]])}/></article><article className="finance-card span2"><CardTitle tag={z.aging} title={z.receivables}/><div className="aging">{z.agingRows.map((label,i)=><div key={label}><span>{label}</span><section><i style={{width:`${agingValues[i][1]}%`}}/></section><b>{money(agingValues[i][0])}</b></div>)}</div></article><article className="finance-card span2"><CardTitle tag={z.opportunity} title={z.release}/><div className="opportunity"><strong>28,4 M AOA</strong><p>{z.releaseText}</p><button>{z.actionPlan}</button></div></article></div>}
+function Treasury({r}:{r:RiskCopy}){const weeks=[214,202,187,192,174,158,146,132,126,139,151,168,183];return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag={r.cash13} title={r.projected}/><div className="line-bars">{weeks.map((x,i)=><div key={i}><i style={{height:`${x/2.4}px`}}/><b>{x}</b><small>{r.week}{i+1}</small></div>)}</div></article><article className="finance-card"><CardTitle tag={r.bank} title={r.currency}/><MetricRows rows={r.bankRows.map((x,i)=>[x,[124.6,76.2,14][i]])}/></article></div>}
+function WorkingCapital({z}:{z:ClosingCopy}){const agingValues=[[184,64],[58,20],[27,9],[12,4],[8,3]];return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag={z.aging} title={z.receivables}/><div className="aging">{z.agingRows.map((label,i)=><div key={label}><span>{label}</span><section><i style={{width:`${agingValues[i][1]}%`}}/></section><b>{money(agingValues[i][0])}</b></div>)}</div></article><article className="finance-card span2"><CardTitle tag={z.opportunity} title={z.release}/><div className="opportunity"><strong>28,4 M AOA</strong><p>{z.releaseText}</p><button>{z.actionPlan}</button></div></article></div>}
 function Profitability({z}:{z:ClosingCopy}){return <div className="finance-grid"><article className="finance-card"><CardTitle tag={z.economics} title={z.customer}/><MetricRows rows={z.economicsRows.map((x,i)=>[x,[12.8,8.1,4.7][i]])}/></article><article className="finance-card"><CardTitle tag={z.concentration} title={z.commercialRisk}/><div className="score warning"><strong>38%</strong><span>{z.topCustomers}</span></div><p className="status-note bad">! {z.limit}</p></article></div>}
 function ManagementPack({onExport,z}:{onExport:()=>void;z:ClosingCopy}){return <div className="pack"><header><div><small>{z.board}</small><h2>{z.packTitle}</h2><p>{z.packContext}</p></div><button onClick={onExport}>{z.download}</button></header><section>{z.sectionTags.map((tag,i)=><article key={tag}><span>{tag}</span><h3>{z.sectionTitles[i]}</h3>{i<3?<p>{z.sectionTexts[i]}</p>:<ol>{z.recommendations.map(x=><li key={x}>{x}</li>)}</ol>}</article>)}</section><footer>{z.governance}</footer></div>}
