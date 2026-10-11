@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS employee_portal_accounts (
+ id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,employee_id TEXT NOT NULL,email TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN ('Convidado','Ativo','Desativado')),invited_by TEXT NOT NULL,invited_at TEXT NOT NULL,activated_at TEXT,created_at TEXT NOT NULL,UNIQUE(tenant_id,employee_id),UNIQUE(email),FOREIGN KEY(employee_id) REFERENCES employees(id)
+);
+CREATE INDEX IF NOT EXISTS employee_portal_accounts_email_idx ON employee_portal_accounts(email);
+CREATE TRIGGER IF NOT EXISTS employee_portal_account_scope BEFORE INSERT ON employee_portal_accounts WHEN NOT EXISTS(SELECT 1 FROM employees e WHERE e.id=NEW.employee_id AND e.tenant_id=NEW.tenant_id) BEGIN SELECT RAISE(ABORT,'employee portal account outside tenant'); END;
+CREATE TRIGGER IF NOT EXISTS employee_portal_account_transition BEFORE UPDATE ON employee_portal_accounts WHEN NEW.id<>OLD.id OR NEW.tenant_id<>OLD.tenant_id OR NEW.employee_id<>OLD.employee_id OR NEW.email<>OLD.email OR NEW.invited_by<>OLD.invited_by OR NEW.invited_at<>OLD.invited_at OR NOT ((OLD.status='Convidado' AND NEW.status IN ('Ativo','Desativado')) OR (OLD.status='Ativo' AND NEW.status='Desativado')) BEGIN SELECT RAISE(ABORT,'invalid employee portal account transition'); END;
+CREATE TRIGGER IF NOT EXISTS employee_portal_account_no_delete BEFORE DELETE ON employee_portal_accounts BEGIN SELECT RAISE(ABORT,'employee portal accounts cannot be deleted'); END;
