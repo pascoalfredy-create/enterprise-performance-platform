@@ -59,5 +59,5 @@ CREATE TABLE IF NOT EXISTS `billing_events` (
 
 CREATE INDEX IF NOT EXISTS `billing_invoices_account_status_idx` ON `billing_invoices` (`account_id`,`status`,`created_at` DESC);
 CREATE INDEX IF NOT EXISTS `payment_intents_status_expiry_idx` ON `payment_intents` (`status`,`expires_at`);
-CREATE TRIGGER `billing_events_no_update` BEFORE UPDATE ON `billing_events` BEGIN SELECT RAISE(ABORT,'billing event is immutable'); END;
-CREATE TRIGGER `billing_events_no_delete` BEFORE DELETE ON `billing_events` BEGIN SELECT RAISE(ABORT,'billing event is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS `billing_events_no_update` BEFORE UPDATE ON `billing_events` BEGIN SELECT RAISE(ABORT,'billing event is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS `billing_events_no_delete` BEFORE DELETE ON `billing_events` BEGIN SELECT RAISE(ABORT,'billing event is immutable'); END;

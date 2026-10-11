@@ -22,11 +22,11 @@ CREATE TABLE IF NOT EXISTS `payroll_payslips` (
 );
 
 CREATE INDEX IF NOT EXISTS `payroll_payslips_tenant_period_idx` ON `payroll_payslips` (`tenant_id`,`period`,`status`);
-CREATE TRIGGER `payslip_requires_closed_run` BEFORE INSERT ON `payroll_payslips`
+CREATE TRIGGER IF NOT EXISTS `payslip_requires_closed_run` BEFORE INSERT ON `payroll_payslips`
 WHEN NOT EXISTS (SELECT 1 FROM `payroll_runs` WHERE `id`=NEW.`run_id` AND `tenant_id`=NEW.`tenant_id` AND `status`='Fechado')
 BEGIN SELECT RAISE(ABORT,'payslip requires closed payroll'); END;
-CREATE TRIGGER `payslip_reference_guard` BEFORE INSERT ON `payroll_payslips`
+CREATE TRIGGER IF NOT EXISTS `payslip_reference_guard` BEFORE INSERT ON `payroll_payslips`
 WHEN NOT EXISTS (SELECT 1 FROM `payroll_run_lines` WHERE `id`=NEW.`run_line_id` AND `run_id`=NEW.`run_id` AND `employee_id`=NEW.`employee_id` AND `tenant_id`=NEW.`tenant_id`)
 BEGIN SELECT RAISE(ABORT,'payslip reference outside payroll'); END;
-CREATE TRIGGER `payslip_no_update` BEFORE UPDATE ON `payroll_payslips` BEGIN SELECT RAISE(ABORT,'issued payslip is immutable'); END;
-CREATE TRIGGER `payslip_no_delete` BEFORE DELETE ON `payroll_payslips` BEGIN SELECT RAISE(ABORT,'issued payslip is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS `payslip_no_update` BEFORE UPDATE ON `payroll_payslips` BEGIN SELECT RAISE(ABORT,'issued payslip is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS `payslip_no_delete` BEFORE DELETE ON `payroll_payslips` BEGIN SELECT RAISE(ABORT,'issued payslip is immutable'); END;

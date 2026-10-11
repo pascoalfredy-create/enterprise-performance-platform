@@ -9,5 +9,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS `management_reports_tenant_number_uq` ON `mana
 CREATE UNIQUE INDEX IF NOT EXISTS `invitation_tokens_one_open_uq` ON `invitation_tokens` (`tenant_id`,`user_id`) WHERE `used_at` IS NULL AND `revoked_at` IS NULL;
 CREATE INDEX IF NOT EXISTS `audit_events_tenant_created_idx` ON `audit_events` (`tenant_id`,`created_at`);
 
-CREATE TRIGGER `audit_events_immutable_update` BEFORE UPDATE ON `audit_events` BEGIN SELECT RAISE(ABORT,'audit event is immutable'); END;
-CREATE TRIGGER `audit_events_immutable_delete` BEFORE DELETE ON `audit_events` BEGIN SELECT RAISE(ABORT,'audit event is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS `audit_events_immutable_update` BEFORE UPDATE ON `audit_events` BEGIN SELECT RAISE(ABORT,'audit event is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS `audit_events_immutable_delete` BEFORE DELETE ON `audit_events` BEGIN SELECT RAISE(ABORT,'audit event is immutable'); END;

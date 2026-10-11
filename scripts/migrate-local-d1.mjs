@@ -21,58 +21,40 @@
 // file in drizzle/ is applied at most once, ever. This replaced an
 // earlier "all-or-nothing" design that detected a fully-migrated database
 // by checking whether one marker table existed and, if not, re-ran every
-// migration file from 0001 — which is NOT safe to repeat: several early
-// files (e.g. 0010_employee_contracts.sql) contain a one-time
-// `INSERT INTO ... SELECT` backfill with no `OR IGNORE`, and/or
-// `CREATE TRIGGER` without `IF NOT EXISTS`, so replaying them against an
-// already-migrated database throws a PRIMARY KEY conflict or a trigger
-// validation error and aborts the whole migration step. Confirmed
-// locally: inserting one employee row, then re-running
-// 0010_employee_contracts.sql a second time, fails with
-// "invalid employee contract" (SQLITE_CONSTRAINT_TRIGGER) — the
-// backfill's legacy row satisfies the first run's validate-insert
-// trigger (which only exists *after* that same run creates it), then an
-// identical second run's backfill INSERT hits that already-created
-// trigger expecting status='Rascunho', not the legacy 'Ativo' rows.
-// Per-file tracking means a file that already ran is simply never run
-// again, so this class of non-idempotent migration is safe by
-// construction going forward.
+// migration file from 0001 — which is NOT safe to repeat in general:
+// several early files contain a one-time `INSERT ... SELECT` backfill
+// and/or bare `CREATE TRIGGER` (both now fixed to be idempotent — see
+// below), and one file uses `ALTER TABLE ... ADD COLUMN`, which SQLite
+// has no idempotent form for at all.
 //
-// Bootstrapping an already-migrated database onto this tracking scheme
-// (one exists today: production already has 0001-0042 applied, with no
-// _schema_migrations table yet) must NOT replay those files to populate
-// the tracking table — same conflict as above. Instead, if
-// _schema_migrations is empty and the last-known-applied table from the
-// old single-marker scheme exists, every file up to and including the
-// migration that introduced that marker is recorded as already applied,
-// without running them, before the normal per-file loop below considers
-// anything newer.
+// Earlier still, this used a one-time bootstrap step: if the tracking
+// table was empty and a specific legacy marker table existed, every file
+// up to the one that introduced that marker was recorded as applied
+// without running them. That bootstrap itself turned out unreliable: in
+// production it incorrectly decided the marker table was missing (when
+// it in fact already existed — the *previous* deploy, using the old
+// single-marker script, had exited in under 2 seconds reporting "already
+// has the full schema", which is only possible if the marker was already
+// there), causing a real deploy to attempt a full replay from 0000 and
+// fail partway through on a non-idempotent CREATE TRIGGER. Rather than
+// chase why that one probe query gave a wrong answer against remote D1,
+// the bootstrap step was removed entirely in favor of something that
+// doesn't depend on any pre-flight probe being right:
 //
-// The "does table X exist" check used to be done by SELECTing the
-// table's name out of sqlite_master and inspecting the JSON --json
-// result for a matching row. In --local mode that JSON is exactly what
-// you'd expect (an empty `results` array, or one row). In --remote mode,
-// this wrangler version's --json output for that query is NOT the
-// matching rows at all — it's a stats summary object
-// (`{"Total queries executed":1,"Rows read":1,...}`), present whether or
-// not the table exists, which made `results.length` truthy either way
-// and caused the very first production deploy to report "already has
-// the full schema" and skip every migration against an actually-empty
-// database (confirmed via the D1 dashboard console: only Cloudflare's
-// own internal _cf_KV table existed).
-//
-// So instead this tries to read one row from the table itself (not
-// sqlite_master). It also turned out unsafe to key the decision off
-// wrangler's own exit code alone: the exact same --file + SELECT-against-
-// a-missing-table combination reported a clean exit twice in a row
-// against the real production database immediately after a run that
-// never got past the very first migration file — if the exit code
-// reliably reflected the query's own success, that isn't possible. So
-// the check text-matches "no such table" in the captured output
-// unconditionally (regardless of exit code) and only falls back to the
-// exit code when that text isn't present; any failure that isn't "no
-// such table" is a real problem and is left to fail loudly rather than
-// being treated as "table is missing".
+// Each pending file is simply attempted. A clean success records it as
+// applied, as normal. A failure whose message matches "already exists"
+// or "duplicate column" means this exact file's objects are already in
+// the database from before per-file tracking existed — D1 runs each
+// --file execution as one atomic unit (confirmed by wrangler's own "if
+// the execution fails to complete, your DB will return to its original
+// state" message), so every file in this repository's history has only
+// ever been applied as all-or-nothing; a conflict on its first statement
+// is therefore proof the whole file already landed previously, not that
+// it's half-applied. That failure is recorded as applied (with a warning)
+// instead of aborting, and the loop moves on. A failure matching neither
+// pattern is a real, new problem and still aborts the whole migration
+// step loudly, exactly as before — this only changes the one specific
+// case of a historically-applied-but-untracked file.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -97,12 +79,12 @@ function locationArgs() {
   return isRemote ? ["--remote"] : ["--local", "--persist-to", persistTo];
 }
 
-// The query is written to a temp .sql file and run via --file, never
-// passed as a multi-word --command string: on Windows, execFileSync's
-// shell:true hands the argument list to cmd.exe as a plain joined
-// string, which splits unquoted spaces back into separate arguments —
-// "SELECT name FROM ..." arrives at wrangler as five unrelated arguments
-// instead of one. A single file path has no such problem.
+// The query/file is run via --file, never passed as a multi-word
+// --command string: on Windows, execFileSync's shell:true hands the
+// argument list to cmd.exe as a plain joined string, which splits
+// unquoted spaces back into separate arguments — "SELECT name FROM ..."
+// arrives at wrangler as five unrelated arguments instead of one. A
+// single file path has no such problem.
 function runWranglerD1File(filePath) {
   try {
     const stdout = execFileSync(
@@ -140,16 +122,6 @@ function runWranglerD1Sql(sql) {
   }
 }
 
-function tableExists(table) {
-  const result = runWranglerD1Sql(`SELECT 1 FROM ${table} LIMIT 1;`);
-  if (/no such table/i.test(result.output ?? "")) return false;
-  if (result.ok) return true;
-  console.error(result.output);
-  console.error(`Could not determine whether ${target} D1 table "${table}" exists.`);
-  process.exitCode = 1;
-  process.exit();
-}
-
 const files = readdirSync(drizzleDir)
   .filter((name) => name.endsWith(".sql"))
   .sort();
@@ -170,42 +142,13 @@ if (!ensureTracking.ok) {
   process.exit();
 }
 
-const trackingHasRows = tableExists("_schema_migrations") &&
-  (() => {
-    const probe = runWranglerD1Sql("SELECT 1 FROM _schema_migrations LIMIT 1;");
-    return probe.ok && !/no such table/i.test(probe.output ?? "") &&
-      !/"results":\s*\[\]/.test(probe.output ?? "");
-  })();
-
-// Legacy single-marker bootstrap: a database migrated before per-file
-// tracking existed has every file through 0041_operational_ocr.sql
-// (which creates document_ocr_events) and 0042_paypay_sandbox_transition.sql
-// already applied, but no _schema_migrations rows recording that. Mark
-// those files as applied without re-running them, once, the first time
-// this script sees that database.
-const LEGACY_MARKER_TABLE = "document_ocr_events";
-const LEGACY_LAST_FILE = "0042_paypay_sandbox_transition.sql";
-if (!trackingHasRows && tableExists(LEGACY_MARKER_TABLE)) {
-  const legacyFiles = files.filter((name) => name <= LEGACY_LAST_FILE);
-  console.log(
-    `Bootstrapping _schema_migrations on the ${target} D1 database: marking ${legacyFiles.length} already-applied legacy migration(s) without re-running them.`,
-  );
-  const now = new Date().toISOString();
-  const values = legacyFiles
-    .map((name) => `('${name.replaceAll("'", "''")}','${now}')`)
-    .join(",");
-  const seed = runWranglerD1Sql(
-    `INSERT OR IGNORE INTO _schema_migrations (filename,applied_at) VALUES ${values};`,
-  );
-  if (!seed.ok) {
-    console.error(seed.output);
-    console.error(`Could not bootstrap _schema_migrations on the ${target} D1 database.`);
-    process.exitCode = 1;
-    process.exit();
-  }
-}
-
 const appliedCheck = runWranglerD1Sql("SELECT filename FROM _schema_migrations;");
+if (!appliedCheck.ok) {
+  console.error(appliedCheck.output);
+  console.error(`Could not read _schema_migrations on the ${target} D1 database.`);
+  process.exitCode = 1;
+  process.exit();
+}
 const appliedFilenames = new Set(
   [...(appliedCheck.output ?? "").matchAll(/"filename":\s*"([^"]+)"/g)].map((m) => m[1]),
 );
@@ -219,21 +162,19 @@ if (!pending.length) {
 console.log(`Applying ${pending.length} migration(s) to the ${target} D1 database...`);
 for (const file of pending) {
   console.log(`  ${file}`);
-  execFileSync(
-    "npx",
-    [
-      "wrangler",
-      "d1",
-      "execute",
-      "site-creator-d1",
-      "--config",
-      configPath,
-      ...locationArgs(),
-      "--file",
-      path.join(drizzleDir, file),
-    ],
-    { cwd: projectRoot, stdio: "inherit", shell: isWindows },
-  );
+  const result = runWranglerD1File(path.join(drizzleDir, file));
+  console.log(result.output);
+  if (!result.ok) {
+    if (/already exists|duplicate column/i.test(result.output)) {
+      console.log(
+        `  ${file} reports objects that already exist — this file already landed before per-file tracking existed. Recording it as applied without retrying.`,
+      );
+    } else {
+      console.error(`${file} failed.`);
+      process.exitCode = 1;
+      process.exit();
+    }
+  }
   const record = runWranglerD1Sql(
     `INSERT OR IGNORE INTO _schema_migrations (filename,applied_at) VALUES ('${file.replaceAll("'", "''")}','${new Date().toISOString()}');`,
   );

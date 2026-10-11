@@ -50,5 +50,5 @@ CREATE TABLE IF NOT EXISTS `provisioning_orders` (
 
 CREATE INDEX IF NOT EXISTS `subscriptions_account_status_idx` ON `subscriptions` (`account_id`,`status`);
 CREATE INDEX IF NOT EXISTS `module_entitlements_tenant_status_idx` ON `module_entitlements` (`tenant_id`,`status`);
-CREATE TRIGGER `subscription_tenant_immutable` BEFORE UPDATE OF `tenant_id`,`checkout_id`,`account_id` ON `subscriptions` BEGIN SELECT RAISE(ABORT,'subscription ownership is immutable'); END;
-CREATE TRIGGER `provisioning_ownership_immutable` BEFORE UPDATE OF `payment_id`,`account_id`,`checkout_id`,`tenant_id` ON `provisioning_orders` BEGIN SELECT RAISE(ABORT,'provisioning ownership is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS `subscription_tenant_immutable` BEFORE UPDATE OF `tenant_id`,`checkout_id`,`account_id` ON `subscriptions` BEGIN SELECT RAISE(ABORT,'subscription ownership is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS `provisioning_ownership_immutable` BEFORE UPDATE OF `payment_id`,`account_id`,`checkout_id`,`tenant_id` ON `provisioning_orders` BEGIN SELECT RAISE(ABORT,'provisioning ownership is immutable'); END;

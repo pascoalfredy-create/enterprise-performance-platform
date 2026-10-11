@@ -41,5 +41,5 @@ CREATE TABLE IF NOT EXISTS `commerce_audit_events` (
 );
 
 CREATE INDEX IF NOT EXISTS `commerce_audit_account_time_idx` ON `commerce_audit_events` (`account_id`,`occurred_at` DESC);
-CREATE TRIGGER `commerce_audit_no_update` BEFORE UPDATE ON `commerce_audit_events` BEGIN SELECT RAISE(ABORT,'commerce audit is immutable'); END;
-CREATE TRIGGER `commerce_audit_no_delete` BEFORE DELETE ON `commerce_audit_events` BEGIN SELECT RAISE(ABORT,'commerce audit is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS `commerce_audit_no_update` BEFORE UPDATE ON `commerce_audit_events` BEGIN SELECT RAISE(ABORT,'commerce audit is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS `commerce_audit_no_delete` BEFORE DELETE ON `commerce_audit_events` BEGIN SELECT RAISE(ABORT,'commerce audit is immutable'); END;
