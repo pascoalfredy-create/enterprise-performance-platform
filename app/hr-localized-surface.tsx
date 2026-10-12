@@ -716,6 +716,7 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Histórico recente","Recent history","Historial reciente","Historique récent","Недавняя история"],
 ["Ainda não existem marcações fechadas.","No closed entries yet.","Aún no hay marcaciones cerradas.","Aucun pointage clôturé pour le moment.","Пока нет закрытых отметок."],
 ["Registe a sua entrada para iniciar o turno de hoje.","Clock in to start today's shift.","Registre su entrada para iniciar el turno de hoy.","Pointez votre arrivée pour démarrer le service du jour.","Отметьте приход, чтобы начать сегодняшнюю смену."],
+["Histórico de carreira","Career history","Historial de carrera","Historique de carrière","История карьеры"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

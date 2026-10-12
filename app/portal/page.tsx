@@ -72,6 +72,22 @@ type PerformanceNotice = {
   publishedAt: string;
   acknowledgedAt: string | null;
 };
+type CareerNotice = {
+  id: string;
+  noticeType: string;
+  title: string;
+  message: string;
+  previousJobTitle: string | null;
+  newJobTitle: string | null;
+  previousSalaryMinor: number | null;
+  newSalaryMinor: number | null;
+  currency: string | null;
+  effectiveDate: string | null;
+  status: string;
+  publishedBy: string;
+  publishedAt: string;
+  acknowledgedAt: string | null;
+};
 type EmployeeTask = {
   id: string;
   title: string;
@@ -234,6 +250,12 @@ const Icon = {
       <path d="M8 16.5c.6-1.6 2-2.3 4-2.3s3.4.7 4 2.3" />
     </svg>
   ),
+  trending: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m3.5 16.5 6-6 4 4 7-7" />
+      <path d="M15 7.5h5.5V13" />
+    </svg>
+  ),
 };
 function Skeleton({ lines = 2 }: { lines?: number }) {
   return (
@@ -255,6 +277,7 @@ export default function Portal() {
   const [documents, setDocuments] = useState<DocumentRow[] | null>(null);
   const [tasks, setTasks] = useState<EmployeeTask[] | null>(null);
   const [notices, setNotices] = useState<PerformanceNotice[] | null>(null);
+  const [careerNotices, setCareerNotices] = useState<CareerNotice[] | null>(null);
   const [error, setError] = useState("");
   const [formBusy, setFormBusy] = useState(false);
   const [formMessage, setFormMessage] = useState("");
@@ -263,6 +286,7 @@ export default function Portal() {
   const [taskBusy, setTaskBusy] = useState<string | null>(null);
   const [taskNote, setTaskNote] = useState<Record<string, string>>({});
   const [noticeBusy, setNoticeBusy] = useState<string | null>(null);
+  const [careerNoticeBusy, setCareerNoticeBusy] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<Attendance | null>(null);
   const [attendanceBusy, setAttendanceBusy] = useState(false);
   const [, forceTick] = useState(0);
@@ -353,6 +377,11 @@ export default function Portal() {
           "performance-notices",
           (d) => setNotices(d.notices),
         );
+      if (careerNotices === null)
+        load<{ notices: CareerNotice[]; error?: string }>(
+          "career-notices",
+          (d) => setCareerNotices(d.notices),
+        );
     }
     if (tab === "inicio" || tab === "picagem")
       load<Attendance & { error?: string }>("attendance", setAttendance);
@@ -425,6 +454,25 @@ export default function Portal() {
     load<{ notices: PerformanceNotice[]; error?: string }>(
       "performance-notices",
       (d) => setNotices(d.notices),
+    );
+  }
+
+  async function acknowledgeCareerNotice(noticeId: string) {
+    setCareerNoticeBusy(noticeId);
+    const r = await apiFetch("/api/self-service", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "acknowledgeCareerNotice", noticeId }),
+    });
+    const body = (await r.json()) as { error?: string };
+    setCareerNoticeBusy(null);
+    if (!r.ok) {
+      setError(body.error || "Não foi possível confirmar a leitura.");
+      return;
+    }
+    load<{ notices: CareerNotice[]; error?: string }>(
+      "career-notices",
+      (d) => setCareerNotices(d.notices),
     );
   }
 
@@ -537,6 +585,55 @@ export default function Portal() {
                           className="portal-task-action"
                           disabled={busy}
                           onClick={() => acknowledgeNotice(n.id)}
+                        >
+                          {busy ? "A confirmar…" : "Marquei como lido"}
+                        </button>
+                      </section>
+                    );
+                  })}
+              {careerNotices &&
+                careerNotices
+                  .filter((n) => n.status === "Publicado")
+                  .map((n) => {
+                    const busy = careerNoticeBusy === n.id;
+                    return (
+                      <section
+                        key={n.id}
+                        className="portal-card portal-notice portal-career-notice"
+                      >
+                        <div className="portal-notice-head">
+                          <span className="portal-notice-icon">
+                            {Icon.trending}
+                          </span>
+                          <div>
+                            <b>{n.noticeType}</b>
+                            <span>{n.title}</span>
+                          </div>
+                        </div>
+                        <p>{n.message}</p>
+                        {(n.previousJobTitle || n.newJobTitle) && (
+                          <p className="portal-task-deliverable">
+                            Novo cargo: {n.newJobTitle || "—"}
+                            {n.previousJobTitle && ` (antes: ${n.previousJobTitle})`}
+                          </p>
+                        )}
+                        {n.newSalaryMinor !== null && n.currency && (
+                          <p className="portal-task-deliverable">
+                            Novo salário: {money(n.newSalaryMinor, n.currency)}
+                            {n.previousSalaryMinor !== null &&
+                              ` (antes: ${money(n.previousSalaryMinor, n.currency)})`}
+                          </p>
+                        )}
+                        <div className="portal-task-meta">
+                          <span>Publicado por {n.publishedBy}</span>
+                          {n.effectiveDate && (
+                            <span>Em vigor a partir de {n.effectiveDate}</span>
+                          )}
+                        </div>
+                        <button
+                          className="portal-task-action"
+                          disabled={busy}
+                          onClick={() => acknowledgeCareerNotice(n.id)}
                         >
                           {busy ? "A confirmar…" : "Marquei como lido"}
                         </button>
@@ -1005,6 +1102,28 @@ export default function Portal() {
                         <div>
                           <b>{n.cycleName}</b>
                           <span>{n.overallRating}</span>
+                        </div>
+                        <div
+                          className={`portal-status portal-status-${n.status
+                            .toLowerCase()
+                            .replace(/\s+/g, "-")}`}
+                        >
+                          {n.status}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {careerNotices && careerNotices.length > 0 && (
+                <section className="portal-card">
+                  <h2>Histórico de carreira</h2>
+                  <ul className="portal-list">
+                    {careerNotices.map((n) => (
+                      <li key={n.id}>
+                        <div>
+                          <b>{n.title}</b>
+                          <span>{n.noticeType}</span>
                         </div>
                         <div
                           className={`portal-status portal-status-${n.status

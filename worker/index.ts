@@ -54,6 +54,7 @@ import { documentHubApi } from "./document-hub";
 import { customerActivationApi } from "./customer-activation";
 import { selfServiceApi } from "./self-service";
 import { employeeTasksApi } from "./employee-tasks";
+import { employeeCareerNoticesApi } from "./employee-career-notices";
 import { employeePerformanceNoticesApi } from "./employee-performance-notices";
 import { payPayReadiness, payPaySandboxReference, type PayPayEnv } from "./paypay";
 
@@ -5765,6 +5766,7 @@ const worker = {
                     "/api/attendance",
                     "/api/employee-documents",
                     "/api/employee-tasks",
+                    "/api/employee-career-notices",
                     "/api/hr-cockpit",
                     "/api/hr-people",
                     "/api/hr-payroll-cost",
@@ -5880,6 +5882,7 @@ const worker = {
               "/api/attendance",
               "/api/employee-documents",
               "/api/employee-tasks",
+              "/api/employee-career-notices",
               "/api/hr-cockpit",
               "/api/hr-people",
               "/api/hr-payroll-cost",
@@ -5993,6 +5996,8 @@ const worker = {
         return employeeTasksApi(request, env.DB, security);
       if (apiPath === "/api/employee-performance-notices")
         return employeePerformanceNoticesApi(request, env.DB, security);
+      if (apiPath === "/api/employee-career-notices")
+        return employeeCareerNoticesApi(request, env.DB, security);
       if (apiPath === "/api/employee-documents")
         return employeeDocumentsApi(request, env.DB, env.BUCKET, security);
       if (apiPath === "/api/notifications")

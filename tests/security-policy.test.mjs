@@ -257,3 +257,19 @@ test("employees can punch their own attendance clock, scoped and single-session"
  assert.match(selfService,/WHERE tenant_id=\? AND employee_id=\? AND clock_out IS NULL/);
  assert.match(selfService,/resource === "attendance"/);
 });
+test("only HR/Administrador (hcm:write) can publish career notices, scoped to their organization",()=>{
+ const notices=fs.readFileSync(new URL("../worker/employee-career-notices.ts",import.meta.url),"utf8");
+ assert.match(notices,/body\.type !== "publishNotice"/);
+ assert.match(notices,/Colaborador fora do âmbito autorizado/);
+ assert.match(notices,/TYPES\.includes\(body\.noticeType\)/);
+ assert.match(notices,/A moeda é obrigatória quando há valores salariais/);
+ assert.match(compact,/apiPath==="\/api\/employee-career-notices"/);
+ assert.match(compact,/employeeCareerNoticesApi\(request,env\.DB,security\)/);
+ assert.match(compact,/"\/api\/employee-tasks","\/api\/employee-career-notices"/);
+});
+test("employees can only read and acknowledge their own career notices, never alter the content",()=>{
+ const selfService=fs.readFileSync(new URL("../worker/self-service.ts",import.meta.url),"utf8");
+ assert.match(selfService,/resource === "career-notices"/);
+ assert.match(selfService,/body\.type === "acknowledgeCareerNotice"/);
+ assert.match(selfService,/UPDATE employee_career_notices SET status='Reconhecido',acknowledged_at=\? WHERE id=\? AND tenant_id=\? AND employee_id=\? AND status='Publicado'/);
+});

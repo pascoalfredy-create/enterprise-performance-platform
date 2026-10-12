@@ -229,6 +229,47 @@ export async function selfServiceApi(
           })),
         });
       }
+      if (resource === "career-notices") {
+        const rows = await db
+          .prepare(
+            "SELECT id,notice_type,title,message,previous_job_title,new_job_title,previous_salary_minor,new_salary_minor,currency,effective_date,status,published_by,published_at,acknowledged_at FROM employee_career_notices WHERE tenant_id=? AND employee_id=? ORDER BY published_at DESC",
+          )
+          .bind(tenant, employeeId)
+          .all<{
+            id: string;
+            notice_type: string;
+            title: string;
+            message: string;
+            previous_job_title: string | null;
+            new_job_title: string | null;
+            previous_salary_minor: number | null;
+            new_salary_minor: number | null;
+            currency: string | null;
+            effective_date: string | null;
+            status: string;
+            published_by: string;
+            published_at: string;
+            acknowledged_at: string | null;
+          }>();
+        return Response.json({
+          notices: rows.results.map((n) => ({
+            id: n.id,
+            noticeType: n.notice_type,
+            title: n.title,
+            message: n.message,
+            previousJobTitle: n.previous_job_title,
+            newJobTitle: n.new_job_title,
+            previousSalaryMinor: n.previous_salary_minor,
+            newSalaryMinor: n.new_salary_minor,
+            currency: n.currency,
+            effectiveDate: n.effective_date,
+            status: n.status,
+            publishedBy: n.published_by,
+            publishedAt: n.published_at,
+            acknowledgedAt: n.acknowledged_at,
+          })),
+        });
+      }
       if (resource === "attendance") {
         const [openEntry, recent] = await Promise.all([
           db
@@ -420,6 +461,21 @@ export async function selfServiceApi(
       const result = await db
         .prepare(
           "UPDATE employee_performance_notices SET status='Reconhecido',acknowledged_at=? WHERE id=? AND tenant_id=? AND employee_id=? AND status='Publicado'",
+        )
+        .bind(now, body.noticeId, tenant, employeeId)
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          { error: "Notificação não encontrada ou já foi reconhecida." },
+          { status: 409 },
+        );
+      return Response.json({ id: body.noticeId, status: "Reconhecido" });
+    }
+    if (body.type === "acknowledgeCareerNotice") {
+      const now = new Date().toISOString();
+      const result = await db
+        .prepare(
+          "UPDATE employee_career_notices SET status='Reconhecido',acknowledged_at=? WHERE id=? AND tenant_id=? AND employee_id=? AND status='Publicado'",
         )
         .bind(now, body.noticeId, tenant, employeeId)
         .run();

@@ -388,6 +388,13 @@
   border: 1px solid var(--portal-accent-soft);
   margin-bottom: 14px;
 }
+.portal-career-notice {
+  border-color: #bbf0d2;
+}
+.portal-career-notice .portal-notice-icon {
+  background: #dcfce7;
+  color: #137a3a;
+}
 .portal-notice-head {
   display: flex;
   align-items: center;
