@@ -183,6 +183,41 @@ export async function selfServiceApi(
           })),
         });
       }
+      if (resource === "performance-notices") {
+        const rows = await db
+          .prepare(
+            "SELECT id,cycle_name,overall_rating,score_bps,summary,strengths,development_areas,status,published_by,published_at,acknowledged_at FROM employee_performance_notices WHERE tenant_id=? AND employee_id=? ORDER BY published_at DESC",
+          )
+          .bind(tenant, employeeId)
+          .all<{
+            id: string;
+            cycle_name: string;
+            overall_rating: string;
+            score_bps: number | null;
+            summary: string;
+            strengths: string | null;
+            development_areas: string | null;
+            status: string;
+            published_by: string;
+            published_at: string;
+            acknowledged_at: string | null;
+          }>();
+        return Response.json({
+          notices: rows.results.map((n) => ({
+            id: n.id,
+            cycleName: n.cycle_name,
+            overallRating: n.overall_rating,
+            scoreBps: n.score_bps,
+            summary: n.summary,
+            strengths: n.strengths,
+            developmentAreas: n.development_areas,
+            status: n.status,
+            publishedBy: n.published_by,
+            publishedAt: n.published_at,
+            acknowledgedAt: n.acknowledged_at,
+          })),
+        });
+      }
       if (resource === "documents") {
         const rows = await db
           .prepare(
@@ -211,6 +246,21 @@ export async function selfServiceApi(
     if (request.method !== "POST")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const body = (await request.json()) as Record<string, string>;
+    if (body.type === "acknowledgeNotice") {
+      const now = new Date().toISOString();
+      const result = await db
+        .prepare(
+          "UPDATE employee_performance_notices SET status='Reconhecido',acknowledged_at=? WHERE id=? AND tenant_id=? AND employee_id=? AND status='Publicado'",
+        )
+        .bind(now, body.noticeId, tenant, employeeId)
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          { error: "Notificação não encontrada ou já foi reconhecida." },
+          { status: 409 },
+        );
+      return Response.json({ id: body.noticeId, status: "Reconhecido" });
+    }
     if (body.type === "taskTransition") {
       const task = await db
         .prepare(

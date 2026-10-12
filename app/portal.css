@@ -309,6 +309,14 @@
   background: #dcfce7;
   color: #137a3a;
 }
+.portal-status-publicado {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.portal-status-reconhecido {
+  background: #eef0f5;
+  color: #525c70;
+}
 .portal-expandable {
   flex-direction: column;
   align-items: stretch;
@@ -366,6 +374,61 @@
   border-bottom: none !important;
   padding-top: 6px;
   font-weight: 600;
+}
+.portal-notice {
+  border: 1px solid var(--portal-accent-soft);
+  margin-bottom: 14px;
+}
+.portal-notice-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.portal-notice-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--portal-accent-soft);
+  color: var(--portal-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.portal-notice-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.portal-notice-head div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.portal-notice-head span {
+  font-size: 0.78rem;
+  color: var(--portal-muted);
+}
+.portal-notice-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+}
+.portal-notice-rating-icon {
+  width: 16px;
+  height: 16px;
+  color: #d9a017;
+}
+.portal-notice-score {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--portal-accent);
+}
+.portal-notice p {
+  margin: 0 0 6px;
 }
 .portal-task-list {
   gap: 14px;

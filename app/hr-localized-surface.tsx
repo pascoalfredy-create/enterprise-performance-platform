@@ -710,6 +710,8 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Tarefas por concluir","Open tasks","Tareas pendientes","Tâches en cours","Открытые задачи"],
 ["As minhas tarefas","My tasks","Mis tareas","Mes tâches","Мои задачи"],
 ["Ainda não tem tarefas atribuídas.","You have no tasks assigned yet.","Aún no tiene tareas asignadas.","Aucune tâche ne vous a encore été assignée.","Вам пока не назначены задачи."],
+["Resultado de avaliação de desempenho","Performance review result","Resultado de la evaluación de desempeño","Résultat de l'évaluation de performance","Результат оценки эффективности"],
+["Histórico de avaliações","Review history","Historial de evaluaciones","Historique des évaluations","История оценок"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

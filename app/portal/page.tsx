@@ -52,6 +52,19 @@ type DocumentRow = {
   status: string;
 };
 type Leave = { balances: LeaveBalance[]; requests: LeaveRequest[] };
+type PerformanceNotice = {
+  id: string;
+  cycleName: string;
+  overallRating: string;
+  scoreBps: number | null;
+  summary: string;
+  strengths: string | null;
+  developmentAreas: string | null;
+  status: string;
+  publishedBy: string;
+  publishedAt: string;
+  acknowledgedAt: string | null;
+};
 type EmployeeTask = {
   id: string;
   title: string;
@@ -163,6 +176,17 @@ const Icon = {
       <path d="M8.5 10.5l1.8 1.8 3.2-3.6M8 16h8" />
     </svg>
   ),
+  star: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m12 3 2.7 5.6 6.1.8-4.5 4.3 1.1 6.1L12 17l-5.4 2.8 1.1-6.1-4.5-4.3 6.1-.8Z" />
+    </svg>
+  ),
+  bell: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9.5a6 6 0 0 1 12 0c0 4 1.3 5.3 1.3 5.3H4.7S6 13.5 6 9.5Z" />
+      <path d="M10 18.5a2 2 0 0 0 4 0" />
+    </svg>
+  ),
 };
 function Skeleton({ lines = 2 }: { lines?: number }) {
   return (
@@ -183,6 +207,7 @@ export default function Portal() {
   const [absenceTypes, setAbsenceTypes] = useState<AbsenceType[] | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[] | null>(null);
   const [tasks, setTasks] = useState<EmployeeTask[] | null>(null);
+  const [notices, setNotices] = useState<PerformanceNotice[] | null>(null);
   const [error, setError] = useState("");
   const [formBusy, setFormBusy] = useState(false);
   const [formMessage, setFormMessage] = useState("");
@@ -190,6 +215,7 @@ export default function Portal() {
   const [expandedPayslip, setExpandedPayslip] = useState<string | null>(null);
   const [taskBusy, setTaskBusy] = useState<string | null>(null);
   const [taskNote, setTaskNote] = useState<Record<string, string>>({});
+  const [noticeBusy, setNoticeBusy] = useState<string | null>(null);
 
   useEffect(() => {
     if ("serviceWorker" in navigator)
@@ -265,6 +291,13 @@ export default function Portal() {
           setTasks(d.tasks),
         );
     }
+    if (tab === "inicio" || tab === "perfil") {
+      if (notices === null)
+        load<{ notices: PerformanceNotice[]; error?: string }>(
+          "performance-notices",
+          (d) => setNotices(d.notices),
+        );
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, authState]);
 
@@ -318,6 +351,25 @@ export default function Portal() {
     );
   }
 
+  async function acknowledgeNotice(noticeId: string) {
+    setNoticeBusy(noticeId);
+    const r = await apiFetch("/api/self-service", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "acknowledgeNotice", noticeId }),
+    });
+    const body = (await r.json()) as { error?: string };
+    setNoticeBusy(null);
+    if (!r.ok) {
+      setError(body.error || "Não foi possível confirmar a leitura.");
+      return;
+    }
+    load<{ notices: PerformanceNotice[]; error?: string }>(
+      "performance-notices",
+      (d) => setNotices(d.notices),
+    );
+  }
+
   if (authState === "loading")
     return (
       <div className="portal-loading">
@@ -367,6 +419,55 @@ export default function Portal() {
               <h2 className="portal-greeting">
                 {greeting()}, {firstName}
               </h2>
+              {notices &&
+                notices
+                  .filter((n) => n.status === "Publicado")
+                  .map((n) => {
+                    const busy = noticeBusy === n.id;
+                    return (
+                      <section key={n.id} className="portal-card portal-notice">
+                        <div className="portal-notice-head">
+                          <span className="portal-notice-icon">{Icon.bell}</span>
+                          <div>
+                            <b>Resultado de avaliação de desempenho</b>
+                            <span>{n.cycleName}</span>
+                          </div>
+                        </div>
+                        <div className="portal-notice-rating">
+                          <span className="portal-notice-rating-icon">
+                            {Icon.star}
+                          </span>
+                          {n.overallRating}
+                          {n.scoreBps !== null && (
+                            <span className="portal-notice-score">
+                              {(n.scoreBps / 100).toFixed(0)}%
+                            </span>
+                          )}
+                        </div>
+                        <p>{n.summary}</p>
+                        {n.strengths && (
+                          <p className="portal-task-deliverable">
+                            Pontos fortes: {n.strengths}
+                          </p>
+                        )}
+                        {n.developmentAreas && (
+                          <p className="portal-task-deliverable">
+                            A desenvolver: {n.developmentAreas}
+                          </p>
+                        )}
+                        <div className="portal-task-meta">
+                          <span>Publicado por {n.publishedBy}</span>
+                        </div>
+                        <button
+                          className="portal-task-action"
+                          disabled={busy}
+                          onClick={() => acknowledgeNotice(n.id)}
+                        >
+                          {busy ? "A confirmar…" : "Marquei como lido"}
+                        </button>
+                      </section>
+                    );
+                  })}
               <div className="portal-stats">
                 <div className="portal-stat">
                   <span className="portal-stat-icon">{Icon.palm}</span>
@@ -713,36 +814,60 @@ export default function Portal() {
             </section>
           )}
           {tab === "perfil" && profile && (
-            <section className="portal-card portal-profile-card">
-              <span className="portal-avatar portal-avatar-lg" aria-hidden>
-                {initials(profile.name)}
-              </span>
-              <h2>{profile.name}</h2>
-              <p className="portal-profile-subtitle">
-                {profile.jobTitle || "—"}
-              </p>
-              <dl>
-                <dt>E-mail</dt>
-                <dd>{profile.email}</dd>
-                <dt>Nº de colaborador</dt>
-                <dd>{profile.employeeNumber || "—"}</dd>
-                <dt>Empresa</dt>
-                <dd>{profile.organizationName || "—"}</dd>
-                <dt>Data de admissão</dt>
-                <dd>{profile.hireDate || "—"}</dd>
-                <dt>Estado</dt>
-                <dd>{profile.status || "—"}</dd>
-              </dl>
-              <button
-                className="portal-logout"
-                onClick={() => {
-                  sessionStorage.clear();
-                  window.location.assign("/entrar");
-                }}
-              >
-                Terminar sessão
-              </button>
-            </section>
+            <>
+              <section className="portal-card portal-profile-card">
+                <span className="portal-avatar portal-avatar-lg" aria-hidden>
+                  {initials(profile.name)}
+                </span>
+                <h2>{profile.name}</h2>
+                <p className="portal-profile-subtitle">
+                  {profile.jobTitle || "—"}
+                </p>
+                <dl>
+                  <dt>E-mail</dt>
+                  <dd>{profile.email}</dd>
+                  <dt>Nº de colaborador</dt>
+                  <dd>{profile.employeeNumber || "—"}</dd>
+                  <dt>Empresa</dt>
+                  <dd>{profile.organizationName || "—"}</dd>
+                  <dt>Data de admissão</dt>
+                  <dd>{profile.hireDate || "—"}</dd>
+                  <dt>Estado</dt>
+                  <dd>{profile.status || "—"}</dd>
+                </dl>
+                <button
+                  className="portal-logout"
+                  onClick={() => {
+                    sessionStorage.clear();
+                    window.location.assign("/entrar");
+                  }}
+                >
+                  Terminar sessão
+                </button>
+              </section>
+              {notices && notices.length > 0 && (
+                <section className="portal-card">
+                  <h2>Histórico de avaliações</h2>
+                  <ul className="portal-list">
+                    {notices.map((n) => (
+                      <li key={n.id}>
+                        <div>
+                          <b>{n.cycleName}</b>
+                          <span>{n.overallRating}</span>
+                        </div>
+                        <div
+                          className={`portal-status portal-status-${n.status
+                            .toLowerCase()
+                            .replace(/\s+/g, "-")}`}
+                        >
+                          {n.status}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </>
           )}
         </main>
         <nav className="portal-nav">

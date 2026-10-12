@@ -54,6 +54,7 @@ import { documentHubApi } from "./document-hub";
 import { customerActivationApi } from "./customer-activation";
 import { selfServiceApi } from "./self-service";
 import { employeeTasksApi } from "./employee-tasks";
+import { employeePerformanceNoticesApi } from "./employee-performance-notices";
 import { payPayReadiness, payPaySandboxReference, type PayPayEnv } from "./paypay";
 
 interface Env extends PayPayEnv {
@@ -5816,7 +5817,8 @@ const worker = {
                                   ? write
                                     ? "goal:write"
                                     : "goal:read"
-                                  : apiPath === "/api/reviews"
+                                  : apiPath === "/api/reviews" ||
+                                      apiPath === "/api/employee-performance-notices"
                                     ? write
                                       ? "review:write"
                                       : "review:read"
@@ -5911,6 +5913,7 @@ const worker = {
                       "/api/reviews",
                       "/api/competencies",
                       "/api/hr-talent",
+                      "/api/employee-performance-notices",
                     ].includes(apiPath)
                   ? "PERFORMANCE_MANAGEMENT"
                   : ["/api/workforce", "/api/workforce-plans"].includes(apiPath)
@@ -5988,6 +5991,8 @@ const worker = {
         return attendanceApi(request, env.DB, security);
       if (apiPath === "/api/employee-tasks")
         return employeeTasksApi(request, env.DB, security);
+      if (apiPath === "/api/employee-performance-notices")
+        return employeePerformanceNoticesApi(request, env.DB, security);
       if (apiPath === "/api/employee-documents")
         return employeeDocumentsApi(request, env.DB, env.BUCKET, security);
       if (apiPath === "/api/notifications")

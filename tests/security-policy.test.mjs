@@ -232,3 +232,18 @@ test("HR can invite an employee to the self-service portal, scoped and deduplica
  assert.match(compact,/"Convidado",actor,created,created/);
  assert.match(source,/entityType=\s*\n?\s*body\.type==="portalInvite"\s*\n?\s*\?"employeePortalAccount"/);
 });
+test("managers can publish performance results to employees in their organization scope",()=>{
+ const notices=fs.readFileSync(new URL("../worker/employee-performance-notices.ts",import.meta.url),"utf8");
+ assert.match(notices,/body\.type !== "publishResult"/);
+ assert.match(notices,/Colaborador fora do âmbito autorizado/);
+ assert.match(notices,/RATINGS\.includes\(body\.overallRating\)/);
+ assert.match(notices,/n < 0 \|\| n > 10000/);
+ assert.match(compact,/apiPath==="\/api\/employee-performance-notices"/);
+ assert.match(compact,/employeePerformanceNoticesApi\(request,env\.DB,security\)/);
+});
+test("employees can only read and acknowledge their own performance notices, never alter the content",()=>{
+ const selfService=fs.readFileSync(new URL("../worker/self-service.ts",import.meta.url),"utf8");
+ assert.match(selfService,/resource === "performance-notices"/);
+ assert.match(selfService,/body\.type === "acknowledgeNotice"/);
+ assert.match(selfService,/SET status='Reconhecido',acknowledged_at=\? WHERE id=\? AND tenant_id=\? AND employee_id=\? AND status='Publicado'/);
+});
