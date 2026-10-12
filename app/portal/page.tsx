@@ -623,7 +623,7 @@ export default function Portal() {
                           <span>Atribuído por {t.assignedBy}</span>
                           {t.dueDate && (
                             <span className={overdue ? "critical" : ""}>
-                              {Icon.alert} Entrega: {t.dueDate}
+                              {overdue ? Icon.alert : Icon.clock} Entrega: {t.dueDate}
                             </span>
                           )}
                         </div>
