@@ -115,7 +115,9 @@ type Permission =
   | "workflow:write"
   | "integrity:read"
   | "document:read"
-  | "document:write";
+  | "document:write"
+  | "selfservice:read"
+  | "selfservice:write";
 type TenantOption = { id: string; name: string; role: string };
 type SecurityContext = {
   email: string;
@@ -125,6 +127,7 @@ type SecurityContext = {
   tenantName: string;
   organizationId: string | null;
   organizationName: string | null;
+  employeeId: string | null;
   permissions: Permission[];
   tenants: TenantOption[];
   modules: string[];
@@ -223,6 +226,7 @@ const rolePermissions: Record<string, Permission[]> = {
     "competency:write",
     "action:read",
   ],
+  Colaborador: ["selfservice:read", "selfservice:write"],
 };
 for (const role of ["Administrador", "Financeiro", "Gestor"])
   rolePermissions[role].push(
@@ -1312,11 +1316,35 @@ async function securityContext(
         success: true,
         meta: {},
       };
-    } else
-      return Response.json(
-        { error: "O utilizador autenticado não possui membership ativa." },
-        { status: 403 },
-      );
+    } else {
+      const portalAccount = await db
+        .prepare(
+          "SELECT epa.employee_id,epa.tenant_id,epa.status,COALESCE(t.name,epa.tenant_id) tenant_name,e.organization_id,o.name organization_name,(e.first_name||' '||e.last_name) name FROM employee_portal_accounts epa JOIN employees e ON e.id=epa.employee_id AND e.tenant_id=epa.tenant_id LEFT JOIN tenants t ON t.id=epa.tenant_id LEFT JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=epa.tenant_id WHERE lower(epa.email)=lower(?) AND epa.status IN ('Convidado','Ativo')",
+        )
+        .bind(email)
+        .first<Record<string, unknown>>();
+      if (!portalAccount)
+        return Response.json(
+          { error: "O utilizador autenticado não possui membership ativa." },
+          { status: 403 },
+        );
+      // First successful authenticated request after HR invites an
+      // employee activates their portal account — there is no separate
+      // "activate" step, matching how the very first platform_users login
+      // auto-bootstraps an Administrador above.
+      if (portalAccount.status === "Convidado")
+        await db
+          .prepare(
+            "UPDATE employee_portal_accounts SET status='Ativo',activated_at=? WHERE employee_id=? AND tenant_id=?",
+          )
+          .bind(new Date().toISOString(), portalAccount.employee_id, portalAccount.tenant_id)
+          .run();
+      memberships = {
+        results: [{ ...portalAccount, id: portalAccount.employee_id, email, role: "Colaborador" }],
+        success: true,
+        meta: {},
+      };
+    }
   }
   const requested = decodeURIComponent(selectedTenant(request));
   const user = requested
@@ -1406,6 +1434,7 @@ async function securityContext(
     organizationName: user.organization_name
       ? String(user.organization_name)
       : null,
+    employeeId: user.employee_id ? String(user.employee_id) : null,
     permissions,
     tenants,
     modules,
