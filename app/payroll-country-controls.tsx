@@ -1,5 +1,168 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { apiFetch } from "../lib/api-client";
 import "./payroll-country-controls.css";
-const countries={AO:{name:"Angola",currency:"AOA",language:"Português",status:"Em parametrização",pack:"AO-PAYROLL-DRAFT",checks:["Contrato e elegibilidade","Tempo, faltas e horas extra","Proventos e descontos","Impostos e contribuições","Líquido e reconciliação"]},PT:{name:"Portugal",currency:"EUR",language:"Português",status:"Pack não instalado",pack:"PT-PAYROLL",checks:["Contrato e elegibilidade","Tempo e ausências","Remuneração","Fiscal e segurança social","Pagamento"]},GB:{name:"Reino Unido",currency:"GBP",language:"English",status:"Pack não instalado",pack:"GB-PAYROLL",checks:["Employment eligibility","Time & leave","Earnings & deductions","Tax & contributions","Net payment"]},ES:{name:"Espanha",currency:"EUR",language:"Español",status:"Pack não instalado",pack:"ES-PAYROLL",checks:["Contrato y elegibilidad","Tiempo y ausencias","Devengos y deducciones","Fiscal y cotizaciones","Pago neto"]},FR:{name:"França",currency:"EUR",language:"Français",status:"Pack não instalado",pack:"FR-PAYROLL",checks:["Contrat et éligibilité","Temps et absences","Gains et retenues","Fiscalité et cotisations","Paiement net"]}};
-export function PayrollCountryControls(){const[country,setCountry]=useState<keyof typeof countries>("AO"),[open,setOpen]=useState(true);const c=countries[country];return <section className={open?"payroll-governance open":"payroll-governance"}><button className="payroll-governance-head" onClick={()=>setOpen(!open)}><span><i>§</i><b>Processamento salarial por Country Pack</b><small>{c.name} · {c.pack} · {c.status}</small></span><em>{open?"Ocultar −":"Ver configuração +"}</em></button>{open&&<div className="payroll-governance-body"><header><label>País aplicável<select value={country} onChange={e=>setCountry(e.target.value as keyof typeof countries)}>{Object.entries(countries).map(([k,v])=><option key={k} value={k}>{v.name}</option>)}</select></label><label>Moeda<input value={c.currency} readOnly/></label><label>Idioma documental<input value={c.language} readOnly/></label><label>Versão do Pack<input value={c.pack} readOnly/></label></header><div className="payroll-erp-flow">{["Preparar período","Recolher variáveis","Calcular","Validar exceções","Aprovar","Fechar","Pagar e reportar","Integrar Finance"].map((x,i)=><span key={x}><i>{i+1}</i><b>{x}</b><small>{i<5?"Reversível":i===5?"Bloqueia cálculo":"Pós-fecho"}</small></span>)}</div><footer><div>{c.checks.map(x=><span key={x}>✓ {x}</span>)}</div><p><b>Regra de governação:</b> nenhuma lei laboral, imposto ou contribuição é assumida pelo Core. Cada regra exige país, fundamento, vigência, fórmula determinística, testes e aprovação antes de uso em produção.</p></footer></div>}</section>}
+
+type Pack = {
+  countryCode: string;
+  name: string;
+  currency: string;
+  language: string;
+  checks: string[];
+  status: string;
+  packVersion: string;
+  startedBy: string | null;
+  startedAt: string | null;
+  activatedBy: string | null;
+  activatedAt: string | null;
+};
+
+const erpFlow = [
+  "Preparar período",
+  "Recolher variáveis",
+  "Calcular",
+  "Validar exceções",
+  "Aprovar",
+  "Fechar",
+  "Pagar e reportar",
+  "Integrar Finance",
+];
+
+export function PayrollCountryControls() {
+  const [country, setCountry] = useState("AO"),
+    [open, setOpen] = useState(true),
+    [packs, setPacks] = useState<Pack[] | null>(null),
+    [email, setEmail] = useState(""),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+
+  const load = () =>
+    apiFetch("/api/v1/payroll-country-packs")
+      .then(async (r) => {
+        const b = (await r.json()) as { packs?: Pack[]; error?: string };
+        if (!r.ok) throw new Error(b.error);
+        setPacks(b.packs || []);
+      })
+      .catch((e) => setError(e.message));
+  useEffect(() => {
+    load();
+    apiFetch("/api/session")
+      .then((r) => r.json())
+      .then((b) => setEmail(b.email || ""))
+      .catch(() => {});
+  }, []);
+
+  const c = packs?.find((p) => p.countryCode === country);
+
+  async function act(type: "startParametrization" | "activatePack") {
+    setBusy(true);
+    setError("");
+    const r = await apiFetch("/api/v1/payroll-country-packs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type, countryCode: country }),
+    });
+    const b = (await r.json()) as { error?: string };
+    setBusy(false);
+    if (!r.ok) {
+      setError(b.error || "Não foi possível processar o pedido.");
+      return;
+    }
+    load();
+  }
+
+  return (
+    <section className={open ? "payroll-governance open" : "payroll-governance"}>
+      <button className="payroll-governance-head" onClick={() => setOpen(!open)}>
+        <span>
+          <i>§</i>
+          <b>Processamento salarial por Country Pack</b>
+          <small>
+            {c ? `${c.name} · ${c.packVersion} · ${c.status}` : "A carregar…"}
+          </small>
+        </span>
+        <em>{open ? "Ocultar −" : "Ver configuração +"}</em>
+      </button>
+      {open && (
+        <div className="payroll-governance-body">
+          <header>
+            <label>
+              País aplicável
+              <select value={country} onChange={(e) => setCountry(e.target.value)}>
+                {(packs || []).map((p) => (
+                  <option key={p.countryCode} value={p.countryCode}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Moeda
+              <input value={c?.currency || ""} readOnly />
+            </label>
+            <label>
+              Idioma documental
+              <input value={c?.language || ""} readOnly />
+            </label>
+            <label>
+              Versão do Pack
+              <input value={c?.packVersion || ""} readOnly />
+            </label>
+          </header>
+          {c && (
+            <div className="payroll-governance-status">
+              {c.status === "Não instalado" && (
+                <button disabled={busy} onClick={() => act("startParametrization")}>
+                  {busy ? "A processar…" : "Iniciar parametrização"}
+                </button>
+              )}
+              {c.status === "Em parametrização" &&
+                (c.startedBy?.toLowerCase() === email.toLowerCase() ? (
+                  <span className="payroll-governance-note">
+                    Iniciado por si em{" "}
+                    {c.startedAt && new Date(c.startedAt).toLocaleDateString("pt-PT")}{" "}
+                    — aguarda ativação por outro administrador (maker-checker).
+                  </span>
+                ) : (
+                  <button disabled={busy} onClick={() => act("activatePack")}>
+                    {busy ? "A processar…" : "Ativar pack"}
+                  </button>
+                ))}
+              {c.status === "Ativo" && (
+                <span className="payroll-governance-note">
+                  Ativado por {c.activatedBy} em{" "}
+                  {c.activatedAt && new Date(c.activatedAt).toLocaleDateString("pt-PT")}
+                  .
+                </span>
+              )}
+              {error && <p className="erro-form">{error}</p>}
+            </div>
+          )}
+          <div className="payroll-erp-flow">
+            {erpFlow.map((x, i) => (
+              <span key={x}>
+                <i>{i + 1}</i>
+                <b>{x}</b>
+                <small>
+                  {i < 5 ? "Reversível" : i === 5 ? "Bloqueia cálculo" : "Pós-fecho"}
+                </small>
+              </span>
+            ))}
+          </div>
+          <footer>
+            <div>
+              {(c?.checks || []).map((x) => (
+                <span key={x}>✓ {x}</span>
+              ))}
+            </div>
+            <p>
+              <b>Regra de governação:</b> nenhuma lei laboral, imposto ou contribuição
+              é assumida pelo Core. Cada regra exige país, fundamento, vigência,
+              fórmula determinística, testes e aprovação antes de uso em produção.
+            </p>
+          </footer>
+        </div>
+      )}
+    </section>
+  );
+}

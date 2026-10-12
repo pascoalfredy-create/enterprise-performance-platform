@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { apiFetch } from "../lib/api-client";
 import "./recruitment.css";
 type Requisition={id:string;title:string;organization_name:string;department_code?:string;positions:number;target_start_date:string;currency:string;budget_monthly_minor:number;status:string};
-type Application={id:string;candidate_id:string;candidate_name:string;candidate_email:string;requisition_title:string;status:string;decision_note?:string};
+type Application={id:string;candidate_id:string;candidate_name:string;candidate_email:string;requisition_title:string;status:string;decision_note?:string;rating?:number|null};
 type OnboardingCase={id:string;application_id:string;candidate_name:string;requisition_title:string;start_date:string;completed_count:number;task_count:number};
 type OnboardingTask={id:string;case_id:string;title:string;owner_email:string;due_date:string;status:string};
 type Organization={id:string;code:string;name:string};
@@ -251,7 +251,14 @@ export function RecruitmentWorkspace() {
                 <b>{x.requisition_title}</b>
                 <small>{x.decision_note || "Sem nota"}</small>
               </p>
-              <em>{x.status}</em>
+              <em>
+                {x.status}
+                {x.rating ? (
+                  <small className="talent-rating" title={`${x.rating}/5`}>
+                    {"★".repeat(x.rating) + "☆".repeat(5 - x.rating)}
+                  </small>
+                ) : null}
+              </em>
               <nav>
                 {x.status !== "Contratada" && x.status !== "Rejeitada" && (
                   <button

@@ -269,27 +269,47 @@ export async function hrPayrollCostApi(
         employer_minor: number;
       }>();
     if (!latestPayroll)
-      return Response.json({ hasData: false, payroll: null, reconciliation: null, workforceCost: null });
-    const [reconciled, totalActive, approvedBudget] = await Promise.all([
-      db
-        .prepare(
-          "SELECT COUNT(DISTINCT l.employee_id) n FROM payroll_run_lines l JOIN employees e ON e.id=l.employee_id AND e.tenant_id=l.tenant_id WHERE l.tenant_id=? AND l.run_id=? AND (? IS NULL OR e.organization_id=?)",
-        )
-        .bind(tenant, latestPayroll.id, scope, scope)
-        .first<{ n: number }>(),
-      db
-        .prepare(
-          "SELECT COUNT(*) n FROM employees WHERE tenant_id=? AND status='Ativo' AND (? IS NULL OR organization_id=?)",
-        )
-        .bind(tenant, scope, scope)
-        .first<{ n: number }>(),
-      db
-        .prepare(
-          "SELECT id FROM budget_versions WHERE tenant_id=? AND status='Aprovado' ORDER BY approved_at DESC LIMIT 1",
-        )
-        .bind(tenant)
-        .first<{ id: string }>(),
-    ]);
+      return Response.json({
+        hasData: false,
+        payroll: null,
+        reconciliation: null,
+        workforceCost: null,
+        costBreakdown: null,
+        nextPeriodProjection: null,
+      });
+    const [reconciled, totalActive, approvedBudget, runComposition, currentBase] =
+      await Promise.all([
+        db
+          .prepare(
+            "SELECT COUNT(DISTINCT l.employee_id) n FROM payroll_run_lines l JOIN employees e ON e.id=l.employee_id AND e.tenant_id=l.tenant_id WHERE l.tenant_id=? AND l.run_id=? AND (? IS NULL OR e.organization_id=?)",
+          )
+          .bind(tenant, latestPayroll.id, scope, scope)
+          .first<{ n: number }>(),
+        db
+          .prepare(
+            "SELECT COUNT(*) n FROM employees WHERE tenant_id=? AND status='Ativo' AND (? IS NULL OR organization_id=?)",
+          )
+          .bind(tenant, scope, scope)
+          .first<{ n: number }>(),
+        db
+          .prepare(
+            "SELECT id FROM budget_versions WHERE tenant_id=? AND status='Aprovado' ORDER BY approved_at DESC LIMIT 1",
+          )
+          .bind(tenant)
+          .first<{ id: string }>(),
+        db
+          .prepare(
+            "SELECT COALESCE(SUM(l.base_minor),0) base,COALESCE(SUM(l.gross_minor),0) gross,COALESCE(SUM(l.employer_minor),0) employer FROM payroll_run_lines l JOIN employees e ON e.id=l.employee_id AND e.tenant_id=l.tenant_id WHERE l.tenant_id=? AND l.run_id=? AND (? IS NULL OR e.organization_id=?)",
+          )
+          .bind(tenant, latestPayroll.id, scope, scope)
+          .first<{ base: number; gross: number; employer: number }>(),
+        db
+          .prepare(
+            "SELECT COALESCE(SUM(sp.base_minor),0) base,COUNT(*) n FROM salary_profiles sp JOIN employees e ON e.id=sp.employee_id AND e.tenant_id=sp.tenant_id WHERE sp.tenant_id=? AND sp.status='Ativo' AND e.status='Ativo' AND (? IS NULL OR e.organization_id=?)",
+          )
+          .bind(tenant, scope, scope)
+          .first<{ base: number; n: number }>(),
+      ]);
     const [workforceActual, workforceBudget] = await Promise.all([
       db
         .prepare(
@@ -331,6 +351,26 @@ export async function hrPayrollCostApi(
         actualMinor: workforceActual?.total ?? 0,
         budgetMinor: workforceBudget?.total ?? 0,
       },
+      costBreakdown:
+        runComposition && (reconciled?.n ?? 0) > 0
+          ? {
+              baseMinor: runComposition.base,
+              otherEarningsMinor: Math.max(
+                0,
+                runComposition.gross - runComposition.base,
+              ),
+              employerMinor: runComposition.employer,
+            }
+          : null,
+      nextPeriodProjection:
+        currentBase && currentBase.n > 0 && runComposition
+          ? {
+              currentBaseMinor: currentBase.base,
+              lastClosedBaseMinor: runComposition.base,
+              deltaMinor: currentBase.base - runComposition.base,
+              activeEmployeeCount: currentBase.n,
+            }
+          : null,
     });
   } catch (error) {
     return fail(error);
@@ -347,7 +387,7 @@ export async function hrTalentApi(
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const tenant = security.tenantId,
       scope = security.organizationId;
-    const [reviews, devItems, competencies] = await Promise.all([
+    const [reviews, devItems, competencies, openRequisitions] = await Promise.all([
       db
         .prepare(
           "SELECT final_score_bps FROM performance_reviews WHERE tenant_id=? AND status='Finalizada' AND final_score_bps IS NOT NULL AND (? IS NULL OR organization_id=?)",
@@ -363,6 +403,12 @@ export async function hrTalentApi(
       db
         .prepare(
           "SELECT COUNT(DISTINCT f.competency_id) n FROM feedback_360_responses f JOIN feedback_360_rounds rnd ON rnd.id=f.round_id AND rnd.tenant_id=f.tenant_id JOIN performance_reviews r ON r.id=rnd.review_id AND r.tenant_id=rnd.tenant_id WHERE f.tenant_id=? AND (? IS NULL OR r.organization_id=?)",
+        )
+        .bind(tenant, scope, scope)
+        .first<{ n: number }>(),
+      db
+        .prepare(
+          "SELECT COUNT(*) n FROM recruitment_requisitions WHERE tenant_id=? AND status='Aberta' AND (? IS NULL OR organization_id=?)",
         )
         .bind(tenant, scope, scope)
         .first<{ n: number }>(),
@@ -386,6 +432,11 @@ export async function hrTalentApi(
         concluded: devItems?.concluded ?? 0,
       },
       competenciesAssessed: competencies?.n ?? 0,
+      insights: {
+        retentionRiskCount: buckets.critical + buckets.developing,
+        successionGapCount: openRequisitions?.n ?? 0,
+        developmentActiveCount: devItems?.active ?? 0,
+      },
     });
   } catch (error) {
     return fail(error);

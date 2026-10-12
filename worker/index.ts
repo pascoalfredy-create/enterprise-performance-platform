@@ -45,6 +45,7 @@ import { recruitmentApi } from "./recruitment";
 import { careersApi } from "./careers";
 import { attendanceApi } from "./attendance";
 import { payrollLoansApi } from "./payroll-loans";
+import { payrollCountryPacksApi } from "./payroll-country-packs";
 import { payrollAdjustmentsApi } from "./payroll-adjustments";
 import { integrationsApi } from "./integrations";
 import { employeeDocumentsApi } from "./employee-documents";
@@ -5985,9 +5986,11 @@ const worker = {
                   : "hcm:read"
                 : apiPath === "/api/hr-talent"
                   ? "review:read"
-                  : ["/api/payroll-loans", "/api/payroll-adjustments"].includes(
-                        apiPath,
-                      )
+                  : [
+                        "/api/payroll-loans",
+                        "/api/payroll-adjustments",
+                        "/api/payroll-country-packs",
+                      ].includes(apiPath)
                     ? write
                       ? "payroll:write"
                       : "payroll:read"
@@ -6102,6 +6105,7 @@ const worker = {
                 "/api/payroll",
                 "/api/payroll-loans",
                 "/api/payroll-adjustments",
+                "/api/payroll-country-packs",
               ].includes(apiPath)
             ? "PAYROLL"
             : [
@@ -6218,6 +6222,8 @@ const worker = {
         return payrollLoansApi(request, env.DB, security);
       if (apiPath === "/api/payroll-adjustments")
         return payrollAdjustmentsApi(request, env.DB, security);
+      if (apiPath === "/api/payroll-country-packs")
+        return payrollCountryPacksApi(request, env.DB, security);
       if (apiPath === "/api/performance")
         return performanceApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/scenarios")

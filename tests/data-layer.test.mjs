@@ -440,3 +440,18 @@ test("employee onboarding documents require a typed signature to move from Pende
  assert.equal(row.status,'Assinado');assert.equal(row.signature_name,'Ana Silva');
  db.close();
 });
+
+test("payroll country packs require a different administrator to activate than the one who started parametrization (maker-checker), reject unsupported countries and are immutable once active",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo')");
+ assert.throws(()=>db.exec("INSERT INTO payroll_country_packs (id,tenant_id,country_code,status,pack_version,started_by,started_at,created_at) VALUES ('p1','t1','ZZ','Em parametrização','ZZ-PAYROLL-DRAFT','hr@test','now','now')"),/CHECK constraint failed/);
+ db.exec("INSERT INTO payroll_country_packs (id,tenant_id,country_code,status,pack_version,started_by,started_at,created_at) VALUES ('p1','t1','AO','Em parametrização','AO-PAYROLL-DRAFT','hr@test','now','now')");
+ assert.throws(()=>db.exec("INSERT INTO payroll_country_packs (id,tenant_id,country_code,status,pack_version,started_by,started_at,created_at) VALUES ('p2','t1','AO','Em parametrização','AO-PAYROLL-DRAFT','hr2@test','now','now')"),/UNIQUE constraint failed/);
+ assert.throws(()=>db.exec("UPDATE payroll_country_packs SET status='Ativo',activated_by='hr@test',activated_at='later' WHERE id='p1'"),/invalid payroll country pack transition/);
+ db.exec("UPDATE payroll_country_packs SET status='Ativo',activated_by='hr2@test',activated_at='later' WHERE id='p1'");
+ assert.throws(()=>db.exec("UPDATE payroll_country_packs SET pack_version='AO-PAYROLL-2' WHERE id='p1'"),/invalid payroll country pack transition/);
+ assert.throws(()=>db.exec("DELETE FROM payroll_country_packs WHERE id='p1'"),/cannot be deleted/);
+ const row=db.prepare("SELECT status,activated_by FROM payroll_country_packs WHERE id='p1'").get();
+ assert.equal(row.status,'Ativo');assert.equal(row.activated_by,'hr2@test');
+ db.close();
+});

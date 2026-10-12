@@ -363,3 +363,28 @@ test("the public careers endpoint bypasses the Supabase auth gate but is still s
  assert.match(careersApi,/body\.consent !== "on"/);
  assert.match(careersApi,/Já tem uma candidatura registada para esta vaga/);
 });
+test("only payroll:write (PAYROLL module) can start or activate a country pack, and activation requires a different administrator than the one who started it (maker-checker)",()=>{
+ const packs=fs.readFileSync(new URL("../worker/payroll-country-packs.ts",import.meta.url),"utf8");
+ assert.match(packs,/body\.type === "startParametrization"/);
+ assert.match(packs,/body\.type === "activatePack"/);
+ assert.match(packs,/existing\.started_by\.toLowerCase\(\) === security\.email\.toLowerCase\(\)/);
+ assert.match(packs,/Maker-checker: quem iniciou a parametrização não pode ativar o mesmo pack/);
+ assert.match(compact,/apiPath==="\/api\/payroll-country-packs"/);
+ assert.match(compact,/payrollCountryPacksApi\(request,env\.DB,security\)/);
+ assert.match(compact,/"\/api\/payroll-adjustments","\/api\/payroll-country-packs"/);
+});
+test("HR manager suite cost and talent tabs render only data fetched from the real hr-payroll-cost/hr-talent APIs, with no illustrative fallback content",()=>{
+ const suite=fs.readFileSync(new URL("../app/hr-manager-suite.tsx",import.meta.url),"utf8");
+ assert.doesNotMatch(suite,/PRÉ-VISUALIZAÇÃO|previewLabel/);
+ assert.doesNotMatch(suite,/nine-box/);
+ assert.doesNotMatch(suite,/cost-drivers/);
+ assert.match(suite,/data\.costBreakdown/);
+ assert.match(suite,/data\.nextPeriodProjection/);
+ assert.match(suite,/data\.insights\.retentionRiskCount/);
+ assert.match(suite,/data\.insights\.successionGapCount/);
+ assert.match(suite,/data\.insights\.developmentActiveCount/);
+ const hrData=fs.readFileSync(new URL("../worker/hr-data.ts",import.meta.url),"utf8");
+ assert.match(hrData,/costBreakdown:/);
+ assert.match(hrData,/nextPeriodProjection:/);
+ assert.match(hrData,/insights:\s*\{/);
+});
