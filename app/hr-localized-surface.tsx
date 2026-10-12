@@ -701,6 +701,11 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Ainda não existem documentos.","No documents yet.","Aún no hay documentos.","Aucun document pour le moment.","Документов ещё нет."],
 ["Perfil","Profile","Perfil","Profil","Профиль"],
 ["Cargo","Job title","Puesto","Poste","Должность"],
+["Dias de férias","Leave days","Días de vacaciones","Jours de congé","Дни отпуска"],
+["Último recibo","Latest payslip","Último recibo","Dernier bulletin","Последний расчётный листок"],
+["Descontos","Deductions","Deducciones","Retenues","Удержания"],
+["Recibos","Payslips","Recibos","Bulletins","Расчётные листки"],
+["Férias","Leave","Vacaciones","Congés","Отпуск"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;
