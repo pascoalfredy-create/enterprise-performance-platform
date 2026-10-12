@@ -199,6 +199,13 @@ test("self-service leave requests validate the absence type against the caller's
  assert.match(selfService,/Tipo de ausência inválido/);
  assert.match(selfService,/status:\s*"Pendente"\s*\},\s*\{\s*status:\s*201/);
 });
+test("the founding Administrador is always tenant-wide, never trapped in their own organization",()=>{
+ assert.match(compact,/"Administrador",null,"Ativo",/);
+ assert.doesNotMatch(compact,/"Administrador",organizationId,"Ativo",/);
+ assert.match(source,/user\.role === "Administrador" && user\.organization_id/);
+ assert.match(source,/UPDATE platform_users SET organization_id=NULL WHERE id=\? AND tenant_id=\?/);
+ assert.match(source,/user\.organization_id = null;/);
+});
 test("HR can invite an employee to the self-service portal, scoped and deduplicated",()=>{
  assert.match(source,/body\.type==="portalInvite"/);
  assert.match(source,/Colaborador fora do âmbito autorizado/);

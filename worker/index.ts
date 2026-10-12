@@ -1005,7 +1005,7 @@ async function provisionTenantApi(request: Request, db: D1Database) {
           name,
           email,
           "Administrador",
-          organizationId,
+          null,
           "Ativo",
         ),
       db
@@ -1356,6 +1356,23 @@ async function securityContext(
       { error: "O tenant solicitado não pertence ao utilizador autenticado." },
       { status: 403 },
     );
+  // Self-heal a historical bug: provisionTenantApi used to scope the
+  // founding Administrador to their own (only) organization instead of
+  // the whole tenant, which then silently blocked every /api/setup
+  // write for them, onboarding included — an Administrador is always
+  // meant to be tenant-wide, matching the two bootstrap paths above
+  // that already create one with organization_id=null. Fix it forward
+  // on next load rather than requiring a migration or manual repair.
+  if (user.role === "Administrador" && user.organization_id) {
+    await db
+      .prepare(
+        "UPDATE platform_users SET organization_id=NULL WHERE id=? AND tenant_id=?",
+      )
+      .bind(user.id, user.tenant_id)
+      .run();
+    user.organization_id = null;
+    user.organization_name = null;
+  }
   const role = String(user.role),
     permissions = rolePermissions[role] || [],
     tenants = memberships.results.map((x) => ({
