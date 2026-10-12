@@ -756,6 +756,28 @@
   font-size: 0.82rem;
   color: var(--portal-muted);
 }
+.portal-punch-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.74rem;
+  color: var(--portal-muted);
+}
+.portal-punch-location svg {
+  width: 12px;
+  height: 12px;
+}
+.portal-row-pin {
+  display: inline-flex;
+  margin-left: 6px;
+  vertical-align: -1px;
+  color: var(--portal-muted);
+}
+.portal-row-pin svg {
+  width: 11px;
+  height: 11px;
+}
 .portal-punch-card p {
   margin: 4px 0 0;
 }

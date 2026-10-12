@@ -106,6 +106,7 @@ type OpenAttendanceEntry = {
   workDate: string;
   clockIn: string;
   scheduledMinutes: number;
+  clockInHasLocation: boolean;
 };
 type AttendanceEntry = {
   id: string;
@@ -116,6 +117,8 @@ type AttendanceEntry = {
   scheduledMinutes: number;
   overtimeMinutes: number;
   exceptionCode: string | null;
+  clockInHasLocation: boolean;
+  clockOutHasLocation: boolean;
 };
 type Attendance = {
   openEntry: OpenAttendanceEntry | null;
@@ -256,6 +259,12 @@ const Icon = {
       <path d="M15 7.5h5.5V13" />
     </svg>
   ),
+  pin: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21Z" />
+      <circle cx="12" cy="9.5" r="2.3" />
+    </svg>
+  ),
 };
 function Skeleton({ lines = 2 }: { lines?: number }) {
   return (
@@ -289,6 +298,7 @@ export default function Portal() {
   const [careerNoticeBusy, setCareerNoticeBusy] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<Attendance | null>(null);
   const [attendanceBusy, setAttendanceBusy] = useState(false);
+  const [locatingPunch, setLocatingPunch] = useState(false);
   const [, forceTick] = useState(0);
 
   useEffect(() => {
@@ -476,13 +486,45 @@ export default function Portal() {
     );
   }
 
+  function capturePunchLocation(): Promise<{
+    lat?: number;
+    lng?: number;
+    accuracy?: number;
+  }> {
+    return new Promise((resolve) => {
+      if (!("geolocation" in navigator)) {
+        resolve({});
+        return;
+      }
+      const timer = setTimeout(() => resolve({}), 6000);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          clearTimeout(timer);
+          resolve({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          });
+        },
+        () => {
+          clearTimeout(timer);
+          resolve({});
+        },
+        { enableHighAccuracy: false, timeout: 5500, maximumAge: 60000 },
+      );
+    });
+  }
+
   async function punch(action: "selfClockIn" | "selfClockOut") {
     setAttendanceBusy(true);
+    setLocatingPunch(true);
     setError("");
+    const location = await capturePunchLocation();
+    setLocatingPunch(false);
     const r = await apiFetch("/api/self-service", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: action }),
+      body: JSON.stringify({ type: action, ...location }),
     });
     const body = (await r.json()) as { error?: string };
     setAttendanceBusy(false);
@@ -711,12 +753,21 @@ export default function Portal() {
                     <span className="portal-punch-elapsed">
                       Há {elapsedSince(attendance.openEntry.clockIn)}
                     </span>
+                    {attendance.openEntry.clockInHasLocation && (
+                      <span className="portal-punch-location">
+                        {Icon.pin} Localização registada
+                      </span>
+                    )}
                     <button
                       className="portal-punch-button portal-punch-out"
                       disabled={attendanceBusy}
                       onClick={() => punch("selfClockOut")}
                     >
-                      {attendanceBusy ? "A registar…" : "Registar saída"}
+                      {locatingPunch
+                        ? "A obter localização…"
+                        : attendanceBusy
+                          ? "A registar…"
+                          : "Registar saída"}
                     </button>
                   </>
                 ) : (
@@ -730,7 +781,11 @@ export default function Portal() {
                       disabled={attendanceBusy}
                       onClick={() => punch("selfClockIn")}
                     >
-                      {attendanceBusy ? "A registar…" : "Registar entrada"}
+                      {locatingPunch
+                        ? "A obter localização…"
+                        : attendanceBusy
+                          ? "A registar…"
+                          : "Registar entrada"}
                     </button>
                   </>
                 )}
@@ -749,6 +804,11 @@ export default function Portal() {
                           <b>{e.workDate}</b>
                           <span>
                             {e.clockIn} – {e.clockOut} · {hoursLabel(e.workedMinutes)}
+                            {(e.clockInHasLocation || e.clockOutHasLocation) && (
+                              <span className="portal-row-pin" title="Localização registada">
+                                {Icon.pin}
+                              </span>
+                            )}
                           </span>
                         </div>
                         {e.exceptionCode && (

@@ -273,3 +273,20 @@ test("employees can only read and acknowledge their own career notices, never al
  assert.match(selfService,/body\.type === "acknowledgeCareerNotice"/);
  assert.match(selfService,/UPDATE employee_career_notices SET status='Reconhecido',acknowledged_at=\? WHERE id=\? AND tenant_id=\? AND employee_id=\? AND status='Publicado'/);
 });
+test("attendance punch clock captures optional geolocation but never requires it",()=>{
+ const selfService=fs.readFileSync(new URL("../worker/self-service.ts",import.meta.url),"utf8");
+ assert.match(selfService,/function parseGeo/);
+ assert.match(selfService,/lat === undefined && lng === undefined && accuracy === undefined\) return null/);
+ assert.match(selfService,/latN < -90 \|\|\s*latN > 90/);
+ assert.match(selfService,/clock_in_lat,clock_in_lng,clock_in_accuracy_m\) VALUES/);
+ assert.match(selfService,/clock_out_lat=\?,clock_out_lng=\?,clock_out_accuracy_m=\?/);
+ assert.match(selfService,/Localização inválida/);
+});
+test("attendance geolocation columns are append-only and clock_in location is immutable once set",()=>{
+ const migration=fs.readFileSync(new URL("../drizzle/0047_attendance_geolocation.sql",import.meta.url),"utf8");
+ assert.match(migration,/ALTER TABLE attendance_entries ADD COLUMN clock_in_lat REAL/);
+ assert.match(migration,/ALTER TABLE attendance_entries ADD COLUMN clock_out_lat REAL/);
+ assert.match(migration,/NEW\.clock_in_lat IS NOT OLD\.clock_in_lat/);
+ const attendanceApi=fs.readFileSync(new URL("../worker/attendance.ts",import.meta.url),"utf8");
+ assert.match(attendanceApi,/INSERT INTO attendance_entries \(id,tenant_id,employee_id,work_date,clock_in,clock_out,source,worked_minutes,scheduled_minutes,overtime_minutes,exception_code,note,created_by,created_at\)/);
+});

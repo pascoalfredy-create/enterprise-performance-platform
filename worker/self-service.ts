@@ -30,6 +30,24 @@ function luandaNow() {
     clockTime: local.toISOString().slice(11, 16),
   };
 }
+function parseGeo(lat: unknown, lng: unknown, accuracy: unknown) {
+  if (lat === undefined && lng === undefined && accuracy === undefined) return null;
+  if (lat === undefined || lng === undefined) return "invalid" as const;
+  const latN = Number(lat),
+    lngN = Number(lng),
+    accN = accuracy === undefined ? null : Number(accuracy);
+  if (
+    !Number.isFinite(latN) ||
+    !Number.isFinite(lngN) ||
+    latN < -90 ||
+    latN > 90 ||
+    lngN < -180 ||
+    lngN > 180 ||
+    (accN !== null && (!Number.isFinite(accN) || accN < 0))
+  )
+    return "invalid" as const;
+  return { lat: latN, lng: lngN, accuracy: accN };
+}
 
 export async function selfServiceApi(
   request: Request,
@@ -274,7 +292,7 @@ export async function selfServiceApi(
         const [openEntry, recent] = await Promise.all([
           db
             .prepare(
-              "SELECT id,work_date,clock_in,scheduled_minutes FROM attendance_entries WHERE tenant_id=? AND employee_id=? AND clock_out IS NULL ORDER BY work_date DESC LIMIT 1",
+              "SELECT id,work_date,clock_in,scheduled_minutes,clock_in_lat,clock_in_lng FROM attendance_entries WHERE tenant_id=? AND employee_id=? AND clock_out IS NULL ORDER BY work_date DESC LIMIT 1",
             )
             .bind(tenant, employeeId)
             .first<{
@@ -282,10 +300,12 @@ export async function selfServiceApi(
               work_date: string;
               clock_in: string;
               scheduled_minutes: number;
+              clock_in_lat: number | null;
+              clock_in_lng: number | null;
             }>(),
           db
             .prepare(
-              "SELECT id,work_date,clock_in,clock_out,worked_minutes,scheduled_minutes,overtime_minutes,exception_code FROM attendance_entries WHERE tenant_id=? AND employee_id=? AND clock_out IS NOT NULL ORDER BY work_date DESC LIMIT 14",
+              "SELECT id,work_date,clock_in,clock_out,worked_minutes,scheduled_minutes,overtime_minutes,exception_code,clock_in_lat,clock_in_lng,clock_out_lat,clock_out_lng FROM attendance_entries WHERE tenant_id=? AND employee_id=? AND clock_out IS NOT NULL ORDER BY work_date DESC LIMIT 14",
             )
             .bind(tenant, employeeId)
             .all<{
@@ -297,6 +317,10 @@ export async function selfServiceApi(
               scheduled_minutes: number;
               overtime_minutes: number;
               exception_code: string | null;
+              clock_in_lat: number | null;
+              clock_in_lng: number | null;
+              clock_out_lat: number | null;
+              clock_out_lng: number | null;
             }>(),
         ]);
         return Response.json({
@@ -306,6 +330,7 @@ export async function selfServiceApi(
                 workDate: openEntry.work_date,
                 clockIn: openEntry.clock_in,
                 scheduledMinutes: openEntry.scheduled_minutes,
+                clockInHasLocation: openEntry.clock_in_lat !== null,
               }
             : null,
           recentEntries: recent.results.map((e) => ({
@@ -317,6 +342,8 @@ export async function selfServiceApi(
             scheduledMinutes: e.scheduled_minutes,
             overtimeMinutes: e.overtime_minutes,
             exceptionCode: e.exception_code,
+            clockInHasLocation: e.clock_in_lat !== null,
+            clockOutHasLocation: e.clock_out_lat !== null,
           })),
         });
       }
@@ -383,11 +410,17 @@ export async function selfServiceApi(
           { error: "Não existe um turno ativo atribuído. Contacte os Recursos Humanos." },
           { status: 409 },
         );
+      const geo = parseGeo(body.lat, body.lng, body.accuracy);
+      if (geo === "invalid")
+        return Response.json(
+          { error: "Localização inválida." },
+          { status: 400 },
+        );
       const id = crypto.randomUUID(),
         now = new Date().toISOString();
       await db
         .prepare(
-          "INSERT INTO attendance_entries VALUES (?,?,?,?,?,NULL,?,NULL,?,NULL,NULL,?,?,?)",
+          "INSERT INTO attendance_entries (id,tenant_id,employee_id,work_date,clock_in,clock_out,source,worked_minutes,scheduled_minutes,overtime_minutes,exception_code,note,created_by,created_at,clock_in_lat,clock_in_lng,clock_in_accuracy_m) VALUES (?,?,?,?,?,NULL,?,NULL,?,NULL,NULL,?,?,?,?,?,?)",
         )
         .bind(
           id,
@@ -400,10 +433,13 @@ export async function selfServiceApi(
           null,
           security.email,
           now,
+          geo?.lat ?? null,
+          geo?.lng ?? null,
+          geo?.accuracy ?? null,
         )
         .run();
       return Response.json(
-        { id, workDate, clockIn: clockTime },
+        { id, workDate, clockIn: clockTime, hasLocation: !!geo },
         { status: 201 },
       );
     }
@@ -430,15 +466,24 @@ export async function selfServiceApi(
           { error: "A duração da marcação é inválida." },
           { status: 400 },
         );
+      const geo = parseGeo(body.lat, body.lng, body.accuracy);
+      if (geo === "invalid")
+        return Response.json(
+          { error: "Localização inválida." },
+          { status: 400 },
+        );
       const result = await db
         .prepare(
-          "UPDATE attendance_entries SET clock_out=?,worked_minutes=?,overtime_minutes=?,exception_code=? WHERE id=? AND tenant_id=? AND employee_id=? AND clock_out IS NULL",
+          "UPDATE attendance_entries SET clock_out=?,worked_minutes=?,overtime_minutes=?,exception_code=?,clock_out_lat=?,clock_out_lng=?,clock_out_accuracy_m=? WHERE id=? AND tenant_id=? AND employee_id=? AND clock_out IS NULL",
         )
         .bind(
           clockTime,
           worked,
           overtime,
           worked < scheduled ? "DÉFICE" : overtime > 0 ? "EXTRA" : null,
+          geo?.lat ?? null,
+          geo?.lng ?? null,
+          geo?.accuracy ?? null,
           row.id,
           tenant,
           employeeId,
@@ -454,6 +499,7 @@ export async function selfServiceApi(
         clockOut: clockTime,
         workedMinutes: worked,
         overtimeMinutes: overtime,
+        hasLocation: !!geo,
       });
     }
     if (body.type === "acknowledgeNotice") {
