@@ -1,6 +1,8 @@
 "use client";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch, readApiJson } from "../lib/api-client";
+import { mapAssistedRows, parseFinancialCsv } from "../lib/assisted-import";
+import { buildXlsxBlob, parseXlsxFile } from "../lib/xlsx";
 import { CompetenciesWorkspace } from "./competencies-workspace";
 import { ConsolidationWorkspace } from "./consolidation-workspace";
 import { FinancialModelsWorkspace } from "./financial-models-workspace";
@@ -40,6 +42,7 @@ import "./absence.css";
 import "./workflow.css";
 import "./actions.css";
 import "./scenarios.css";
+import "./assisted-import.css";
 import "./goals.css";
 import "./reviews.css";
 import "./enterprise-cards.css";
@@ -3780,12 +3783,17 @@ const scenarioEmpty: ScenarioData = {
   },
   audit: [],
 };
+type ImportRow = { code: string; description: string; amount: string; rowNumber: number; errors: string[] };
 function ScenariosWorkspace() {
   const [data, setData] = useState<ScenarioData>(scenarioEmpty),
     [period, setPeriod] = useState("2026-08"),
     [currency, setCurrency] = useState("AOA"),
     [version, setVersion] = useState(""),
     [modal, setModal] = useState(""),
+    [importOrg, setImportOrg] = useState(""),
+    [importFileName, setImportFileName] = useState(""),
+    [importRows, setImportRows] = useState<ImportRow[]>([]),
+    [importErrors, setImportErrors] = useState<string[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const load = useCallback(
@@ -3807,6 +3815,28 @@ function ScenariosWorkspace() {
   }, [load]);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const fields = Object.fromEntries(
+      new FormData(e.currentTarget).entries(),
+    ) as Record<string, string>;
+    if (modal === "importEntries") {
+      if (
+        !importRows.length ||
+        importErrors.length ||
+        importRows.some((r) => r.errors.length)
+      ) {
+        setError("Corrija os erros do ficheiro antes de importar.");
+        return;
+      }
+      fields.period = period;
+      fields.currency = currency;
+      fields.rows = JSON.stringify(
+        importRows.map((r) => ({
+          lineCode: r.code,
+          lineName: r.description,
+          amount: r.amount,
+        })),
+      );
+    }
     setBusy(true);
     setError("");
     const res = await apiFetch(
@@ -3814,10 +3844,7 @@ function ScenariosWorkspace() {
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            type: modal,
-            ...Object.fromEntries(new FormData(e.currentTarget).entries()),
-          }),
+          body: JSON.stringify({ type: modal, ...fields }),
         },
       ),
       body = await res.json();
@@ -3829,6 +3856,50 @@ function ScenariosWorkspace() {
     setData(body);
     if (body.selectedVersion?.id) setVersion(body.selectedVersion.id);
     setModal("");
+  }
+  async function chooseImportFile(file?: File) {
+    setError("");
+    setImportRows([]);
+    setImportErrors([]);
+    setImportFileName(file?.name || "");
+    if (!file) return;
+    if (!/\.(csv|xlsx)$/i.test(file.name) || file.size > 5 * 1024 * 1024) {
+      setImportErrors(["Selecione um ficheiro .csv ou .xlsx até 5 MB."]);
+      return;
+    }
+    try {
+      if (/\.xlsx$/i.test(file.name)) {
+        const cellRows = await parseXlsxFile(file),
+          result = mapAssistedRows(cellRows);
+        setImportRows(result.rows);
+        setImportErrors(result.errors);
+      } else {
+        const result = parseFinancialCsv(await file.text());
+        setImportRows(result.rows);
+        setImportErrors(result.errors);
+      }
+    } catch (err) {
+      setImportErrors([
+        err instanceof Error ? err.message : "Não foi possível ler o ficheiro.",
+      ]);
+    }
+  }
+  function downloadPlanningTemplate() {
+    const blob = buildXlsxBlob([
+        {
+          name: "Forecast",
+          rows: [
+            ["codigo", "descricao", "valor"],
+            ["REV-001", "Receita de serviços", 1500000],
+            ["COST-001", "Serviços de terceiros", -350000],
+          ],
+        },
+      ]),
+      anchor = document.createElement("a");
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = "template-forecast.xlsx";
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
   }
   async function approve() {
     if (!version) return;
@@ -3873,6 +3944,19 @@ function ScenariosWorkspace() {
             onClick={() => setModal("createPlanningVersion")}
           >
             ＋ Nova versão
+          </button>
+          <button
+            className="secundario"
+            disabled={!version || data.selectedVersion?.status !== "Rascunho"}
+            onClick={() => {
+              setImportOrg("");
+              setImportFileName("");
+              setImportRows([]);
+              setImportErrors([]);
+              setModal("importEntries");
+            }}
+          >
+            ↑ Importar ficheiro
           </button>
           <button
             className="primario"
@@ -4073,7 +4157,9 @@ function ScenariosWorkspace() {
                 <h2>
                   {modal === "createPlanningVersion"
                     ? "Nova versão"
-                    : "Nova entrada"}
+                    : modal === "importEntries"
+                      ? "Importar entradas"
+                      : "Nova entrada"}
                 </h2>
               </div>
               <button type="button" onClick={() => setModal("")}>
@@ -4108,6 +4194,100 @@ function ScenariosWorkspace() {
                   O Budget base aprovado é opcional e permanece uma fonte
                   independente.
                 </p>
+              </>
+            ) : modal === "importEntries" ? (
+              <>
+                <input type="hidden" name="versionId" value={version} />
+                <label>
+                  Organização
+                  <select
+                    name="organizationId"
+                    value={importOrg}
+                    onChange={(e) => setImportOrg(e.target.value)}
+                    required
+                  >
+                    <option value="">Selecionar</option>
+                    {data.organizations.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.code} · {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p className="calculo-nota">
+                  Período {period} e moeda {currency} são aplicados a todas as
+                  linhas do ficheiro.
+                </p>
+                <section className="fd-dropzone">
+                  <div>
+                    <b>{importFileName || "Selecione o ficheiro em CSV ou XLSX"}</b>
+                    <small>Cabeçalhos reconhecidos: código, descrição e valor · máximo 5 MB</small>
+                  </div>
+                  <label className="primario">
+                    Escolher ficheiro
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      onChange={(e) => chooseImportFile(e.target.files?.[0])}
+                    />
+                  </label>
+                  <button type="button" className="secundario" onClick={downloadPlanningTemplate}>
+                    ↓ Descarregar modelo
+                  </button>
+                </section>
+                {!!(importErrors.length || importRows.some((x) => x.errors.length)) && (
+                  <div className="fd-validation-errors" role="alert">
+                    <b>Validação requer atenção</b>
+                    {[
+                      ...importErrors,
+                      ...importRows.flatMap((row) =>
+                        row.errors.map((x) => `Linha ${row.rowNumber}: ${x}`),
+                      ),
+                    ]
+                      .slice(0, 6)
+                      .map((message) => (
+                        <span key={message}>{message}</span>
+                      ))}
+                  </div>
+                )}
+                {!!importRows.length && (
+                  <div className="fd-preview">
+                    <header>
+                      <b>Pré-visualização determinística</b>
+                      <em>
+                        {importRows.length} linha(s) ·{" "}
+                        {importRows.filter((x) => !x.errors.length).length}{" "}
+                        válidas
+                      </em>
+                    </header>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Linha</th>
+                          <th>Código</th>
+                          <th>Descrição</th>
+                          <th>Valor</th>
+                          <th>Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importRows.slice(0, 8).map((row) => (
+                          <tr key={row.rowNumber}>
+                            <td>{row.rowNumber}</td>
+                            <td>
+                              <code>{row.code || "—"}</code>
+                            </td>
+                            <td>{row.description || "—"}</td>
+                            <td>{row.amount || "—"}</td>
+                            <td className={row.errors.length ? "bad" : "good"}>
+                              {row.errors.length ? "Corrigir" : "Válida"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -4187,7 +4367,16 @@ function ScenariosWorkspace() {
               >
                 Cancelar
               </button>
-              <button className="primario" disabled={busy}>
+              <button
+                className="primario"
+                disabled={
+                  busy ||
+                  (modal === "importEntries" &&
+                    (!importRows.length ||
+                      !!importErrors.length ||
+                      importRows.some((x) => x.errors.length)))
+                }
+              >
                 {busy ? "A guardar…" : "Guardar"}
               </button>
             </footer>

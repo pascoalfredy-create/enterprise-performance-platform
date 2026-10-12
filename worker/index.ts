@@ -3140,6 +3140,80 @@ async function scenariosApi(
           now,
         )
         .run();
+    } else if (body.type === "importPlanningEntries") {
+      if (
+        !body.versionId ||
+        !body.organizationId ||
+        !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(body.period || "") ||
+        !/^[A-Za-z]{3}$/.test(body.currency || "")
+      )
+        return Response.json(
+          { error: "Versão, organização, período e moeda são obrigatórios." },
+          { status: 400 },
+        );
+      if (organizationId && body.organizationId !== organizationId)
+        return Response.json(
+          { error: "Importação fora do âmbito organizacional autorizado." },
+          { status: 403 },
+        );
+      let rows: Array<Record<string, string>>;
+      try {
+        rows = JSON.parse(body.rows || "[]");
+      } catch {
+        rows = [];
+      }
+      if (
+        !Array.isArray(rows) ||
+        !rows.length ||
+        rows.length > 2000 ||
+        rows.some((r) => !r.lineCode?.trim() || !r.lineName?.trim())
+      )
+        return Response.json(
+          {
+            error:
+              "O ficheiro deve conter entre 1 e 2000 linhas com código e nome válidos.",
+          },
+          { status: 400 },
+        );
+      const currencyUpper = body.currency.toUpperCase();
+      const statements = rows.map((r) =>
+        db
+          .prepare(
+            "INSERT INTO planning_entries (id,tenant_id,version_id,organization_id,period,currency,line_code,line_name,dimension_member_id,amount_minor,assumption_note,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            uid(),
+            tenantId,
+            body.versionId,
+            body.organizationId,
+            body.period,
+            currencyUpper,
+            r.lineCode.trim().toUpperCase(),
+            r.lineName.trim(),
+            r.dimensionMemberId || null,
+            parseMinor(r.amount || "0"),
+            r.assumptionNote?.trim() || null,
+            security.email,
+            now,
+          ),
+      );
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            uid(),
+            tenantId,
+            "IMPORT",
+            "planningVersion",
+            body.versionId,
+            security.email,
+            `${rows.length} entrada(s) importadas de ficheiro`,
+            now,
+          ),
+      );
+      await db.batch(statements);
     } else
       return Response.json(
         { error: "Operação de cenário não suportada." },

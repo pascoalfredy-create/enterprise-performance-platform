@@ -734,6 +734,9 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Valor base com crescimento fixo","Base value with fixed growth","Valor base con crecimiento fijo","Valeur de base avec croissance fixe","Базовое значение с фиксированным ростом"],
 ["Direcionada por outra linha","Driven by another line","Determinada por otra línea","Pilotée par une autre ligne","Определяется другой строкой"],
 ["Linha direcionadora","Driver line","Línea impulsora","Ligne pilote","Строка-драйвер"],
+["↑ Importar ficheiro","↑ Import file","↑ Importar archivo","↑ Importer un fichier","↑ Импортировать файл"],
+["Escolher ficheiro","Choose file","Elegir archivo","Choisir un fichier","Выбрать файл"],
+["↓ Descarregar modelo","↓ Download template","↓ Descargar plantilla","↓ Télécharger le modèle","↓ Скачать шаблон"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

@@ -25,7 +25,7 @@ const cleanHeader = (value: string) =>
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]/g, "");
 
 export function parseCsvLine(line: string, delimiter: string) {
@@ -48,19 +48,11 @@ export function parseCsvLine(line: string, delimiter: string) {
   return cells;
 }
 
-export function parseFinancialCsv(raw: string) {
-  const lines = raw
-    .replace(/^\uFEFF/, "")
-    .split(/\r?\n/)
-    .filter((line) => line.trim());
-  if (!lines.length)
-    return { delimiter: ";", headers: [], rows: [], errors: ["O ficheiro está vazio."] };
-  const first = lines[0];
-  const delimiter =
-    (first.match(/;/g) || []).length >= (first.match(/,/g) || []).length
-      ? ";"
-      : ",";
-  const sourceHeaders = parseCsvLine(first, delimiter);
+export function mapAssistedRows(cellRows: string[][]) {
+  const nonEmpty = cellRows.filter((cells) => cells.some((cell) => cell.trim()));
+  if (!nonEmpty.length)
+    return { headers: [], rows: [], errors: ["O ficheiro está vazio."] };
+  const sourceHeaders = nonEmpty[0];
   const mapped = sourceHeaders.map((header) => headerAliases[cleanHeader(header)]);
   const hasHeader = mapped.filter(Boolean).length >= 2;
   const positions = hasHeader
@@ -73,8 +65,7 @@ export function parseFinancialCsv(raw: string) {
   const errors: string[] = [];
   if (hasHeader && Object.values(positions).some((position) => position < 0))
     errors.push("Cabeçalhos obrigatórios: código, descrição e valor.");
-  const rows = lines.slice(hasHeader ? 1 : 0).map((line, index) => {
-    const cells = parseCsvLine(line, delimiter);
+  const rows = nonEmpty.slice(hasHeader ? 1 : 0).map((cells, index) => {
     const code = String(cells[positions.code] || "").trim();
     const description = String(cells[positions.description] || code).trim();
     const amount = String(cells[positions.amount] || "").trim();
@@ -97,7 +88,23 @@ export function parseFinancialCsv(raw: string) {
   });
   if (rows.length > 5000) errors.push("O máximo por lote é 5 000 linhas.");
   if (!rows.length) errors.push("O ficheiro não contém linhas de dados.");
-  return { delimiter, headers: sourceHeaders, rows, errors };
+  return { headers: sourceHeaders, rows, errors };
+}
+
+export function parseFinancialCsv(raw: string) {
+  const lines = raw
+    .replace(/^﻿/, "")
+    .split(/\r?\n/)
+    .filter((line) => line.trim());
+  if (!lines.length)
+    return { delimiter: ";", headers: [], rows: [], errors: ["O ficheiro está vazio."] };
+  const first = lines[0];
+  const delimiter =
+    (first.match(/;/g) || []).length >= (first.match(/,/g) || []).length
+      ? ";"
+      : ",";
+  const cellRows = lines.map((line) => parseCsvLine(line, delimiter));
+  return { delimiter, ...mapAssistedRows(cellRows) };
 }
 
 export const financialCsvTemplate =
