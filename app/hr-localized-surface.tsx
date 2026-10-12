@@ -774,6 +774,10 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Título do documento","Document title","Título del documento","Titre du document","Название документа"],
 ["Contrato de trabalho","Employment contract","Contrato de trabajo","Contrat de travail","Трудовой договор"],
 ["https://","https://","https://","https://","https://"],
+["Ficha de colaborador:","Employee record:","Ficha de empleado:","Dossier salarié :","Карточка сотрудника:"],
+["Ainda sem ficha de colaborador associada","No employee record linked yet","Aún sin ficha de empleado asociada","Aucun dossier salarié associé pour l'instant","Пока нет связанной карточки сотрудника"],
+["Associar colaborador","Link employee","Asociar empleado","Associer un salarié","Привязать сотрудника"],
+["Sem transições disponíveis","No transitions available","Sin transiciones disponibles","Aucune transition disponible","Нет доступных переходов"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

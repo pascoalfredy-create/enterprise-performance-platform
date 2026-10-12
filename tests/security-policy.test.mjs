@@ -388,3 +388,15 @@ test("HR manager suite cost and talent tabs render only data fetched from the re
  assert.match(hrData,/nextPeriodProjection:/);
  assert.match(hrData,/insights:\s*\{/);
 });
+test("onboarding cases can only be linked to an active employee within the caller's organization scope, once, and the recruitment pipeline UI only offers transitions valid from the application's current status",()=>{
+ const recruitment=fs.readFileSync(new URL("../worker/recruitment.ts",import.meta.url),"utf8");
+ assert.match(recruitment,/b\.type === "linkOnboardingEmployee"/);
+ assert.match(recruitment,/Colaborador fora do âmbito autorizado/);
+ assert.match(recruitment,/WHERE id=\? AND tenant_id=\? AND employee_id IS NULL/);
+ assert.match(recruitment,/já tem um colaborador associado/);
+ const workspace=fs.readFileSync(new URL("../app/recruitment-workspace.tsx",import.meta.url),"utf8");
+ assert.match(workspace,/nextApplicationStatuses/);
+ assert.match(workspace,/Recebida:\s*\["Triagem",\s*"Rejeitada"\]/);
+ assert.match(workspace,/Entrevista:\s*\["Oferta",\s*"Rejeitada"\]/);
+ assert.match(workspace,/Associar colaborador/);
+});

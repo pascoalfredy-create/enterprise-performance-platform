@@ -58,7 +58,7 @@ export async function recruitmentApi(
           .all(),
         db
           .prepare(
-            "SELECT c.*,k.full_name candidate_name,r.title requisition_title,r.organization_id,(SELECT COUNT(*) FROM employee_onboarding_tasks t WHERE t.case_id=c.id AND t.tenant_id=c.tenant_id) task_count,(SELECT COUNT(*) FROM employee_onboarding_tasks t WHERE t.case_id=c.id AND t.tenant_id=c.tenant_id AND t.status='Concluída') completed_count FROM employee_onboarding_cases c JOIN recruitment_applications a ON a.id=c.application_id AND a.tenant_id=c.tenant_id JOIN recruitment_candidates k ON k.id=a.candidate_id AND k.tenant_id=a.tenant_id JOIN recruitment_requisitions r ON r.id=a.requisition_id AND r.tenant_id=a.tenant_id WHERE c.tenant_id=? AND (? IS NULL OR r.organization_id=?) ORDER BY c.created_at DESC",
+            "SELECT c.*,k.full_name candidate_name,r.title requisition_title,r.organization_id,(SELECT COUNT(*) FROM employee_onboarding_tasks t WHERE t.case_id=c.id AND t.tenant_id=c.tenant_id) task_count,(SELECT COUNT(*) FROM employee_onboarding_tasks t WHERE t.case_id=c.id AND t.tenant_id=c.tenant_id AND t.status='Concluída') completed_count,e.first_name||' '||e.last_name linked_employee_name,e.employee_number linked_employee_number FROM employee_onboarding_cases c JOIN recruitment_applications a ON a.id=c.application_id AND a.tenant_id=c.tenant_id JOIN recruitment_candidates k ON k.id=a.candidate_id AND k.tenant_id=a.tenant_id JOIN recruitment_requisitions r ON r.id=a.requisition_id AND r.tenant_id=a.tenant_id LEFT JOIN employees e ON e.id=c.employee_id AND e.tenant_id=c.tenant_id WHERE c.tenant_id=? AND (? IS NULL OR r.organization_id=?) ORDER BY c.created_at DESC",
           )
           .bind(tenant, scope, scope)
           .all(),
@@ -321,6 +321,34 @@ export async function recruitmentApi(
         db.prepare("UPDATE employee_onboarding_tasks SET status='Concluída',evidence=?,completed_at=? WHERE id=? AND tenant_id=? AND status='Pendente'").bind(b.evidence?.trim(),now,b.taskId,tenant),
         db.prepare("UPDATE employee_onboarding_cases SET status='Concluído',completed_at=? WHERE id=? AND tenant_id=? AND status='Em curso' AND EXISTS(SELECT 1 FROM employee_onboarding_tasks t WHERE t.case_id=employee_onboarding_cases.id) AND NOT EXISTS(SELECT 1 FROM employee_onboarding_tasks t WHERE t.case_id=employee_onboarding_cases.id AND t.status<>'Concluída')").bind(now,b.caseId,tenant),
       ]);
+    } else if (b.type === "linkOnboardingEmployee") {
+      const employee = await db
+        .prepare(
+          "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'",
+        )
+        .bind(b.employeeId, tenant, scope, scope)
+        .first();
+      if (!employee)
+        return Response.json(
+          { error: "Colaborador fora do âmbito autorizado." },
+          { status: 403 },
+        );
+      entityId = b.caseId;
+      entityType = "onboarding";
+      const result = await db
+        .prepare(
+          "UPDATE employee_onboarding_cases SET employee_id=? WHERE id=? AND tenant_id=? AND employee_id IS NULL",
+        )
+        .bind(b.employeeId, b.caseId, tenant)
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          {
+            error:
+              "Caso de onboarding não encontrado ou já tem um colaborador associado.",
+          },
+          { status: 409 },
+        );
     } else
       return Response.json(
         { error: "Operação de recrutamento não suportada." },

@@ -4,7 +4,7 @@ import { apiFetch } from "../lib/api-client";
 import "./recruitment.css";
 type Requisition={id:string;title:string;organization_name:string;department_code?:string;positions:number;target_start_date:string;currency:string;budget_monthly_minor:number;status:string};
 type Application={id:string;candidate_id:string;candidate_name:string;candidate_email:string;requisition_title:string;status:string;decision_note?:string;rating?:number|null};
-type OnboardingCase={id:string;application_id:string;candidate_name:string;requisition_title:string;start_date:string;completed_count:number;task_count:number};
+type OnboardingCase={id:string;application_id:string;candidate_name:string;requisition_title:string;start_date:string;completed_count:number;task_count:number;employee_id:string|null;linked_employee_name:string|null;linked_employee_number:string|null};
 type OnboardingTask={id:string;case_id:string;title:string;owner_email:string;due_date:string;status:string};
 type Organization={id:string;code:string;name:string};
 type Owner={email:string;name:string;role:string};
@@ -310,6 +310,28 @@ export function RecruitmentWorkspace() {
                   ＋ Tarefa
                 </button>
               </header>
+              <div className="talent-onboarding-employee">
+                {x.employee_id ? (
+                  <span>
+                    Ficha de colaborador: <b>{x.linked_employee_name}</b> ·{" "}
+                    {x.linked_employee_number}
+                  </span>
+                ) : (
+                  <>
+                    <span className="warn">
+                      Ainda sem ficha de colaborador associada
+                    </span>
+                    <button
+                      onClick={() => {
+                        setContext(x.id);
+                        setModal("linkOnboardingEmployee");
+                      }}
+                    >
+                      Associar colaborador
+                    </button>
+                  </>
+                )}
+              </div>
               {data.tasks
                 .filter((t) => t.case_id === x.id)
                 .map((t) => (
@@ -390,7 +412,7 @@ export function RecruitmentWorkspace() {
                 ×
               </button>
             </header>
-            <Fields type={modal} data={data} />
+            <Fields type={modal} data={data} context={context} />
             {modal === "completeOnboardingTask" && (
               <input
                 type="hidden"
@@ -425,8 +447,23 @@ const titles: Record<string, string> = {
   addOnboardingTask: "Nova tarefa",
   completeOnboardingTask: "Concluir tarefa",
   publishOnboardingDocument: "Enviar documento para assinatura",
+  linkOnboardingEmployee: "Associar ficha de colaborador",
 };
-function Fields({ type, data }: { type: string; data: Data }) {
+const nextApplicationStatuses: Record<string, string[]> = {
+  Recebida: ["Triagem", "Rejeitada"],
+  Triagem: ["Entrevista", "Rejeitada"],
+  Entrevista: ["Oferta", "Rejeitada"],
+  Oferta: ["Contratada", "Rejeitada"],
+};
+function Fields({
+  type,
+  data,
+  context,
+}: {
+  type: string;
+  data: Data;
+  context: string;
+}) {
   if (type === "createRequisition")
     return (
       <>
@@ -508,17 +545,20 @@ function Fields({ type, data }: { type: string; data: Data }) {
         </label>
       </>
     );
-  if (type === "transitionApplication")
+  if (type === "transitionApplication") {
+    const current = data.applications.find((a) => a.id === context)?.status || "";
+    const options = nextApplicationStatuses[current] || [];
     return (
       <>
+        <p className="status-note">Estado atual: {current || "—"}</p>
         <label>
           Novo estado
           <select name="status">
-            <option>Triagem</option>
-            <option>Entrevista</option>
-            <option>Oferta</option>
-            <option>Contratada</option>
-            <option>Rejeitada</option>
+            {options.length === 0 ? (
+              <option value="">Sem transições disponíveis</option>
+            ) : (
+              options.map((s) => <option key={s}>{s}</option>)
+            )}
           </select>
         </label>
         <label>
@@ -531,6 +571,7 @@ function Fields({ type, data }: { type: string; data: Data }) {
         </label>
       </>
     );
+  }
   if (type === "startOnboarding")
     return (
       <>
@@ -582,6 +623,20 @@ function Fields({ type, data }: { type: string; data: Data }) {
           <input name="documentUrl" type="url" placeholder="https://" />
         </label>
       </>
+    );
+  if (type === "linkOnboardingEmployee")
+    return (
+      <label>
+        Colaborador
+        <select name="employeeId" required>
+          <option value="">Selecionar</option>
+          {data.activeEmployees.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.first_name} {x.last_name} · {x.employee_number}
+            </option>
+          ))}
+        </select>
+      </label>
     );
   return (
     <label>
