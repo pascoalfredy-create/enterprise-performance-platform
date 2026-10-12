@@ -392,3 +392,35 @@ test("demo portfolio installation marker is immutable and idempotent",()=>{
  assert.throws(()=>db.exec("UPDATE demo_portfolio_installations SET record_count=66 WHERE tenant_id='t1'"),/installation is immutable/);
  assert.throws(()=>db.exec("DELETE FROM demo_portfolio_installations WHERE tenant_id='t1'"),/cannot be deleted/);db.close();
 });
+
+test("employee reporting lines track one active manager per employee, reject self-reference and management cycles, and preserve history",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa')");
+ db.exec("INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','CEO','2026-01-01','Ativo'),('e2','t1','now','002','Bruno','Costa','o1','Diretor','2026-01-01','Ativo'),('e3','t1','now','003','Carla','Dias','o1','Analista','2026-01-01','Ativo')");
+ db.exec("INSERT INTO employee_reporting_lines (id,tenant_id,employee_id,manager_id,effective_from,status,created_by,created_at) VALUES ('r1','t1','e2','e1','2026-01-01','Ativo','hr@test','now')");
+ db.exec("INSERT INTO employee_reporting_lines (id,tenant_id,employee_id,manager_id,effective_from,status,created_by,created_at) VALUES ('r2','t1','e3','e2','2026-01-01','Ativo','hr@test','now')");
+ assert.throws(()=>db.exec("INSERT INTO employee_reporting_lines (id,tenant_id,employee_id,manager_id,effective_from,status,created_by,created_at) VALUES ('r3','t1','e1','e1','2026-01-01','Ativo','hr@test','now')"),/self-referencing/);
+ assert.throws(()=>db.exec("INSERT INTO employee_reporting_lines (id,tenant_id,employee_id,manager_id,effective_from,status,created_by,created_at) VALUES ('r4','t1','e1','e3','2026-01-01','Ativo','hr@test','now')"),/management cycle/);
+ assert.throws(()=>db.exec("INSERT INTO employee_reporting_lines (id,tenant_id,employee_id,manager_id,effective_from,status,created_by,created_at) VALUES ('r5','t1','e2','e1','2026-02-01','Ativo','hr@test','now')"),/UNIQUE constraint failed/);
+ db.exec("INSERT INTO tenants VALUES ('t2','now','Tenant 2','tenant-2','Ativo'); INSERT INTO organizations VALUES ('o2','t2','now','ROOT','Org 2','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e9','t2','now','009','Outro','Tenant','o2','X','2026-01-01','Ativo')");
+ assert.throws(()=>db.exec("INSERT INTO employee_reporting_lines (id,tenant_id,employee_id,manager_id,effective_from,status,created_by,created_at) VALUES ('r6','t1','e3','e9','2026-01-01','Ativo','hr@test','now')"),/outside tenant/);
+ db.exec("UPDATE employee_reporting_lines SET status='Encerrado',effective_to='2026-03-01' WHERE id='r2'");
+ db.exec("INSERT INTO employee_reporting_lines (id,tenant_id,employee_id,manager_id,effective_from,status,created_by,created_at) VALUES ('r7','t1','e3','e1','2026-03-01','Ativo','hr@test','now')");
+ assert.throws(()=>db.exec("UPDATE employee_reporting_lines SET manager_id='e3' WHERE id='r7'"),/invalid employee reporting line transition/);
+ assert.throws(()=>db.exec("DELETE FROM employee_reporting_lines WHERE id='r7'"),/cannot be deleted/);
+ const active=db.prepare("SELECT manager_id FROM employee_reporting_lines WHERE employee_id='e3' AND status='Ativo'").all();
+ assert.equal(active.length,1);assert.equal(active[0].manager_id,'e1');
+ db.close();
+});
+
+test("employee personal detail changes require independent HR approval and are immutable once decided",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Ativo')");
+ db.exec("INSERT INTO employee_personal_detail_requests (id,tenant_id,employee_id,phone,address,emergency_contact_name,emergency_contact_phone,bank_iban,status,requested_by,requested_at) VALUES ('p1','t1','e1','+244923000000','Rua X, Luanda','João Silva','+244923000001','AO06000600009999999999943','Pendente','ana@test','now')");
+ assert.throws(()=>db.exec("INSERT INTO employee_personal_detail_requests (id,tenant_id,employee_id,phone,address,emergency_contact_name,emergency_contact_phone,bank_iban,status,requested_by,requested_at) VALUES ('p2','t1','e1','x','x','x','x','AO1','Pendente','ana@test','now')"),/CHECK constraint failed/);
+ assert.throws(()=>db.exec("UPDATE employee_personal_detail_requests SET status='Aprovado',decided_by='ana@test',decided_at='later' WHERE id='p1'"),/invalid employee personal detail request transition/);
+ db.exec("UPDATE employee_personal_detail_requests SET status='Aprovado',decided_by='hr@test',decided_at='later' WHERE id='p1'");
+ assert.throws(()=>db.exec("UPDATE employee_personal_detail_requests SET phone='9999' WHERE id='p1'"),/invalid employee personal detail request transition/);
+ assert.throws(()=>db.exec("DELETE FROM employee_personal_detail_requests WHERE id='p1'"),/cannot be deleted/);
+ db.close();
+});

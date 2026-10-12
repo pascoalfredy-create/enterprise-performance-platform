@@ -76,6 +76,18 @@ export async function selfServiceApi(
             organization_name: string | null;
           }>();
         if (!employee) return noEmployee();
+        const manager = await db
+          .prepare(
+            "SELECT m.first_name,m.last_name,m.job_title FROM employee_reporting_lines r JOIN employees m ON m.id=r.manager_id AND m.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.employee_id=? AND r.status='Ativo'",
+          )
+          .bind(tenant, employeeId)
+          .first<{ first_name: string; last_name: string; job_title: string }>();
+        const reportCount = await db
+          .prepare(
+            "SELECT COUNT(*) n FROM employee_reporting_lines WHERE tenant_id=? AND manager_id=? AND status='Ativo'",
+          )
+          .bind(tenant, employeeId)
+          .first<{ n: number }>();
         return Response.json({
           name: `${employee.first_name} ${employee.last_name}`,
           email: security.email,
@@ -84,6 +96,63 @@ export async function selfServiceApi(
           hireDate: employee.hire_date,
           status: employee.status,
           organizationName: employee.organization_name,
+          managerName: manager ? `${manager.first_name} ${manager.last_name}` : null,
+          managerJobTitle: manager ? manager.job_title : null,
+          reportCount: Number(reportCount?.n || 0),
+        });
+      }
+      if (resource === "team") {
+        const rows = await db
+          .prepare(
+            "SELECT e.id,e.first_name,e.last_name,e.job_title,e.employee_number FROM employee_reporting_lines r JOIN employees e ON e.id=r.employee_id AND e.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.manager_id=? AND r.status='Ativo' ORDER BY e.first_name,e.last_name",
+          )
+          .bind(tenant, employeeId)
+          .all<{
+            id: string;
+            first_name: string;
+            last_name: string;
+            job_title: string;
+            employee_number: string;
+          }>();
+        return Response.json({
+          reports: rows.results.map((r) => ({
+            id: r.id,
+            name: `${r.first_name} ${r.last_name}`,
+            jobTitle: r.job_title,
+            employeeNumber: r.employee_number,
+          })),
+        });
+      }
+      if (resource === "personal-details") {
+        const current = await db
+          .prepare(
+            "SELECT phone,address,emergency_contact_name,emergency_contact_phone,bank_iban,decided_at FROM employee_personal_detail_requests WHERE tenant_id=? AND employee_id=? AND status='Aprovado' ORDER BY decided_at DESC LIMIT 1",
+          )
+          .bind(tenant, employeeId)
+          .first<{
+            phone: string;
+            address: string;
+            emergency_contact_name: string;
+            emergency_contact_phone: string;
+            bank_iban: string;
+            decided_at: string;
+          }>();
+        const pending = await db
+          .prepare(
+            "SELECT id,requested_at FROM employee_personal_detail_requests WHERE tenant_id=? AND employee_id=? AND status='Pendente' ORDER BY requested_at DESC LIMIT 1",
+          )
+          .bind(tenant, employeeId)
+          .first<{ id: string; requested_at: string }>();
+        return Response.json({
+          phone: current?.phone || "",
+          address: current?.address || "",
+          emergencyContactName: current?.emergency_contact_name || "",
+          emergencyContactPhone: current?.emergency_contact_phone || "",
+          bankIban: current?.bank_iban || "",
+          updatedAt: current?.decided_at || null,
+          pendingRequest: pending
+            ? { id: pending.id, requestedAt: pending.requested_at }
+            : null,
         });
       }
       if (resource === "payslips") {
@@ -575,6 +644,46 @@ export async function selfServiceApi(
           { status: 409 },
         );
       return Response.json({ id: body.taskId, status: body.status });
+    }
+    if (body.type === "requestPersonalDetailChange") {
+      const pending = await db
+        .prepare(
+          "SELECT id FROM employee_personal_detail_requests WHERE tenant_id=? AND employee_id=? AND status='Pendente'",
+        )
+        .bind(tenant, employeeId)
+        .first();
+      if (pending)
+        return Response.json(
+          { error: "Já existe um pedido de alteração pendente de aprovação." },
+          { status: 409 },
+        );
+      const iban = (body.bankIban || "").trim().toUpperCase();
+      if (iban && (iban.length < 15 || iban.length > 34))
+        return Response.json(
+          { error: "IBAN inválido." },
+          { status: 400 },
+        );
+      const now = new Date().toISOString(),
+        id = crypto.randomUUID();
+      await db
+        .prepare(
+          "INSERT INTO employee_personal_detail_requests (id,tenant_id,employee_id,phone,address,emergency_contact_name,emergency_contact_phone,bank_iban,status,requested_by,requested_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          id,
+          tenant,
+          employeeId,
+          (body.phone || "").trim(),
+          (body.address || "").trim(),
+          (body.emergencyContactName || "").trim(),
+          (body.emergencyContactPhone || "").trim(),
+          iban,
+          "Pendente",
+          security.email,
+          now,
+        )
+        .run();
+      return Response.json({ id, status: "Pendente", requestedAt: now });
     }
     if (body.type !== "leaveRequest")
       return Response.json({ error: "Tipo de pedido desconhecido." }, { status: 400 });

@@ -2100,8 +2100,16 @@ async function hcmSnapshot(
   tenantId: string,
   organizationId: string | null = null,
 ) {
-  const [employees, contracts, absenceTypes, balances, absenceRequests, audit] =
-    await Promise.all([
+  const [
+    employees,
+    contracts,
+    absenceTypes,
+    balances,
+    absenceRequests,
+    reportingLines,
+    personalDetailRequests,
+    audit,
+  ] = await Promise.all([
       db
         .prepare(
           "SELECT e.*,o.name organization_name,c.id active_contract_id,c.contract_number,c.contract_type,c.start_date contract_start_date,c.end_date contract_end_date,c.work_schedule,c.weekly_minutes FROM employees e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id LEFT JOIN employee_contracts c ON c.employee_id=e.id AND c.tenant_id=e.tenant_id AND c.status='Ativo' WHERE e.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY e.employee_number",
@@ -2132,11 +2140,23 @@ async function hcmSnapshot(
         )
         .bind(tenantId, organizationId, organizationId)
         .all(),
+      db
+        .prepare(
+          "SELECT r.*,e.employee_number,e.first_name||' '||e.last_name employee_name,m.first_name||' '||m.last_name manager_name FROM employee_reporting_lines r JOIN employees e ON e.id=r.employee_id AND e.tenant_id=r.tenant_id JOIN employees m ON m.id=r.manager_id AND m.tenant_id=r.tenant_id WHERE r.tenant_id=? AND r.status='Ativo' AND (? IS NULL OR e.organization_id=?) ORDER BY e.employee_number",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .all(),
+      db
+        .prepare(
+          "SELECT p.*,e.employee_number,e.first_name||' '||e.last_name employee_name FROM employee_personal_detail_requests p JOIN employees e ON e.id=p.employee_id AND e.tenant_id=p.tenant_id WHERE p.tenant_id=? AND p.status='Pendente' AND (? IS NULL OR e.organization_id=?) ORDER BY p.requested_at DESC",
+        )
+        .bind(tenantId, organizationId, organizationId)
+        .all(),
       organizationId
         ? Promise.resolve({ results: [] })
         : db
             .prepare(
-              "SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('employeeContract','absenceType','absenceBalance','absenceRequest') ORDER BY created_at DESC LIMIT 10",
+              "SELECT * FROM audit_events WHERE tenant_id=? AND entity_type IN ('employeeContract','absenceType','absenceBalance','absenceRequest','employeeReportingLine','employeePersonalDetailRequest') ORDER BY created_at DESC LIMIT 10",
             )
             .bind(tenantId)
             .all(),
@@ -2147,6 +2167,8 @@ async function hcmSnapshot(
     absenceTypes: absenceTypes.results,
     balances: balances.results,
     absenceRequests: absenceRequests.results,
+    reportingLines: reportingLines.results,
+    personalDetailRequests: personalDetailRequests.results,
     audit: audit.results,
   };
 }
@@ -2512,6 +2534,97 @@ async function hcmApi(
         )
         .run();
       summary = `Convite para o portal do colaborador enviado para ${email}`;
+    } else if (body.type === "setReportingLine") {
+      const employee = await db
+          .prepare(
+            "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)",
+          )
+          .bind(body.employeeId, tenantId, organizationId, organizationId)
+          .first(),
+        manager = await db
+          .prepare(
+            "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)",
+          )
+          .bind(body.managerId, tenantId, organizationId, organizationId)
+          .first();
+      if (
+        !employee ||
+        !manager ||
+        body.employeeId === body.managerId ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(body.effectiveFrom || "")
+      )
+        return Response.json(
+          {
+            error:
+              "Colaborador, gestor (diferente do colaborador) e data válidos são obrigatórios.",
+          },
+          { status: 400 },
+        );
+      await db
+        .prepare(
+          "UPDATE employee_reporting_lines SET status='Encerrado',effective_to=? WHERE tenant_id=? AND employee_id=? AND status='Ativo'",
+        )
+        .bind(body.effectiveFrom, tenantId, body.employeeId)
+        .run();
+      contractId = uid();
+      await db
+        .prepare(
+          "INSERT INTO employee_reporting_lines (id,tenant_id,employee_id,manager_id,effective_from,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          contractId,
+          tenantId,
+          body.employeeId,
+          body.managerId,
+          body.effectiveFrom,
+          "Ativo",
+          actor,
+          created,
+        )
+        .run();
+      summary = "Linha de reporte atualizada";
+    } else if (body.type === "decidePersonalDetailRequest") {
+      const decision = body.decision,
+        requestRow = await db
+          .prepare(
+            "SELECT p.*,e.organization_id FROM employee_personal_detail_requests p JOIN employees e ON e.id=p.employee_id AND e.tenant_id=p.tenant_id WHERE p.id=? AND p.tenant_id=? AND p.status='Pendente' AND (? IS NULL OR e.organization_id=?)",
+          )
+          .bind(body.requestId, tenantId, organizationId, organizationId)
+          .first<Record<string, unknown>>();
+      if (!requestRow || !["Aprovado", "Rejeitado"].includes(decision))
+        return Response.json(
+          { error: "Pedido pendente e decisão válida são obrigatórios." },
+          { status: 409 },
+        );
+      if (requestRow.requested_by === actor)
+        return Response.json(
+          {
+            error:
+              "Segregação de funções: quem pediu a alteração não pode aprová-la ou rejeitá-la.",
+          },
+          { status: 403 },
+        );
+      const result = await db
+        .prepare(
+          "UPDATE employee_personal_detail_requests SET status=?,decided_by=?,decided_at=?,decision_note=? WHERE id=? AND tenant_id=? AND status='Pendente'",
+        )
+        .bind(
+          decision,
+          actor,
+          created,
+          body.decisionNote?.trim() || null,
+          body.requestId,
+          tenantId,
+        )
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          { error: "O pedido foi decidido por outro utilizador." },
+          { status: 409 },
+        );
+      contractId = body.requestId;
+      summary = `Pedido de alteração de dados pessoais ${decision.toLowerCase()}`;
+      action = decision.toUpperCase();
     } else
       return Response.json(
         { error: "Operação HCM não suportada." },
@@ -2520,13 +2633,17 @@ async function hcmApi(
     const entityType =
       body.type === "portalInvite"
         ? "employeePortalAccount"
-        : body.type.includes("absence") || body.type === "decideAbsence"
-          ? body.type === "absenceType"
-            ? "absenceType"
-            : body.type === "absenceBalance"
-              ? "absenceBalance"
-              : "absenceRequest"
-          : "employeeContract";
+        : body.type === "setReportingLine"
+          ? "employeeReportingLine"
+          : body.type === "decidePersonalDetailRequest"
+            ? "employeePersonalDetailRequest"
+            : body.type.includes("absence") || body.type === "decideAbsence"
+              ? body.type === "absenceType"
+                ? "absenceType"
+                : body.type === "absenceBalance"
+                  ? "absenceBalance"
+                  : "absenceRequest"
+              : "employeeContract";
     await db
       .prepare(
         "INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)",

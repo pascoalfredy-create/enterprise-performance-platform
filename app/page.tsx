@@ -1601,9 +1601,36 @@ type HcmData = {
     weekly_minutes: number;
     status: string;
   }>;
+  reportingLines: Array<{
+    id: string;
+    employee_id: string;
+    manager_id: string;
+    employee_name: string;
+    employee_number: string;
+    manager_name: string;
+    effective_from: string;
+  }>;
+  personalDetailRequests: Array<{
+    id: string;
+    employee_name: string;
+    employee_number: string;
+    phone: string;
+    address: string;
+    emergency_contact_name: string;
+    emergency_contact_phone: string;
+    bank_iban: string;
+    requested_by: string;
+    requested_at: string;
+  }>;
   audit: AuditEvent[];
 };
-const hcmEmpty: HcmData = { employees: [], contracts: [], audit: [] };
+const hcmEmpty: HcmData = {
+  employees: [],
+  contracts: [],
+  reportingLines: [],
+  personalDetailRequests: [],
+  audit: [],
+};
 type ContractCopy={title:string;intro:string;newContract:string;employees:string;employeeHint:string;activeContracts:string;activeHint:string;pending:string;pendingHint:string;coverage:string;coverageHint:string;contracts:string;lifecycle:string;records:string;week:string;activate:string;end:string;empty:string;emptyHint:string;audit:string;recent:string;auditEmpty:string;next:string;nextText:string;modal:string;employee:string;select:string;contractNumber:string;type:string;typePlaceholder:string;start:string;endDate:string;schedule:string;schedulePlaceholder:string;weekly:string;countryPack:string;countryPlaceholder:string;cancel:string;saving:string;draft:string;endPrompt:string;loadError:string;actionError:string;statuses:Record<string,string>;values:Record<string,string>;auditEnded:string};
 const contractCopy:Record<PlatformLocale,ContractCopy>={
 pt:{title:"Pessoas, vínculos e responsabilidade",intro:"O colaborador pertence à organização; o contrato governa a elegibilidade operacional e salarial.",newContract:"＋ Novo contrato",employees:"Colaboradores",employeeHint:"Employee master no âmbito atual",activeContracts:"Contratos ativos",activeHint:"Elegíveis para configuração salarial",pending:"Aguardam ativação",pendingHint:"Requerem validação de RH",coverage:"Cobertura contratual",coverageHint:"Ativos sobre colaboradores",contracts:"CONTRATOS",lifecycle:"Ciclo de vida auditável",records:"registos",week:"semana",activate:"Ativar",end:"Terminar",empty:"Ainda não existem contratos.",emptyHint:"Use a ação acima para começar.",audit:"AUDITORIA HCM",recent:"Alterações recentes",auditEmpty:"As transições contratuais aparecerão aqui.",next:"Próximas capacidades",nextText:"Recrutamento, onboarding, assiduidade, ausências, desempenho e formação são geridos em espaços próprios.",modal:"Novo vínculo laboral",employee:"Colaborador",select:"Selecionar",contractNumber:"Número do contrato",type:"Tipo",typePlaceholder:"Ex.: Sem termo",start:"Data de início",endDate:"Data de fim",schedule:"Horário de trabalho",schedulePlaceholder:"Ex.: Segunda a sexta, 08h–17h",weekly:"Carga semanal (minutos)",countryPack:"Country Pack opcional",countryPlaceholder:"Ex.: AO-BASE",cancel:"Cancelar",saving:"A guardar…",draft:"Criar rascunho",endPrompt:"Data de término (AAAA-MM-DD)",loadError:"Não foi possível carregar os contratos.",actionError:"Não foi possível concluir a operação.",statuses:{Ativo:"Ativo",Rascunho:"Rascunho",Terminado:"Terminado"},values:{"Sem termo":"Sem termo","Segunda a sexta · 08:00–17:00":"Segunda a sexta · 08:00–17:00"},auditEnded:"Contrato terminado"},
@@ -1627,6 +1654,7 @@ function PeopleWorkspace() {
   };
   const [data, setData] = useState<HcmData>(hcmEmpty),
     [modal, setModal] = useState(false),
+    [reportingModal, setReportingModal] = useState(false),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const load = () =>
@@ -1668,6 +1696,50 @@ function PeopleWorkspace() {
     setData(body);
     setModal(false);
   }
+  async function submitReportingLine(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const payload = {
+        type: "setReportingLine",
+        ...Object.fromEntries(new FormData(e.currentTarget).entries()),
+      },
+      response = await apiFetch("/api/v1/hcm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+      body = await response.json();
+    setBusy(false);
+    if (!response.ok) {
+      setError(body.error);
+      return;
+    }
+    setData(body);
+    setReportingModal(false);
+  }
+  async function decidePersonalDetail(
+    requestId: string,
+    decision: "Aprovado" | "Rejeitado",
+  ) {
+    setBusy(true);
+    const response = await apiFetch("/api/v1/hcm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: "decidePersonalDetailRequest",
+          requestId,
+          decision,
+        }),
+      }),
+      body = await response.json();
+    setBusy(false);
+    if (!response.ok) {
+      setError(body.error);
+      return;
+    }
+    setData(body);
+  }
   async function transition(
     contractId: string,
     type: "activateContract" | "endContract",
@@ -1703,9 +1775,17 @@ function PeopleWorkspace() {
           <span>{sectionLabel}</span>
           <h1>{copy.title}</h1><p>{copy.intro}</p>
         </div>
-        <button className="primario" onClick={() => setModal(true)}>
-          {copy.newContract}
-        </button>
+        <div>
+          <button
+            className="secundario"
+            onClick={() => setReportingModal(true)}
+          >
+            ＋ Atribuir gestor
+          </button>
+          <button className="primario" onClick={() => setModal(true)}>
+            {copy.newContract}
+          </button>
+        </div>
       </div>
       <section className="people-kpis">
         <article>
@@ -1811,7 +1891,148 @@ function PeopleWorkspace() {
           </footer>
         </aside>
       </div>
+      <article className="cartao people-list">
+        <div className="cab">
+          <div>
+            <span>HIERARQUIA</span>
+            <h2>Linhas de reporte</h2>
+          </div>
+          <em>{data.reportingLines.length} ativa(s)</em>
+        </div>
+        {data.reportingLines.length ? (
+          data.reportingLines.map((r) => (
+            <div className="contract-row" key={r.id}>
+              <i>
+                {r.employee_name
+                  .split(" ")
+                  .map((x) => x[0])
+                  .join("")
+                  .slice(0, 2)}
+              </i>
+              <span>
+                <b>{r.employee_name}</b>
+                <small>{r.employee_number}</small>
+              </span>
+              <p>
+                <b>{r.manager_name}</b>
+                <small>Gestor desde {r.effective_from}</small>
+              </p>
+            </div>
+          ))
+        ) : (
+          <div className="vazio-lista">
+            <i>＋</i>
+            <b>Ainda não existem linhas de reporte.</b>
+            <small>Use "＋ Atribuir gestor" para começar.</small>
+          </div>
+        )}
+      </article>
+      {data.personalDetailRequests.length > 0 && (
+        <article className="cartao people-list">
+          <div className="cab">
+            <div>
+              <span>RH · APROVAÇÃO</span>
+              <h2>Pedidos de alteração de dados pessoais</h2>
+            </div>
+            <em>{data.personalDetailRequests.length} pendente(s)</em>
+          </div>
+          {data.personalDetailRequests.map((p) => (
+            <div className="contract-row" key={p.id}>
+              <i>
+                {p.employee_name
+                  .split(" ")
+                  .map((x) => x[0])
+                  .join("")
+                  .slice(0, 2)}
+              </i>
+              <span>
+                <b>{p.employee_name}</b>
+                <small>{p.employee_number}</small>
+              </span>
+              <p>
+                <b>
+                  {p.phone || "—"} · {p.address || "—"}
+                </b>
+                <small>
+                  {p.emergency_contact_name
+                    ? `Emergência: ${p.emergency_contact_name} · ${p.emergency_contact_phone}`
+                    : "Sem contacto de emergência"}
+                  {p.bank_iban ? ` · IBAN •••• ${p.bank_iban.slice(-4)}` : ""}
+                </small>
+              </p>
+              <div>
+                <button
+                  disabled={busy}
+                  onClick={() => decidePersonalDetail(p.id, "Aprovado")}
+                >
+                  Aprovar
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => decidePersonalDetail(p.id, "Rejeitado")}
+                >
+                  Rejeitar
+                </button>
+              </div>
+            </div>
+          ))}
+        </article>
+      )}
       {error && <p className="erro-global">{error}</p>}
+      {reportingModal && (
+        <div className="modal-inline">
+          <form onSubmit={submitReportingLine}>
+            <header>
+              <div>
+                <small>RH · HIERARQUIA</small>
+                <h2>Atribuir gestor</h2>
+              </div>
+              <button type="button" onClick={() => setReportingModal(false)}>
+                ×
+              </button>
+            </header>
+            <label>
+              Colaborador
+              <select name="employeeId" required>
+                <option value="">Selecionar</option>
+                {data.employees.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.employee_number} · {x.first_name} {x.last_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Gestor
+              <select name="managerId" required>
+                <option value="">Selecionar</option>
+                {data.employees.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.employee_number} · {x.first_name} {x.last_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Em vigor a partir de
+              <input name="effectiveFrom" type="date" required />
+            </label>
+            {error && <p className="erro-form">{error}</p>}
+            <footer>
+              <button
+                type="button"
+                className="secundario"
+                onClick={() => setReportingModal(false)}
+              >
+                Cancelar
+              </button>
+              <button className="primario" disabled={busy}>
+                {busy ? "A guardar…" : "Guardar"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
       {modal && (
         <div className="modal-inline">
           <form onSubmit={submit}>

@@ -312,3 +312,19 @@ test("workspaces mounted multiple times with different initialView props (sideba
   assert.match(src,/useEffect\(\s*\(\)\s*=>\s*\{?\s*setView\(initialView\)\s*;?\s*\}?,\s*\[initialView\]\s*\)/,`${file} does not resync view with initialView`);
  }
 });
+test("manager assignment is organization-scoped, rejects self-management, and reassignment closes the prior active line before opening a new one",()=>{
+ assert.match(compact,/body.type==="setReportingLine"/);
+ assert.match(compact,/body.employeeId===body.managerId/);
+ assert.match(source,/status='Encerrado',effective_to=\? WHERE tenant_id=\? AND employee_id=\? AND status='Ativo'/);
+});
+test("personal detail change requests require an approver independent of the requester, mirroring the absence maker-checker pattern",()=>{
+ assert.match(compact,/body.type==="decidePersonalDetailRequest"/);
+ assert.match(compact,/requestRow.requested_by===actor/);
+ assert.match(source,/Segregação de funções: quem pediu a alteração não pode aprová-la ou rejeitá-la/);
+});
+test("self-service personal-details resource never returns another employee's pending request and validates IBAN length before accepting a request",()=>{
+ const selfService=fs.readFileSync(new URL("../worker/self-service.ts",import.meta.url),"utf8");
+ assert.match(selfService,/resource === "personal-details"/);
+ assert.match(selfService,/WHERE tenant_id=\? AND employee_id=\? AND status='Pendente'/);
+ assert.match(selfService,/iban.length < 15 \|\| iban.length > 34/);
+});

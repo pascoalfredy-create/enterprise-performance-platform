@@ -737,6 +737,22 @@ const rows:Array<[string,string,string,string,string]>=[
 ["↑ Importar ficheiro","↑ Import file","↑ Importar archivo","↑ Importer un fichier","↑ Импортировать файл"],
 ["Escolher ficheiro","Choose file","Elegir archivo","Choisir un fichier","Выбрать файл"],
 ["↓ Descarregar modelo","↓ Download template","↓ Descargar plantilla","↓ Télécharger le modèle","↓ Скачать шаблон"],
+["HIERARQUIA","HIERARCHY","JERARQUÍA","HIÉRARCHIE","ИЕРАРХИЯ"],
+["Linhas de reporte","Reporting lines","Líneas de reporte","Lignes hiérarchiques","Линии подчинения"],
+["Ainda não existem linhas de reporte.","No reporting lines yet.","Todavía no hay líneas de reporte.","Aucune ligne hiérarchique pour le moment.","Пока нет линий подчинения."],
+["Use \"＋ Atribuir gestor\" para começar.","Use \"＋ Assign manager\" to get started.","Use \"＋ Asignar gestor\" para empezar.","Utilisez « ＋ Attribuer un manager » pour commencer.","Используйте «＋ Назначить руководителя», чтобы начать."],
+["RH · APROVAÇÃO","HR · APPROVAL","RR. HH. · APROBACIÓN","RH · APPROBATION","HR · УТВЕРЖДЕНИЕ"],
+["Pedidos de alteração de dados pessoais","Personal detail change requests","Solicitudes de cambio de datos personales","Demandes de modification de données personnelles","Запросы на изменение личных данных"],
+["RH · HIERARQUIA","HR · HIERARCHY","RR. HH. · JERARQUÍA","RH · HIÉRARCHIE","HR · ИЕРАРХИЯ"],
+["Atribuir gestor","Assign manager","Asignar gestor","Attribuer un manager","Назначить руководителя"],
+["A minha equipa","My team","Mi equipo","Mon équipe","Моя команда"],
+["Dados pessoais","Personal details","Datos personales","Données personnelles","Личные данные"],
+["Morada","Address","Dirección","Adresse","Адрес"],
+["Contacto de emergência","Emergency contact","Contacto de emergencia","Contact d'urgence","Контакт для экстренной связи"],
+["IBAN","IBAN","IBAN","IBAN","IBAN"],
+["Nome do contacto de emergência","Emergency contact name","Nombre del contacto de emergencia","Nom du contact d'urgence","Имя контакта для экстренной связи"],
+["Telefone do contacto de emergência","Emergency contact phone","Teléfono del contacto de emergencia","Téléphone du contact d'urgence","Телефон контакта для экстренной связи"],
+["As alterações ficam pendentes de aprovação de RH antes de entrarem em vigor.","Changes stay pending HR approval before taking effect.","Los cambios quedan pendientes de aprobación de RR. HH. antes de entrar en vigor.","Les modifications restent en attente d'approbation RH avant d'entrer en vigueur.","Изменения ожидают утверждения HR, прежде чем вступить в силу."],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

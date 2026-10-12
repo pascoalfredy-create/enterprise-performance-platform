@@ -20,6 +20,24 @@ type Profile = {
   hireDate: string;
   status: string;
   organizationName: string | null;
+  managerName?: string | null;
+  managerJobTitle?: string | null;
+  reportCount?: number;
+};
+type TeamMember = {
+  id: string;
+  name: string;
+  jobTitle: string;
+  employeeNumber: string;
+};
+type PersonalDetails = {
+  phone: string;
+  address: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  bankIban: string;
+  updatedAt: string | null;
+  pendingRequest: { id: string; requestedAt: string } | null;
 };
 type Payslip = {
   payslipNumber: string;
@@ -287,10 +305,15 @@ export default function Portal() {
   const [tasks, setTasks] = useState<EmployeeTask[] | null>(null);
   const [notices, setNotices] = useState<PerformanceNotice[] | null>(null);
   const [careerNotices, setCareerNotices] = useState<CareerNotice[] | null>(null);
+  const [team, setTeam] = useState<TeamMember[] | null>(null);
+  const [personalDetails, setPersonalDetails] = useState<PersonalDetails | null>(
+    null,
+  );
   const [error, setError] = useState("");
   const [formBusy, setFormBusy] = useState(false);
   const [formMessage, setFormMessage] = useState("");
   const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [showDetailsForm, setShowDetailsForm] = useState(false);
   const [expandedPayslip, setExpandedPayslip] = useState<string | null>(null);
   const [taskBusy, setTaskBusy] = useState<string | null>(null);
   const [taskNote, setTaskNote] = useState<Record<string, string>>({});
@@ -392,6 +415,15 @@ export default function Portal() {
           "career-notices",
           (d) => setCareerNotices(d.notices),
         );
+      if (team === null)
+        load<{ reports: TeamMember[]; error?: string }>("team", (d) =>
+          setTeam(d.reports),
+        );
+      if (personalDetails === null)
+        load<PersonalDetails & { error?: string }>(
+          "personal-details",
+          setPersonalDetails,
+        );
     }
     if (tab === "inicio" || tab === "picagem")
       load<Attendance & { error?: string }>("attendance", setAttendance);
@@ -423,6 +455,37 @@ export default function Portal() {
     setFormMessage("Pedido submetido com sucesso.");
     e.currentTarget.reset();
     load<Leave & { error?: string }>("leave", setLeave);
+  }
+
+  async function submitPersonalDetails(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setFormBusy(true);
+    setFormMessage("");
+    const f = new FormData(e.currentTarget);
+    const r = await apiFetch("/api/self-service", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "requestPersonalDetailChange",
+        phone: f.get("phone"),
+        address: f.get("address"),
+        emergencyContactName: f.get("emergencyContactName"),
+        emergencyContactPhone: f.get("emergencyContactPhone"),
+        bankIban: f.get("bankIban"),
+      }),
+    });
+    const body = (await r.json()) as { error?: string };
+    setFormBusy(false);
+    if (!r.ok) {
+      setFormMessage(body.error || "Não foi possível submeter o pedido.");
+      return;
+    }
+    setFormMessage("Pedido de alteração enviado para aprovação de RH.");
+    setShowDetailsForm(false);
+    load<PersonalDetails & { error?: string }>(
+      "personal-details",
+      setPersonalDetails,
+    );
   }
 
   async function transitionTask(taskId: string, status: string) {
@@ -1142,6 +1205,17 @@ export default function Portal() {
                   <dd>{profile.hireDate || "—"}</dd>
                   <dt>Estado</dt>
                   <dd>{profile.status || "—"}</dd>
+                  {profile.managerName && (
+                    <>
+                      <dt>Gestor</dt>
+                      <dd>
+                        {profile.managerName}
+                        {profile.managerJobTitle
+                          ? ` · ${profile.managerJobTitle}`
+                          : ""}
+                      </dd>
+                    </>
+                  )}
                 </dl>
                 <button
                   className="portal-logout"
@@ -1153,6 +1227,120 @@ export default function Portal() {
                   Terminar sessão
                 </button>
               </section>
+              {team && team.length > 0 && (
+                <section className="portal-card">
+                  <h2>A minha equipa</h2>
+                  <ul className="portal-list">
+                    {team.map((m) => (
+                      <li key={m.id}>
+                        <div>
+                          <b>{m.name}</b>
+                          <span>{m.jobTitle || "—"}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {personalDetails && (
+                <section className="portal-card">
+                  <h2>Dados pessoais</h2>
+                  {personalDetails.pendingRequest ? (
+                    <p className="portal-form-message">
+                      Pedido de alteração enviado em{" "}
+                      {new Date(
+                        personalDetails.pendingRequest.requestedAt,
+                      ).toLocaleDateString("pt-PT")}{" "}
+                      — a aguardar aprovação de RH.
+                    </p>
+                  ) : (
+                    <dl>
+                      <dt>Telefone</dt>
+                      <dd>{personalDetails.phone || "—"}</dd>
+                      <dt>Morada</dt>
+                      <dd>{personalDetails.address || "—"}</dd>
+                      <dt>Contacto de emergência</dt>
+                      <dd>
+                        {personalDetails.emergencyContactName || "—"}
+                        {personalDetails.emergencyContactPhone
+                          ? ` · ${personalDetails.emergencyContactPhone}`
+                          : ""}
+                      </dd>
+                      <dt>IBAN</dt>
+                      <dd>
+                        {personalDetails.bankIban
+                          ? `•••• ${personalDetails.bankIban.slice(-4)}`
+                          : "—"}
+                      </dd>
+                    </dl>
+                  )}
+                  {!personalDetails.pendingRequest && (
+                    <button
+                      className="portal-toggle-form"
+                      onClick={() => setShowDetailsForm((v) => !v)}
+                    >
+                      {Icon.plus} Editar dados pessoais
+                    </button>
+                  )}
+                  {showDetailsForm && !personalDetails.pendingRequest && (
+                    <form
+                      className="portal-form"
+                      onSubmit={submitPersonalDetails}
+                    >
+                      <label>
+                        Telefone
+                        <input
+                          name="phone"
+                          type="tel"
+                          defaultValue={personalDetails.phone}
+                        />
+                      </label>
+                      <label>
+                        Morada
+                        <input
+                          name="address"
+                          type="text"
+                          defaultValue={personalDetails.address}
+                        />
+                      </label>
+                      <label>
+                        Nome do contacto de emergência
+                        <input
+                          name="emergencyContactName"
+                          type="text"
+                          defaultValue={personalDetails.emergencyContactName}
+                        />
+                      </label>
+                      <label>
+                        Telefone do contacto de emergência
+                        <input
+                          name="emergencyContactPhone"
+                          type="tel"
+                          defaultValue={personalDetails.emergencyContactPhone}
+                        />
+                      </label>
+                      <label>
+                        IBAN
+                        <input
+                          name="bankIban"
+                          type="text"
+                          defaultValue={personalDetails.bankIban}
+                        />
+                      </label>
+                      <p className="portal-form-message">
+                        As alterações ficam pendentes de aprovação de RH antes
+                        de entrarem em vigor.
+                      </p>
+                      {formMessage && (
+                        <p className="portal-form-message">{formMessage}</p>
+                      )}
+                      <button disabled={formBusy}>
+                        {formBusy ? "A submeter…" : "Submeter alteração"}
+                      </button>
+                    </form>
+                  )}
+                </section>
+              )}
               {notices && notices.length > 0 && (
                 <section className="portal-card">
                   <h2>Histórico de avaliações</h2>
