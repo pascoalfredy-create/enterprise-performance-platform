@@ -86,6 +86,9 @@ export function FinancialModelsWorkspace({
     [lineMode, setLineMode] = useState<"fixo" | "direcionador">("fixo"),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
   const load = useCallback(
     () =>
       apiFetch(

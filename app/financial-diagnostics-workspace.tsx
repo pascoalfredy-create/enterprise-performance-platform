@@ -177,6 +177,9 @@ export function FinancialDiagnosticsWorkspace({
     [context, setContext] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
   const load = useCallback(
     () =>
       apiFetch(

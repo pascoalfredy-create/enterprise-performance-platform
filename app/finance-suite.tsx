@@ -63,6 +63,7 @@ const pct=(n:number)=>`${n>0?"+":""}${n.toFixed(1)}%`;
 export function FinanceSuite({initialView="Cockpit CFO",onNavigate}:{initialView?:View;onNavigate?:(x:string)=>void}){
  const locale=usePlatformLocale(),c=fc[locale],d=fd[locale],r=frx[locale],z=closeCopy[locale],t=rc[locale];
  const [view,setView]=useState<View>(initialView),[period,setPeriod]=useState("Agosto 2026"),[scenario,setScenario]=useState("Actual vs Budget"),[entity,setEntity]=useState("Grupo consolidado");
+ useEffect(()=>{setView(initialView)},[initialView]);
  const variance=actual[7]-budget[7], variancePct=variance/budget[7]*100;
  const exportPack=()=>{const content=`MANAGEMENT PACK | ${entity} | ${period}\n${z.revenue}: ${money(438)}\nEBITDA: ${money(82.4)}\n${c.net}: ${money(49.6)}\n${c.cash}: ${money(214.8)}\n${d.variance}: ${money(variance)} (${pct(variancePct)})\n\n${z.exportConclusion}`;const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type:"text/plain;charset=utf-8"}));a.download=`management-pack-${period.toLowerCase().replaceAll(" ","-")}.txt`;a.click();URL.revokeObjectURL(a.href)};
  return <section className="finance-suite">

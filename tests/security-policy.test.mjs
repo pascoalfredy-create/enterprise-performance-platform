@@ -306,3 +306,9 @@ test("consolidation computes non-controlling interest per line from point-in-tim
  assert.match(consolidationApi,/nciAmount = convertedAmount - ownedAmount/);
  assert.match(consolidationApi,/parentTotal = reported - Number\(run\.nci_total_minor \|\| 0\)/);
 });
+test("workspaces mounted multiple times with different initialView props (sidebar navigation between sibling finance/analytics views) resync their internal tab instead of keeping the first-ever initialView",()=>{
+ for(const [file,extra] of [["../app/finance-suite.tsx",""],["../app/analytics-suite.tsx",""],["../app/financial-diagnostics-workspace.tsx",""],["../app/financial-models-workspace.tsx",""]]){
+  const src=fs.readFileSync(new URL(file,import.meta.url),"utf8").replace(/\s+/g," ");
+  assert.match(src,/useEffect\(\s*\(\)\s*=>\s*\{?\s*setView\(initialView\)\s*;?\s*\}?,\s*\[initialView\]\s*\)/,`${file} does not resync view with initialView`);
+ }
+});
