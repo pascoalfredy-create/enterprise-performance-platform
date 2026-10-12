@@ -83,6 +83,13 @@ export default function Portal() {
   const [formMessage, setFormMessage] = useState("");
 
   useEffect(() => {
+    if ("serviceWorker" in navigator)
+      navigator.serviceWorker
+        .register("/portal-sw.js", { scope: "/portal" })
+        .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     apiFetch("/api/session")
       .then(async (r) => ({ ok: r.ok, body: await r.json() }))
       .then(({ ok, body }) => {

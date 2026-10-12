@@ -565,3 +565,36 @@ test("customer activation center exposes adoption subscription imports and hones
   assert.match(api, /subscription_change_requests/);
   assert.match(api, /Contratado, ainda sem evidência operacional/);
 });
+
+test("employee self-service portal is a separate mobile-first installable PWA scoped to its own route", () => {
+  const portalPage = fs.readFileSync(
+    new URL("../app/portal/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const portalLayout = fs.readFileSync(
+    new URL("../app/portal/layout.tsx", import.meta.url),
+    "utf8",
+  );
+  const manifest = JSON.parse(
+    fs.readFileSync(new URL("../public/portal-manifest.json", import.meta.url), "utf8"),
+  );
+  const sw = fs.readFileSync(
+    new URL("../public/portal-sw.js", import.meta.url),
+    "utf8",
+  );
+  const entrar = fs.readFileSync(
+    new URL("../app/entrar/page.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(portalPage, /body\.role !== "Colaborador"/);
+  assert.match(portalPage, /\/api\/self-service\?resource=/);
+  assert.match(portalPage, /navigator\.serviceWorker\s*\n?\s*\.register\("\/portal-sw\.js"/);
+  assert.match(portalLayout, /manifest:\s*"\/portal-manifest\.json"/);
+  assert.equal(manifest.start_url, "/portal");
+  assert.equal(manifest.scope, "/portal");
+  assert.equal(manifest.display, "standalone");
+  assert.ok(Array.isArray(manifest.icons) && manifest.icons.length > 0);
+  assert.match(sw, /url\.pathname\.startsWith\("\/api\/"\)\) return/);
+  assert.match(entrar, /role==="Colaborador"\?"\/portal"/);
+  assert.match(page, /body\.role === "Colaborador"/);
+});

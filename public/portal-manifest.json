@@ -1,0 +1,26 @@
+{
+  "name": "Portal do Colaborador",
+  "short_name": "Portal",
+  "description": "Recibos de vencimento, saldos de férias e documentos do colaborador.",
+  "start_url": "/portal",
+  "scope": "/portal",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f7fb",
+  "theme_color": "#11182b",
+  "lang": "pt",
+  "icons": [
+    {
+      "src": "/portal-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/portal-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
