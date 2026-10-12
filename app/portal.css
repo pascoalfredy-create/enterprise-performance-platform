@@ -1,0 +1,220 @@
+.portal-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-size: 0.95rem;
+  color: #64748b;
+}
+.portal-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  background: #f6f7fb;
+}
+.portal-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 18px 12px;
+  background: #11182b;
+  color: #fff;
+}
+.portal-header b {
+  font-size: 1rem;
+}
+.portal-header span {
+  font-size: 0.8rem;
+  color: #aab3c9;
+}
+.portal-content {
+  flex: 1;
+  padding: 16px 16px 96px;
+}
+.portal-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fde8e8;
+  color: #9b1c1c;
+  font-size: 0.85rem;
+}
+.portal-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 1px 3px rgba(17, 24, 43, 0.08);
+}
+.portal-card h2 {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+}
+.portal-card h3 {
+  margin: 20px 0 10px;
+  font-size: 0.95rem;
+  color: #40495e;
+}
+.portal-card p {
+  margin: 0;
+  color: #5a6477;
+  font-size: 0.9rem;
+}
+.portal-card dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 14px 0 0;
+}
+.portal-card dt {
+  color: #8a93a6;
+  font-size: 0.8rem;
+}
+.portal-card dd {
+  margin: 0;
+  font-size: 0.9rem;
+  text-align: right;
+}
+.portal-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.portal-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef0f5;
+}
+.portal-list li:last-child {
+  border-bottom: none;
+}
+.portal-list li > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.portal-list li span {
+  font-size: 0.78rem;
+  color: #8a93a6;
+}
+.portal-amount {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.portal-status {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: #eef0f5;
+  color: #525c70;
+}
+.portal-status-pendente {
+  background: #fef3c7;
+  color: #92650b;
+}
+.portal-status-aprovado,
+.portal-status-emitido {
+  background: #dcfce7;
+  color: #137a3a;
+}
+.portal-status-rejeitado,
+.portal-status-cancelado {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+.portal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+.portal-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: #40495e;
+}
+.portal-form input,
+.portal-form select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d7dbe6;
+  font-size: 0.95rem;
+}
+.portal-form button {
+  margin-top: 4px;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: #11182b;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.portal-form button:disabled {
+  opacity: 0.6;
+}
+.portal-form-message {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #40495e;
+}
+.portal-logout {
+  margin-top: 18px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d7dbe6;
+  border-radius: 10px;
+  background: #fff;
+  color: #9b1c1c;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.portal-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: #fff;
+  border-top: 1px solid #e4e7ef;
+  padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
+  z-index: 10;
+}
+.portal-nav button {
+  border: none;
+  background: none;
+  padding: 6px 2px;
+  font-size: 0.72rem;
+  color: #8a93a6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.portal-nav button.active {
+  color: #11182b;
+  font-weight: 700;
+}
+@media (min-width: 540px) {
+  .portal-shell {
+    box-shadow: 0 0 0 1px #e4e7ef;
+    min-height: 100vh;
+  }
+}

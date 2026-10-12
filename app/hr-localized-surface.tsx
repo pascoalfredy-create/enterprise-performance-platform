@@ -689,6 +689,18 @@ const rows:Array<[string,string,string,string,string]>=[
 ["＋ Métrica","＋ Metric","＋ Métrica","＋ Métrique","＋ Показатель"],
 ["＋ Regra","＋ Rule","＋ Regla","＋ Règle","＋ Правило"],
 ["＋ Tarefa","＋ Task","＋ Tarea","＋ Tâche","＋ Задача"],
+["A validar sessão…","Validating session…","Validando sesión…","Validation de la session…","Проверка сессии…"],
+["Nº de colaborador","Employee number","Número de empleado","Numéro d'employé","Номер сотрудника"],
+["Admissão","Hire date","Fecha de contratación","Date d'embauche","Дата приёма на работу"],
+["Recibos de vencimento","Payslips","Recibos de nómina","Bulletins de paie","Расчётные листки"],
+["A carregar…","Loading…","Cargando…","Chargement…","Загрузка…"],
+["Ainda não existem recibos emitidos.","No payslips have been issued yet.","Aún no se han emitido recibos.","Aucun bulletin n'a encore été émis.","Расчётные листки ещё не выпущены."],
+["Saldos de férias","Leave balances","Saldos de vacaciones","Soldes de congés","Остатки отпуска"],
+["Histórico","History","Historial","Historique","История"],
+["Ainda não existem pedidos.","No requests yet.","Aún no hay solicitudes.","Aucune demande pour le moment.","Запросов ещё нет."],
+["Ainda não existem documentos.","No documents yet.","Aún no hay documentos.","Aucun document pour le moment.","Документов ещё нет."],
+["Perfil","Profile","Perfil","Profil","Профиль"],
+["Cargo","Job title","Puesto","Poste","Должность"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

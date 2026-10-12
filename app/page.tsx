@@ -261,6 +261,10 @@ export default function Home() {
     apiFetch("/api/session")
       .then(async (r) => ({ ok: r.ok, body: await r.json() }))
       .then(({ ok, body }) => {
+        if (ok && body.role === "Colaborador") {
+          window.location.assign("/portal");
+          return;
+        }
         if (ok && body.email) {
           setSessao(body);
           localStorage.setItem("ep_active_tenant", body.tenantId);
