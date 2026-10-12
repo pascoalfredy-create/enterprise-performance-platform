@@ -290,3 +290,8 @@ test("attendance geolocation columns are append-only and clock_in location is im
  const attendanceApi=fs.readFileSync(new URL("../worker/attendance.ts",import.meta.url),"utf8");
  assert.match(attendanceApi,/INSERT INTO attendance_entries \(id,tenant_id,employee_id,work_date,clock_in,clock_out,source,worked_minutes,scheduled_minutes,overtime_minutes,exception_code,note,created_by,created_at\)/);
 });
+test("scenario comparison exposes every planning version's own-period total and base-budget total, scoped to the caller's organization",()=>{
+ assert.match(compact,/\)period_total_minor,\(SELECTCOALESCE\(SUM\(amount_minor\),0\)FROMperformance_entries/);
+ assert.match(compact,/\)base_budget_total_minorFROMplanning_versionsvLEFTJOINbudget_versionsb/);
+ assert.match(compact,/pe\.version_id=v\.base_budget_idANDpe\.scenario='Budget'/);
+});

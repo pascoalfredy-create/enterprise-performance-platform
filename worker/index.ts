@@ -2884,9 +2884,19 @@ async function scenariosApi(
           await Promise.all([
             db
               .prepare(
-                "SELECT v.*,b.name base_budget_name,(SELECT COUNT(*) FROM planning_entries e WHERE e.version_id=v.id AND e.tenant_id=v.tenant_id) entry_count FROM planning_versions v LEFT JOIN budget_versions b ON b.id=v.base_budget_id AND b.tenant_id=v.tenant_id WHERE v.tenant_id=? ORDER BY v.fiscal_year DESC,v.created_at DESC",
+                "SELECT v.*,b.name base_budget_name,(SELECT COUNT(*) FROM planning_entries e WHERE e.version_id=v.id AND e.tenant_id=v.tenant_id) entry_count,(SELECT COALESCE(SUM(amount_minor),0) FROM planning_entries e WHERE e.version_id=v.id AND e.tenant_id=v.tenant_id AND (? IS NULL OR e.organization_id=?) AND e.period=? AND e.currency=?) period_total_minor,(SELECT COALESCE(SUM(amount_minor),0) FROM performance_entries pe WHERE pe.tenant_id=v.tenant_id AND pe.version_id=v.base_budget_id AND pe.scenario='Budget' AND (? IS NULL OR pe.organization_id=?) AND pe.period=? AND pe.currency=?) base_budget_total_minor FROM planning_versions v LEFT JOIN budget_versions b ON b.id=v.base_budget_id AND b.tenant_id=v.tenant_id WHERE v.tenant_id=? ORDER BY v.fiscal_year DESC,v.created_at DESC",
               )
-              .bind(tenantId)
+              .bind(
+                organizationId,
+                organizationId,
+                period,
+                currency,
+                organizationId,
+                organizationId,
+                period,
+                currency,
+                tenantId,
+              )
               .all(),
             db
               .prepare(

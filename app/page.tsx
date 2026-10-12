@@ -3730,6 +3730,8 @@ type ScenarioData = {
     status: string;
     entry_count: number;
     base_budget_name?: string;
+    period_total_minor: number;
+    base_budget_total_minor: number;
   }>;
   organizations: Array<{
     id: string;
@@ -3943,6 +3945,62 @@ function ScenariosWorkspace() {
           <small>Diferença no período</small>
         </article>
       </section>
+      {data.versions.length > 0 && (
+        <section className="cartao scenario-compare">
+          <div className="cab">
+            <div>
+              <span>FP&amp;A · COMPARAÇÃO</span>
+              <h2>Cenários lado a lado</h2>
+            </div>
+            <em>
+              {period} · {currency}
+            </em>
+          </div>
+          <table className="scenario-compare-table">
+            <thead>
+              <tr>
+                <th>Versão</th>
+                <th>Tipo</th>
+                <th>Estado</th>
+                <th>Budget base</th>
+                <th>Forecast / Cenário</th>
+                <th>vs. Actual</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="scenario-compare-actual">
+                <td colSpan={3}>Actual</td>
+                <td>—</td>
+                <td>{money(data.summary.actualMinor)}</td>
+                <td>—</td>
+              </tr>
+              {data.versions.map((v) => {
+                const diff = v.period_total_minor - data.summary.actualMinor;
+                return (
+                  <tr
+                    key={v.id}
+                    className={version === v.id ? "active" : ""}
+                    onClick={() => setVersion(v.id)}
+                  >
+                    <td>{v.name}</td>
+                    <td>{v.version_type}</td>
+                    <td>{v.status}</td>
+                    <td>
+                      {v.base_budget_name
+                        ? money(v.base_budget_total_minor)
+                        : "—"}
+                    </td>
+                    <td>{money(v.period_total_minor)}</td>
+                    <td className={diff > 0 ? "attention" : ""}>
+                      {money(diff)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+      )}
       <div className="scenario-grid">
         <article className="cartao scenario-list">
           <div className="cab">
