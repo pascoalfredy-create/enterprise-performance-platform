@@ -290,7 +290,8 @@
   color: #92650b;
 }
 .portal-status-aprovado,
-.portal-status-emitido {
+.portal-status-emitido,
+.portal-status-assinado {
   background: #dcfce7;
   color: #137a3a;
 }
@@ -519,6 +520,21 @@
 .portal-priority-critica {
   background: #fde8e8;
   color: #9b1c1c;
+}
+.portal-sign-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--portal-text);
+  margin-top: 8px;
+}
+.portal-sign-field input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d7dbe6;
+  font-size: 0.95rem;
+  font-family: "Brush Script MT", cursive;
 }
 .portal-task-action {
   align-self: flex-start;

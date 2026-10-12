@@ -275,6 +275,22 @@ test("employees can only read and acknowledge their own career notices, never al
  assert.match(selfService,/body\.type === "acknowledgeCareerNotice"/);
  assert.match(selfService,/UPDATE employee_career_notices SET status='Reconhecido',acknowledged_at=\? WHERE id=\? AND tenant_id=\? AND employee_id=\? AND status='Publicado'/);
 });
+test("only HR/Administrador (hcm:write) can publish onboarding documents for signature, scoped to their organization",()=>{
+ const docs=fs.readFileSync(new URL("../worker/employee-onboarding-documents.ts",import.meta.url),"utf8");
+ assert.match(docs,/body\.type !== "publishOnboardingDocument"/);
+ assert.match(docs,/Colaborador fora do âmbito autorizado/);
+ assert.match(docs,/O link do documento deve ser um URL válido/);
+ assert.match(compact,/apiPath==="\/api\/employee-onboarding-documents"/);
+ assert.match(compact,/employeeOnboardingDocumentsApi\(request,env\.DB,security\)/);
+ assert.match(compact,/"\/api\/employee-career-notices","\/api\/employee-onboarding-documents"/);
+});
+test("employees can only sign their own pending onboarding documents with a typed legal name, never alter published content",()=>{
+ const selfService=fs.readFileSync(new URL("../worker/self-service.ts",import.meta.url),"utf8");
+ assert.match(selfService,/resource === "onboarding-documents"/);
+ assert.match(selfService,/body\.type === "signOnboardingDocument"/);
+ assert.match(selfService,/signatureName\.length < 3/);
+ assert.match(selfService,/UPDATE employee_onboarding_documents SET status='Assinado',signed_by=\?,signature_name=\?,signed_at=\? WHERE id=\? AND tenant_id=\? AND employee_id=\? AND status='Pendente'/);
+});
 test("attendance punch clock captures optional geolocation but never requires it",()=>{
  const selfService=fs.readFileSync(new URL("../worker/self-service.ts",import.meta.url),"utf8");
  assert.match(selfService,/function parseGeo/);

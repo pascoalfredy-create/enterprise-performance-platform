@@ -424,3 +424,19 @@ test("employee personal detail changes require independent HR approval and are i
  assert.throws(()=>db.exec("DELETE FROM employee_personal_detail_requests WHERE id='p1'"),/cannot be deleted/);
  db.close();
 });
+
+test("employee onboarding documents require a typed signature to move from Pendente to Assinado, are scoped to the tenant and are immutable once signed",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Ativo')");
+ db.exec("INSERT INTO employee_onboarding_documents (id,tenant_id,employee_id,title,description,document_url,status,published_by,published_at) VALUES ('d1','t1','e1','Contrato de trabalho',NULL,NULL,'Pendente','hr@test','now')");
+ db.exec("INSERT INTO tenants VALUES ('t2','now','Tenant 2','tenant-2','Ativo'); INSERT INTO organizations VALUES ('o2','t2','now','ROOT','Org 2','Empresa','AOA','Ativa')");
+ assert.throws(()=>db.exec("INSERT INTO employee_onboarding_documents (id,tenant_id,employee_id,title,description,document_url,status,published_by,published_at) VALUES ('d2','t2','e1','Fora do tenant',NULL,NULL,'Pendente','hr@test','now')"),/outside tenant/);
+ assert.throws(()=>db.exec("UPDATE employee_onboarding_documents SET status='Assinado' WHERE id='d1'"),/invalid employee onboarding document transition/);
+ assert.throws(()=>db.exec("UPDATE employee_onboarding_documents SET status='Assinado',signed_by='ana@test',signature_name='AB',signed_at='later' WHERE id='d1'"),/invalid employee onboarding document transition/);
+ db.exec("UPDATE employee_onboarding_documents SET status='Assinado',signed_by='ana@test',signature_name='Ana Silva',signed_at='later' WHERE id='d1'");
+ assert.throws(()=>db.exec("UPDATE employee_onboarding_documents SET title='Outro título' WHERE id='d1'"),/invalid employee onboarding document transition/);
+ assert.throws(()=>db.exec("DELETE FROM employee_onboarding_documents WHERE id='d1'"),/cannot be deleted/);
+ const row=db.prepare("SELECT status,signature_name FROM employee_onboarding_documents WHERE id='d1'").get();
+ assert.equal(row.status,'Assinado');assert.equal(row.signature_name,'Ana Silva');
+ db.close();
+});

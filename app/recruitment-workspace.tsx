@@ -8,6 +8,8 @@ type OnboardingCase={id:string;application_id:string;candidate_name:string;requi
 type OnboardingTask={id:string;case_id:string;title:string;owner_email:string;due_date:string;status:string};
 type Organization={id:string;code:string;name:string};
 type Owner={email:string;name:string;role:string};
+type ActiveEmployee={id:string;employee_number:string;first_name:string;last_name:string};
+type OnboardingDocument={id:string;employee_id:string;employee_name:string;employee_number:string;title:string;description:string|null;document_url:string|null;status:string;published_by:string;published_at:string;signature_name:string|null;signed_at:string|null};
 type Data = {
   requisitions: Requisition[];
   applications: Application[];
@@ -17,6 +19,8 @@ type Data = {
   organizations: Organization[];
   owners: Owner[];
   careersSlug: string | null;
+  activeEmployees: ActiveEmployee[];
+  onboardingDocuments: OnboardingDocument[];
 };
 const empty: Data = {
   requisitions: [],
@@ -27,6 +31,8 @@ const empty: Data = {
   organizations: [],
   owners: [],
   careersSlug: null,
+  activeEmployees: [],
+  onboardingDocuments: [],
 };
 export function RecruitmentWorkspace() {
   const [data, setData] = useState<Data>(empty),
@@ -80,6 +86,29 @@ export function RecruitmentWorkspace() {
   }
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (modal === "publishOnboardingDocument") {
+      setBusy(true);
+      setError("");
+      const r = await apiFetch("/api/v1/employee-onboarding-documents", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            type: "publishOnboardingDocument",
+            ...(Object.fromEntries(
+              new FormData(e.currentTarget).entries(),
+            ) as Record<string, string>),
+          }),
+        }),
+        b = await r.json();
+      setBusy(false);
+      if (!r.ok) {
+        setError(b.error);
+        return;
+      }
+      setModal("");
+      load();
+      return;
+    }
     await command({
       type: modal,
       requisitionId: context,
@@ -300,6 +329,45 @@ export function RecruitmentWorkspace() {
                 ))}
             </article>
           ))}
+          <article className="cartao talent-list">
+            <div className="cab">
+              <div>
+                <span>INTEGRAÇÃO</span>
+                <h2>Documentos para assinatura</h2>
+              </div>
+              <button
+                onClick={() => {
+                  setContext("");
+                  setModal("publishOnboardingDocument");
+                }}
+              >
+                ＋ Documento
+              </button>
+            </div>
+            {data.onboardingDocuments.length === 0 ? (
+              <p className="talent-onboarding-empty">
+                Ainda não existem documentos de integração enviados.
+              </p>
+            ) : (
+              data.onboardingDocuments.map((d) => (
+                <section key={d.id}>
+                  <span>
+                    <b>{d.employee_name}</b>
+                    <small>{d.employee_number}</small>
+                  </span>
+                  <p>
+                    <b>{d.title}</b>
+                    <small>
+                      {d.status === "Assinado"
+                        ? `Assinado por ${d.signature_name} em ${new Date(d.signed_at!).toLocaleDateString("pt-PT")}`
+                        : `Enviado por ${d.published_by}`}
+                    </small>
+                  </p>
+                  <em>{d.status}</em>
+                </section>
+              ))
+            )}
+          </article>
         </div>
       )}
       {error && !modal && <p className="erro-global">{error}</p>}
@@ -349,6 +417,7 @@ const titles: Record<string, string> = {
   startOnboarding: "Iniciar onboarding",
   addOnboardingTask: "Nova tarefa",
   completeOnboardingTask: "Concluir tarefa",
+  publishOnboardingDocument: "Enviar documento para assinatura",
 };
 function Fields({ type, data }: { type: string; data: Data }) {
   if (type === "createRequisition")
@@ -476,6 +545,34 @@ function Fields({ type, data }: { type: string; data: Data }) {
         <label>
           Prazo
           <input name="dueDate" type="date" required />
+        </label>
+      </>
+    );
+  if (type === "publishOnboardingDocument")
+    return (
+      <>
+        <label>
+          Colaborador
+          <select name="employeeId" required>
+            <option value="">Selecionar</option>
+            {data.activeEmployees.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.first_name} {x.last_name} · {x.employee_number}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Título do documento
+          <input name="title" placeholder="Contrato de trabalho" required />
+        </label>
+        <label>
+          Descrição
+          <textarea name="description" />
+        </label>
+        <label>
+          Link do documento (opcional)
+          <input name="documentUrl" type="url" placeholder="https://" />
         </label>
       </>
     );

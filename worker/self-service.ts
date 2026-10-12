@@ -450,6 +450,37 @@ export async function selfServiceApi(
           })),
         });
       }
+      if (resource === "onboarding-documents") {
+        const rows = await db
+          .prepare(
+            "SELECT id,title,description,document_url,status,published_by,published_at,signature_name,signed_at FROM employee_onboarding_documents WHERE tenant_id=? AND employee_id=? ORDER BY CASE status WHEN 'Pendente' THEN 1 ELSE 2 END,published_at DESC",
+          )
+          .bind(tenant, employeeId)
+          .all<{
+            id: string;
+            title: string;
+            description: string | null;
+            document_url: string | null;
+            status: string;
+            published_by: string;
+            published_at: string;
+            signature_name: string | null;
+            signed_at: string | null;
+          }>();
+        return Response.json({
+          documents: rows.results.map((d) => ({
+            id: d.id,
+            title: d.title,
+            description: d.description,
+            documentUrl: d.document_url,
+            status: d.status,
+            publishedBy: d.published_by,
+            publishedAt: d.published_at,
+            signatureName: d.signature_name,
+            signedAt: d.signed_at,
+          })),
+        });
+      }
       if (resource === "documents") {
         const rows = await db
           .prepare(
@@ -634,6 +665,27 @@ export async function selfServiceApi(
           { status: 409 },
         );
       return Response.json({ id: body.noticeId, status: "Reconhecido" });
+    }
+    if (body.type === "signOnboardingDocument") {
+      const signatureName = (body.signatureName || "").trim();
+      if (signatureName.length < 3)
+        return Response.json(
+          { error: "Indique o seu nome completo para assinar." },
+          { status: 400 },
+        );
+      const now = new Date().toISOString();
+      const result = await db
+        .prepare(
+          "UPDATE employee_onboarding_documents SET status='Assinado',signed_by=?,signature_name=?,signed_at=? WHERE id=? AND tenant_id=? AND employee_id=? AND status='Pendente'",
+        )
+        .bind(security.email, signatureName, now, body.documentId, tenant, employeeId)
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          { error: "Documento não encontrado ou já foi assinado." },
+          { status: 409 },
+        );
+      return Response.json({ id: body.documentId, status: "Assinado" });
     }
     if (body.type === "taskTransition") {
       const task = await db

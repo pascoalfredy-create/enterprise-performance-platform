@@ -35,6 +35,8 @@ export async function recruitmentApi(
         organizations,
         owners,
         tenantRow,
+        activeEmployees,
+        onboardingDocuments,
       ] = await Promise.all([
         db
           .prepare(
@@ -82,6 +84,18 @@ export async function recruitmentApi(
           .prepare("SELECT slug FROM tenants WHERE id=?")
           .bind(tenant)
           .first<{ slug: string }>(),
+        db
+          .prepare(
+            "SELECT id,employee_number,first_name,last_name FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo' ORDER BY first_name,last_name",
+          )
+          .bind(tenant, scope, scope)
+          .all(),
+        db
+          .prepare(
+            "SELECT d.*,e.first_name||' '||e.last_name employee_name,e.employee_number FROM employee_onboarding_documents d JOIN employees e ON e.id=d.employee_id AND e.tenant_id=d.tenant_id WHERE d.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY d.published_at DESC",
+          )
+          .bind(tenant, scope, scope)
+          .all(),
       ]);
       return {
         requisitions: requisitions.results,
@@ -92,6 +106,8 @@ export async function recruitmentApi(
         organizations: organizations.results,
         owners: owners.results,
         careersSlug: tenantRow?.slug || null,
+        activeEmployees: activeEmployees.results,
+        onboardingDocuments: onboardingDocuments.results,
       };
     };
     if (request.method === "GET") return Response.json(await snapshot());

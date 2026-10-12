@@ -762,6 +762,18 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Candidatura recebida com sucesso. A equipa de recrutamento irá contactá-lo caso o perfil avance no processo.","Application received successfully. The recruitment team will contact you if your profile moves forward in the process.","Candidatura recibida con éxito. El equipo de selección se pondrá en contacto si el perfil avanza en el proceso.","Candidature reçue avec succès. L'équipe de recrutement vous contactera si votre profil avance dans le processus.","Заявка успешно получена. Команда по подбору персонала свяжется с вами, если ваш профиль пройдёт дальше в процессе."],
 ["Autorizo o tratamento dos meus dados pessoais para fins de recrutamento e seleção para esta e futuras vagas.","I authorize the processing of my personal data for recruitment and selection purposes for this and future vacancies.","Autorizo el tratamiento de mis datos personales para fines de reclutamiento y selección para esta y futuras vacantes.","J'autorise le traitement de mes données personnelles à des fins de recrutement et de sélection pour ce poste et les postes futurs.","Я разрешаю обработку моих персональных данных для целей подбора и отбора персонала на эту и будущие вакансии."],
 ["PÁGINA PÚBLICA DE CANDIDATURAS","PUBLIC CAREERS PAGE","PÁGINA PÚBLICA DE CANDIDATURAS","PAGE PUBLIQUE DE CANDIDATURES","ПУБЛИЧНАЯ СТРАНИЦА ВАКАНСИЙ"],
+["Documento para assinar","Document to sign","Documento para firmar","Document à signer","Документ для подписания"],
+["Ver documento","View document","Ver documento","Voir le document","Просмотреть документ"],
+["Nome completo para assinatura","Full name for signature","Nombre completo para la firma","Nom complet pour la signature","Полное имя для подписи"],
+["Documentos de integração","Onboarding documents","Documentos de incorporación","Documents d'intégration","Документы адаптации"],
+["O seu nome completo","Your full name","Su nombre completo","Votre nom complet","Ваше полное имя"],
+["INTEGRAÇÃO","ONBOARDING","INCORPORACIÓN","INTÉGRATION","АДАПТАЦИЯ"],
+["Documentos para assinatura","Documents for signature","Documentos para firmar","Documents à signer","Документы для подписи"],
+["＋ Documento","＋ Document","＋ Documento","＋ Document","＋ Документ"],
+["Ainda não existem documentos de integração enviados.","No onboarding documents have been sent yet.","Todavía no se han enviado documentos de incorporación.","Aucun document d'intégration n'a encore été envoyé.","Документы адаптации ещё не отправлены."],
+["Título do documento","Document title","Título del documento","Titre du document","Название документа"],
+["Contrato de trabalho","Employment contract","Contrato de trabajo","Contrat de travail","Трудовой договор"],
+["https://","https://","https://","https://","https://"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

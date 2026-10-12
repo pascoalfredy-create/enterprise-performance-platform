@@ -115,6 +115,17 @@ type CareerNotice = {
   publishedAt: string;
   acknowledgedAt: string | null;
 };
+type OnboardingDocument = {
+  id: string;
+  title: string;
+  description: string | null;
+  documentUrl: string | null;
+  status: string;
+  publishedBy: string;
+  publishedAt: string;
+  signatureName: string | null;
+  signedAt: string | null;
+};
 type EmployeeTask = {
   id: string;
   title: string;
@@ -314,6 +325,13 @@ export default function Portal() {
   const [tasks, setTasks] = useState<EmployeeTask[] | null>(null);
   const [notices, setNotices] = useState<PerformanceNotice[] | null>(null);
   const [careerNotices, setCareerNotices] = useState<CareerNotice[] | null>(null);
+  const [onboardingDocuments, setOnboardingDocuments] = useState<
+    OnboardingDocument[] | null
+  >(null);
+  const [onboardingDocBusy, setOnboardingDocBusy] = useState<string | null>(null);
+  const [onboardingSignName, setOnboardingSignName] = useState<
+    Record<string, string>
+  >({});
   const [team, setTeam] = useState<TeamMember[] | null>(null);
   const [teamLeave, setTeamLeave] = useState<TeamLeaveEntry[] | null>(null);
   const [personalDetails, setPersonalDetails] = useState<PersonalDetails | null>(
@@ -409,10 +427,15 @@ export default function Portal() {
           (d) => setTeamLeave(d.team),
         );
     }
-    if (tab === "documentos")
+    if (tab === "documentos") {
       load<{ documents: DocumentRow[]; error?: string }>("documents", (d) =>
         setDocuments(d.documents),
       );
+      load<{ documents: OnboardingDocument[]; error?: string }>(
+        "onboarding-documents",
+        (d) => setOnboardingDocuments(d.documents),
+      );
+    }
     if (tab === "inicio" || tab === "tarefas") {
       if (tasks === null)
         load<{ tasks: EmployeeTask[]; error?: string }>("tasks", (d) =>
@@ -429,6 +452,11 @@ export default function Portal() {
         load<{ notices: CareerNotice[]; error?: string }>(
           "career-notices",
           (d) => setCareerNotices(d.notices),
+        );
+      if (onboardingDocuments === null)
+        load<{ documents: OnboardingDocument[]; error?: string }>(
+          "onboarding-documents",
+          (d) => setOnboardingDocuments(d.documents),
         );
       if (team === null)
         load<{ reports: TeamMember[]; error?: string }>("team", (d) =>
@@ -564,6 +592,34 @@ export default function Portal() {
     );
   }
 
+  async function signOnboardingDocument(documentId: string) {
+    const signatureName = (onboardingSignName[documentId] || "").trim();
+    if (signatureName.length < 3) {
+      setError("Indique o seu nome completo para assinar.");
+      return;
+    }
+    setOnboardingDocBusy(documentId);
+    const r = await apiFetch("/api/self-service", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "signOnboardingDocument",
+        documentId,
+        signatureName,
+      }),
+    });
+    const body = (await r.json()) as { error?: string };
+    setOnboardingDocBusy(null);
+    if (!r.ok) {
+      setError(body.error || "Não foi possível assinar o documento.");
+      return;
+    }
+    load<{ documents: OnboardingDocument[]; error?: string }>(
+      "onboarding-documents",
+      (d) => setOnboardingDocuments(d.documents),
+    );
+  }
+
   function capturePunchLocation(): Promise<{
     lat?: number;
     lng?: number;
@@ -662,6 +718,64 @@ export default function Portal() {
               <h2 className="portal-greeting">
                 {greeting()}, {firstName}
               </h2>
+              {onboardingDocuments &&
+                onboardingDocuments
+                  .filter((d) => d.status === "Pendente")
+                  .map((d) => {
+                    const busy = onboardingDocBusy === d.id;
+                    return (
+                      <section
+                        key={d.id}
+                        className="portal-card portal-notice portal-onboarding-document"
+                      >
+                        <div className="portal-notice-head">
+                          <span className="portal-notice-icon">
+                            {Icon.folder}
+                          </span>
+                          <div>
+                            <b>Documento para assinar</b>
+                            <span>{d.title}</span>
+                          </div>
+                        </div>
+                        {d.description && <p>{d.description}</p>}
+                        {d.documentUrl && (
+                          <p className="portal-task-deliverable">
+                            <a
+                              href={d.documentUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Ver documento
+                            </a>
+                          </p>
+                        )}
+                        <div className="portal-task-meta">
+                          <span>Enviado por {d.publishedBy}</span>
+                        </div>
+                        <label className="portal-sign-field">
+                          Nome completo para assinatura
+                          <input
+                            type="text"
+                            value={onboardingSignName[d.id] || ""}
+                            onChange={(e) =>
+                              setOnboardingSignName((prev) => ({
+                                ...prev,
+                                [d.id]: e.target.value,
+                              }))
+                            }
+                            placeholder="O seu nome completo"
+                          />
+                        </label>
+                        <button
+                          className="portal-task-action"
+                          disabled={busy}
+                          onClick={() => signOnboardingDocument(d.id)}
+                        >
+                          {busy ? "A assinar…" : "Assinar documento"}
+                        </button>
+                      </section>
+                    );
+                  })}
               {notices &&
                 notices
                   .filter((n) => n.status === "Publicado")
@@ -1218,6 +1332,31 @@ export default function Portal() {
                   })}
                 </ul>
               )}
+            </section>
+          )}
+          {tab === "documentos" && onboardingDocuments && onboardingDocuments.length > 0 && (
+            <section className="portal-card">
+              <h2>Documentos de integração</h2>
+              <ul className="portal-list">
+                {onboardingDocuments.map((d) => (
+                  <li key={d.id}>
+                    <span className="portal-row-icon">{Icon.folder}</span>
+                    <div>
+                      <b>{d.title}</b>
+                      <span>
+                        {d.status === "Assinado"
+                          ? `Assinado por ${d.signatureName} em ${new Date(d.signedAt!).toLocaleDateString("pt-PT")}`
+                          : `Enviado por ${d.publishedBy}`}
+                      </span>
+                    </div>
+                    <div
+                      className={`portal-status portal-status-${d.status.toLowerCase()}`}
+                    >
+                      {d.status}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
           {tab === "perfil" && profile && (
