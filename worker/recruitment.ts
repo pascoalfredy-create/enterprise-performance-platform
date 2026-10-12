@@ -34,6 +34,7 @@ export async function recruitmentApi(
         tasks,
         organizations,
         owners,
+        tenantRow,
       ] = await Promise.all([
         db
           .prepare(
@@ -77,6 +78,10 @@ export async function recruitmentApi(
           )
           .bind(tenant)
           .all(),
+        db
+          .prepare("SELECT slug FROM tenants WHERE id=?")
+          .bind(tenant)
+          .first<{ slug: string }>(),
       ]);
       return {
         requisitions: requisitions.results,
@@ -86,6 +91,7 @@ export async function recruitmentApi(
         tasks: tasks.results,
         organizations: organizations.results,
         owners: owners.results,
+        careersSlug: tenantRow?.slug || null,
       };
     };
     if (request.method === "GET") return Response.json(await snapshot());

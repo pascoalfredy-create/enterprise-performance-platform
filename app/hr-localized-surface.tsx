@@ -754,6 +754,14 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Telefone do contacto de emergência","Emergency contact phone","Teléfono del contacto de emergencia","Téléphone du contact d'urgence","Телефон контакта для экстренной связи"],
 ["As alterações ficam pendentes de aprovação de RH antes de entrarem em vigor.","Changes stay pending HR approval before taking effect.","Los cambios quedan pendientes de aprobación de RR. HH. antes de entrar en vigor.","Les modifications restent en attente d'approbation RH avant d'entrer en vigueur.","Изменения ожидают утверждения HR, прежде чем вступить в силу."],
 ["Quem está ausente","Who's out","Quién está ausente","Qui est absent","Кто отсутствует"],
+["Carreiras","Careers","Carreras","Carrières","Карьера"],
+["A carregar vagas…","Loading open positions…","Cargando vacantes…","Chargement des postes…","Загрузка вакансий…"],
+["OPORTUNIDADES","OPPORTUNITIES","OPORTUNIDADES","OPPORTUNITÉS","ВОЗМОЖНОСТИ"],
+["Candidatar-me","Apply now","Postularme","Postuler","Откликнуться"],
+["CANDIDATURA","APPLICATION","CANDIDATURA","CANDIDATURE","ЗАЯВКА"],
+["Candidatura recebida com sucesso. A equipa de recrutamento irá contactá-lo caso o perfil avance no processo.","Application received successfully. The recruitment team will contact you if your profile moves forward in the process.","Candidatura recibida con éxito. El equipo de selección se pondrá en contacto si el perfil avanza en el proceso.","Candidature reçue avec succès. L'équipe de recrutement vous contactera si votre profil avance dans le processus.","Заявка успешно получена. Команда по подбору персонала свяжется с вами, если ваш профиль пройдёт дальше в процессе."],
+["Autorizo o tratamento dos meus dados pessoais para fins de recrutamento e seleção para esta e futuras vagas.","I authorize the processing of my personal data for recruitment and selection purposes for this and future vacancies.","Autorizo el tratamiento de mis datos personales para fines de reclutamiento y selección para esta y futuras vacantes.","J'autorise le traitement de mes données personnelles à des fins de recrutement et de sélection pour ce poste et les postes futurs.","Я разрешаю обработку моих персональных данных для целей подбора и отбора персонала на эту и будущие вакансии."],
+["PÁGINA PÚBLICA DE CANDIDATURAS","PUBLIC CAREERS PAGE","PÁGINA PÚBLICA DE CANDIDATURAS","PAGE PUBLIQUE DE CANDIDATURES","ПУБЛИЧНАЯ СТРАНИЦА ВАКАНСИЙ"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

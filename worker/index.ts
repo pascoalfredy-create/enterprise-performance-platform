@@ -42,6 +42,7 @@ import { executiveCockpitApi, moduleHealthApi } from "./analytics-data";
 import { financialDiagnosticsApi } from "./financial-diagnostics";
 import { workforcePlansApi } from "./workforce-plans";
 import { recruitmentApi } from "./recruitment";
+import { careersApi } from "./careers";
 import { attendanceApi } from "./attendance";
 import { payrollLoansApi } from "./payroll-loans";
 import { payrollAdjustmentsApi } from "./payroll-adjustments";
@@ -5916,6 +5917,11 @@ const worker = {
         },
         { headers: { "cache-control": "public, max-age=300" } },
       );
+    }
+    if (apiPath.startsWith("/api/careers/")) {
+      const slug = apiPath.slice("/api/careers/".length);
+      if (!slug) return Response.json({ error: "Empresa não encontrada." }, { status: 404 });
+      return careersApi(request, env.DB, slug);
     }
     if (apiPath.startsWith("/api/")) {
       const authenticated = await authenticateApiRequest(request, env);

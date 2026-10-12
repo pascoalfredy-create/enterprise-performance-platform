@@ -335,3 +335,15 @@ test("team-leave resource only surfaces approved absences for the caller's own d
  assert.match(selfService,/rl\.status='Ativo'/);
  assert.match(selfService,/60 \* 24 \* 60 \* 60 \* 1000/);
 });
+test("the public careers endpoint bypasses the Supabase auth gate but is still scoped to one active tenant, caps daily applications, and requires consent",()=>{
+ assert.match(compact,/apiPath.startsWith\("\/api\/careers\/"\)/);
+ const careersRouteIndex=compact.indexOf('apiPath.startsWith("/api/careers/")'),
+   authGateIndex=compact.indexOf('apiPath.startsWith("/api/")){constauthenticated');
+ assert.ok(careersRouteIndex>0 && authGateIndex>careersRouteIndex,"careers route must be handled before the blanket /api/ auth gate");
+ const careersApi=fs.readFileSync(new URL("../worker/careers.ts",import.meta.url),"utf8");
+ assert.match(careersApi,/WHERE slug=\? AND status='Ativo'/);
+ assert.match(careersApi,/WHERE r\.tenant_id=\? AND r\.status='Aberta'/);
+ assert.match(careersApi,/DAILY_APPLICATION_CAP/);
+ assert.match(careersApi,/body\.consent !== "on"/);
+ assert.match(careersApi,/Já tem uma candidatura registada para esta vaga/);
+});

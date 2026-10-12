@@ -16,6 +16,7 @@ type Data = {
   tasks: OnboardingTask[];
   organizations: Organization[];
   owners: Owner[];
+  careersSlug: string | null;
 };
 const empty: Data = {
   requisitions: [],
@@ -25,6 +26,7 @@ const empty: Data = {
   tasks: [],
   organizations: [],
   owners: [],
+  careersSlug: null,
 };
 export function RecruitmentWorkspace() {
   const [data, setData] = useState<Data>(empty),
@@ -33,7 +35,20 @@ export function RecruitmentWorkspace() {
     [context, setContext] = useState(""),
     [taskId, setTaskId] = useState(""),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [linkCopied, setLinkCopied] = useState(false);
+  const careersUrl = data.careersSlug
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/carreiras?empresa=${data.careersSlug}`
+    : "";
+  async function copyCareersLink() {
+    try {
+      await navigator.clipboard.writeText(careersUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      setLinkCopied(false);
+    }
+  }
   const load = () =>
     apiFetch("/api/v1/recruitment")
       .then(async (r) => {
@@ -97,6 +112,17 @@ export function RecruitmentWorkspace() {
           ＋ Nova requisição
         </button>
       </header>
+      {careersUrl && (
+        <section className="talent-careers-link">
+          <div>
+            <span>PÁGINA PÚBLICA DE CANDIDATURAS</span>
+            <code>{careersUrl}</code>
+          </div>
+          <button type="button" onClick={copyCareersLink}>
+            {linkCopied ? "Copiado ✓" : "Copiar ligação"}
+          </button>
+        </section>
+      )}
       <section className="talent-kpis">
         <article>
           <span>Vagas abertas</span>
