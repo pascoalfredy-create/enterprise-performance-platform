@@ -1,5 +1,5 @@
-const CACHE_NAME = "portal-shell-v1";
-const SHELL_ASSETS = ["/portal", "/portal-icon.svg", "/portal-manifest.json"];
+const CACHE_NAME = "portal-shell-v2";
+const SHELL_ASSETS = ["/portal-icon.svg", "/portal-manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -21,12 +21,9 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Stale-while-revalidate for the portal's own shell (the page document
-// and its manifest/icon) only — every /api/* request, and anything
-// outside /portal, always goes straight to the network. Employee data
-// (payslips, leave, documents) is never cached by this worker; the
-// point is making the installed app shell load instantly offline, not
-// serving stale financial or personal data.
+// Every /api/* request, and anything outside /portal, always goes
+// straight to the network untouched. Employee data (payslips, leave,
+// documents) is never cached by this worker.
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || url.pathname.startsWith("/api/")) return;
@@ -36,6 +33,26 @@ self.addEventListener("fetch", (event) => {
     url.pathname !== "/portal-manifest.json"
   )
     return;
+  // The page document itself is network-first, falling back to the
+  // cache only when the network is unreachable (true offline). Its
+  // built JS/CSS are content-hashed and the previous deploy's files
+  // stop being served once a new one goes out, so serving a cached
+  // copy of the document while online would reference assets that no
+  // longer exist and leave the app stuck with nothing rendered.
+  const isDocument = url.pathname === "/portal" || url.pathname.startsWith("/portal/");
+  if (isDocument) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok)
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
+          return response;
+        })
+        .catch(() => caches.match(event.request)),
+    );
+    return;
+  }
+  // Static sub-resources (icon/manifest) are safe to serve stale-while-revalidate.
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
