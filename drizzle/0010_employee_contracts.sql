@@ -19,15 +19,17 @@ CREATE INDEX IF NOT EXISTS `employee_contracts_employee_status_idx` ON `employee
 -- Ativo transition right after is always allowed by
 -- employee_contracts_valid_transition (below) once that exists too — so
 -- this is safe to run exactly once per employee no matter how many times
--- the file itself gets executed. The per-employee (not per-table) guard
--- is deliberate: an employee hired after the first run has no legacy
--- contract and isn't touched by any later real run of this file, but if
--- one somehow still has none at all, giving them this fallback is a safe
--- no-op against the one-active-contract-per-employee unique index, not a
--- data integrity risk.
+-- the file itself gets executed. The guard checks for ANY existing
+-- contract on the employee, not just one with this exact 'legacy-'+id —
+-- an employee can already have a real, 'Ativo' contract created through
+-- the app's own flow (under a different id) despite never getting one
+-- from this backfill, and inserting a second row for them would both be
+-- wrong (they're not a legacy case) and fail
+-- employee_contracts_one_active_uq once promoted to 'Ativo' below. Only
+-- employees with zero contracts of any kind get this fallback.
 INSERT INTO `employee_contracts` (`id`,`tenant_id`,`created_at`,`employee_id`,`contract_number`,`contract_type`,`start_date`,`end_date`,`work_schedule`,`weekly_minutes`,`country_pack`,`status`,`activated_at`,`ended_at`)
 SELECT 'legacy-'||`e`.`id`,`e`.`tenant_id`,`e`.`created_at`,`e`.`id`,'LEGACY-'||`e`.`employee_number`,'Legado',`e`.`hire_date`,NULL,'Não definido',2400,NULL,'Rascunho',NULL,NULL FROM `employees` `e`
-WHERE NOT EXISTS (SELECT 1 FROM `employee_contracts` `c` WHERE `c`.`id`='legacy-'||`e`.`id`);
+WHERE NOT EXISTS (SELECT 1 FROM `employee_contracts` `c` WHERE `c`.`employee_id`=`e`.`id`);
 UPDATE `employee_contracts` SET `status`='Ativo',`activated_at`=`created_at` WHERE `id` LIKE 'legacy-%' AND `status`='Rascunho';
 
 CREATE TRIGGER IF NOT EXISTS `employee_contracts_validate_insert` BEFORE INSERT ON `employee_contracts`
