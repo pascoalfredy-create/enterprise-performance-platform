@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, readApiJson } from "../lib/api-client";
 import { mapAssistedRows, parseFinancialCsv } from "../lib/assisted-import";
 import { buildXlsxBlob, parseXlsxFile } from "../lib/xlsx";
@@ -238,6 +238,16 @@ export default function Home() {
     localStorage.setItem("ep_locale", locale);
     window.dispatchEvent(new CustomEvent("ep:locale", { detail: locale }));
   }, [locale]);
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!openDomain) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node))
+        setOpenDomain("");
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [openDomain]);
   const msg = (key: MessageKey) => message(locale, key);
   const nav = navigationMeta[locale];
   const moduleNameKey: Record<string, MessageKey> = {
@@ -472,7 +482,7 @@ export default function Home() {
               <small>{msg("shell.executiveView")}</small>
             </span>
           </button>
-          <nav aria-label={nav.aria}>
+          <nav aria-label={nav.aria} ref={navRef}>
             {moduleCatalog
               .filter((domain) =>
                 (domain.accessCodes || [domain.code]).some((code) =>
@@ -507,9 +517,11 @@ export default function Home() {
                             key={item.label}
                             disabled={item.future}
                             className={item.target === modulo ? "active" : ""}
-                            onClick={() =>
-                              item.target && setModulo(item.target)
-                            }
+                            onClick={() => {
+                              if (!item.target) return;
+                              setModulo(item.target);
+                              setOpenDomain("");
+                            }}
                           >
                             <span>
                               {item.document ? "▧" : "·"} {moduleItemLabel(locale,item.label)}
