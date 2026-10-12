@@ -53,6 +53,7 @@ import { commercialSuiteApi } from "./commercial-suite";
 import { documentHubApi } from "./document-hub";
 import { customerActivationApi } from "./customer-activation";
 import { selfServiceApi } from "./self-service";
+import { employeeTasksApi } from "./employee-tasks";
 import { payPayReadiness, payPaySandboxReference, type PayPayEnv } from "./paypay";
 
 interface Env extends PayPayEnv {
@@ -5762,6 +5763,7 @@ const worker = {
                     "/api/recruitment",
                     "/api/attendance",
                     "/api/employee-documents",
+                    "/api/employee-tasks",
                     "/api/hr-cockpit",
                     "/api/hr-people",
                     "/api/hr-payroll-cost",
@@ -5875,6 +5877,7 @@ const worker = {
               "/api/recruitment",
               "/api/attendance",
               "/api/employee-documents",
+              "/api/employee-tasks",
               "/api/hr-cockpit",
               "/api/hr-people",
               "/api/hr-payroll-cost",
@@ -5983,6 +5986,8 @@ const worker = {
         return recruitmentApi(request, env.DB, security);
       if (apiPath === "/api/attendance")
         return attendanceApi(request, env.DB, security);
+      if (apiPath === "/api/employee-tasks")
+        return employeeTasksApi(request, env.DB, security);
       if (apiPath === "/api/employee-documents")
         return employeeDocumentsApi(request, env.DB, env.BUCKET, security);
       if (apiPath === "/api/notifications")

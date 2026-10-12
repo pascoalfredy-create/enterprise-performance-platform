@@ -4,7 +4,7 @@ import { apiFetch } from "../../lib/api-client";
 import { PlatformLocalizedSurface } from "../hr-localized-surface";
 import "../portal.css";
 
-type Tab = "inicio" | "recibos" | "ferias" | "documentos" | "perfil";
+type Tab = "inicio" | "recibos" | "ferias" | "tarefas" | "documentos" | "perfil";
 type Profile = {
   name: string;
   email: string;
@@ -52,6 +52,19 @@ type DocumentRow = {
   status: string;
 };
 type Leave = { balances: LeaveBalance[]; requests: LeaveRequest[] };
+type EmployeeTask = {
+  id: string;
+  title: string;
+  description: string | null;
+  deliverable: string | null;
+  priority: string;
+  dueDate: string | null;
+  status: string;
+  assignedBy: string;
+  assignedAt: string;
+  completedAt: string | null;
+  completionNote: string | null;
+};
 
 function money(minor: number, currency: string) {
   return (
@@ -144,6 +157,12 @@ const Icon = {
       <path d="M12 12c0-4-3-6-7-6 1 4 3 6 7 6ZM12 12c0-4 3-6 7-6-1 4-3 6-7 6Z" />
     </svg>
   ),
+  tasks: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4.5" y="4" width="15" height="17" rx="2" />
+      <path d="M8.5 10.5l1.8 1.8 3.2-3.6M8 16h8" />
+    </svg>
+  ),
 };
 function Skeleton({ lines = 2 }: { lines?: number }) {
   return (
@@ -163,11 +182,14 @@ export default function Portal() {
   const [leave, setLeave] = useState<Leave | null>(null);
   const [absenceTypes, setAbsenceTypes] = useState<AbsenceType[] | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[] | null>(null);
+  const [tasks, setTasks] = useState<EmployeeTask[] | null>(null);
   const [error, setError] = useState("");
   const [formBusy, setFormBusy] = useState(false);
   const [formMessage, setFormMessage] = useState("");
   const [showLeaveForm, setShowLeaveForm] = useState(false);
   const [expandedPayslip, setExpandedPayslip] = useState<string | null>(null);
+  const [taskBusy, setTaskBusy] = useState<string | null>(null);
+  const [taskNote, setTaskNote] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if ("serviceWorker" in navigator)
@@ -237,6 +259,12 @@ export default function Portal() {
       load<{ documents: DocumentRow[]; error?: string }>("documents", (d) =>
         setDocuments(d.documents),
       );
+    if (tab === "inicio" || tab === "tarefas") {
+      if (tasks === null)
+        load<{ tasks: EmployeeTask[]; error?: string }>("tasks", (d) =>
+          setTasks(d.tasks),
+        );
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, authState]);
 
@@ -267,6 +295,29 @@ export default function Portal() {
     load<Leave & { error?: string }>("leave", setLeave);
   }
 
+  async function transitionTask(taskId: string, status: string) {
+    setTaskBusy(taskId);
+    const r = await apiFetch("/api/self-service", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "taskTransition",
+        taskId,
+        status,
+        note: taskNote[taskId],
+      }),
+    });
+    const body = (await r.json()) as { error?: string };
+    setTaskBusy(null);
+    if (!r.ok) {
+      setError(body.error || "Não foi possível atualizar a tarefa.");
+      return;
+    }
+    load<{ tasks: EmployeeTask[]; error?: string }>("tasks", (d) =>
+      setTasks(d.tasks),
+    );
+  }
+
   if (authState === "loading")
     return (
       <div className="portal-loading">
@@ -286,6 +337,9 @@ export default function Portal() {
       )
     : null;
   const latestPayslip = payslips && payslips.length ? payslips[0] : null;
+  const openTasksCount = tasks
+    ? tasks.filter((t) => t.status === "Pendente" || t.status === "Em curso").length
+    : null;
 
   return (
     <PlatformLocalizedSurface>
@@ -337,6 +391,11 @@ export default function Portal() {
                   </b>
                   <small>Último recibo</small>
                 </div>
+                <div className="portal-stat">
+                  <span className="portal-stat-icon">{Icon.tasks}</span>
+                  <b>{openTasksCount === null ? "—" : openTasksCount}</b>
+                  <small>Tarefas por concluir</small>
+                </div>
               </div>
               <section className="portal-card">
                 <dl>
@@ -352,6 +411,9 @@ export default function Portal() {
                 </button>
                 <button onClick={() => setTab("ferias")}>
                   {Icon.calendar} Pedir férias
+                </button>
+                <button onClick={() => setTab("tarefas")}>
+                  {Icon.tasks} Ver tarefas
                 </button>
               </div>
             </>
@@ -514,6 +576,100 @@ export default function Portal() {
               )}
             </section>
           )}
+          {tab === "tarefas" && (
+            <section className="portal-card">
+              <h2>As minhas tarefas</h2>
+              {tasks === null ? (
+                <Skeleton lines={3} />
+              ) : tasks.length === 0 ? (
+                <p>Ainda não tem tarefas atribuídas.</p>
+              ) : (
+                <ul className="portal-list portal-task-list">
+                  {tasks.map((t) => {
+                    const busy = taskBusy === t.id;
+                    const left = t.dueDate ? daysUntil(t.dueDate) : null;
+                    const overdue =
+                      left !== null &&
+                      left < 0 &&
+                      t.status !== "Concluída" &&
+                      t.status !== "Cancelada";
+                    return (
+                      <li key={t.id} className="portal-task-item">
+                        <div className="portal-task-head">
+                          <span
+                            className={`portal-priority portal-priority-${t.priority
+                              .toLowerCase()
+                              .normalize("NFD")
+                              .replace(/[̀-ͯ]/g, "")}`}
+                          >
+                            {t.priority}
+                          </span>
+                          <div
+                            className={`portal-status portal-status-${t.status
+                              .toLowerCase()
+                              .replace(/\s+/g, "-")}`}
+                          >
+                            {t.status}
+                          </div>
+                        </div>
+                        <b className="portal-task-title">{t.title}</b>
+                        {t.description && <p>{t.description}</p>}
+                        {t.deliverable && (
+                          <p className="portal-task-deliverable">
+                            Entregável: {t.deliverable}
+                          </p>
+                        )}
+                        <div className="portal-task-meta">
+                          <span>Atribuído por {t.assignedBy}</span>
+                          {t.dueDate && (
+                            <span className={overdue ? "critical" : ""}>
+                              {Icon.alert} Entrega: {t.dueDate}
+                            </span>
+                          )}
+                        </div>
+                        {t.status === "Pendente" && (
+                          <button
+                            className="portal-task-action"
+                            disabled={busy}
+                            onClick={() => transitionTask(t.id, "Em curso")}
+                          >
+                            {busy ? "A atualizar…" : "Iniciar tarefa"}
+                          </button>
+                        )}
+                        {t.status === "Em curso" && (
+                          <div className="portal-task-complete">
+                            <input
+                              type="text"
+                              placeholder="Nota de conclusão (opcional)"
+                              value={taskNote[t.id] || ""}
+                              onChange={(e) =>
+                                setTaskNote((n) => ({
+                                  ...n,
+                                  [t.id]: e.target.value,
+                                }))
+                              }
+                            />
+                            <button
+                              className="portal-task-action"
+                              disabled={busy}
+                              onClick={() => transitionTask(t.id, "Concluída")}
+                            >
+                              {busy ? "A atualizar…" : "Concluir tarefa"}
+                            </button>
+                          </div>
+                        )}
+                        {t.status === "Concluída" && t.completionNote && (
+                          <p className="portal-task-deliverable">
+                            Nota: {t.completionNote}
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          )}
           {tab === "documentos" && (
             <section className="portal-card">
               <h2>Documentos</h2>
@@ -610,6 +766,13 @@ export default function Portal() {
           >
             <span className="portal-nav-icon">{Icon.calendar}</span>
             Férias
+          </button>
+          <button
+            className={tab === "tarefas" ? "active" : ""}
+            onClick={() => setTab("tarefas")}
+          >
+            <span className="portal-nav-icon">{Icon.tasks}</span>
+            Tarefas
           </button>
           <button
             className={tab === "documentos" ? "active" : ""}

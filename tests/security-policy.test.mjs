@@ -206,6 +206,23 @@ test("the founding Administrador is always tenant-wide, never trapped in their o
  assert.match(source,/UPDATE platform_users SET organization_id=NULL WHERE id=\? AND tenant_id=\?/);
  assert.match(source,/user\.organization_id = null;/);
 });
+test("managers can assign and cancel employee tasks, scoped to their organization",()=>{
+ const tasks=fs.readFileSync(new URL("../worker/employee-tasks.ts",import.meta.url),"utf8");
+ assert.match(tasks,/body\.type === "assignTask"/);
+ assert.match(tasks,/Colaborador fora do âmbito autorizado/);
+ assert.match(tasks,/body\.type === "cancelTask"/);
+ assert.match(tasks,/status IN \('Pendente','Em curso'\)/);
+ assert.match(compact,/apiPath==="\/api\/employee-tasks"/);
+ assert.match(compact,/employeeTasksApi\(request,env\.DB,security\)/);
+});
+test("employees can only move their own tasks forward, never cancel or skip states",()=>{
+ const selfService=fs.readFileSync(new URL("../worker/self-service.ts",import.meta.url),"utf8");
+ assert.match(selfService,/body\.type === "taskTransition"/);
+ assert.match(selfService,/Pendente: \["Em curso"\]/);
+ assert.match(selfService,/"Em curso": \["Concluída"\]/);
+ assert.match(selfService,/Tarefa não encontrada no seu âmbito/);
+ assert.match(selfService,/WHERE id=\? AND tenant_id=\? AND employee_id=\?/);
+});
 test("HR can invite an employee to the self-service portal, scoped and deduplicated",()=>{
  assert.match(source,/body\.type==="portalInvite"/);
  assert.match(source,/Colaborador fora do âmbito autorizado/);

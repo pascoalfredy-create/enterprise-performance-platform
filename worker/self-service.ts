@@ -148,6 +148,41 @@ export async function selfServiceApi(
           .all<{ id: string; code: string; name: string; unit: string }>();
         return Response.json({ absenceTypes: rows.results });
       }
+      if (resource === "tasks") {
+        const rows = await db
+          .prepare(
+            "SELECT id,title,description,deliverable,priority,due_date,status,assigned_by,assigned_at,completed_at,completion_note FROM employee_tasks WHERE tenant_id=? AND employee_id=? ORDER BY CASE status WHEN 'Pendente' THEN 1 WHEN 'Em curso' THEN 2 ELSE 3 END,due_date",
+          )
+          .bind(tenant, employeeId)
+          .all<{
+            id: string;
+            title: string;
+            description: string | null;
+            deliverable: string | null;
+            priority: string;
+            due_date: string | null;
+            status: string;
+            assigned_by: string;
+            assigned_at: string;
+            completed_at: string | null;
+            completion_note: string | null;
+          }>();
+        return Response.json({
+          tasks: rows.results.map((t) => ({
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            deliverable: t.deliverable,
+            priority: t.priority,
+            dueDate: t.due_date,
+            status: t.status,
+            assignedBy: t.assigned_by,
+            assignedAt: t.assigned_at,
+            completedAt: t.completed_at,
+            completionNote: t.completion_note,
+          })),
+        });
+      }
       if (resource === "documents") {
         const rows = await db
           .prepare(
@@ -176,6 +211,50 @@ export async function selfServiceApi(
     if (request.method !== "POST")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const body = (await request.json()) as Record<string, string>;
+    if (body.type === "taskTransition") {
+      const task = await db
+        .prepare(
+          "SELECT status FROM employee_tasks WHERE id=? AND tenant_id=? AND employee_id=?",
+        )
+        .bind(body.taskId, tenant, employeeId)
+        .first<{ status: string }>();
+      if (!task)
+        return Response.json(
+          { error: "Tarefa não encontrada no seu âmbito." },
+          { status: 404 },
+        );
+      const allowed: Record<string, string[]> = {
+        Pendente: ["Em curso"],
+        "Em curso": ["Concluída"],
+      };
+      if (!allowed[task.status]?.includes(body.status))
+        return Response.json(
+          { error: "Transição de tarefa inválida." },
+          { status: 409 },
+        );
+      const now = new Date().toISOString();
+      const result = await db
+        .prepare(
+          "UPDATE employee_tasks SET status=?,updated_at=?,completed_at=?,completion_note=? WHERE id=? AND tenant_id=? AND employee_id=? AND status=?",
+        )
+        .bind(
+          body.status,
+          now,
+          body.status === "Concluída" ? now : null,
+          body.status === "Concluída" ? body.note?.trim() || null : null,
+          body.taskId,
+          tenant,
+          employeeId,
+          task.status,
+        )
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          { error: "A tarefa foi atualizada em paralelo." },
+          { status: 409 },
+        );
+      return Response.json({ id: body.taskId, status: body.status });
+    }
     if (body.type !== "leaveRequest")
       return Response.json({ error: "Tipo de pedido desconhecido." }, { status: 400 });
     if (
