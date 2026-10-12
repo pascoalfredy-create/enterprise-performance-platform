@@ -753,6 +753,7 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Nome do contacto de emergência","Emergency contact name","Nombre del contacto de emergencia","Nom du contact d'urgence","Имя контакта для экстренной связи"],
 ["Telefone do contacto de emergência","Emergency contact phone","Teléfono del contacto de emergencia","Téléphone du contact d'urgence","Телефон контакта для экстренной связи"],
 ["As alterações ficam pendentes de aprovação de RH antes de entrarem em vigor.","Changes stay pending HR approval before taking effect.","Los cambios quedan pendientes de aprobación de RR. HH. antes de entrar en vigor.","Les modifications restent en attente d'approbation RH avant d'entrer en vigueur.","Изменения ожидают утверждения HR, прежде чем вступить в силу."],
+["Quem está ausente","Who's out","Quién está ausente","Qui est absent","Кто отсутствует"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

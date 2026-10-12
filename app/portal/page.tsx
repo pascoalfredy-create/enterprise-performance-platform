@@ -30,6 +30,15 @@ type TeamMember = {
   jobTitle: string;
   employeeNumber: string;
 };
+type TeamLeaveEntry = {
+  id: string;
+  name: string;
+  absenceTypeName: string;
+  unit: string;
+  startDate: string;
+  endDate: string;
+  requestedMinutes: number;
+};
 type PersonalDetails = {
   phone: string;
   address: string;
@@ -306,6 +315,7 @@ export default function Portal() {
   const [notices, setNotices] = useState<PerformanceNotice[] | null>(null);
   const [careerNotices, setCareerNotices] = useState<CareerNotice[] | null>(null);
   const [team, setTeam] = useState<TeamMember[] | null>(null);
+  const [teamLeave, setTeamLeave] = useState<TeamLeaveEntry[] | null>(null);
   const [personalDetails, setPersonalDetails] = useState<PersonalDetails | null>(
     null,
   );
@@ -392,6 +402,11 @@ export default function Portal() {
         load<{ absenceTypes: AbsenceType[]; error?: string }>(
           "absence-types",
           (d) => setAbsenceTypes(d.absenceTypes),
+        );
+      if (teamLeave === null)
+        load<{ team: TeamLeaveEntry[]; error?: string }>(
+          "team-leave",
+          (d) => setTeamLeave(d.team),
         );
     }
     if (tab === "documentos")
@@ -1046,6 +1061,27 @@ export default function Portal() {
                   )}
                 </>
               )}
+            </section>
+          )}
+          {tab === "ferias" && teamLeave && teamLeave.length > 0 && (
+            <section className="portal-card">
+              <h2>Quem está ausente</h2>
+              <ul className="portal-list">
+                {teamLeave.map((t) => (
+                  <li key={t.id}>
+                    <div>
+                      <b>{t.name}</b>
+                      <span>
+                        {t.absenceTypeName} ·{" "}
+                        {duration(t.requestedMinutes, t.unit)}
+                      </span>
+                    </div>
+                    <div className="portal-status portal-status-aprovado">
+                      {t.startDate} – {t.endDate}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
           {tab === "tarefas" && (

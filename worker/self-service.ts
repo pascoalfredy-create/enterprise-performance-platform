@@ -123,6 +123,40 @@ export async function selfServiceApi(
           })),
         });
       }
+      if (resource === "team-leave") {
+        const { workDate } = luandaNow(),
+          windowEnd = new Date(
+            Date.parse(`${workDate}T00:00:00Z`) + 60 * 24 * 60 * 60 * 1000,
+          )
+            .toISOString()
+            .slice(0, 10);
+        const rows = await db
+          .prepare(
+            "SELECT r.id,r.start_date,r.end_date,r.requested_minutes,t.name absence_type_name,t.unit,e.first_name,e.last_name FROM hcm_absence_requests r JOIN employees e ON e.id=r.employee_id AND e.tenant_id=r.tenant_id JOIN employee_reporting_lines rl ON rl.employee_id=e.id AND rl.tenant_id=e.tenant_id AND rl.status='Ativo' JOIN hcm_absence_types t ON t.id=r.absence_type_id AND t.tenant_id=r.tenant_id WHERE r.tenant_id=? AND rl.manager_id=? AND r.status='Aprovado' AND r.end_date>=? AND r.start_date<=? ORDER BY r.start_date",
+          )
+          .bind(tenant, employeeId, workDate, windowEnd)
+          .all<{
+            id: string;
+            start_date: string;
+            end_date: string;
+            requested_minutes: number;
+            absence_type_name: string;
+            unit: string;
+            first_name: string;
+            last_name: string;
+          }>();
+        return Response.json({
+          team: rows.results.map((r) => ({
+            id: r.id,
+            name: `${r.first_name} ${r.last_name}`,
+            absenceTypeName: r.absence_type_name,
+            unit: r.unit,
+            startDate: r.start_date,
+            endDate: r.end_date,
+            requestedMinutes: r.requested_minutes,
+          })),
+        });
+      }
       if (resource === "personal-details") {
         const current = await db
           .prepare(

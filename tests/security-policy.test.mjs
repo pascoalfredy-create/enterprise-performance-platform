@@ -328,3 +328,10 @@ test("self-service personal-details resource never returns another employee's pe
  assert.match(selfService,/WHERE tenant_id=\? AND employee_id=\? AND status='Pendente'/);
  assert.match(selfService,/iban.length < 15 \|\| iban.length > 34/);
 });
+test("team-leave resource only surfaces approved absences for the caller's own direct reports, scoped to a bounded date window",()=>{
+ const selfService=fs.readFileSync(new URL("../worker/self-service.ts",import.meta.url),"utf8");
+ assert.match(selfService,/resource === "team-leave"/);
+ assert.match(selfService,/rl\.manager_id=\? AND r\.status='Aprovado'/);
+ assert.match(selfService,/rl\.status='Ativo'/);
+ assert.match(selfService,/60 \* 24 \* 60 \* 60 \* 1000/);
+});
