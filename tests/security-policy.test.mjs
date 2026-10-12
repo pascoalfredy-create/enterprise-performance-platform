@@ -247,3 +247,13 @@ test("employees can only read and acknowledge their own performance notices, nev
  assert.match(selfService,/body\.type === "acknowledgeNotice"/);
  assert.match(selfService,/SET status='Reconhecido',acknowledged_at=\? WHERE id=\? AND tenant_id=\? AND employee_id=\? AND status='Publicado'/);
 });
+test("employees can punch their own attendance clock, scoped and single-session",()=>{
+ const selfService=fs.readFileSync(new URL("../worker/self-service.ts",import.meta.url),"utf8");
+ assert.match(selfService,/body\.type === "selfClockIn"/);
+ assert.match(selfService,/body\.type === "selfClockOut"/);
+ assert.match(selfService,/Já tem uma entrada em aberto\. Registe a saída primeiro\./);
+ assert.match(selfService,/Já registou a presença de hoje\./);
+ assert.match(selfService,/Não existe um turno ativo atribuído\. Contacte os Recursos Humanos\./);
+ assert.match(selfService,/WHERE tenant_id=\? AND employee_id=\? AND clock_out IS NULL/);
+ assert.match(selfService,/resource === "attendance"/);
+});

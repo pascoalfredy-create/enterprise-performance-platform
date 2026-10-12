@@ -317,6 +317,15 @@
   background: #eef0f5;
   color: #525c70;
 }
+.portal-status-défice,
+.portal-status-defice {
+  background: #fef3c7;
+  color: #92650b;
+}
+.portal-status-extra {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
 .portal-expandable {
   flex-direction: column;
   align-items: stretch;
@@ -666,7 +675,7 @@
   max-width: 480px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   background: #fff;
   border-top: 1px solid var(--portal-border);
   padding: 8px 2px calc(8px + env(safe-area-inset-bottom));
@@ -676,7 +685,7 @@
   border: none;
   background: none;
   padding: 6px 1px;
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   color: var(--portal-muted);
   display: flex;
   flex-direction: column;
@@ -684,8 +693,8 @@
   gap: 3px;
 }
 .portal-nav-icon {
-  width: 21px;
-  height: 21px;
+  width: 19px;
+  height: 19px;
 }
 .portal-nav-icon svg {
   width: 100%;
@@ -703,4 +712,61 @@
     box-shadow: 0 0 0 1px var(--portal-border);
     min-height: 100vh;
   }
+}
+.portal-punch-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 28px 18px;
+}
+.portal-punch-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+.portal-punch-status svg {
+  width: 14px;
+  height: 14px;
+}
+.portal-punch-in {
+  background: #dcfce7;
+  color: #137a3a;
+}
+.portal-punch-out-state {
+  background: #eef0f5;
+  color: #525c70;
+}
+.portal-punch-time {
+  font-size: 1.1rem;
+}
+.portal-punch-elapsed {
+  font-size: 0.82rem;
+  color: var(--portal-muted);
+}
+.portal-punch-card p {
+  margin: 4px 0 0;
+}
+.portal-punch-button {
+  margin-top: 10px;
+  padding: 14px 32px;
+  border: none;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+}
+.portal-punch-button:disabled {
+  opacity: 0.6;
+}
+.portal-punch-in-button {
+  background: var(--portal-accent);
+}
+.portal-punch-out {
+  background: #c23b3b;
 }

@@ -4,7 +4,14 @@ import { apiFetch } from "../../lib/api-client";
 import { PlatformLocalizedSurface } from "../hr-localized-surface";
 import "../portal.css";
 
-type Tab = "inicio" | "recibos" | "ferias" | "tarefas" | "documentos" | "perfil";
+type Tab =
+  | "inicio"
+  | "picagem"
+  | "recibos"
+  | "ferias"
+  | "tarefas"
+  | "documentos"
+  | "perfil";
 type Profile = {
   name: string;
   email: string;
@@ -78,6 +85,26 @@ type EmployeeTask = {
   completedAt: string | null;
   completionNote: string | null;
 };
+type OpenAttendanceEntry = {
+  id: string;
+  workDate: string;
+  clockIn: string;
+  scheduledMinutes: number;
+};
+type AttendanceEntry = {
+  id: string;
+  workDate: string;
+  clockIn: string;
+  clockOut: string;
+  workedMinutes: number;
+  scheduledMinutes: number;
+  overtimeMinutes: number;
+  exceptionCode: string | null;
+};
+type Attendance = {
+  openEntry: OpenAttendanceEntry | null;
+  recentEntries: AttendanceEntry[];
+};
 
 function money(minor: number, currency: string) {
   return (
@@ -110,6 +137,19 @@ function daysUntil(dateStr: string) {
   return Math.ceil(
     (new Date(dateStr).getTime() - Date.now()) / 86400000,
   );
+}
+function hoursLabel(minutes: number) {
+  const h = Math.floor(minutes / 60),
+    m = minutes % 60;
+  return `${h}h${m.toString().padStart(2, "0")}`;
+}
+function elapsedSince(clockIn: string) {
+  const now = new Date(Date.now() + 60 * 60 * 1000),
+    nowMinutes = now.getUTCHours() * 60 + now.getUTCMinutes(),
+    [h, m] = clockIn.split(":").map(Number),
+    startMinutes = h * 60 + m,
+    diff = nowMinutes >= startMinutes ? nowMinutes - startMinutes : 1440 - startMinutes + nowMinutes;
+  return hoursLabel(diff);
 }
 
 const Icon = {
@@ -187,6 +227,13 @@ const Icon = {
       <path d="M10 18.5a2 2 0 0 0 4 0" />
     </svg>
   ),
+  badge: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="4.5" width="16" height="15" rx="2.5" />
+      <circle cx="12" cy="10" r="2.3" />
+      <path d="M8 16.5c.6-1.6 2-2.3 4-2.3s3.4.7 4 2.3" />
+    </svg>
+  ),
 };
 function Skeleton({ lines = 2 }: { lines?: number }) {
   return (
@@ -216,6 +263,9 @@ export default function Portal() {
   const [taskBusy, setTaskBusy] = useState<string | null>(null);
   const [taskNote, setTaskNote] = useState<Record<string, string>>({});
   const [noticeBusy, setNoticeBusy] = useState<string | null>(null);
+  const [attendance, setAttendance] = useState<Attendance | null>(null);
+  const [attendanceBusy, setAttendanceBusy] = useState(false);
+  const [, forceTick] = useState(0);
 
   useEffect(() => {
     if ("serviceWorker" in navigator)
@@ -223,6 +273,12 @@ export default function Portal() {
         .register("/portal-sw.js", { scope: "/portal" })
         .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (tab !== "picagem" || !attendance?.openEntry) return;
+    const timer = setInterval(() => forceTick((n) => n + 1), 30000);
+    return () => clearInterval(timer);
+  }, [tab, attendance?.openEntry]);
 
   useEffect(() => {
     apiFetch("/api/session")
@@ -298,6 +354,8 @@ export default function Portal() {
           (d) => setNotices(d.notices),
         );
     }
+    if (tab === "inicio" || tab === "picagem")
+      load<Attendance & { error?: string }>("attendance", setAttendance);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, authState]);
 
@@ -368,6 +426,23 @@ export default function Portal() {
       "performance-notices",
       (d) => setNotices(d.notices),
     );
+  }
+
+  async function punch(action: "selfClockIn" | "selfClockOut") {
+    setAttendanceBusy(true);
+    setError("");
+    const r = await apiFetch("/api/self-service", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: action }),
+    });
+    const body = (await r.json()) as { error?: string };
+    setAttendanceBusy(false);
+    if (!r.ok) {
+      setError(body.error || "Não foi possível registar a marcação.");
+      return;
+    }
+    load<Attendance & { error?: string }>("attendance", setAttendance);
   }
 
   if (authState === "loading")
@@ -507,6 +582,10 @@ export default function Portal() {
                 </dl>
               </section>
               <div className="portal-quick-actions">
+                <button onClick={() => setTab("picagem")}>
+                  {Icon.badge}{" "}
+                  {attendance?.openEntry ? "Registar saída" : "Picagem"}
+                </button>
                 <button onClick={() => setTab("recibos")}>
                   {Icon.receipt} Ver recibos
                 </button>
@@ -517,6 +596,78 @@ export default function Portal() {
                   {Icon.tasks} Ver tarefas
                 </button>
               </div>
+            </>
+          )}
+          {tab === "picagem" && (
+            <>
+              <section className="portal-card portal-punch-card">
+                {attendance === null ? (
+                  <Skeleton lines={2} />
+                ) : attendance.openEntry ? (
+                  <>
+                    <span className="portal-punch-status portal-punch-in">
+                      {Icon.badge} Dentro
+                    </span>
+                    <b className="portal-punch-time">
+                      Entrada às {attendance.openEntry.clockIn}
+                    </b>
+                    <span className="portal-punch-elapsed">
+                      Há {elapsedSince(attendance.openEntry.clockIn)}
+                    </span>
+                    <button
+                      className="portal-punch-button portal-punch-out"
+                      disabled={attendanceBusy}
+                      onClick={() => punch("selfClockOut")}
+                    >
+                      {attendanceBusy ? "A registar…" : "Registar saída"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="portal-punch-status portal-punch-out-state">
+                      {Icon.badge} Fora
+                    </span>
+                    <p>Registe a sua entrada para iniciar o turno de hoje.</p>
+                    <button
+                      className="portal-punch-button portal-punch-in-button"
+                      disabled={attendanceBusy}
+                      onClick={() => punch("selfClockIn")}
+                    >
+                      {attendanceBusy ? "A registar…" : "Registar entrada"}
+                    </button>
+                  </>
+                )}
+              </section>
+              <section className="portal-card">
+                <h2>Histórico recente</h2>
+                {attendance === null ? (
+                  <Skeleton lines={3} />
+                ) : attendance.recentEntries.length === 0 ? (
+                  <p>Ainda não existem marcações fechadas.</p>
+                ) : (
+                  <ul className="portal-list">
+                    {attendance.recentEntries.map((e) => (
+                      <li key={e.id}>
+                        <div>
+                          <b>{e.workDate}</b>
+                          <span>
+                            {e.clockIn} – {e.clockOut} · {hoursLabel(e.workedMinutes)}
+                          </span>
+                        </div>
+                        {e.exceptionCode && (
+                          <div
+                            className={`portal-status portal-status-${e.exceptionCode.toLowerCase()}`}
+                          >
+                            {e.exceptionCode === "EXTRA"
+                              ? `+${hoursLabel(e.overtimeMinutes)}`
+                              : e.exceptionCode}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
             </>
           )}
           {tab === "recibos" && (
@@ -877,6 +1028,13 @@ export default function Portal() {
           >
             <span className="portal-nav-icon">{Icon.home}</span>
             Início
+          </button>
+          <button
+            className={tab === "picagem" ? "active" : ""}
+            onClick={() => setTab("picagem")}
+          >
+            <span className="portal-nav-icon">{Icon.badge}</span>
+            Picagem
           </button>
           <button
             className={tab === "recibos" ? "active" : ""}

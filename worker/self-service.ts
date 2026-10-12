@@ -19,6 +19,17 @@ const noEmployee = () =>
     { error: "Esta conta não está associada a um colaborador." },
     { status: 403 },
   );
+const minutesOf = (value: string) => {
+  const [h, m] = value.split(":").map(Number);
+  return h * 60 + m;
+};
+function luandaNow() {
+  const local = new Date(Date.now() + 60 * 60 * 1000);
+  return {
+    workDate: local.toISOString().slice(0, 10),
+    clockTime: local.toISOString().slice(11, 16),
+  };
+}
 
 export async function selfServiceApi(
   request: Request,
@@ -218,6 +229,56 @@ export async function selfServiceApi(
           })),
         });
       }
+      if (resource === "attendance") {
+        const [openEntry, recent] = await Promise.all([
+          db
+            .prepare(
+              "SELECT id,work_date,clock_in,scheduled_minutes FROM attendance_entries WHERE tenant_id=? AND employee_id=? AND clock_out IS NULL ORDER BY work_date DESC LIMIT 1",
+            )
+            .bind(tenant, employeeId)
+            .first<{
+              id: string;
+              work_date: string;
+              clock_in: string;
+              scheduled_minutes: number;
+            }>(),
+          db
+            .prepare(
+              "SELECT id,work_date,clock_in,clock_out,worked_minutes,scheduled_minutes,overtime_minutes,exception_code FROM attendance_entries WHERE tenant_id=? AND employee_id=? AND clock_out IS NOT NULL ORDER BY work_date DESC LIMIT 14",
+            )
+            .bind(tenant, employeeId)
+            .all<{
+              id: string;
+              work_date: string;
+              clock_in: string;
+              clock_out: string;
+              worked_minutes: number;
+              scheduled_minutes: number;
+              overtime_minutes: number;
+              exception_code: string | null;
+            }>(),
+        ]);
+        return Response.json({
+          openEntry: openEntry
+            ? {
+                id: openEntry.id,
+                workDate: openEntry.work_date,
+                clockIn: openEntry.clock_in,
+                scheduledMinutes: openEntry.scheduled_minutes,
+              }
+            : null,
+          recentEntries: recent.results.map((e) => ({
+            id: e.id,
+            workDate: e.work_date,
+            clockIn: e.clock_in,
+            clockOut: e.clock_out,
+            workedMinutes: e.worked_minutes,
+            scheduledMinutes: e.scheduled_minutes,
+            overtimeMinutes: e.overtime_minutes,
+            exceptionCode: e.exception_code,
+          })),
+        });
+      }
       if (resource === "documents") {
         const rows = await db
           .prepare(
@@ -246,6 +307,114 @@ export async function selfServiceApi(
     if (request.method !== "POST")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const body = (await request.json()) as Record<string, string>;
+    if (body.type === "selfClockIn") {
+      const open = await db
+        .prepare(
+          "SELECT id FROM attendance_entries WHERE tenant_id=? AND employee_id=? AND clock_out IS NULL",
+        )
+        .bind(tenant, employeeId)
+        .first();
+      if (open)
+        return Response.json(
+          { error: "Já tem uma entrada em aberto. Registe a saída primeiro." },
+          { status: 409 },
+        );
+      const { workDate, clockTime } = luandaNow();
+      const existingToday = await db
+        .prepare(
+          "SELECT id FROM attendance_entries WHERE tenant_id=? AND employee_id=? AND work_date=?",
+        )
+        .bind(tenant, employeeId, workDate)
+        .first();
+      if (existingToday)
+        return Response.json(
+          { error: "Já registou a presença de hoje." },
+          { status: 409 },
+        );
+      const assignment = await db
+        .prepare(
+          "SELECT s.scheduled_minutes FROM attendance_assignments a JOIN attendance_shifts s ON s.id=a.shift_id AND s.tenant_id=a.tenant_id WHERE a.tenant_id=? AND a.employee_id=? AND a.status='Ativa' AND a.effective_from<=? ORDER BY a.effective_from DESC LIMIT 1",
+        )
+        .bind(tenant, employeeId, workDate)
+        .first<{ scheduled_minutes: number }>();
+      if (!assignment)
+        return Response.json(
+          { error: "Não existe um turno ativo atribuído. Contacte os Recursos Humanos." },
+          { status: 409 },
+        );
+      const id = crypto.randomUUID(),
+        now = new Date().toISOString();
+      await db
+        .prepare(
+          "INSERT INTO attendance_entries VALUES (?,?,?,?,?,NULL,?,NULL,?,NULL,NULL,?,?,?)",
+        )
+        .bind(
+          id,
+          tenant,
+          employeeId,
+          workDate,
+          clockTime,
+          "Self-service",
+          assignment.scheduled_minutes,
+          null,
+          security.email,
+          now,
+        )
+        .run();
+      return Response.json(
+        { id, workDate, clockIn: clockTime },
+        { status: 201 },
+      );
+    }
+    if (body.type === "selfClockOut") {
+      const row = await db
+        .prepare(
+          "SELECT id,clock_in,scheduled_minutes FROM attendance_entries WHERE tenant_id=? AND employee_id=? AND clock_out IS NULL",
+        )
+        .bind(tenant, employeeId)
+        .first<{ id: string; clock_in: string; scheduled_minutes: number }>();
+      if (!row)
+        return Response.json(
+          { error: "Não existe nenhuma entrada em aberto." },
+          { status: 404 },
+        );
+      const { clockTime } = luandaNow();
+      const start = minutesOf(row.clock_in),
+        end = minutesOf(clockTime),
+        worked = end >= start ? end - start : 1440 - start + end,
+        scheduled = row.scheduled_minutes,
+        overtime = Math.max(0, worked - scheduled);
+      if (worked <= 0 || worked > 1440)
+        return Response.json(
+          { error: "A duração da marcação é inválida." },
+          { status: 400 },
+        );
+      const result = await db
+        .prepare(
+          "UPDATE attendance_entries SET clock_out=?,worked_minutes=?,overtime_minutes=?,exception_code=? WHERE id=? AND tenant_id=? AND employee_id=? AND clock_out IS NULL",
+        )
+        .bind(
+          clockTime,
+          worked,
+          overtime,
+          worked < scheduled ? "DÉFICE" : overtime > 0 ? "EXTRA" : null,
+          row.id,
+          tenant,
+          employeeId,
+        )
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          { error: "A entrada foi fechada em paralelo." },
+          { status: 409 },
+        );
+      return Response.json({
+        id: row.id,
+        clockOut: clockTime,
+        workedMinutes: worked,
+        overtimeMinutes: overtime,
+      });
+    }
     if (body.type === "acknowledgeNotice") {
       const now = new Date().toISOString();
       const result = await db
