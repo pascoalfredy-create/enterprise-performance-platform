@@ -720,6 +720,64 @@
     min-height: 100vh;
   }
 }
+@media (min-width: 880px) {
+  .portal-shell {
+    max-width: 1140px;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "header header" "nav main";
+  }
+  .portal-header {
+    grid-area: header;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px;
+  }
+  .portal-nav {
+    grid-area: nav;
+    position: sticky;
+    top: 0;
+    align-self: start;
+    max-width: none;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: 20px 12px;
+    border-top: none;
+    border-right: 1px solid var(--portal-border);
+  }
+  .portal-nav button {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    font-size: 0.86rem;
+  }
+  .portal-nav button.active {
+    background: var(--portal-accent-soft);
+  }
+  .portal-nav-icon {
+    width: 20px;
+    height: 20px;
+  }
+  .portal-content {
+    grid-area: main;
+    padding: 28px 36px 48px;
+    max-width: 780px;
+  }
+  .portal-stats {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .portal-row-detail {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
 .portal-punch-card {
   display: flex;
   flex-direction: column;
