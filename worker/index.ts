@@ -2435,19 +2435,78 @@ async function hcmApi(
         );
       summary = `Pedido de ausência ${decision.toLowerCase()}`;
       action = decision.toUpperCase();
+    } else if (body.type === "portalInvite") {
+      const employee = await db
+        .prepare(
+          "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)",
+        )
+        .bind(body.employeeId, tenantId, organizationId, organizationId)
+        .first<Record<string, unknown>>();
+      if (!employee)
+        return Response.json(
+          { error: "Colaborador fora do âmbito autorizado." },
+          { status: 403 },
+        );
+      const email = (body.email || "").trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+        return Response.json(
+          { error: "Indique um e-mail válido para o convite." },
+          { status: 400 },
+        );
+      if (
+        await db
+          .prepare(
+            "SELECT id FROM employee_portal_accounts WHERE employee_id=? AND tenant_id=?",
+          )
+          .bind(body.employeeId, tenantId)
+          .first()
+      )
+        return Response.json(
+          { error: "Este colaborador já tem um convite para o portal." },
+          { status: 409 },
+        );
+      if (
+        await db
+          .prepare("SELECT id FROM employee_portal_accounts WHERE lower(email)=?")
+          .bind(email)
+          .first()
+      )
+        return Response.json(
+          { error: "Este e-mail já está associado a outra conta do portal." },
+          { status: 409 },
+        );
+      contractId = uid();
+      await db
+        .prepare(
+          "INSERT INTO employee_portal_accounts (id,tenant_id,employee_id,email,status,invited_by,invited_at,created_at) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          contractId,
+          tenantId,
+          body.employeeId,
+          email,
+          "Convidado",
+          actor,
+          created,
+          created,
+        )
+        .run();
+      summary = `Convite para o portal do colaborador enviado para ${email}`;
     } else
       return Response.json(
         { error: "Operação HCM não suportada." },
         { status: 400 },
       );
     const entityType =
-      body.type.includes("absence") || body.type === "decideAbsence"
-        ? body.type === "absenceType"
-          ? "absenceType"
-          : body.type === "absenceBalance"
-            ? "absenceBalance"
-            : "absenceRequest"
-        : "employeeContract";
+      body.type === "portalInvite"
+        ? "employeePortalAccount"
+        : body.type.includes("absence") || body.type === "decideAbsence"
+          ? body.type === "absenceType"
+            ? "absenceType"
+            : body.type === "absenceBalance"
+              ? "absenceBalance"
+              : "absenceRequest"
+          : "employeeContract";
     await db
       .prepare(
         "INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)",

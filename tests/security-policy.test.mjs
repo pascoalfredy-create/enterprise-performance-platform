@@ -199,3 +199,12 @@ test("self-service leave requests validate the absence type against the caller's
  assert.match(selfService,/Tipo de ausência inválido/);
  assert.match(selfService,/status:\s*"Pendente"\s*\},\s*\{\s*status:\s*201/);
 });
+test("HR can invite an employee to the self-service portal, scoped and deduplicated",()=>{
+ assert.match(source,/body\.type==="portalInvite"/);
+ assert.match(source,/Colaborador fora do âmbito autorizado/);
+ assert.match(source,/Este colaborador já tem um convite para o portal/);
+ assert.match(source,/Este e-mail já está associado a outra conta do portal/);
+ assert.match(compact,/INSERTINTOemployee_portal_accounts/);
+ assert.match(compact,/"Convidado",actor,created,created/);
+ assert.match(source,/entityType=\s*\n?\s*body\.type==="portalInvite"\s*\n?\s*\?"employeePortalAccount"/);
+});
