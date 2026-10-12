@@ -35,6 +35,11 @@ const compound = (base: number, growthBps: number, sequence: number) => {
 };
 const signed = (type: string, amount: number) =>
   ["Custo", "CAPEX", "Imposto"].includes(type) ? -Math.abs(amount) : amount;
+const applyBps = (amount: number, bps: number) => {
+  const n = BigInt(Math.trunc(amount)) * BigInt(Math.trunc(bps)),
+    d = 10000n;
+  return Number(n >= 0n ? (n + d / 2n) / d : -((-n + d / 2n) / d));
+};
 const fail = (error: unknown) => {
   const x = classifyDataError(
     error,
@@ -75,7 +80,7 @@ export async function financialModelsApi(
           selected
             ? db
                 .prepare(
-                  "SELECT * FROM financial_model_lines WHERE tenant_id=? AND model_id=? ORDER BY line_type,code",
+                  "SELECT l.*,d.code driver_line_code,d.name driver_line_name FROM financial_model_lines l LEFT JOIN financial_model_lines d ON d.id=l.driver_line_id AND d.tenant_id=l.tenant_id WHERE l.tenant_id=? AND l.model_id=? ORDER BY l.line_type,l.code",
                 )
                 .bind(tenant, selected)
                 .all()
@@ -214,12 +219,22 @@ export async function financialModelsApi(
         )
         .run();
     } else if (body.type === "addLine") {
-      const amount = Math.round(
-          Number((body.baseAmount || "").replace(",", ".")) * 100,
-        ),
-        growth = Math.round(
-          Number((body.growthPercent || "0").replace(",", ".")) * 100,
-        ),
+      const driverLineId = body.driverLineId?.trim() || null,
+        amount = driverLineId
+          ? 0
+          : Math.round(Number((body.baseAmount || "").replace(",", ".")) * 100),
+        growth = driverLineId
+          ? 0
+          : Math.round(
+              Number((body.growthPercent || "0").replace(",", ".")) * 100,
+            ),
+        driverMultiplier = driverLineId
+          ? Math.round(
+              Number(
+                (body.driverMultiplierPercent || "").replace(",", "."),
+              ) * 100,
+            )
+          : null,
         lag = Number(body.cashLagMonths || 0);
       if (
         !body.modelId ||
@@ -233,10 +248,13 @@ export async function financialModelsApi(
           "Imposto",
           "Outro",
         ].includes(body.lineType) ||
-        !Number.isSafeInteger(amount) ||
-        !Number.isInteger(growth) ||
-        growth < -10000 ||
-        growth > 100000 ||
+        (!driverLineId && !Number.isSafeInteger(amount)) ||
+        (!driverLineId &&
+          (!Number.isInteger(growth) || growth < -10000 || growth > 100000)) ||
+        (driverLineId &&
+          (!Number.isInteger(driverMultiplier) ||
+            Number(driverMultiplier) < -1000000 ||
+            Number(driverMultiplier) > 1000000)) ||
         !Number.isInteger(lag) ||
         lag < 0 ||
         lag > 36
@@ -244,13 +262,26 @@ export async function financialModelsApi(
         return Response.json(
           {
             error:
-              "Linha, tipo, valor base, crescimento e prazo de caixa válidos são obrigatórios.",
+              "Linha, tipo, prazo de caixa e, ou o valor base com crescimento, ou um direcionador com multiplicador válidos são obrigatórios.",
           },
           { status: 400 },
         );
+      if (driverLineId) {
+        const driver = await db
+          .prepare(
+            "SELECT id FROM financial_model_lines WHERE id=? AND tenant_id=? AND model_id=?",
+          )
+          .bind(driverLineId, tenant, body.modelId)
+          .first();
+        if (!driver)
+          return Response.json(
+            { error: "Linha direcionadora não encontrada neste plano." },
+            { status: 404 },
+          );
+      }
       await db
         .prepare(
-          "INSERT INTO financial_model_lines VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO financial_model_lines (id,tenant_id,model_id,code,name,line_type,base_amount_minor,growth_bps,cash_lag_months,created_by,created_at,driver_line_id,driver_multiplier_bps) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           uid(),
@@ -264,6 +295,8 @@ export async function financialModelsApi(
           lag,
           security.email,
           now,
+          driverLineId,
+          driverMultiplier,
         )
         .run();
     } else if (body.type === "calculateModel") {
@@ -280,7 +313,7 @@ export async function financialModelsApi(
         );
       const lines = await db
         .prepare(
-          "SELECT * FROM financial_model_lines WHERE tenant_id=? AND model_id=? ORDER BY code",
+          "SELECT * FROM financial_model_lines WHERE tenant_id=? AND model_id=? ORDER BY rowid",
         )
         .bind(tenant, body.modelId)
         .all<Record<string, unknown>>();
@@ -290,26 +323,37 @@ export async function financialModelsApi(
           { status: 409 },
         );
       const prepared = [] as Array<Record<string, unknown>>,
-        statements = [];
-      for (const line of lines.results)
+        statements = [],
+        rawByLine = new Map<string, number[]>();
+      for (const line of lines.results) {
+        const driverLineId = line.driver_line_id
+            ? String(line.driver_line_id)
+            : null,
+          driverRaw = driverLineId ? rawByLine.get(driverLineId) : undefined,
+          raws: number[] = [];
         for (
           let sequence = 0;
           sequence < Number(model.horizon_months);
           sequence++
         ) {
-          const amount = signed(
-              String(line.line_type),
-              compound(
-                Number(line.base_amount_minor),
-                Number(line.growth_bps),
-                sequence,
-              ),
-            ),
+          const raw =
+              driverLineId && driverRaw
+                ? applyBps(
+                    driverRaw[sequence],
+                    Number(line.driver_multiplier_bps),
+                  )
+                : compound(
+                    Number(line.base_amount_minor),
+                    Number(line.growth_bps),
+                    sequence,
+                  ),
+            amount = signed(String(line.line_type), raw),
             period = periodAdd(String(model.start_period), sequence),
             cashPeriod = periodAdd(period, Number(line.cash_lag_months)),
             formulaHash = await sha(
-              `${line.id}|${line.base_amount_minor}|${line.growth_bps}|${sequence}|${amount}|${cashPeriod}`,
+              `${line.id}|${line.base_amount_minor}|${line.growth_bps}|${line.driver_line_id}|${line.driver_multiplier_bps}|${sequence}|${amount}|${cashPeriod}`,
             );
+          raws.push(raw);
           prepared.push({
             lineId: line.id,
             period,
@@ -337,6 +381,8 @@ export async function financialModelsApi(
               ),
           );
         }
+        rawByLine.set(String(line.id), raws);
+      }
       const inputHash = await sha(JSON.stringify(prepared));
       statements.push(
         db

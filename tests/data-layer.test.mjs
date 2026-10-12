@@ -295,12 +295,27 @@ test("organization ownership tracks non-controlling interest, one active record 
 test("business planning locks deterministic projections through approval",()=>{
  const db=migratedDatabase();
  db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa')");
- db.exec("INSERT INTO financial_models (id,tenant_id,organization_id,name,currency,start_period,horizon_months,opening_cash_minor,status,version_number,created_by,created_at) VALUES ('m1','t1','o1','Plano 2027','AOA','2027-01',12,10000,'Rascunho',1,'maker@test','now'); INSERT INTO financial_model_lines VALUES ('l1','t1','m1','REV','Receita','Receita',1000,500,1,'maker@test','now'); INSERT INTO financial_projections VALUES ('p1','t1','m1','l1','2027-01','2027-02',0,1000,1000,'formula-hash')");
+ db.exec("INSERT INTO financial_models (id,tenant_id,organization_id,name,currency,start_period,horizon_months,opening_cash_minor,status,version_number,created_by,created_at) VALUES ('m1','t1','o1','Plano 2027','AOA','2027-01',12,10000,'Rascunho',1,'maker@test','now'); INSERT INTO financial_model_lines (id,tenant_id,model_id,code,name,line_type,base_amount_minor,growth_bps,cash_lag_months,created_by,created_at) VALUES ('l1','t1','m1','REV','Receita','Receita',1000,500,1,'maker@test','now'); INSERT INTO financial_projections VALUES ('p1','t1','m1','l1','2027-01','2027-02',0,1000,1000,'formula-hash')");
  assert.throws(()=>db.exec("UPDATE financial_projections SET statement_amount_minor=2 WHERE id='p1'"),/financial projections are immutable/);
  db.exec("UPDATE financial_models SET status='Calculado',input_hash='input-hash',calculated_by='maker@test',calculated_at='later' WHERE id='m1'");
- assert.throws(()=>db.exec("INSERT INTO financial_model_lines VALUES ('l2','t1','m1','COST','Custo','Custo',100,0,0,'maker@test','later')"),/financial model is not editable/);
+ assert.throws(()=>db.exec("INSERT INTO financial_model_lines (id,tenant_id,model_id,code,name,line_type,base_amount_minor,growth_bps,cash_lag_months,created_by,created_at) VALUES ('l2','t1','m1','COST','Custo','Custo',100,0,0,'maker@test','later')"),/financial model is not editable/);
  db.exec("UPDATE financial_models SET status='Aprovado',approved_by='checker@test',approved_at='final',approval_hash='approval-hash' WHERE id='m1'");
  assert.equal(db.prepare("SELECT status FROM financial_models WHERE id='m1'").get().status,'Aprovado');db.close();
+});
+
+test("financial model lines can be driven by another line in the same model instead of fixed growth",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa')");
+ db.exec("INSERT INTO financial_models (id,tenant_id,organization_id,name,currency,start_period,horizon_months,opening_cash_minor,status,version_number,created_by,created_at) VALUES ('m1','t1','o1','Plano 2027','AOA','2027-01',12,0,'Rascunho',1,'maker@test','now')");
+ db.exec("INSERT INTO financial_model_lines (id,tenant_id,model_id,code,name,line_type,base_amount_minor,growth_bps,cash_lag_months,created_by,created_at) VALUES ('l1','t1','m1','REV','Receita','Receita',100000,500,0,'maker@test','now')");
+ assert.throws(()=>db.exec("INSERT INTO financial_model_lines (id,tenant_id,model_id,code,name,line_type,base_amount_minor,growth_bps,cash_lag_months,created_by,created_at,driver_multiplier_bps) VALUES ('l2','t1','m1','X','X','Custo',0,0,0,'maker@test','now',1500)"),/invalid financial model line driver reference/);
+ assert.throws(()=>db.exec("INSERT INTO financial_model_lines (id,tenant_id,model_id,code,name,line_type,base_amount_minor,growth_bps,cash_lag_months,created_by,created_at,driver_line_id,driver_multiplier_bps) VALUES ('l3','t1','m1','X','X','Custo',500,0,0,'maker@test','now','l1',1500)"),/invalid financial model line driver reference/);
+ assert.throws(()=>db.exec("INSERT INTO financial_model_lines (id,tenant_id,model_id,code,name,line_type,base_amount_minor,growth_bps,cash_lag_months,created_by,created_at,driver_line_id,driver_multiplier_bps) VALUES ('l4','t1','m1','X','X','Custo',0,0,0,'maker@test','now','does-not-exist',1500)"),/invalid financial model line driver reference/);
+ db.exec("INSERT INTO financial_model_lines (id,tenant_id,model_id,code,name,line_type,base_amount_minor,growth_bps,cash_lag_months,created_by,created_at,driver_line_id,driver_multiplier_bps) VALUES ('l5','t1','m1','COST','Custo variável','Custo',0,0,0,'maker@test','now','l1',1500)");
+ assert.throws(()=>db.exec("UPDATE financial_model_lines SET driver_multiplier_bps=2000 WHERE id='l5'"),/financial model lines are immutable/);
+ const line=db.prepare("SELECT driver_line_id,driver_multiplier_bps FROM financial_model_lines WHERE id='l5'").get();
+ assert.equal(line.driver_line_id,'l1');assert.equal(line.driver_multiplier_bps,1500);
+ db.close();
 });
 
 test("financial imports preserve source evidence and sequential posting",()=>{

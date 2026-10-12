@@ -728,6 +728,12 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Participação","Ownership","Participación","Participation","Доля участия"],
 ["Percentagem detida pela empresa-mãe","Percentage held by the parent company","Porcentaje retenido por la empresa matriz","Pourcentage détenu par la société mère","Доля, принадлежащая материнской компании"],
 ["Em vigor a partir de","Effective from","Vigente a partir de","En vigueur à partir du","Действует с"],
+["＋ Driver","＋ Driver","＋ Impulsor","＋ Driver","＋ Драйвер"],
+["Direcionador","Driver","Impulsor","Driver","Драйвер"],
+["Fórmula","Formula","Fórmula","Formule","Формула"],
+["Valor base com crescimento fixo","Base value with fixed growth","Valor base con crecimiento fijo","Valeur de base avec croissance fixe","Базовое значение с фиксированным ростом"],
+["Direcionada por outra linha","Driven by another line","Determinada por otra línea","Pilotée par une autre ligne","Определяется другой строкой"],
+["Linha direcionadora","Driver line","Línea impulsora","Ligne pilote","Строка-драйвер"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

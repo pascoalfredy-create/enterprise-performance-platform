@@ -27,6 +27,9 @@ type Line = {
   base_amount_minor: number;
   growth_bps: number;
   cash_lag_months: number;
+  driver_line_id: string | null;
+  driver_line_code: string | null;
+  driver_multiplier_bps: number | null;
 };
 type Month = {
   period: string;
@@ -80,6 +83,7 @@ export function FinancialModelsWorkspace({
     [selected, setSelected] = useState(""),
     [view, setView] = useState(initialView),
     [modal, setModal] = useState(""),
+    [lineMode, setLineMode] = useState<"fixo" | "direcionador">("fixo"),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const load = useCallback(
@@ -217,7 +221,14 @@ export function FinancialModelsWorkspace({
             </span>
             {model.status === "Rascunho" && (
               <>
-                <button onClick={() => setModal("addLine")}>＋ Driver</button>
+                <button
+                  onClick={() => {
+                    setLineMode("fixo");
+                    setModal("addLine");
+                  }}
+                >
+                  ＋ Driver
+                </button>
                 <button
                   className="primary-mini"
                   disabled={busy}
@@ -261,6 +272,7 @@ export function FinancialModelsWorkspace({
                   <th>Tipo</th>
                   <th>Base mensal</th>
                   <th>Crescimento</th>
+                  <th>Direcionador</th>
                   <th>Prazo caixa</th>
                 </tr>
               </thead>
@@ -274,8 +286,21 @@ export function FinancialModelsWorkspace({
                       <b>{x.name}</b>
                     </td>
                     <td>{x.line_type}</td>
-                    <td>{money(x.base_amount_minor, currency)}</td>
-                    <td>{(x.growth_bps / 100).toFixed(2)}%</td>
+                    <td>
+                      {x.driver_line_id
+                        ? "—"
+                        : money(x.base_amount_minor, currency)}
+                    </td>
+                    <td>
+                      {x.driver_line_id
+                        ? "—"
+                        : `${(x.growth_bps / 100).toFixed(2)}%`}
+                    </td>
+                    <td>
+                      {x.driver_line_id
+                        ? `${x.driver_line_code} × ${((x.driver_multiplier_bps || 0) / 100).toFixed(2)}%`
+                        : "—"}
+                    </td>
                     <td>{x.cash_lag_months} mês(es)</td>
                   </tr>
                 ))}
@@ -536,32 +561,94 @@ export function FinancialModelsWorkspace({
                   />
                 </label>
                 <label>
-                  Valor base mensal
-                  <input name="baseAmount" inputMode="decimal" required />
+                  Fórmula
+                  <select
+                    value={lineMode}
+                    onChange={(e) =>
+                      setLineMode(e.target.value as "fixo" | "direcionador")
+                    }
+                  >
+                    <option value="fixo">Valor base com crescimento fixo</option>
+                    <option value="direcionador">
+                      Direcionada por outra linha
+                    </option>
+                  </select>
                 </label>
-                <div>
-                  <label>
-                    Crescimento mensal (%)
-                    <input
-                      name="growthPercent"
-                      type="number"
-                      min={-100}
-                      max={1000}
-                      step="0.01"
-                      defaultValue="0"
-                    />
-                  </label>
-                  <label>
-                    Prazo de caixa (meses)
-                    <input
-                      name="cashLagMonths"
-                      type="number"
-                      min={0}
-                      max={36}
-                      defaultValue="0"
-                    />
-                  </label>
-                </div>
+                {lineMode === "fixo" ? (
+                  <>
+                    <label>
+                      Valor base mensal
+                      <input name="baseAmount" inputMode="decimal" required />
+                    </label>
+                    <div>
+                      <label>
+                        Crescimento mensal (%)
+                        <input
+                          name="growthPercent"
+                          type="number"
+                          min={-100}
+                          max={1000}
+                          step="0.01"
+                          defaultValue="0"
+                        />
+                      </label>
+                      <label>
+                        Prazo de caixa (meses)
+                        <input
+                          name="cashLagMonths"
+                          type="number"
+                          min={0}
+                          max={36}
+                          defaultValue="0"
+                        />
+                      </label>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label>
+                      Linha direcionadora
+                      <select name="driverLineId" required>
+                        <option value="">Selecionar</option>
+                        {data.lines.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.code} · {l.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div>
+                      <label>
+                        Multiplicador (%)
+                        <input
+                          name="driverMultiplierPercent"
+                          type="number"
+                          min={-10000}
+                          max={10000}
+                          step="0.01"
+                          required
+                          placeholder="15"
+                        />
+                      </label>
+                      <label>
+                        Prazo de caixa (meses)
+                        <input
+                          name="cashLagMonths"
+                          type="number"
+                          min={0}
+                          max={36}
+                          defaultValue="0"
+                        />
+                      </label>
+                    </div>
+                    <p className="fm-driver-hint">
+                      Esta linha segue automaticamente o valor calculado da
+                      linha direcionadora em cada período, multiplicado pela
+                      percentagem indicada (ex.: Custo variável = 15% ×
+                      Receita).
+                    </p>
+                  </>
+                )}
               </>
             )}
             {error && <p className="erro-form">{error}</p>}
