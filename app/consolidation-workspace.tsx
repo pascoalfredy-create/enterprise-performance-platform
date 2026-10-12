@@ -31,6 +31,8 @@ type Run = {
   converted_total_minor: number;
   adjustment_total_minor: number;
   reported_total_minor: number;
+  nci_total_minor: number;
+  parent_total_minor: number | null;
   input_hash: string;
   approval_hash?: string;
   created_by: string;
@@ -47,7 +49,19 @@ type Line = {
   converted_amount_minor: number;
   source_count: number;
   source_hash: string;
+  ownership_bps: number;
+  nci_amount_minor: number;
 };
+type Ownership = {
+  id: string;
+  organization_id: string;
+  organization_name: string;
+  ownership_bps: number;
+  effective_from: string;
+  effective_to: string | null;
+  status: string;
+};
+type Organization = { id: string; name: string };
 type Adjustment = {
   id: string;
   line_code: string;
@@ -64,6 +78,8 @@ type Data = {
   lines: Line[];
   adjustments: Adjustment[];
   currencies: string[];
+  ownership: Ownership[];
+  organizations: Organization[];
 };
 const empty: Data = {
   rateSets: [],
@@ -72,6 +88,8 @@ const empty: Data = {
   lines: [],
   adjustments: [],
   currencies: [],
+  ownership: [],
+  organizations: [],
 };
 export function ConsolidationWorkspace() {
   const [data, setData] = useState<Data>(empty),
@@ -118,14 +136,18 @@ export function ConsolidationWorkspace() {
   }
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const fields = Object.fromEntries(
+      new FormData(e.currentTarget).entries(),
+    ) as Record<string, string>;
+    if (modal === "setOwnership" && fields.ownershipPercent)
+      fields.ownershipBps = String(
+        Math.round(Number(fields.ownershipPercent) * 100),
+      );
     await command({
       type: modal,
       rateSetId: selected,
       runId: selected,
-      ...(Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<
-        string,
-        string
-      >),
+      ...fields,
     });
   }
   const money = (n: number, c: string) =>
@@ -191,9 +213,22 @@ export function ConsolidationWorkspace() {
           </strong>
           <small>{latest?.currency_count || 0} moeda(s) de origem</small>
         </article>
+        <article>
+          <span>Interesses não controladores</span>
+          <strong>
+            {latest
+              ? money(latest.nci_total_minor, latest.target_currency)
+              : "—"}
+          </strong>
+          <small>
+            {latest
+              ? `Atribuível à empresa-mãe: ${money(latest.parent_total_minor ?? latest.converted_total_minor - latest.nci_total_minor, latest.target_currency)}`
+              : "Sem consolidação"}
+          </small>
+        </article>
       </section>
       <nav className="consolidation-tabs">
-        {["Consolidações", "Taxas de câmbio", "Drill-down"].map((x) => (
+        {["Consolidações", "Taxas de câmbio", "Participação", "Drill-down"].map((x) => (
           <button
             key={x}
             className={view === x ? "active" : ""}
@@ -333,6 +368,43 @@ export function ConsolidationWorkspace() {
             </p>
           )}
         </article>
+      ) : view === "Participação" ? (
+        <article className="cartao consolidation-ownership">
+          <div className="cab">
+            <div>
+              <span>CONTROLO SOCIETÁRIO</span>
+              <h2>Percentagem de participação por empresa</h2>
+            </div>
+            <button
+              className="secundario"
+              onClick={() => open("setOwnership")}
+            >
+              ＋ Definir participação
+            </button>
+          </div>
+          {data.ownership.filter((o) => o.status === "Ativo").length ? (
+            data.ownership
+              .filter((o) => o.status === "Ativo")
+              .map((o) => (
+                <section key={o.id}>
+                  <i>{(o.ownership_bps / 100).toFixed(0)}%</i>
+                  <span>
+                    <b>{o.organization_name}</b>
+                    <small>Em vigor desde {o.effective_from}</small>
+                  </span>
+                  <p>
+                    <b>{(100 - o.ownership_bps / 100).toFixed(0)}%</b>
+                    <small>Interesse não controlador</small>
+                  </p>
+                </section>
+              ))
+          ) : (
+            <p className="consolidation-empty">
+              Todas as empresas são assumidas como 100% detidas até definir uma
+              participação diferente.
+            </p>
+          )}
+        </article>
       ) : (
         <article className="cartao consolidation-drill">
           <div className="cab">
@@ -364,6 +436,8 @@ export function ConsolidationWorkspace() {
                       <th>Origem</th>
                       <th>Taxa</th>
                       <th>Convertido</th>
+                      <th>Participação</th>
+                      <th>Interesse não controlador</th>
                       <th>Evidência</th>
                     </tr>
                   </thead>
@@ -383,6 +457,12 @@ export function ConsolidationWorkspace() {
                           <b>
                             {money(l.converted_amount_minor, l.target_currency)}
                           </b>
+                        </td>
+                        <td>{(l.ownership_bps / 100).toFixed(0)}%</td>
+                        <td>
+                          {l.nci_amount_minor
+                            ? money(l.nci_amount_minor, l.target_currency)
+                            : "—"}
                         </td>
                         <td>
                           <code>#{l.source_hash.slice(0, 9)}</code>
@@ -438,7 +518,9 @@ export function ConsolidationWorkspace() {
                       ? "Adicionar taxa"
                       : modal === "calculateRun"
                         ? "Calcular consolidação"
-                        : "Eliminação ou ajustamento"}
+                        : modal === "setOwnership"
+                          ? "Definir participação"
+                          : "Eliminação ou ajustamento"}
                 </h2>
               </div>
               <button type="button" onClick={() => setModal("")}>
@@ -500,6 +582,42 @@ export function ConsolidationWorkspace() {
                   ))}
                 </select>
               </label>
+            ) : modal === "setOwnership" ? (
+              <>
+                <label>
+                  Empresa
+                  <select name="organizationId" required>
+                    <option value="">Selecionar</option>
+                    {data.organizations.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div>
+                  <label>
+                    Percentagem detida pela empresa-mãe
+                    <input
+                      name="ownershipPercent"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      required
+                      placeholder="70"
+                    />
+                  </label>
+                  <label>
+                    Em vigor a partir de
+                    <input name="effectiveFrom" type="date" required />
+                  </label>
+                </div>
+                <p className="consolidation-ownership-hint">
+                  O interesse não controlador (ex.: 30% se a participação for
+                  70%) é calculado automaticamente em cada consolidação.
+                </p>
+              </>
             ) : (
               <>
                 <div>

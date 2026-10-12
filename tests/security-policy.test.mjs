@@ -295,3 +295,12 @@ test("scenario comparison exposes every planning version's own-period total and 
  assert.match(compact,/\)base_budget_total_minorFROMplanning_versionsvLEFTJOINbudget_versionsb/);
  assert.match(compact,/pe\.version_id=v\.base_budget_idANDpe\.scenario='Budget'/);
 });
+test("consolidation computes non-controlling interest per line from point-in-time ownership, defaulting to full ownership",()=>{
+ const consolidationApi=fs.readFileSync(new URL("../worker/consolidation.ts",import.meta.url),"utf8");
+ assert.match(consolidationApi,/body\.type === "setOwnership"/);
+ assert.match(consolidationApi,/status='Encerrado'/);
+ assert.match(consolidationApi,/ownershipMap\.get\(String\(row\.organization_id\)\) \?\? 10000/);
+ assert.match(consolidationApi,/ownedAmount = applyBps\(convertedAmount, ownershipBps\)/);
+ assert.match(consolidationApi,/nciAmount = convertedAmount - ownedAmount/);
+ assert.match(consolidationApi,/parentTotal = reported - Number\(run\.nci_total_minor \|\| 0\)/);
+});

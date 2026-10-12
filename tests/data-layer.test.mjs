@@ -263,13 +263,32 @@ test("multicurrency consolidation preserves immutable evidence and reconciles ap
  db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa')");
  db.exec("INSERT INTO fx_rate_sets (id,tenant_id,name,period,base_currency,status,created_by,created_at) VALUES ('f1','t1','Fecho agosto','2026-08','AOA','Rascunho','maker@test','now'); INSERT INTO fx_rates VALUES ('x1','t1','f1','USD','AOA',90000000000,100000000,'now'); UPDATE fx_rate_sets SET status='Aprovado',approved_by='checker@test',approved_at='later' WHERE id='f1'");
  assert.throws(()=>db.exec("UPDATE fx_rates SET rate_scaled=1 WHERE id='x1'"),/FX rates are immutable/);
- db.exec("INSERT INTO consolidation_runs (id,tenant_id,rate_set_id,period,target_currency,run_number,status,source_count,organization_count,currency_count,converted_total_minor,adjustment_total_minor,reported_total_minor,input_hash,created_by,created_at) VALUES ('r1','t1','f1','2026-08','AOA',1,'Calculado',2,1,2,30000,0,30000,'input-hash','maker@test','now'); INSERT INTO consolidation_lines VALUES ('l1','t1','r1','o1','USD','AOA','REV','Receita',100,90000000000,90000,1,'source-hash')");
+ db.exec("INSERT INTO consolidation_runs (id,tenant_id,rate_set_id,period,target_currency,run_number,status,source_count,organization_count,currency_count,converted_total_minor,adjustment_total_minor,reported_total_minor,input_hash,created_by,created_at) VALUES ('r1','t1','f1','2026-08','AOA',1,'Calculado',2,1,2,30000,0,30000,'input-hash','maker@test','now'); INSERT INTO consolidation_lines (id,tenant_id,run_id,organization_id,source_currency,target_currency,line_code,line_name,source_amount_minor,rate_scaled,converted_amount_minor,source_count,source_hash) VALUES ('l1','t1','r1','o1','USD','AOA','REV','Receita',100,90000000000,90000,1,'source-hash')");
  assert.throws(()=>db.exec("UPDATE consolidation_lines SET converted_amount_minor=1 WHERE id='l1'"),/consolidation lines are immutable/);
  db.exec("INSERT INTO consolidation_adjustments VALUES ('a1','t1','r1','IC','Intercompany',-5000,'Eliminação','Eliminação intercompany documentada','DOC-001','maker@test','now')");
  assert.throws(()=>db.exec("UPDATE consolidation_runs SET status='Aprovado',adjustment_total_minor=-1,reported_total_minor=29999,approval_hash='wrong' WHERE id='r1'"),/invalid consolidation run transition/);
- db.exec("UPDATE consolidation_runs SET status='Aprovado',adjustment_total_minor=-5000,reported_total_minor=25000,approved_by='checker@test',approved_at='later',approval_hash='approval-hash' WHERE id='r1'");
+ db.exec("UPDATE consolidation_runs SET status='Aprovado',adjustment_total_minor=-5000,reported_total_minor=25000,parent_total_minor=25000,approved_by='checker@test',approved_at='later',approval_hash='approval-hash' WHERE id='r1'");
  const approved=db.prepare("SELECT status,reported_total_minor FROM consolidation_runs WHERE id='r1'").get();
  assert.equal(approved.status,'Aprovado');assert.equal(approved.reported_total_minor,25000);
+ db.close();
+});
+
+test("organization ownership tracks non-controlling interest, one active record per org, and consolidation runs carry immutable NCI splits",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'),('t2','now','Tenant 2','tenant-2','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Subsidiária','Empresa','AOA','Ativa'),('o2','t2','now','ROOT','Outra','Empresa','AOA','Ativa')");
+ assert.throws(()=>db.exec("INSERT INTO organization_ownership (id,tenant_id,organization_id,ownership_bps,effective_from,status,created_by,created_at) VALUES ('ow0','t1','o2',7000,'2026-01-01','Ativo','cfo@test','now')"),/organization ownership outside tenant/);
+ db.exec("INSERT INTO organization_ownership (id,tenant_id,organization_id,ownership_bps,effective_from,status,created_by,created_at) VALUES ('ow1','t1','o1',7000,'2026-01-01','Ativo','cfo@test','now')");
+ assert.throws(()=>db.exec("INSERT INTO organization_ownership (id,tenant_id,organization_id,ownership_bps,effective_from,status,created_by,created_at) VALUES ('ow2','t1','o1',5000,'2026-02-01','Ativo','cfo@test','now')"),/UNIQUE constraint failed/);
+ db.exec("UPDATE organization_ownership SET status='Encerrado',effective_to='2026-02-01' WHERE id='ow1'; INSERT INTO organization_ownership (id,tenant_id,organization_id,ownership_bps,effective_from,status,created_by,created_at) VALUES ('ow3','t1','o1',8000,'2026-02-01','Ativo','cfo@test','now')");
+ assert.throws(()=>db.exec("DELETE FROM organization_ownership WHERE id='ow1'"),/organization ownership records cannot be deleted/);
+ db.exec("INSERT INTO fx_rate_sets (id,tenant_id,name,period,base_currency,status,created_by,created_at) VALUES ('f2','t1','Fecho setembro','2026-09','AOA','Rascunho','maker@test','now'); INSERT INTO fx_rates VALUES ('x2','t1','f2','USD','AOA',90000000000,100000000,'now'); UPDATE fx_rate_sets SET status='Aprovado',approved_by='checker@test',approved_at='later' WHERE id='f2'");
+ db.exec("INSERT INTO consolidation_runs (id,tenant_id,rate_set_id,period,target_currency,run_number,status,source_count,organization_count,currency_count,converted_total_minor,adjustment_total_minor,reported_total_minor,nci_total_minor,parent_total_minor,input_hash,created_by,created_at) VALUES ('r2','t1','f2','2026-09','AOA',1,'Calculado',1,1,1,100000,0,100000,20000,80000,'input-hash-2','maker@test','now')");
+ db.exec("INSERT INTO consolidation_lines (id,tenant_id,run_id,organization_id,source_currency,target_currency,line_code,line_name,source_amount_minor,rate_scaled,converted_amount_minor,source_count,source_hash,ownership_bps,nci_amount_minor) VALUES ('l2','t1','r2','o1','AOA','AOA','REV','Receita',100000,100000000,100000,1,'source-hash-2',8000,20000)");
+ assert.throws(()=>db.exec("UPDATE consolidation_runs SET status='Aprovado',adjustment_total_minor=0,reported_total_minor=100000,parent_total_minor=100000,approved_by='checker@test',approved_at='later',approval_hash='h' WHERE id='r2'"),/invalid consolidation run transition/);
+ db.exec("UPDATE consolidation_runs SET status='Aprovado',adjustment_total_minor=0,reported_total_minor=100000,parent_total_minor=80000,approved_by='checker@test',approved_at='later',approval_hash='h' WHERE id='r2'");
+ const run=db.prepare("SELECT nci_total_minor,parent_total_minor FROM consolidation_runs WHERE id='r2'").get();
+ assert.equal(run.nci_total_minor,20000);assert.equal(run.parent_total_minor,80000);
+ assert.throws(()=>db.exec("UPDATE consolidation_runs SET nci_total_minor=0 WHERE id='r2'"),/invalid consolidation run transition/);
  db.close();
 });
 

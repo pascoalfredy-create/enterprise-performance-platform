@@ -720,6 +720,14 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Localização registada","Location recorded","Ubicación registrada","Localisation enregistrée","Местоположение зафиксировано"],
 ["Cenários lado a lado","Scenarios side by side","Escenarios en paralelo","Scénarios côte à côte","Сценарии рядом"],
 ["vs. Actual","vs. Actual","vs. Real","vs. Réel","против факта"],
+["Interesses não controladores","Non-controlling interests","Intereses minoritarios","Intérêts minoritaires","Неконтролирующие доли"],
+["CONTROLO SOCIETÁRIO","OWNERSHIP CONTROL","CONTROL ACCIONARIO","CONTRÔLE ACTIONNARIAL","КОРПОРАТИВНЫЙ КОНТРОЛЬ"],
+["Percentagem de participação por empresa","Ownership percentage by company","Porcentaje de participación por empresa","Pourcentage de participation par société","Доля участия по компании"],
+["Interesse não controlador","Non-controlling interest","Interés minoritario","Intérêt minoritaire","Неконтролирующая доля"],
+["Todas as empresas são assumidas como 100% detidas até definir uma participação diferente.","All companies are assumed to be 100% owned until a different ownership is set.","Se asume que todas las empresas son 100% propiedad hasta definir una participación diferente.","Toutes les sociétés sont présumées détenues à 100 % jusqu'à ce qu'une autre participation soit définie.","Все компании считаются принадлежащими на 100%, пока не задана иная доля участия."],
+["Participação","Ownership","Participación","Participation","Доля участия"],
+["Percentagem detida pela empresa-mãe","Percentage held by the parent company","Porcentaje retenido por la empresa matriz","Pourcentage détenu par la société mère","Доля, принадлежащая материнской компании"],
+["Em vigor a partir de","Effective from","Vigente a partir de","En vigueur à partir du","Действует с"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

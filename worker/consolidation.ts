@@ -20,6 +20,11 @@ const convert = (amount: number, rate: number) => {
     d = 100000000n;
   return Number(n >= 0n ? (n + d / 2n) / d : -((-n + d / 2n) / d));
 };
+const applyBps = (amount: number, bps: number) => {
+  const n = BigInt(Math.trunc(amount)) * BigInt(Math.trunc(bps)),
+    d = 10000n;
+  return Number(n >= 0n ? (n + d / 2n) / d : -((-n + d / 2n) / d));
+};
 const fail = (error: unknown) => {
   const x = classifyDataError(
     error,
@@ -43,8 +48,17 @@ export async function consolidationApi(
       url = new URL(request.url),
       selected = url.searchParams.get("run") || "";
     const snapshot = async () => {
-      const [sets, rates, runs, lines, adjustments, currencies, audit] =
-        await Promise.all([
+      const [
+          sets,
+          rates,
+          runs,
+          lines,
+          adjustments,
+          currencies,
+          ownership,
+          organizations,
+          audit,
+        ] = await Promise.all([
           db
             .prepare(
               "SELECT s.*,(SELECT COUNT(*) FROM fx_rates r WHERE r.tenant_id=s.tenant_id AND r.rate_set_id=s.id) rate_count FROM fx_rate_sets s WHERE s.tenant_id=? ORDER BY s.period DESC,s.created_at DESC",
@@ -85,6 +99,18 @@ export async function consolidationApi(
             )
             .bind(tenant)
             .all(),
+          db
+            .prepare(
+              "SELECT o.id,o.organization_id,org.name organization_name,o.ownership_bps,o.effective_from,o.effective_to,o.status FROM organization_ownership o JOIN organizations org ON org.id=o.organization_id AND org.tenant_id=o.tenant_id WHERE o.tenant_id=? ORDER BY org.name,o.effective_from DESC",
+            )
+            .bind(tenant)
+            .all(),
+          db
+            .prepare(
+              "SELECT id,name FROM organizations WHERE tenant_id=? AND status='Ativa' ORDER BY name",
+            )
+            .bind(tenant)
+            .all(),
           scope
             ? Promise.resolve({ results: [] })
             : db
@@ -101,6 +127,8 @@ export async function consolidationApi(
         lines: lines.results,
         adjustments: adjustments.results,
         currencies: currencies.results.map((x) => x.currency),
+        ownership: ownership.results,
+        organizations: organizations.results,
         audit: audit.results,
       };
     };
@@ -241,6 +269,57 @@ export async function consolidationApi(
           { status: 409 },
         );
       entityType = "fxRateSet";
+    } else if (body.type === "setOwnership") {
+      const bps = Number(body.ownershipBps);
+      if (
+        !body.organizationId ||
+        !Number.isInteger(bps) ||
+        bps < 0 ||
+        bps > 10000 ||
+        !/^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(
+          body.effectiveFrom || "",
+        )
+      )
+        return Response.json(
+          {
+            error:
+              "Empresa, percentagem (0–100%) e data de efeito são obrigatórios.",
+          },
+          { status: 400 },
+        );
+      const org = await db
+        .prepare(
+          "SELECT id FROM organizations WHERE id=? AND tenant_id=? AND status='Ativa'",
+        )
+        .bind(body.organizationId, tenant)
+        .first();
+      if (!org)
+        return Response.json(
+          { error: "Empresa fora do âmbito autorizado." },
+          { status: 404 },
+        );
+      await db
+        .prepare(
+          "UPDATE organization_ownership SET status='Encerrado',effective_to=? WHERE tenant_id=? AND organization_id=? AND status='Ativo'",
+        )
+        .bind(body.effectiveFrom, tenant, body.organizationId)
+        .run();
+      entityId = uid();
+      entityType = "organizationOwnership";
+      await db
+        .prepare(
+          "INSERT INTO organization_ownership (id,tenant_id,organization_id,ownership_bps,effective_from,status,created_by,created_at) VALUES (?,?,?,?,?,'Ativo',?,?)",
+        )
+        .bind(
+          entityId,
+          tenant,
+          body.organizationId,
+          bps,
+          body.effectiveFrom,
+          security.email,
+          now,
+        )
+        .run();
     } else if (body.type === "calculateRun") {
       const set = await db
         .prepare(
@@ -278,6 +357,19 @@ export async function consolidationApi(
             Number(x.rate_scaled),
           ]),
         ),
+        periodDate = `${set.period}-01`,
+        ownershipRows = await db
+          .prepare(
+            "SELECT organization_id,ownership_bps FROM organization_ownership WHERE tenant_id=? AND effective_from<=? AND (effective_to IS NULL OR effective_to>?) ORDER BY effective_from DESC",
+          )
+          .bind(tenant, periodDate, periodDate)
+          .all<Record<string, unknown>>(),
+        ownershipMap = new Map(
+          ownershipRows.results.map((x) => [
+            String(x.organization_id),
+            Number(x.ownership_bps),
+          ]),
+        ),
         prepared = [] as Array<Record<string, unknown>>;
       for (const row of sources.results) {
         const currency = String(row.currency),
@@ -298,11 +390,18 @@ export async function consolidationApi(
         const sourceHash = await sha(
           `${row.organization_id}|${currency}|${row.line_code}|${row.amount_minor}|${row.source_count}`,
         );
+        const convertedAmount = convert(sourceAmount, rate),
+          ownershipBps =
+            ownershipMap.get(String(row.organization_id)) ?? 10000,
+          ownedAmount = applyBps(convertedAmount, ownershipBps),
+          nciAmount = convertedAmount - ownedAmount;
         prepared.push({
           ...row,
           rate_scaled: rate,
-          converted_amount_minor: convert(sourceAmount, rate),
+          converted_amount_minor: convertedAmount,
           source_hash: sourceHash,
+          ownership_bps: ownershipBps,
+          nci_amount_minor: nciAmount,
         });
       }
       const runId = uid(),
@@ -318,12 +417,16 @@ export async function consolidationApi(
           (n, x) => n + Number(x.converted_amount_minor),
           0,
         ),
+        nciTotal = prepared.reduce(
+          (n, x) => n + Number(x.nci_amount_minor),
+          0,
+        ),
         orgs = new Set(prepared.map((x) => x.organization_id)).size,
         currencyCount = new Set(prepared.map((x) => x.currency)).size;
       const statements = [
         db
           .prepare(
-            "INSERT INTO consolidation_runs (id,tenant_id,rate_set_id,period,target_currency,run_number,status,source_count,organization_count,currency_count,converted_total_minor,adjustment_total_minor,reported_total_minor,input_hash,created_by,created_at) VALUES (?,?,?,?,?,?,'Calculado',?,?,?,?,0,?,?,?,?)",
+            "INSERT INTO consolidation_runs (id,tenant_id,rate_set_id,period,target_currency,run_number,status,source_count,organization_count,currency_count,converted_total_minor,adjustment_total_minor,reported_total_minor,nci_total_minor,parent_total_minor,input_hash,created_by,created_at) VALUES (?,?,?,?,?,?,'Calculado',?,?,?,?,0,?,?,?,?,?,?)",
           )
           .bind(
             runId,
@@ -337,6 +440,8 @@ export async function consolidationApi(
             currencyCount,
             total,
             total,
+            nciTotal,
+            total - nciTotal,
             inputHash,
             security.email,
             now,
@@ -346,7 +451,7 @@ export async function consolidationApi(
         statements.push(
           db
             .prepare(
-              "INSERT INTO consolidation_lines VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+              "INSERT INTO consolidation_lines (id,tenant_id,run_id,organization_id,source_currency,target_currency,line_code,line_name,source_amount_minor,rate_scaled,converted_amount_minor,source_count,source_hash,ownership_bps,nci_amount_minor) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             )
             .bind(
               uid(),
@@ -362,6 +467,8 @@ export async function consolidationApi(
               row.converted_amount_minor,
               row.source_count,
               row.source_hash,
+              row.ownership_bps,
+              row.nci_amount_minor,
             ),
         );
       await db.batch(statements);
@@ -439,16 +546,18 @@ export async function consolidationApi(
           .first<Record<string, unknown>>(),
         adjustment = Number(adj?.total || 0),
         reported = Number(run.converted_total_minor) + adjustment,
+        parentTotal = reported - Number(run.nci_total_minor || 0),
         approvalHash = await sha(
           `${run.input_hash}|${adjustment}|${reported}|${security.email}|${now}`,
         ),
         result = await db
           .prepare(
-            "UPDATE consolidation_runs SET status='Aprovado',adjustment_total_minor=?,reported_total_minor=?,approved_by=?,approved_at=?,approval_hash=? WHERE id=? AND tenant_id=? AND status='Calculado'",
+            "UPDATE consolidation_runs SET status='Aprovado',adjustment_total_minor=?,reported_total_minor=?,parent_total_minor=?,approved_by=?,approved_at=?,approval_hash=? WHERE id=? AND tenant_id=? AND status='Calculado'",
           )
           .bind(
             adjustment,
             reported,
+            parentTotal,
             security.email,
             now,
             approvalHash,
