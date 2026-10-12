@@ -171,3 +171,31 @@ test("permission checks fail closed",()=>{
  assert.equal(hasPermission(["reports:write"],"reports:write"),true);
  assert.equal(hasPermission(["reports:write"],"payroll:write"),false);
 });
+test("Colaborador self-service identity is resolved from an active portal account, never platform_users",()=>{
+ assert.match(source,/Colaborador:\["selfservice:read","selfservice:write"\]/);
+ assert.match(source,/employee_portal_accounts/);
+ assert.match(source,/epa\.status IN \('Convidado','Ativo'\)/);
+ assert.match(source,/portalAccount\.status==="Convidado"/);
+ assert.match(source,/UPDATE employee_portal_accounts SET status='Ativo'/);
+ assert.match(source,/employeeId:user\.employee_id\?String\(user\.employee_id\):null/);
+ assert.match(compact,/apiPath==="\/api\/self-service"/);
+ assert.match(compact,/selfServiceApi\(request,env\.DB,security\)/);
+});
+test("self-service API is scoped to the caller's own employeeId and never trusts a client-supplied id",()=>{
+ const selfService=fs.readFileSync(new URL("../worker/self-service.ts",import.meta.url),"utf8");
+ const compactSelf=selfService.replace(/\s+/g,"");
+ assert.match(selfService,/if \(!security\.employeeId\) return noEmployee\(\);/);
+ assert.match(compactSelf,/employeeId=security\.employeeId/);
+ assert.doesNotMatch(compactSelf,/body\.employeeId/);
+ assert.doesNotMatch(compactSelf,/searchParams\.get\("employeeId"\)/);
+ assert.match(selfService,/WHERE tenant_id=\? AND employee_id=\? AND status='Emitido'/);
+ assert.match(selfService,/WHERE b\.tenant_id=\? AND b\.employee_id=\?/);
+ assert.match(selfService,/WHERE r\.tenant_id=\? AND r\.employee_id=\?/);
+ assert.match(selfService,/WHERE d\.tenant_id=\? AND d\.employee_id=\?/);
+});
+test("self-service leave requests validate the absence type against the caller's own tenant before inserting",()=>{
+ const selfService=fs.readFileSync(new URL("../worker/self-service.ts",import.meta.url),"utf8");
+ assert.match(selfService,/SELECT unit FROM hcm_absence_types WHERE id=\? AND tenant_id=\? AND status='Ativo'/);
+ assert.match(selfService,/Tipo de ausência inválido/);
+ assert.match(selfService,/status:\s*"Pendente"\s*\},\s*\{\s*status:\s*201/);
+});

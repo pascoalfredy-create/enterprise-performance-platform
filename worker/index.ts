@@ -52,6 +52,7 @@ import { demoPortfolioApi } from "./demo-portfolio";
 import { commercialSuiteApi } from "./commercial-suite";
 import { documentHubApi } from "./document-hub";
 import { customerActivationApi } from "./customer-activation";
+import { selfServiceApi } from "./self-service";
 import { payPayReadiness, payPaySandboxReference, type PayPayEnv } from "./paypay";
 
 interface Env extends PayPayEnv {
@@ -5771,7 +5772,11 @@ const worker = {
                                                   : "workflow:read"
                                                 : apiPath === "/api/integrity"
                                                   ? "integrity:read"
-                                                  : null;
+                                                  : apiPath === "/api/self-service"
+                                                    ? write
+                                                      ? "selfservice:write"
+                                                      : "selfservice:read"
+                                                    : null;
       if (required && !hasPermission(security.permissions, required))
         return denied(required);
       if (
@@ -5882,6 +5887,8 @@ const worker = {
             { status: 403 },
           );
       }
+      if (apiPath === "/api/self-service")
+        return selfServiceApi(request, env.DB, security);
       if (apiPath === "/api/tenants")
         return tenantsApi(request, env.DB, security);
       if (apiPath === "/api/setup")

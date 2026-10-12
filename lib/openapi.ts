@@ -45,6 +45,7 @@ export const openApiDocument = {
     "Identity",
     "Setup",
     "HCM",
+    "Self-Service",
     "Performance",
     "Payroll",
     "Workforce",
@@ -135,6 +136,20 @@ export const openApiDocument = {
         "Manage contracts, absence configuration, balances and decisions",
         "HCM",
         "hcm:write",
+      ),
+    },
+    "/self-service": {
+      get: {
+        ...read(
+          "Read the authenticated employee's own profile, payslips, leave balances and documents",
+          "Self-Service",
+        ),
+        "x-permission": "selfservice:read",
+      },
+      post: write(
+        "Submit a leave request for the authenticated employee",
+        "Self-Service",
+        "selfservice:write",
       ),
     },
     "/recruitment": {
