@@ -330,12 +330,10 @@ export default function Carreiras() {
                             accept=".pdf,.jpg,.jpeg,.png"
                             required={f.required && !done}
                             disabled={done}
-                            onChange={(e) =>
-                              setFileNames((prev) => ({
-                                ...prev,
-                                [f.type]: e.currentTarget.files?.[0]?.name || "",
-                              }))
-                            }
+                            onChange={(e) => {
+                              const name = e.currentTarget.files?.[0]?.name || "";
+                              setFileNames((prev) => ({ ...prev, [f.type]: name }));
+                            }}
                           />
                           <span className="careers-doc-icon" aria-hidden="true">
                             {done ? "✓" : "📎"}
