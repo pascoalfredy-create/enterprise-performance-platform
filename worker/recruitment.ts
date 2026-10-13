@@ -122,7 +122,7 @@ export async function recruitmentApi(
           .first<{ slug: string }>(),
         db
           .prepare(
-            "SELECT id,employee_number,first_name,last_name FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo' ORDER BY first_name,last_name",
+            "SELECT id,employee_number,first_name,last_name,status FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status<>'Inativo' ORDER BY first_name,last_name",
           )
           .bind(tenant, scope, scope)
           .all(),
@@ -374,7 +374,7 @@ export async function recruitmentApi(
     } else if (b.type === "linkOnboardingEmployee") {
       const employee = await db
         .prepare(
-          "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'",
+          "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status<>'Inativo'",
         )
         .bind(b.employeeId, tenant, scope, scope)
         .first();
@@ -396,6 +396,96 @@ export async function recruitmentApi(
           {
             error:
               "Caso de onboarding não encontrado ou já tem um colaborador associado.",
+          },
+          { status: 409 },
+        );
+    } else if (b.type === "createEmployeeFromCase") {
+      const org = scope || b.organizationId,
+        employeeNumber = b.employeeNumber?.trim().toUpperCase();
+      if (!employeeNumber || !org || !b.jobTitle?.trim())
+        return Response.json(
+          {
+            error:
+              "Número de colaborador, organização e função são obrigatórios.",
+          },
+          { status: 400 },
+        );
+      const caseRow = await db
+        .prepare(
+          "SELECT c.start_date,k.full_name candidate_name FROM employee_onboarding_cases c JOIN recruitment_applications a ON a.id=c.application_id AND a.tenant_id=c.tenant_id JOIN recruitment_candidates k ON k.id=a.candidate_id AND k.tenant_id=a.tenant_id WHERE c.id=? AND c.tenant_id=? AND c.employee_id IS NULL",
+        )
+        .bind(b.caseId, tenant)
+        .first<{ start_date: string; candidate_name: string }>();
+      if (!caseRow)
+        return Response.json(
+          {
+            error:
+              "Caso de onboarding não encontrado ou já tem um colaborador associado.",
+          },
+          { status: 404 },
+        );
+      const organization = await db
+        .prepare(
+          "SELECT id FROM organizations WHERE id=? AND tenant_id=? AND status='Ativa'",
+        )
+        .bind(org, tenant)
+        .first();
+      if (!organization)
+        return Response.json(
+          { error: "Organização fora do âmbito autorizado." },
+          { status: 403 },
+        );
+      if (
+        await db
+          .prepare(
+            "SELECT id FROM employees WHERE tenant_id=? AND employee_number=?",
+          )
+          .bind(tenant, employeeNumber)
+          .first()
+      )
+        return Response.json(
+          { error: "O número de colaborador já existe." },
+          { status: 409 },
+        );
+      const parts = caseRow.candidate_name.trim().split(/\s+/),
+        firstName = parts[0],
+        lastName = parts.slice(1).join(" ") || parts[0],
+        employeeId = uid();
+      entityId = b.caseId;
+      entityType = "onboarding";
+      await db.batch([
+        db
+          .prepare(
+            "INSERT INTO employees (id,tenant_id,employee_number,first_name,last_name,organization_id,job_title,hire_date,status,created_at) VALUES (?,?,?,?,?,?,?,?,'Pendente',?)",
+          )
+          .bind(
+            employeeId,
+            tenant,
+            employeeNumber,
+            firstName,
+            lastName,
+            org,
+            b.jobTitle.trim(),
+            caseRow.start_date,
+            now,
+          ),
+        db
+          .prepare(
+            "UPDATE employee_onboarding_cases SET employee_id=? WHERE id=? AND tenant_id=? AND employee_id IS NULL",
+          )
+          .bind(employeeId, b.caseId, tenant),
+      ]);
+      const linked = await db
+        .prepare(
+          "SELECT 1 FROM employee_onboarding_cases WHERE id=? AND tenant_id=? AND employee_id=?",
+        )
+        .bind(b.caseId, tenant, employeeId)
+        .first();
+      if (!linked)
+        return Response.json(
+          {
+            error:
+              "A ficha foi criada, mas o caso já tinha sido associado entretanto. Associe-a manualmente em 'Associar existente'.",
           },
           { status: 409 },
         );

@@ -381,6 +381,24 @@ test("onboarding cases can be linked to exactly one employee record, scoped to t
  db.close();
 });
 
+test("an employee record created directly from an onboarding case's candidate links in the same step, and only once",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant','tenant','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org','Empresa','AOA','Ativa'); INSERT INTO recruitment_requisitions VALUES ('r1','t1','o1','Analista','FIN',1,'2027-01-01','Efetivo',50000000,'AOA','Aberta','Expansão aprovada','maker@test','now','checker@test','later'); INSERT INTO recruitment_candidates (id,tenant_id,full_name,email,phone,source,consent_at,created_by,created_at) VALUES ('c1','t1','Joana Pereira Lima','candidate@test',NULL,'Direto','now','hr@test','now'); INSERT INTO recruitment_applications VALUES ('a1','t1','r1','c1','Contratada',NULL,NULL,'hr@test','now','now'); INSERT INTO employee_onboarding_cases VALUES ('oc1','t1','a1',NULL,'Preparação','2027-01-01','hr@test','hr@test','now',NULL)");
+ const caseRow=db.prepare("SELECT c.start_date,k.full_name candidate_name FROM employee_onboarding_cases c JOIN recruitment_applications a ON a.id=c.application_id AND a.tenant_id=c.tenant_id JOIN recruitment_candidates k ON k.id=a.candidate_id AND k.tenant_id=a.tenant_id WHERE c.id=? AND c.tenant_id=? AND c.employee_id IS NULL").get('oc1','t1');
+ assert.equal(caseRow.candidate_name,'Joana Pereira Lima');
+ const parts=caseRow.candidate_name.trim().split(/\s+/),firstName=parts[0],lastName=parts.slice(1).join(' ')||parts[0];
+ db.exec(`INSERT INTO employees (id,tenant_id,employee_number,first_name,last_name,organization_id,job_title,hire_date,status,created_at) VALUES ('e1','t1','COL-204','${firstName}','${lastName}','o1','Analista','${caseRow.start_date}','Pendente','now')`);
+ db.exec("UPDATE employee_onboarding_cases SET employee_id='e1' WHERE id='oc1' AND tenant_id='t1' AND employee_id IS NULL");
+ const linked=db.prepare("SELECT employee_id FROM employee_onboarding_cases WHERE id='oc1'").get();
+ assert.equal(linked.employee_id,'e1');
+ assert.equal(db.prepare("SELECT first_name,last_name,status FROM employees WHERE id='e1'").get().first_name,'Joana');
+ assert.equal(db.prepare("SELECT last_name FROM employees WHERE id='e1'").get().last_name,'Pereira Lima');
+ assert.equal(db.prepare("SELECT status FROM employees WHERE id='e1'").get().status,'Pendente');
+ const second=db.prepare("UPDATE employee_onboarding_cases SET employee_id='e2' WHERE id='oc1' AND tenant_id='t1' AND employee_id IS NULL").run();
+ assert.equal(second.changes,0);
+ db.close();
+});
+
 test("recruitment candidate documents are scoped, immutable and non-deletable",()=>{
  const db=migratedDatabase();
  db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant','tenant','Ativo'),('t2','now','Outro','outro','Ativo'); INSERT INTO recruitment_candidates (id,tenant_id,full_name,email,phone,source,consent_at,created_by,created_at) VALUES ('c1','t1','Candidata Um','candidate@test',NULL,'Website','now','candidatura-publica','now')");

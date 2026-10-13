@@ -798,6 +798,8 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Candidatura recebida com sucesso","Application received successfully","Candidatura recibida con éxito","Candidature reçue avec succès","Заявка успешно получена"],
 ["A equipa de recrutamento irá contactá-lo caso o perfil avance no processo.","The recruitment team will contact you if your profile moves forward in the process.","El equipo de selección se pondrá en contacto si el perfil avanza en el proceso.","L'équipe de recrutement vous contactera si votre profil avance dans le processus.","Команда по подбору персонала свяжется с вами, если ваш профиль пройдёт дальше в процессе."],
 ["· obrigatório","· required","· obligatorio","· obligatoire","· обязательно"],
+["Número de colaborador","Employee number","Número de empleado","Numéro de salarié","Табельный номер"],
+["Ex.: COL-204","e.g. EMP-204","Ej.: EMP-204","Ex. : EMP-204","Напр.: EMP-204"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

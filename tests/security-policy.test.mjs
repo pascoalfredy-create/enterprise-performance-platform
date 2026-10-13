@@ -406,9 +406,10 @@ test("HR manager suite cost and talent tabs render only data fetched from the re
  assert.match(hrData,/nextPeriodProjection:/);
  assert.match(hrData,/insights:\s*\{/);
 });
-test("onboarding cases can only be linked to an active employee within the caller's organization scope, once, and the recruitment pipeline UI only offers transitions valid from the application's current status",()=>{
+test("onboarding cases can only be linked to a non-inactive employee within the caller's organization scope, once, and the recruitment pipeline UI only offers transitions valid from the application's current status",()=>{
  const recruitment=fs.readFileSync(new URL("../worker/recruitment.ts",import.meta.url),"utf8");
  assert.match(recruitment,/b\.type === "linkOnboardingEmployee"/);
+ assert.match(recruitment,/status<>'Inativo'/);
  assert.match(recruitment,/Colaborador fora do âmbito autorizado/);
  assert.match(recruitment,/WHERE id=\? AND tenant_id=\? AND employee_id IS NULL/);
  assert.match(recruitment,/já tem um colaborador associado/);
@@ -417,6 +418,18 @@ test("onboarding cases can only be linked to an active employee within the calle
  assert.match(workspace,/Recebida:\s*\["Triagem",\s*"Rejeitada"\]/);
  assert.match(workspace,/Entrevista:\s*\["Oferta",\s*"Rejeitada"\]/);
  assert.match(workspace,/Associar colaborador/);
+});
+test("an onboarding case's employee can be created directly from the hired candidate (pre-filled name, scoped organization, unique employee number) in the same step it links, instead of requiring a disconnected employee-master entry first",()=>{
+ const recruitment=fs.readFileSync(new URL("../worker/recruitment.ts",import.meta.url),"utf8");
+ assert.match(recruitment,/b\.type === "createEmployeeFromCase"/);
+ assert.match(recruitment,/O número de colaborador já existe/);
+ assert.match(recruitment,/Organização fora do âmbito autorizado/);
+ assert.match(recruitment,/candidate_name\.trim\(\)\.split\(\/\\s\+\/\)/);
+ assert.match(recruitment,/INSERT INTO employees[^"]*VALUES[^"]*'Pendente'/);
+ const workspace=fs.readFileSync(new URL("../app/recruitment-workspace.tsx",import.meta.url),"utf8");
+ assert.match(workspace,/function LinkEmployeeFields/);
+ assert.match(workspace,/createEmployeeFromCase.*linkOnboardingEmployee|linkOnboardingEmployee.*createEmployeeFromCase/);
+ assert.match(workspace,/Criar ficha a partir do candidato/);
 });
 test("attendance clock-in/out times render as HH:MM regardless of whether the stored value is a bare time or a legacy full ISO datetime (demo-seeded rows used full ISO, self-service rows use HH:MM)",()=>{
  const attendance=fs.readFileSync(new URL("../app/attendance-workspace.tsx",import.meta.url),"utf8");

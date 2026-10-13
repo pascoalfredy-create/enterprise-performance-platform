@@ -4,11 +4,11 @@ import { apiFetch } from "../lib/api-client";
 import "./recruitment.css";
 type Requisition={id:string;title:string;organization_name:string;department_code?:string;positions:number;target_start_date:string;currency:string;budget_monthly_minor:number;status:string};
 type Application={id:string;candidate_id:string;candidate_name:string;candidate_email:string;requisition_title:string;status:string;decision_note?:string;rating?:number|null};
-type OnboardingCase={id:string;application_id:string;candidate_name:string;requisition_title:string;start_date:string;completed_count:number;task_count:number;employee_id:string|null;linked_employee_name:string|null;linked_employee_number:string|null};
+type OnboardingCase={id:string;application_id:string;candidate_name:string;requisition_title:string;organization_id:string;start_date:string;completed_count:number;task_count:number;employee_id:string|null;linked_employee_name:string|null;linked_employee_number:string|null};
 type OnboardingTask={id:string;case_id:string;title:string;owner_email:string;due_date:string;status:string};
 type Organization={id:string;code:string;name:string};
 type Owner={email:string;name:string;role:string};
-type ActiveEmployee={id:string;employee_number:string;first_name:string;last_name:string};
+type ActiveEmployee={id:string;employee_number:string;first_name:string;last_name:string;status:string};
 type OnboardingDocument={id:string;employee_id:string;employee_name:string;employee_number:string;title:string;description:string|null;document_url:string|null;status:string;published_by:string;published_at:string;signature_name:string|null;signed_at:string|null};
 type Candidate={id:string;full_name:string;email:string;phone?:string|null;current_role?:string|null;current_employer?:string|null;years_experience?:number|null;highest_education?:string|null;field_of_study?:string|null;institution?:string|null;presentation?:string|null;linkedin_url?:string|null};
 type SpontaneousApplication={id:string;candidate_id:string;candidate_name:string;candidate_email:string;status:string;note:string|null;linked_application_id:string|null;created_at:string};
@@ -760,20 +760,7 @@ function Fields({
         </label>
       </>
     );
-  if (type === "linkOnboardingEmployee")
-    return (
-      <label>
-        Colaborador
-        <select name="employeeId" required>
-          <option value="">Selecionar</option>
-          {data.activeEmployees.map((x) => (
-            <option key={x.id} value={x.id}>
-              {x.first_name} {x.last_name} · {x.employee_number}
-            </option>
-          ))}
-        </select>
-      </label>
-    );
+  if (type === "linkOnboardingEmployee") return <LinkEmployeeFields data={data} context={context} />;
   if (type === "linkSpontaneousApplication")
     return (
       <label>
@@ -802,6 +789,71 @@ function Fields({
       Evidência
       <textarea name="evidence" minLength={5} required />
     </label>
+  );
+}
+function LinkEmployeeFields({ data, context }: { data: Data; context: string }) {
+  const caseItem = data.onboardingCases.find((c) => c.id === context),
+    [mode, setMode] = useState<"new" | "existing">("new");
+  return (
+    <>
+      <nav className="talent-link-mode">
+        <button
+          type="button"
+          className={mode === "new" ? "active" : ""}
+          onClick={() => setMode("new")}
+        >
+          Criar ficha a partir do candidato
+        </button>
+        <button
+          type="button"
+          className={mode === "existing" ? "active" : ""}
+          onClick={() => setMode("existing")}
+        >
+          Associar colaborador existente
+        </button>
+      </nav>
+      <input type="hidden" name="type" value={mode === "new" ? "createEmployeeFromCase" : "linkOnboardingEmployee"} />
+      {mode === "new" ? (
+        <>
+          <p className="status-note">
+            Pré-preenchido a partir do candidato: {caseItem?.candidate_name}
+          </p>
+          <label>
+            Número de colaborador
+            <input name="employeeNumber" placeholder="Ex.: COL-204" required />
+          </label>
+          <div>
+            <label>
+              Organização
+              <select name="organizationId" defaultValue={caseItem?.organization_id} required>
+                {data.organizations.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.code} · {x.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Função
+              <input name="jobTitle" defaultValue={caseItem?.requisition_title} required />
+            </label>
+          </div>
+        </>
+      ) : (
+        <label>
+          Colaborador
+          <select name="employeeId" required>
+            <option value="">Selecionar</option>
+            {data.activeEmployees.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.first_name} {x.last_name} · {x.employee_number}
+                {x.status === "Pendente" ? " · Pendente" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </>
   );
 }
 function Owner({ data }: { data: Data }) {
