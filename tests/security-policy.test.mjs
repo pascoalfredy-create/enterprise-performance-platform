@@ -400,3 +400,15 @@ test("onboarding cases can only be linked to an active employee within the calle
  assert.match(workspace,/Entrevista:\s*\["Oferta",\s*"Rejeitada"\]/);
  assert.match(workspace,/Associar colaborador/);
 });
+test("attendance clock-in/out times render as HH:MM regardless of whether the stored value is a bare time or a legacy full ISO datetime (demo-seeded rows used full ISO, self-service rows use HH:MM)",()=>{
+ const attendance=fs.readFileSync(new URL("../app/attendance-workspace.tsx",import.meta.url),"utf8");
+ assert.match(attendance,/const hhmm=/);
+ assert.match(attendance,/hhmm\(x\.clock_in\)/);
+ assert.match(attendance,/hhmm\(x\.clock_out\)/);
+ const hhmm=(v)=>{const s=String(v??"");const m=s.match(/(\d{2}):(\d{2})/);return m?`${m[1]}:${m[2]}`:s};
+ assert.equal(hhmm("08:00"),"08:00");
+ assert.equal(hhmm("2026-08-07T08:00:00Z"),"08:00");
+ assert.equal(hhmm(null),"");
+ const demoSeed=fs.readFileSync(new URL("../worker/demo-enterprise.ts",import.meta.url),"utf8");
+ assert.doesNotMatch(demoSeed,/T08:00:00Z.*T17:00:00Z/);
+});
