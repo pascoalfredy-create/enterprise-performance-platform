@@ -10,10 +10,13 @@ type Organization={id:string;code:string;name:string};
 type Owner={email:string;name:string;role:string};
 type ActiveEmployee={id:string;employee_number:string;first_name:string;last_name:string};
 type OnboardingDocument={id:string;employee_id:string;employee_name:string;employee_number:string;title:string;description:string|null;document_url:string|null;status:string;published_by:string;published_at:string;signature_name:string|null;signed_at:string|null};
+type Candidate={id:string;full_name:string;email:string;phone?:string|null;current_role?:string|null;current_employer?:string|null;years_experience?:number|null;highest_education?:string|null;field_of_study?:string|null;institution?:string|null;presentation?:string|null;linkedin_url?:string|null};
+type SpontaneousApplication={id:string;candidate_id:string;candidate_name:string;candidate_email:string;status:string;note:string|null;linked_application_id:string|null;created_at:string};
+type CandidateDocument={id:string;candidate_id:string;document_type:string;file_name:string;uploaded_at:string};
 type Data = {
   requisitions: Requisition[];
   applications: Application[];
-  candidates: Array<{id:string;full_name:string;email:string}>;
+  candidates: Candidate[];
   onboardingCases: OnboardingCase[];
   tasks: OnboardingTask[];
   organizations: Organization[];
@@ -21,6 +24,8 @@ type Data = {
   careersSlug: string | null;
   activeEmployees: ActiveEmployee[];
   onboardingDocuments: OnboardingDocument[];
+  spontaneousApplications: SpontaneousApplication[];
+  candidateDocuments: CandidateDocument[];
 };
 const empty: Data = {
   requisitions: [],
@@ -33,6 +38,8 @@ const empty: Data = {
   careersSlug: null,
   activeEmployees: [],
   onboardingDocuments: [],
+  spontaneousApplications: [],
+  candidateDocuments: [],
 };
 export function RecruitmentWorkspace() {
   const [data, setData] = useState<Data>(empty),
@@ -114,15 +121,40 @@ export function RecruitmentWorkspace() {
       requisitionId: context,
       applicationId: context,
       caseId: context,
+      spontaneousId: context,
       ...(Object.fromEntries(new FormData(e.currentTarget).entries()) as Record<
         string,
         string
       >),
     });
   }
+  async function downloadDocument(doc: CandidateDocument) {
+    setError("");
+    const response = await apiFetch(
+      `/api/v1/recruitment?download=${encodeURIComponent(doc.id)}`,
+    );
+    if (!response.ok) {
+      const body = await response.json();
+      setError(body.error);
+      return;
+    }
+    const blob = await response.blob(),
+      url = URL.createObjectURL(blob),
+      anchor = window.document.createElement("a");
+    anchor.href = url;
+    anchor.download = doc.file_name;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   const open = data.requisitions.filter((x) => x.status === "Aberta").length,
     offers = data.applications.filter((x) => x.status === "Oferta").length,
-    pending = data.tasks.filter((x) => x.status === "Pendente").length;
+    pending = data.tasks.filter((x) => x.status === "Pendente").length,
+    spontaneousPending = data.spontaneousApplications.filter(
+      (x) => x.status === "Em avaliação",
+    ).length,
+    candidateById = new Map(data.candidates.map((c) => [c.id, c])),
+    documentsByCandidate = (candidateId: string) =>
+      data.candidateDocuments.filter((d) => d.candidate_id === candidateId);
   return (
     <section className="talent">
       <header>
@@ -173,9 +205,14 @@ export function RecruitmentWorkspace() {
           <strong>{pending}</strong>
           <small>Onboarding controlado</small>
         </article>
+        <article>
+          <span>Candidaturas espontâneas</span>
+          <strong>{spontaneousPending}</strong>
+          <small>Por avaliar</small>
+        </article>
       </section>
       <nav className="talent-tabs">
-        {["Vagas", "Pipeline", "Onboarding"].map((x) => (
+        {["Vagas", "Pipeline", "Espontâneas", "Onboarding"].map((x) => (
           <button
             key={x}
             className={view === x ? "active" : ""}
@@ -241,11 +278,33 @@ export function RecruitmentWorkspace() {
               <h2>Pipeline de seleção</h2>
             </div>
           </div>
-          {data.applications.map((x) => (
+          {data.applications.map((x) => {
+            const candidate = candidateById.get(x.candidate_id),
+              documents = documentsByCandidate(x.candidate_id);
+            return (
             <section key={x.id}>
               <span>
                 <b>{x.candidate_name}</b>
                 <small>{x.candidate_email}</small>
+                {candidate?.current_role && (
+                  <small className="talent-candidate-profile">
+                    {candidate.current_role}
+                    {candidate.current_employer ? ` · ${candidate.current_employer}` : ""}
+                  </small>
+                )}
+                {documents.length > 0 && (
+                  <small className="talent-candidate-documents">
+                    {documents.map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => downloadDocument(d)}
+                      >
+                        {d.document_type}
+                      </button>
+                    ))}
+                  </small>
+                )}
               </span>
               <p>
                 <b>{x.requisition_title}</b>
@@ -285,7 +344,82 @@ export function RecruitmentWorkspace() {
                   )}
               </nav>
             </section>
-          ))}
+            );
+          })}
+        </article>
+      ) : view === "Espontâneas" ? (
+        <article className="cartao talent-list">
+          <div className="cab">
+            <div>
+              <span>TALENT POOL</span>
+              <h2>Candidaturas espontâneas</h2>
+            </div>
+          </div>
+          {data.spontaneousApplications.length === 0 ? (
+            <p className="talent-onboarding-empty">
+              Ainda não existem candidaturas espontâneas recebidas.
+            </p>
+          ) : (
+            data.spontaneousApplications.map((x) => {
+              const candidate = candidateById.get(x.candidate_id),
+                documents = documentsByCandidate(x.candidate_id);
+              return (
+                <section key={x.id}>
+                  <span>
+                    <b>{x.candidate_name}</b>
+                    <small>{x.candidate_email}</small>
+                    {candidate?.current_role && (
+                      <small className="talent-candidate-profile">
+                        {candidate.current_role}
+                        {candidate.current_employer
+                          ? ` · ${candidate.current_employer}`
+                          : ""}
+                      </small>
+                    )}
+                  </span>
+                  <p>
+                    <small>{candidate?.presentation || "Sem apresentação"}</small>
+                    {documents.length > 0 && (
+                      <small className="talent-candidate-documents">
+                        {documents.map((d) => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => downloadDocument(d)}
+                          >
+                            {d.document_type}
+                          </button>
+                        ))}
+                      </small>
+                    )}
+                  </p>
+                  <em>{x.status}</em>
+                  <nav>
+                    {x.status === "Em avaliação" && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setContext(x.id);
+                            setModal("linkSpontaneousApplication");
+                          }}
+                        >
+                          Associar a vaga
+                        </button>
+                        <button
+                          onClick={() => {
+                            setContext(x.id);
+                            setModal("archiveSpontaneousApplication");
+                          }}
+                        >
+                          Arquivar
+                        </button>
+                      </>
+                    )}
+                  </nav>
+                </section>
+              );
+            })
+          )}
         </article>
       ) : (
         <div className="talent-onboarding">
@@ -448,6 +582,8 @@ const titles: Record<string, string> = {
   completeOnboardingTask: "Concluir tarefa",
   publishOnboardingDocument: "Enviar documento para assinatura",
   linkOnboardingEmployee: "Associar ficha de colaborador",
+  linkSpontaneousApplication: "Associar candidatura espontânea a uma vaga",
+  archiveSpontaneousApplication: "Arquivar candidatura espontânea",
 };
 const nextApplicationStatuses: Record<string, string[]> = {
   Recebida: ["Triagem", "Rejeitada"],
@@ -636,6 +772,29 @@ function Fields({
             </option>
           ))}
         </select>
+      </label>
+    );
+  if (type === "linkSpontaneousApplication")
+    return (
+      <label>
+        Vaga aberta
+        <select name="requisitionId" required>
+          <option value="">Selecionar</option>
+          {data.requisitions
+            .filter((x) => x.status === "Aberta")
+            .map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.title} · {x.organization_name}
+              </option>
+            ))}
+        </select>
+      </label>
+    );
+  if (type === "archiveSpontaneousApplication")
+    return (
+      <label>
+        Nota (opcional)
+        <textarea name="note" />
       </label>
     );
   return (

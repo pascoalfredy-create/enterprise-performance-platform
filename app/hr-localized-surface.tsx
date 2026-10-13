@@ -778,6 +778,22 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Ainda sem ficha de colaborador associada","No employee record linked yet","Aún sin ficha de empleado asociada","Aucun dossier salarié associé pour l'instant","Пока нет связанной карточки сотрудника"],
 ["Associar colaborador","Link employee","Asociar empleado","Associer un salarié","Привязать сотрудника"],
 ["Sem transições disponíveis","No transitions available","Sin transiciones disponibles","Aucune transition disponible","Нет доступных переходов"],
+["Dados profissionais","Professional details","Datos profesionales","Informations professionnelles","Профессиональные данные"],
+["Dados académicos","Academic details","Datos académicos","Informations académiques","Образование"],
+["Ensino secundário","Secondary education","Educación secundaria","Enseignement secondaire","Среднее образование"],
+["Licenciatura","Bachelor's degree","Licenciatura","Licence","Бакалавриат"],
+["Pós-graduação","Postgraduate","Posgrado","Études supérieures","Последипломное образование"],
+["Mestrado","Master's degree","Máster","Master","Магистратура"],
+["Doutoramento","Doctorate","Doctorado","Doctorat","Докторантура"],
+["Apresentação","Presentation","Presentación","Présentation","Презентация"],
+["Fale-nos brevemente sobre si e a sua motivação","Tell us briefly about yourself and your motivation","Cuéntenos brevemente sobre usted y su motivación","Parlez-nous brièvement de vous et de votre motivation","Коротко расскажите о себе и своей мотивации"],
+["Candidaturas espontâneas","Spontaneous applications","Candidaturas espontáneas","Candidatures spontanées","Инициативные заявки"],
+["Por avaliar","Pending review","Por evaluar","À évaluer","На рассмотрении"],
+["TALENT POOL","TALENT POOL","BOLSA DE TALENTO","VIVIER DE TALENTS","КАДРОВЫЙ РЕЗЕРВ"],
+["Ainda não existem candidaturas espontâneas recebidas.","No spontaneous applications have been received yet.","Aún no se han recibido candidaturas espontáneas.","Aucune candidature spontanée n'a encore été reçue.","Инициативные заявки пока не поступали."],
+["Associar a vaga","Link to vacancy","Asociar a la vacante","Associer à un poste","Привязать к вакансии"],
+["Arquivar","Archive","Archivar","Archiver","Архивировать"],
+["Vaga aberta","Open vacancy","Vacante abierta","Poste ouvert","Открытая вакансия"],
 ];
 const idx:Record<PlatformLocale,number>={pt:0,en:1,es:2,fr:3,ru:4};
 const maps=Object.fromEntries((Object.keys(idx) as PlatformLocale[]).map(locale=>[locale,new Map(rows.map(r=>[r[0],r[idx[locale]]]))])) as Record<PlatformLocale,Map<string,string>>;

@@ -42,7 +42,7 @@ import { executiveCockpitApi, moduleHealthApi } from "./analytics-data";
 import { financialDiagnosticsApi } from "./financial-diagnostics";
 import { workforcePlansApi } from "./workforce-plans";
 import { recruitmentApi } from "./recruitment";
-import { careersApi } from "./careers";
+import { careersApi, careersDocumentApi } from "./careers";
 import { attendanceApi } from "./attendance";
 import { payrollLoansApi } from "./payroll-loans";
 import { payrollCountryPacksApi } from "./payroll-country-packs";
@@ -5926,9 +5926,14 @@ const worker = {
       );
     }
     if (apiPath.startsWith("/api/careers/")) {
-      const slug = apiPath.slice("/api/careers/".length);
-      if (!slug) return Response.json({ error: "Empresa não encontrada." }, { status: 404 });
-      return careersApi(request, env.DB, slug);
+      const rest = apiPath.slice("/api/careers/".length);
+      if (!rest) return Response.json({ error: "Empresa não encontrada." }, { status: 404 });
+      if (rest.endsWith("/documents")) {
+        const slug = rest.slice(0, -"/documents".length);
+        if (!slug) return Response.json({ error: "Empresa não encontrada." }, { status: 404 });
+        return careersDocumentApi(request, env.DB, env.BUCKET, slug);
+      }
+      return careersApi(request, env.DB, rest);
     }
     if (apiPath.startsWith("/api/")) {
       const authenticated = await authenticateApiRequest(request, env);
@@ -6209,7 +6214,7 @@ const worker = {
       if (apiPath === "/api/hr-talent")
         return hrTalentApi(request, env.DB, security);
       if (apiPath === "/api/recruitment")
-        return recruitmentApi(request, env.DB, security);
+        return recruitmentApi(request, env.DB, env.BUCKET, security);
       if (apiPath === "/api/attendance")
         return attendanceApi(request, env.DB, security);
       if (apiPath === "/api/employee-tasks")

@@ -94,7 +94,7 @@ export async function installEnterpriseDemo(db:D1Database,s:Security){
   q("UPDATE workforce_plans SET status='Submetido',submitted_by=?,submitted_at=? WHERE id=? AND status='Rascunho'",actor,now,wf),
   q("UPDATE workforce_plans SET status='Aprovado',approved_by=?,approved_at=?,approval_hash=? WHERE id=? AND status='Submetido'",manager,now,"wf-approved",wf),
   q("INSERT OR IGNORE INTO recruitment_requisitions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",req,t,org,"Analista de Dados","FIN",2,"2026-10-01","Tempo integral",45000000,"AOA","Aberta","Executar o plano de analytics",actor,now,manager,now),
-  q("INSERT OR IGNORE INTO recruitment_candidates VALUES (?,?,?,?,?,?,?,?,?)",candidate,t,"Sofia António","sofia.demo@example.com","+244 923 000 101","LinkedIn",now,actor,now),
+  q("INSERT OR IGNORE INTO recruitment_candidates (id,tenant_id,full_name,email,phone,source,consent_at,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?)",candidate,t,"Sofia António","sofia.demo@example.com","+244 923 000 101","LinkedIn",now,actor,now),
   q("INSERT OR IGNORE INTO recruitment_applications VALUES (?,?,?,?,?,?,?,?,?,?)",application,t,req,candidate,"Contratada",5,"Perfil técnico e cultural aprovado",actor,now,now),
   q("INSERT OR IGNORE INTO employee_onboarding_cases VALUES (?,?,?,?,?,?,?,?,?,?)",onboarding,t,application,e3,"Em curso","2026-09-15",manager,actor,now,null),
   q("INSERT OR IGNORE INTO employee_onboarding_tasks VALUES (?,?,?,?,?,?,?,?,?,?)",key(t,"onboarding-task"),t,onboarding,"Preparar equipamento e acessos",manager,"2026-09-14","Concluída","Checklist TI validada",now,now),

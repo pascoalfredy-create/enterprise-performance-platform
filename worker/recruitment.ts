@@ -19,12 +19,46 @@ const fail = (e: unknown) => {
 export async function recruitmentApi(
   request: Request,
   db: D1Database,
+  bucket: R2Bucket,
   s: Security,
 ) {
   try {
     const tenant = s.tenantId,
       scope = s.organizationId,
-      now = new Date().toISOString();
+      now = new Date().toISOString(),
+      url = new URL(request.url);
+    if (request.method === "GET") {
+      const download = url.searchParams.get("download");
+      if (download) {
+        const row = await db
+          .prepare(
+            "SELECT d.storage_key,d.file_name,d.mime_type FROM recruitment_candidate_documents d JOIN recruitment_candidates c ON c.id=d.candidate_id AND c.tenant_id=d.tenant_id WHERE d.id=? AND d.tenant_id=?",
+          )
+          .bind(download, tenant)
+          .first<{ storage_key: string; file_name: string; mime_type: string }>();
+        if (!row)
+          return Response.json(
+            { error: "Documento não encontrado no âmbito autorizado." },
+            { status: 404 },
+          );
+        const object = await bucket.get(row.storage_key);
+        if (!object)
+          return Response.json(
+            { error: "Conteúdo documental não encontrado." },
+            { status: 404 },
+          );
+        const safe = row.file_name.replace(/[\r\n"\\]/g, "_");
+        return new Response(object.body, {
+          headers: {
+            "content-type": row.mime_type,
+            "content-length": String(object.size),
+            "content-disposition": `attachment; filename="${safe}"`,
+            "cache-control": "private, no-store",
+            "x-content-type-options": "nosniff",
+          },
+        });
+      }
+    }
     const snapshot = async () => {
       const [
         requisitions,
@@ -37,6 +71,8 @@ export async function recruitmentApi(
         tenantRow,
         activeEmployees,
         onboardingDocuments,
+        spontaneousApplications,
+        candidateDocuments,
       ] = await Promise.all([
         db
           .prepare(
@@ -52,7 +88,7 @@ export async function recruitmentApi(
           .all(),
         db
           .prepare(
-            "SELECT id,full_name,email,phone,source,consent_at FROM recruitment_candidates WHERE tenant_id=? ORDER BY full_name",
+            "SELECT id,full_name,email,phone,source,consent_at,birth_date,national_id,address,linkedin_url,current_employer,current_role,years_experience,highest_education,field_of_study,institution,presentation FROM recruitment_candidates WHERE tenant_id=? ORDER BY full_name",
           )
           .bind(tenant)
           .all(),
@@ -96,6 +132,18 @@ export async function recruitmentApi(
           )
           .bind(tenant, scope, scope)
           .all(),
+        db
+          .prepare(
+            "SELECT s.*,c.full_name candidate_name,c.email candidate_email FROM recruitment_spontaneous_applications s JOIN recruitment_candidates c ON c.id=s.candidate_id AND c.tenant_id=s.tenant_id WHERE s.tenant_id=? ORDER BY s.created_at DESC",
+          )
+          .bind(tenant)
+          .all(),
+        db
+          .prepare(
+            "SELECT id,candidate_id,document_type,file_name,uploaded_at FROM recruitment_candidate_documents WHERE tenant_id=? ORDER BY uploaded_at DESC",
+          )
+          .bind(tenant)
+          .all(),
       ]);
       return {
         requisitions: requisitions.results,
@@ -108,6 +156,8 @@ export async function recruitmentApi(
         careersSlug: tenantRow?.slug || null,
         activeEmployees: activeEmployees.results,
         onboardingDocuments: onboardingDocuments.results,
+        spontaneousApplications: spontaneousApplications.results,
+        candidateDocuments: candidateDocuments.results,
       };
     };
     if (request.method === "GET") return Response.json(await snapshot());
@@ -214,7 +264,7 @@ export async function recruitmentApi(
       const candidateId = uid();
       await db
         .prepare(
-          "INSERT INTO recruitment_candidates VALUES (?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO recruitment_candidates (id,tenant_id,full_name,email,phone,source,consent_at,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           candidateId,
@@ -346,6 +396,67 @@ export async function recruitmentApi(
           {
             error:
               "Caso de onboarding não encontrado ou já tem um colaborador associado.",
+          },
+          { status: 409 },
+        );
+    } else if (b.type === "linkSpontaneousApplication") {
+      const spontaneous = await db
+        .prepare(
+          "SELECT candidate_id FROM recruitment_spontaneous_applications WHERE id=? AND tenant_id=? AND status='Em avaliação'",
+        )
+        .bind(b.spontaneousId, tenant)
+        .first<{ candidate_id: string }>();
+      const requisition = await db
+        .prepare(
+          "SELECT id FROM recruitment_requisitions WHERE id=? AND tenant_id=? AND status='Aberta' AND (? IS NULL OR organization_id=?)",
+        )
+        .bind(b.requisitionId, tenant, scope, scope)
+        .first();
+      if (!spontaneous || !requisition)
+        return Response.json(
+          {
+            error:
+              "Candidatura espontânea ou vaga aberta não encontrada no âmbito autorizado.",
+          },
+          { status: 404 },
+        );
+      const applicationId = uid();
+      entityId = b.spontaneousId;
+      try {
+        await db.batch([
+          db
+            .prepare(
+              "INSERT INTO recruitment_applications (id,tenant_id,requisition_id,candidate_id,status,rating,decision_note,created_by,created_at,updated_at) VALUES (?,?,?,?,'Recebida',NULL,NULL,?,?,?)",
+            )
+            .bind(applicationId, tenant, b.requisitionId, spontaneous.candidate_id, s.email, now, now),
+          db
+            .prepare(
+              "UPDATE recruitment_spontaneous_applications SET status='Associada',linked_application_id=?,decided_by=?,decided_at=? WHERE id=? AND tenant_id=? AND status='Em avaliação'",
+            )
+            .bind(applicationId, s.email, now, b.spontaneousId, tenant),
+        ]);
+      } catch (e) {
+        const classified = classifyDataError(e, "");
+        if (classified.code === "CONFLICT")
+          return Response.json(
+            { error: "Este candidato já tem uma candidatura para esta vaga." },
+            { status: 409 },
+          );
+        throw e;
+      }
+    } else if (b.type === "archiveSpontaneousApplication") {
+      entityId = b.spontaneousId;
+      const result = await db
+        .prepare(
+          "UPDATE recruitment_spontaneous_applications SET status='Arquivada',note=?,decided_by=?,decided_at=? WHERE id=? AND tenant_id=? AND status='Em avaliação'",
+        )
+        .bind(b.note?.trim() || null, s.email, now, b.spontaneousId, tenant)
+        .run();
+      if (!Number(result.meta.changes || 0))
+        return Response.json(
+          {
+            error:
+              "Candidatura espontânea não encontrada ou já decidida.",
           },
           { status: 409 },
         );

@@ -358,10 +358,28 @@ test("the public careers endpoint bypasses the Supabase auth gate but is still s
  assert.ok(careersRouteIndex>0 && authGateIndex>careersRouteIndex,"careers route must be handled before the blanket /api/ auth gate");
  const careersApi=fs.readFileSync(new URL("../worker/careers.ts",import.meta.url),"utf8");
  assert.match(careersApi,/WHERE slug=\? AND status='Ativo'/);
- assert.match(careersApi,/WHERE r\.tenant_id=\? AND r\.status='Aberta'/);
+ assert.match(careersApi,/r\.status IN \('Aberta','Fechada','Cancelada'\)/);
+ assert.doesNotMatch(careersApi,/Rascunho/);
  assert.match(careersApi,/DAILY_APPLICATION_CAP/);
  assert.match(careersApi,/body\.consent !== "on"/);
+ assert.match(careersApi,/profile\.presentation\.length < 20/);
  assert.match(careersApi,/Já tem uma candidatura registada para esta vaga/);
+});
+test("public careers document uploads are scoped to the resolved tenant and candidate, type- and size-checked, and wired ahead of the base careers route",()=>{
+ assert.match(compact,/rest\.endsWith\("\/documents"\)/);
+ const careersApi=fs.readFileSync(new URL("../worker/careers.ts",import.meta.url),"utf8");
+ assert.match(careersApi,/export async function careersDocumentApi/);
+ assert.match(careersApi,/ALLOWED_MIME/);
+ assert.match(careersApi,/MAX_DOCUMENT_BYTES/);
+ assert.match(careersApi,/WHERE id=\? AND tenant_id=\?/);
+ assert.match(careersApi,/Candidato fora do âmbito autorizado/);
+});
+test("spontaneous applications can only be linked to an open requisition in scope or archived, both require an independent HR decision and are audited",()=>{
+ const recruitment=fs.readFileSync(new URL("../worker/recruitment.ts",import.meta.url),"utf8");
+ assert.match(recruitment,/b\.type === "linkSpontaneousApplication"/);
+ assert.match(recruitment,/status='Aberta' AND \(\? IS NULL OR organization_id=\?\)/);
+ assert.match(recruitment,/b\.type === "archiveSpontaneousApplication"/);
+ assert.match(recruitment,/status='Em avaliação'/);
 });
 test("only payroll:write (PAYROLL module) can start or activate a country pack, and activation requires a different administrator than the one who started it (maker-checker)",()=>{
  const packs=fs.readFileSync(new URL("../worker/payroll-country-packs.ts",import.meta.url),"utf8");

@@ -13,22 +13,50 @@ type Requisition = {
   positions: number;
   employmentType: string;
   targetStartDate: string;
+  status: string;
   organizationName: string;
 };
 type Data = { companyName: string; requisitions: Requisition[] };
+type Target = Requisition | "spontaneous";
+type Step = "form" | "documents" | "done";
+
+const DOCUMENT_FIELDS: Array<{ type: string; label: string; required: boolean }> = [
+  { type: "CV", label: "Currículo (CV)", required: true },
+  { type: "Carta de Apresentação", label: "Carta de apresentação (opcional)", required: false },
+  { type: "Certificado Académico", label: "Certificado académico (opcional)", required: false },
+  { type: "Outro", label: "Outro documento (opcional)", required: false },
+];
+const STATUS_CLASS: Record<string, string> = {
+  Aberta: "careers-status-open",
+  Fechada: "careers-status-closed",
+  Cancelada: "careers-status-cancelled",
+};
 
 export default function Carreiras() {
   const [slug, setSlug] = useState<string | null>(null),
     [data, setData] = useState<Data | null>(null),
     [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(true),
-    [applyingTo, setApplyingTo] = useState<Requisition | null>(null),
+    [target, setTarget] = useState<Target | null>(null),
+    [step, setStep] = useState<Step>("form"),
+    [candidateId, setCandidateId] = useState(""),
     [formBusy, setFormBusy] = useState(false),
     [formMessage, setFormMessage] = useState(""),
-    [applied, setApplied] = useState(false);
+    [uploadedTypes, setUploadedTypes] = useState<Set<string>>(new Set()),
+    [copiedId, setCopiedId] = useState("");
+
+  function openFor(t: Target) {
+    setTarget(t);
+    setStep("form");
+    setFormMessage("");
+    setCandidateId("");
+    setUploadedTypes(new Set());
+  }
 
   useEffect(() => {
-    const empresa = new URLSearchParams(window.location.search).get("empresa");
+    const params = new URLSearchParams(window.location.search);
+    const empresa = params.get("empresa");
     if (!empresa) {
       setError("Ligação de candidaturas inválida ou incompleta.");
       setBusy(false);
@@ -44,41 +72,114 @@ export default function Carreiras() {
           return;
         }
         setData(body);
+        const vaga = params.get("vaga");
+        if (vaga) {
+          const found = body.requisitions.find((r) => r.id === vaga);
+          if (found && found.status === "Aberta") openFor(found);
+          else if (found)
+            setNotice(`A vaga "${found.title}" já não está disponível para candidatura.`);
+          else setNotice("A vaga ligada a esta ligação não foi encontrada.");
+        }
       })
       .catch(() => setError("Não foi possível carregar as vagas."))
       .finally(() => setBusy(false));
   }, []);
 
-  async function submit(e: FormEvent<HTMLFormElement>) {
+  function shareLink(id: string) {
+    return `${window.location.origin}${window.location.pathname}?empresa=${slug}&vaga=${id}`;
+  }
+  async function copyLink(id: string) {
+    try {
+      await navigator.clipboard.writeText(shareLink(id));
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(""), 2000);
+    } catch {
+      setCopiedId("");
+    }
+  }
+
+  async function submitApplication(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!slug || !applyingTo) return;
+    if (!slug || !target) return;
     setFormBusy(true);
     setFormMessage("");
     const f = new FormData(e.currentTarget),
-      r = await apiFetch(`/api/careers/${encodeURIComponent(slug)}`, {
+      payload: Record<string, string> = {
+        type: target === "spontaneous" ? "spontaneous" : "apply",
+        fullName: String(f.get("fullName") || ""),
+        email: String(f.get("email") || ""),
+        phone: String(f.get("phone") || ""),
+        consent: String(f.get("consent") || ""),
+        birthDate: String(f.get("birthDate") || ""),
+        nationalId: String(f.get("nationalId") || ""),
+        address: String(f.get("address") || ""),
+        linkedinUrl: String(f.get("linkedinUrl") || ""),
+        currentEmployer: String(f.get("currentEmployer") || ""),
+        currentRole: String(f.get("currentRole") || ""),
+        yearsExperience: String(f.get("yearsExperience") || ""),
+        highestEducation: String(f.get("highestEducation") || ""),
+        fieldOfStudy: String(f.get("fieldOfStudy") || ""),
+        institution: String(f.get("institution") || ""),
+        presentation: String(f.get("presentation") || ""),
+      };
+    if (target !== "spontaneous") payload.requisitionId = target.id;
+    const r = await apiFetch(`/api/careers/${encodeURIComponent(slug)}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          requisitionId: applyingTo.id,
-          fullName: f.get("fullName"),
-          email: f.get("email"),
-          phone: f.get("phone"),
-          consent: f.get("consent"),
-        }),
+        body: JSON.stringify(payload),
       }),
-      body = (await r.json()) as { error?: string };
+      body = (await r.json()) as { error?: string; candidateId?: string };
     setFormBusy(false);
     if (!r.ok) {
       setFormMessage(body.error || "Não foi possível submeter a candidatura.");
       return;
     }
-    setApplied(true);
+    setCandidateId(body.candidateId || "");
+    setStep("documents");
+  }
+
+  async function submitDocuments(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!slug || !candidateId) return;
+    setFormBusy(true);
+    setFormMessage("");
+    const el = e.currentTarget;
+    for (const field of DOCUMENT_FIELDS) {
+      if (uploadedTypes.has(field.type)) continue;
+      const input = el.elements.namedItem(field.type) as HTMLInputElement | null,
+        file = input?.files?.[0];
+      if (!file) {
+        if (field.required) {
+          setFormBusy(false);
+          setFormMessage("O currículo (CV) é obrigatório.");
+          return;
+        }
+        continue;
+      }
+      const form = new FormData();
+      form.set("candidateId", candidateId);
+      form.set("documentType", field.type);
+      form.set("file", file);
+      const r = await apiFetch(`/api/careers/${encodeURIComponent(slug)}/documents`, {
+          method: "POST",
+          body: form,
+        }),
+        body = (await r.json()) as { error?: string };
+      if (!r.ok) {
+        setFormBusy(false);
+        setFormMessage(`${field.label}: ${body.error || "falha ao carregar."}`);
+        return;
+      }
+      setUploadedTypes((prev) => new Set(prev).add(field.type));
+    }
+    setFormBusy(false);
+    setStep("done");
   }
 
   return (
     <PlatformLocalizedSurface>
-      <main className="payment-page careers-page">
-        <header className="payment-top">
+      <main className="careers-page">
+        <header className="careers-top">
           <Link href="/" className="auth-brand">
             <b>EP</b>
             <span>Enterprise Performance</span>
@@ -87,9 +188,9 @@ export default function Carreiras() {
         </header>
         <section className="careers-shell">
           {busy ? (
-            <div className="payment-loading">A carregar vagas…</div>
+            <div className="careers-loading">A carregar vagas…</div>
           ) : error && !data ? (
-            <div className="payment-error">
+            <div className="careers-error">
               <b>Não foi possível continuar</b>
               <p>{error}</p>
             </div>
@@ -100,73 +201,200 @@ export default function Carreiras() {
                   <small>OPORTUNIDADES</small>
                   <h1>Trabalhar na {data.companyName}</h1>
                   <p>
-                    {data.requisitions.length
+                    {data.requisitions.some((r) => r.status === "Aberta")
                       ? "Vagas abertas no momento. Candidate-se diretamente abaixo."
                       : "Não há vagas abertas no momento. Volte a verificar brevemente."}
                   </p>
+                  <button
+                    type="button"
+                    className="careers-spontaneous"
+                    onClick={() => openFor("spontaneous")}
+                  >
+                    Candidatura espontânea
+                  </button>
                 </div>
-                <ul className="careers-list">
-                  {data.requisitions.map((r) => (
-                    <li key={r.id} className="careers-card">
-                      <div>
-                        <b>{r.title}</b>
-                        <small>
-                          {r.organizationName}
-                          {r.departmentCode ? ` · ${r.departmentCode}` : ""} ·{" "}
-                          {r.employmentType}
-                        </small>
-                        <small>
-                          {r.positions} posição(ões) · início previsto em{" "}
-                          {r.targetStartDate}
-                        </small>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setApplyingTo(r);
-                          setApplied(false);
-                          setFormMessage("");
-                        }}
-                      >
-                        Candidatar-me
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                {notice && <p className="careers-notice">{notice}</p>}
+                {data.requisitions.length > 0 && (
+                  <ul className="careers-list">
+                    {data.requisitions.map((r) => (
+                      <li key={r.id} className="careers-card">
+                        <div>
+                          <div className="careers-card-title">
+                            <b>{r.title}</b>
+                            <em className={STATUS_CLASS[r.status]}>{r.status}</em>
+                          </div>
+                          <small>
+                            {r.organizationName}
+                            {r.departmentCode ? ` · ${r.departmentCode}` : ""} ·{" "}
+                            {r.employmentType}
+                          </small>
+                          <small>
+                            {r.positions} posição(ões) · início previsto em{" "}
+                            {r.targetStartDate}
+                          </small>
+                        </div>
+                        <nav>
+                          {r.status === "Aberta" && (
+                            <button onClick={() => openFor(r)}>Candidatar-me</button>
+                          )}
+                          <button
+                            type="button"
+                            className="careers-copy"
+                            onClick={() => copyLink(r.id)}
+                          >
+                            {copiedId === r.id ? "Copiado ✓" : "Copiar ligação"}
+                          </button>
+                        </nav>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </>
             )
           )}
         </section>
-        {applyingTo && (
-          <div className="modal-inline">
-            <form onSubmit={submit}>
+        {target && (
+          <div className="modal-inline careers-modal">
+            <form
+              onSubmit={
+                step === "form"
+                  ? submitApplication
+                  : step === "documents"
+                    ? submitDocuments
+                    : (e) => e.preventDefault()
+              }
+            >
               <header>
                 <div>
                   <small>CANDIDATURA</small>
-                  <h2>{applyingTo.title}</h2>
+                  <h2>{target === "spontaneous" ? "Candidatura espontânea" : target.title}</h2>
                 </div>
-                <button type="button" onClick={() => setApplyingTo(null)}>
+                <button type="button" onClick={() => setTarget(null)}>
                   ×
                 </button>
               </header>
-              {applied ? (
-                <p className="auth-feedback">
+              {step === "done" ? (
+                <p className="auth-feedback ok">
                   Candidatura recebida com sucesso. A equipa de recrutamento
                   irá contactá-lo caso o perfil avance no processo.
                 </p>
+              ) : step === "documents" ? (
+                <>
+                  <p className="careers-step-hint">
+                    Envie os seus documentos (o currículo é obrigatório).
+                  </p>
+                  {DOCUMENT_FIELDS.map((f) => (
+                    <label key={f.type}>
+                      {f.label}
+                      {uploadedTypes.has(f.type) ? " ✓" : ""}
+                      <input
+                        type="file"
+                        name={f.type}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        required={f.required && !uploadedTypes.has(f.type)}
+                        disabled={uploadedTypes.has(f.type)}
+                      />
+                    </label>
+                  ))}
+                  {formMessage && <p className="erro-form">{formMessage}</p>}
+                  <footer>
+                    <button
+                      type="button"
+                      className="secundario"
+                      onClick={() => setTarget(null)}
+                    >
+                      Cancelar
+                    </button>
+                    <button className="primario" disabled={formBusy}>
+                      {formBusy ? "A enviar…" : "Enviar documentos e concluir"}
+                    </button>
+                  </footer>
+                </>
               ) : (
                 <>
-                  <label>
-                    Nome completo
-                    <input name="fullName" required minLength={2} />
-                  </label>
-                  <label>
-                    E-mail
-                    <input name="email" type="email" required />
-                  </label>
-                  <label>
-                    Telefone (opcional)
-                    <input name="phone" type="tel" />
-                  </label>
+                  <fieldset>
+                    <legend>Dados pessoais</legend>
+                    <label>
+                      Nome completo
+                      <input name="fullName" required minLength={2} />
+                    </label>
+                    <div className="careers-grid-2">
+                      <label>
+                        E-mail
+                        <input name="email" type="email" required />
+                      </label>
+                      <label>
+                        Telefone (opcional)
+                        <input name="phone" type="tel" />
+                      </label>
+                    </div>
+                    <div className="careers-grid-2">
+                      <label>
+                        Data de nascimento (opcional)
+                        <input name="birthDate" type="date" />
+                      </label>
+                      <label>
+                        Nº de identificação (opcional)
+                        <input name="nationalId" />
+                      </label>
+                    </div>
+                    <label>
+                      Morada (opcional)
+                      <input name="address" />
+                    </label>
+                    <label>
+                      Perfil profissional online (opcional)
+                      <input name="linkedinUrl" type="url" placeholder="https://" />
+                    </label>
+                  </fieldset>
+                  <fieldset>
+                    <legend>Dados profissionais</legend>
+                    <label>
+                      Empregador atual (opcional)
+                      <input name="currentEmployer" />
+                    </label>
+                    <div className="careers-grid-2">
+                      <label>
+                        Função atual (opcional)
+                        <input name="currentRole" />
+                      </label>
+                      <label>
+                        Anos de experiência (opcional)
+                        <input name="yearsExperience" type="number" min="0" />
+                      </label>
+                    </div>
+                  </fieldset>
+                  <fieldset>
+                    <legend>Dados académicos</legend>
+                    <div className="careers-grid-2">
+                      <label>
+                        Nível de formação (opcional)
+                        <select name="highestEducation" defaultValue="">
+                          <option value="">Selecionar</option>
+                          <option>Ensino secundário</option>
+                          <option>Licenciatura</option>
+                          <option>Pós-graduação</option>
+                          <option>Mestrado</option>
+                          <option>Doutoramento</option>
+                        </select>
+                      </label>
+                      <label>
+                        Área de formação (opcional)
+                        <input name="fieldOfStudy" />
+                      </label>
+                    </div>
+                    <label>
+                      Instituição (opcional)
+                      <input name="institution" />
+                    </label>
+                  </fieldset>
+                  <fieldset>
+                    <legend>Apresentação</legend>
+                    <label>
+                      Fale-nos brevemente sobre si e a sua motivação
+                      <textarea name="presentation" minLength={20} required />
+                    </label>
+                  </fieldset>
                   <label className="auth-check">
                     <input type="checkbox" name="consent" required />
                     <span>
@@ -179,7 +407,7 @@ export default function Carreiras() {
                     <button
                       type="button"
                       className="secundario"
-                      onClick={() => setApplyingTo(null)}
+                      onClick={() => setTarget(null)}
                     >
                       Cancelar
                     </button>
