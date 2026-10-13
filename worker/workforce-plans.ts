@@ -59,7 +59,7 @@ export async function workforcePlansApi(
           .all(),
         db
           .prepare(
-            "SELECT COUNT(*) actual_headcount,COALESCE(SUM(COALESCE(s.base_salary_minor,0)),0) actual_monthly_base_minor FROM employees e LEFT JOIN salary_profiles s ON s.employee_id=e.id AND s.tenant_id=e.tenant_id AND s.status='Ativo' WHERE e.tenant_id=? AND e.status='Ativo' AND (? IS NULL OR e.organization_id=?)",
+            "SELECT COUNT(*) actual_headcount,COALESCE(SUM(COALESCE(s.base_minor,0)),0) actual_monthly_base_minor FROM employees e LEFT JOIN salary_profiles s ON s.employee_id=e.id AND s.tenant_id=e.tenant_id AND s.status='Ativo' WHERE e.tenant_id=? AND e.status='Ativo' AND (? IS NULL OR e.organization_id=?)",
           )
           .bind(tenant, scope, scope)
           .first(),

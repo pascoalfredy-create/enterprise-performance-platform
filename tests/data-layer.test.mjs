@@ -467,3 +467,16 @@ test("payroll country packs require a different administrator to activate than t
  assert.equal(row.status,'Ativo');assert.equal(row.activated_by,'hr2@test');
  db.close();
 });
+
+test("workforce plan snapshot's actual-headcount query runs against the real schema (regression: it referenced salary_profiles.base_salary_minor, a column that has never existed — the real column is base_minor — so the Headcount Planning page 500'd on every load, for every tenant, since the feature shipped)",()=>{
+ const db=migratedDatabase();
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Ativo'); INSERT INTO salary_profiles VALUES ('sp1','t1','now','e1','AOA','Mensal',500000,'2026-01-01',NULL,NULL,'Ativo')");
+ const source=readFileSync(new URL("../worker/workforce-plans.ts",import.meta.url),"utf8");
+ const match=source.match(/"SELECT COUNT\(\*\) actual_headcount[^"]*"/);
+ assert.ok(match,"expected to find the actual-headcount query in worker/workforce-plans.ts");
+ const sql=match[0].slice(1,-1);
+ const row=db.prepare(sql).get('t1',null,null);
+ assert.equal(row.actual_headcount,1);
+ assert.equal(row.actual_monthly_base_minor,500000);
+ db.close();
+});
