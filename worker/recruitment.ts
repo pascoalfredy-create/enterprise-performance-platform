@@ -32,9 +32,9 @@ export async function recruitmentApi(
       if (download) {
         const row = await db
           .prepare(
-            "SELECT d.storage_key,d.file_name,d.mime_type FROM recruitment_candidate_documents d JOIN recruitment_candidates c ON c.id=d.candidate_id AND c.tenant_id=d.tenant_id WHERE d.id=? AND d.tenant_id=?",
+            "SELECT d.storage_key,d.file_name,d.mime_type FROM recruitment_candidate_documents d JOIN recruitment_candidates c ON c.id=d.candidate_id AND c.tenant_id=d.tenant_id WHERE d.id=? AND d.tenant_id=? AND (? IS NULL OR EXISTS(SELECT 1 FROM recruitment_applications a JOIN recruitment_requisitions r ON r.id=a.requisition_id AND r.tenant_id=a.tenant_id WHERE a.candidate_id=d.candidate_id AND a.tenant_id=d.tenant_id AND r.organization_id=?) OR EXISTS(SELECT 1 FROM recruitment_spontaneous_applications s WHERE s.candidate_id=d.candidate_id AND s.tenant_id=d.tenant_id AND s.status='Em avaliação'))",
           )
-          .bind(download, tenant)
+          .bind(download, tenant, scope, scope)
           .first<{ storage_key: string; file_name: string; mime_type: string }>();
         if (!row)
           return Response.json(
@@ -88,9 +88,9 @@ export async function recruitmentApi(
           .all(),
         db
           .prepare(
-            "SELECT id,full_name,email,phone,source,consent_at,birth_date,national_id,address,linkedin_url,current_employer,current_role,years_experience,highest_education,field_of_study,institution,presentation FROM recruitment_candidates WHERE tenant_id=? ORDER BY full_name",
+            "SELECT id,full_name,email,phone,source,consent_at,birth_date,national_id,address,linkedin_url,current_employer,current_role,years_experience,highest_education,field_of_study,institution,presentation FROM recruitment_candidates c WHERE c.tenant_id=? AND (? IS NULL OR EXISTS(SELECT 1 FROM recruitment_applications a JOIN recruitment_requisitions r ON r.id=a.requisition_id AND r.tenant_id=a.tenant_id WHERE a.candidate_id=c.id AND a.tenant_id=c.tenant_id AND r.organization_id=?) OR EXISTS(SELECT 1 FROM recruitment_spontaneous_applications s WHERE s.candidate_id=c.id AND s.tenant_id=c.tenant_id AND s.status='Em avaliação')) ORDER BY full_name",
           )
-          .bind(tenant)
+          .bind(tenant, scope, scope)
           .all(),
         db
           .prepare(
@@ -134,15 +134,15 @@ export async function recruitmentApi(
           .all(),
         db
           .prepare(
-            "SELECT s.*,c.full_name candidate_name,c.email candidate_email FROM recruitment_spontaneous_applications s JOIN recruitment_candidates c ON c.id=s.candidate_id AND c.tenant_id=s.tenant_id WHERE s.tenant_id=? ORDER BY s.created_at DESC",
+            "SELECT s.*,c.full_name candidate_name,c.email candidate_email FROM recruitment_spontaneous_applications s JOIN recruitment_candidates c ON c.id=s.candidate_id AND c.tenant_id=s.tenant_id LEFT JOIN recruitment_applications a ON a.id=s.linked_application_id AND a.tenant_id=s.tenant_id LEFT JOIN recruitment_requisitions r ON r.id=a.requisition_id AND r.tenant_id=a.tenant_id WHERE s.tenant_id=? AND (? IS NULL OR s.status='Em avaliação' OR r.organization_id=?) ORDER BY s.created_at DESC",
           )
-          .bind(tenant)
+          .bind(tenant, scope, scope)
           .all(),
         db
           .prepare(
-            "SELECT id,candidate_id,document_type,file_name,uploaded_at FROM recruitment_candidate_documents WHERE tenant_id=? ORDER BY uploaded_at DESC",
+            "SELECT d.id,d.candidate_id,d.document_type,d.file_name,d.uploaded_at FROM recruitment_candidate_documents d WHERE d.tenant_id=? AND (? IS NULL OR EXISTS(SELECT 1 FROM recruitment_applications a JOIN recruitment_requisitions r ON r.id=a.requisition_id AND r.tenant_id=a.tenant_id WHERE a.candidate_id=d.candidate_id AND a.tenant_id=d.tenant_id AND r.organization_id=?) OR EXISTS(SELECT 1 FROM recruitment_spontaneous_applications s WHERE s.candidate_id=d.candidate_id AND s.tenant_id=d.tenant_id AND s.status='Em avaliação')) ORDER BY d.uploaded_at DESC",
           )
-          .bind(tenant)
+          .bind(tenant, scope, scope)
           .all(),
       ]);
       return {

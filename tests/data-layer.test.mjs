@@ -62,7 +62,7 @@ test("database rejects cross-tenant references",()=>{
 test("closed payroll and issued management reports are immutable",()=>{
  const db=migratedDatabase();
  db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo')");
- db.exec("INSERT INTO payroll_runs VALUES ('r1','t1','now','2026-08','AOA','Fechado',0,0,0,0,0,'now')");
+ db.exec("INSERT INTO payroll_runs VALUES ('r1','t1','now','2026-08','AOA','Fechado',0,0,0,0,0,'now',NULL)");
  db.exec("INSERT INTO management_reports VALUES ('m1','t1','now',1,'Gestão','Executivo','2026-08','AOA',NULL,'Emitido','{}','hash','cfo@test.local')");
  assert.throws(()=>db.exec("UPDATE payroll_runs SET net_minor=1 WHERE id='r1'"),/closed payroll is immutable/);
  assert.throws(()=>db.exec("UPDATE management_reports SET payload_json='{\"changed\":true}' WHERE id='m1'"),/issued report is immutable/);
@@ -71,7 +71,7 @@ test("closed payroll and issued management reports are immutable",()=>{
 
 test("payslips require closed payroll and remain immutable",()=>{
  const db=migratedDatabase();
- db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Ativo'); INSERT INTO payroll_runs VALUES ('r1','t1','now','2026-08','AOA','Rascunho',1,100,10,5,90,NULL); INSERT INTO payroll_run_lines VALUES ('l1','t1','now','r1','e1',80,100,10,5,90,'calc','{}')");
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Ativo'); INSERT INTO payroll_runs VALUES ('r1','t1','now','2026-08','AOA','Rascunho',1,100,10,5,90,NULL,NULL); INSERT INTO payroll_run_lines VALUES ('l1','t1','now','r1','e1',80,100,10,5,90,'calc','{}')");
  assert.throws(()=>db.exec("INSERT INTO payroll_payslips VALUES ('p1','t1','r1','l1','e1','PS-1','2026-08','AOA',100,10,5,90,'{}','hash','Emitido','now')"),/payslip requires closed payroll/);
  db.exec("UPDATE payroll_runs SET status='Validado' WHERE id='r1'; UPDATE payroll_runs SET status='Aprovado' WHERE id='r1'; UPDATE payroll_runs SET status='Fechado',closed_at='now' WHERE id='r1'; INSERT INTO payroll_payslips VALUES ('p1','t1','r1','l1','e1','PS-1','2026-08','AOA',100,10,5,90,'{}','hash','Emitido','now')");
  assert.throws(()=>db.exec("UPDATE payroll_payslips SET net_minor=91 WHERE id='p1'"),/issued payslip is immutable/);
@@ -81,7 +81,7 @@ test("payslips require closed payroll and remain immutable",()=>{
 
 test("payment batches reconcile payslips and enforce immutable sequential workflow",()=>{
  const db=migratedDatabase();
- db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Ativo'); INSERT INTO payroll_runs VALUES ('r1','t1','now','2026-08','AOA','Rascunho',1,100,10,5,90,NULL); INSERT INTO payroll_run_lines VALUES ('l1','t1','now','r1','e1',80,100,10,5,90,'calc','{}'); UPDATE payroll_runs SET status='Validado' WHERE id='r1'; UPDATE payroll_runs SET status='Aprovado' WHERE id='r1'; UPDATE payroll_runs SET status='Fechado',closed_at='now' WHERE id='r1'; INSERT INTO payroll_payslips VALUES ('p1','t1','r1','l1','e1','PS-1','2026-08','AOA',100,10,5,90,'{}','hash','Emitido','now')");
+ db.exec("INSERT INTO tenants VALUES ('t1','now','Tenant 1','tenant-1','Ativo'); INSERT INTO organizations VALUES ('o1','t1','now','ROOT','Org 1','Empresa','AOA','Ativa'); INSERT INTO employees VALUES ('e1','t1','now','001','Ana','Silva','o1','Analista','2026-01-01','Ativo'); INSERT INTO payroll_runs VALUES ('r1','t1','now','2026-08','AOA','Rascunho',1,100,10,5,90,NULL,NULL); INSERT INTO payroll_run_lines VALUES ('l1','t1','now','r1','e1',80,100,10,5,90,'calc','{}'); UPDATE payroll_runs SET status='Validado' WHERE id='r1'; UPDATE payroll_runs SET status='Aprovado' WHERE id='r1'; UPDATE payroll_runs SET status='Fechado',closed_at='now' WHERE id='r1'; INSERT INTO payroll_payslips VALUES ('p1','t1','r1','l1','e1','PS-1','2026-08','AOA',100,10,5,90,'{}','hash','Emitido','now')");
  assert.throws(()=>db.exec("INSERT INTO payroll_payment_batches (id,tenant_id,run_id,batch_number,period,currency,employee_count,total_minor,status,evidence_hash,prepared_by,prepared_at) VALUES ('b0','t1','r1','PB-0','2026-08','AOA',1,89,'Preparado','hash','rh@test','now')"),/payment batch requires reconciled closed payroll/);
  db.exec("INSERT INTO payroll_payment_batches (id,tenant_id,run_id,batch_number,period,currency,employee_count,total_minor,status,evidence_hash,prepared_by,prepared_at) VALUES ('b1','t1','r1','PB-1','2026-08','AOA',1,90,'Preparado','hash','rh@test','now'); INSERT INTO payroll_payment_batch_lines VALUES ('bl1','t1','b1','p1','e1',90)");
  assert.throws(()=>db.exec("UPDATE payroll_payment_batches SET status='Exportado',exported_by='admin',exported_at='now' WHERE id='b1'"),/invalid payment batch transition/);
@@ -244,7 +244,7 @@ test("workflow transitions are sequential and protected by database state",()=>{
  assert.throws(()=>db.exec("UPDATE budget_versions SET status='Fechado' WHERE id='b1'"),/invalid budget transition/);
  db.exec("UPDATE budget_versions SET status='Aprovado',approved_at='now' WHERE id='b1'");
  assert.throws(()=>db.exec("INSERT INTO performance_entries (id,tenant_id,created_at,organization_id,period,scenario,version_id,currency,line_code,line_name,amount_minor,source) VALUES ('p1','t1','now','o1','2027-01','Budget','b1','AOA','REV','Receita',100,'Manual')"),/budget version is not open/);
- db.exec("INSERT INTO payroll_runs VALUES ('r1','t1','now','2026-08','AOA','Rascunho',0,0,0,0,0,NULL)");
+ db.exec("INSERT INTO payroll_runs VALUES ('r1','t1','now','2026-08','AOA','Rascunho',0,0,0,0,0,NULL,NULL)");
  assert.throws(()=>db.exec("UPDATE payroll_runs SET status='Aprovado' WHERE id='r1'"),/invalid payroll transition/);
  db.exec("UPDATE payroll_runs SET status='Validado' WHERE id='r1'; UPDATE payroll_runs SET status='Aprovado' WHERE id='r1'; UPDATE payroll_runs SET status='Fechado',closed_at='now' WHERE id='r1'");
  assert.equal(db.prepare("SELECT status FROM payroll_runs WHERE id='r1'").get().status,"Fechado");

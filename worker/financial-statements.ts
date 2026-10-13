@@ -376,7 +376,15 @@ export async function financialVarianceApi(
         classification: line.classification,
         contribution: contribution(line),
       }))
-      .filter((d) => d.contribution !== 0)
+      // actualNet/budgetNet (and therefore the variance being explained) only
+      // ever sum Receita/Custo lines, so a balance-sheet line (Ativo, Passivo,
+      // Capital, Caixa...) must never be offered as a "driver" of that
+      // variance even if its own actual-vs-budget delta happens to be large.
+      .filter(
+        (d) =>
+          (d.classification === "Receita" || d.classification === "Custo") &&
+          d.contribution !== 0,
+      )
       .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
     const topDrivers = drivers.slice(0, 6);
     const topContribution = topDrivers.reduce((a, d) => a + d.contribution, 0);

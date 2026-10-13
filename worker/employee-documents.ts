@@ -242,7 +242,7 @@ export async function employeeDocumentsApi(
         );
       const changed = await db
         .prepare(
-          "UPDATE employee_documents SET status=?,decided_by=?,decided_at=?,decision_note=? WHERE id=? AND tenant_id=? AND status='Pendente' AND submitted_by<>?",
+          "UPDATE employee_documents SET status=?,decided_by=?,decided_at=?,decision_note=? WHERE id=? AND tenant_id=? AND status='Pendente' AND submitted_by<>? AND (? IS NULL OR EXISTS(SELECT 1 FROM employees e WHERE e.id=employee_documents.employee_id AND e.tenant_id=employee_documents.tenant_id AND e.organization_id=?))",
         )
         .bind(
           body.decision,
@@ -252,6 +252,8 @@ export async function employeeDocumentsApi(
           body.documentId,
           tenant,
           security.email,
+          scope,
+          scope,
         )
         .run();
       if (!Number(changed.meta.changes || 0))

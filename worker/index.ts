@@ -125,7 +125,10 @@ type Permission =
   | "document:read"
   | "document:write"
   | "selfservice:read"
-  | "selfservice:write";
+  | "selfservice:write"
+  | "performance:read"
+  | "reports:read"
+  | "executive:read";
 type TenantOption = { id: string; name: string; role: string };
 type SecurityContext = {
   email: string;
@@ -280,6 +283,17 @@ for (const role of [
   "Gestor",
 ])
   rolePermissions[role].push("document:write");
+// Read access to performance/reports overviews and the executive/commercial
+// dashboards: every staff role may view them (nothing here was previously
+// gated at all), but the self-service-only "Colaborador" role must not.
+for (const role of [
+  "Administrador",
+  "Financeiro",
+  "Recursos Humanos",
+  "Gestor",
+  "Leitura",
+])
+  rolePermissions[role].push("performance:read", "reports:read", "executive:read");
 // Identity comes exclusively from a server-verified Supabase bearer session
 // (see authenticateApiRequest below), which stamps x-ep-verified-user-email
 // after checking the token. This platform is deployed as a direct SaaS on
@@ -426,8 +440,10 @@ async function commerceCheckoutApi(request: Request, db: D1Database) {
     if (
       !bundle ||
       !(["monthly", "annual"] as string[]).includes(interval || "") ||
+      !Number.isInteger(users) ||
       users < 1 ||
       users > 500 ||
+      !Number.isInteger(employees) ||
       employees < 0 ||
       employees > 10000
     )
@@ -3818,6 +3834,11 @@ async function payrollApi(
           { status: 409 },
         );
       const base = parseMinor(body.baseAmount);
+      if (!Number.isSafeInteger(base) || base <= 0)
+        return Response.json(
+          { error: "O salário base tem de ser um montante positivo." },
+          { status: 400 },
+        );
       summary = "Perfil salarial criado";
       await db
         .prepare(
@@ -3884,6 +3905,11 @@ async function payrollApi(
       )
         return Response.json(
           { error: "Percentagem inválida." },
+          { status: 400 },
+        );
+      if (value !== null && (!Number.isSafeInteger(value) || value < 0))
+        return Response.json(
+          { error: "Montante fixo inválido." },
           { status: 400 },
         );
       summary = `Componente ${body.name.trim()} criado`;
@@ -4128,7 +4154,7 @@ async function payrollApi(
       statements.unshift(
         db
           .prepare(
-            "INSERT INTO payroll_runs (id,tenant_id,period,currency,status,employee_count,gross_minor,deduction_minor,employer_minor,net_minor,closed_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO payroll_runs (id,tenant_id,period,currency,status,employee_count,gross_minor,deduction_minor,employer_minor,net_minor,closed_at,created_at,organization_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
           )
           .bind(
             recordId,
@@ -4143,9 +4169,23 @@ async function payrollApi(
             netTotal,
             null,
             created,
+            organizationId,
           ),
       );
-      await db.batch(statements);
+      try {
+        await db.batch(statements);
+      } catch (e) {
+        const classified = classifyDataError(e, "");
+        if (classified.code === "CONFLICT")
+          return Response.json(
+            {
+              error:
+                "Já existe um processamento para este período, moeda e âmbito.",
+            },
+            { status: 409 },
+          );
+        throw e;
+      }
       summary = `Payroll ${body.period} calculado para ${profiles.results.length} colaborador(es)`;
     } else if (body.type === "issuePayslips") {
       const run = await db
@@ -6004,8 +6044,10 @@ const worker = {
                     ? write
                       ? "payroll:write"
                       : "payroll:read"
-                  : apiPath === "/api/performance" && write
-                    ? "performance:write"
+                  : apiPath === "/api/performance"
+                    ? write
+                      ? "performance:write"
+                      : "performance:read"
                     : apiPath === "/api/scenarios"
                       ? write
                         ? "scenario:write"
@@ -6065,9 +6107,10 @@ const worker = {
                                               ? "workforce:write"
                                               : "workforce:read"
                                             : apiPath ===
-                                                  "/api/management-reports" &&
-                                                write
-                                              ? "reports:write"
+                                                "/api/management-reports"
+                                              ? write
+                                                ? "reports:write"
+                                                : "reports:read"
                                               : [
                                                     "/api/workflow",
                                                     "/api/notifications",
@@ -6081,7 +6124,15 @@ const worker = {
                                                     ? write
                                                       ? "selfservice:write"
                                                       : "selfservice:read"
-                                                    : null;
+                                                    : [
+                                                          "/api/dashboard",
+                                                          "/api/commercial-suite",
+                                                          "/api/executive-cockpit",
+                                                          "/api/module-health",
+                                                          "/api/readiness",
+                                                        ].includes(apiPath)
+                                                      ? "executive:read"
+                                                      : null;
       if (required && !hasPermission(security.permissions, required))
         return denied(required);
       if (

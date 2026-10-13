@@ -183,9 +183,13 @@ export async function careersApi(
         )
         .run();
     else
+      // Re-applying by email alone is not proof of identity (this endpoint is
+      // anonymous), so an existing candidate's fields are only ever filled in
+      // when still empty, never overwritten — otherwise anyone who guesses a
+      // real candidate's email could corrupt their national ID, address, etc.
       await db
         .prepare(
-          "UPDATE recruitment_candidates SET full_name=?,phone=?,birth_date=?,national_id=?,address=?,linkedin_url=?,current_employer=?,current_role=?,years_experience=?,highest_education=?,field_of_study=?,institution=?,presentation=? WHERE id=? AND tenant_id=?",
+          "UPDATE recruitment_candidates SET full_name=COALESCE(full_name,?),phone=COALESCE(phone,?),birth_date=COALESCE(birth_date,?),national_id=COALESCE(national_id,?),address=COALESCE(address,?),linkedin_url=COALESCE(linkedin_url,?),current_employer=COALESCE(current_employer,?),current_role=COALESCE(current_role,?),years_experience=COALESCE(years_experience,?),highest_education=COALESCE(highest_education,?),field_of_study=COALESCE(field_of_study,?),institution=COALESCE(institution,?),presentation=COALESCE(presentation,?) WHERE id=? AND tenant_id=?",
         )
         .bind(
           body.fullName.trim(),

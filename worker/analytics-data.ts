@@ -179,19 +179,19 @@ export async function moduleHealthApi(
       hasFinanceData = rows.results.length > 0;
       financeRevenue = rows.results.find((r) => r.classification === "Receita")?.total ?? 0;
     }
-    if (approvedBudget) {
+    if (approvedBudget && period) {
       const [actual, budget] = await Promise.all([
         db
           .prepare(
-            "SELECT COALESCE(SUM(total_minor),0) total FROM workforce_cost_postings WHERE tenant_id=? AND (? IS NULL OR organization_id=?)",
+            "SELECT COALESCE(SUM(total_minor),0) total FROM workforce_cost_postings WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?",
           )
-          .bind(tenant, scope, scope)
+          .bind(tenant, scope, scope, period, currency)
           .first<{ total: number }>(),
         db
           .prepare(
-            "SELECT COALESCE(SUM(amount_minor),0) total FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code='WORKFORCE' AND (? IS NULL OR organization_id=?)",
+            "SELECT COALESCE(SUM(amount_minor),0) total FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code='WORKFORCE' AND (? IS NULL OR organization_id=?) AND period=? AND currency=?",
           )
-          .bind(tenant, approvedBudget.id, scope, scope)
+          .bind(tenant, approvedBudget.id, scope, scope, period, currency)
           .first<{ total: number }>(),
       ]);
       if (budget && budget.total > 0)

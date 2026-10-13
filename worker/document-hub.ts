@@ -364,8 +364,8 @@ export async function documentHubApi(
         }
       }
       const document = await db
-        .prepare("SELECT ocr_status,ocr_provider,ocr_confidence_bps,ocr_payload_json FROM module_documents WHERE id=? AND tenant_id=? AND status='Carregado'")
-        .bind(body.documentId, t)
+        .prepare("SELECT ocr_status,ocr_provider,ocr_confidence_bps,ocr_payload_json FROM module_documents WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id IS NULL OR organization_id=?) AND status='Carregado'")
+        .bind(body.documentId, t, org, org)
         .first<Record<string, unknown>>();
       if (!document)
         return Response.json({ error: "Documento carregado não encontrado." }, { status: 404 });
