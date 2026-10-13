@@ -44,6 +44,7 @@ export default function Carreiras() {
     [formBusy, setFormBusy] = useState(false),
     [formMessage, setFormMessage] = useState(""),
     [uploadedTypes, setUploadedTypes] = useState<Set<string>>(new Set()),
+    [fileNames, setFileNames] = useState<Record<string, string>>({}),
     [copiedId, setCopiedId] = useState("");
 
   function openFor(t: Target) {
@@ -52,6 +53,7 @@ export default function Carreiras() {
     setFormMessage("");
     setCandidateId("");
     setUploadedTypes(new Set());
+    setFileNames({});
   }
 
   useEffect(() => {
@@ -186,31 +188,35 @@ export default function Carreiras() {
           </Link>
           <span>Carreiras</span>
         </header>
-        <section className="careers-shell">
+        <section className="careers-hero">
           {busy ? (
-            <div className="careers-loading">A carregar vagas…</div>
+            <div className="careers-shell">
+              <div className="careers-loading">A carregar vagas…</div>
+            </div>
           ) : error && !data ? (
-            <div className="careers-error">
-              <b>Não foi possível continuar</b>
-              <p>{error}</p>
+            <div className="careers-shell">
+              <div className="careers-error">
+                <b>Não foi possível continuar</b>
+                <p>{error}</p>
+              </div>
             </div>
           ) : (
             data && (
-              <>
+              <div className="careers-shell">
                 <div className="careers-heading">
                   <small>OPORTUNIDADES</small>
                   <h1>Trabalhar na {data.companyName}</h1>
                   <p>
                     {data.requisitions.some((r) => r.status === "Aberta")
-                      ? "Vagas abertas no momento. Candidate-se diretamente abaixo."
-                      : "Não há vagas abertas no momento. Volte a verificar brevemente."}
+                      ? "Vagas abertas no momento. Candidate-se diretamente abaixo, ou envie uma candidatura espontânea."
+                      : "Não há vagas abertas no momento. Pode ainda assim enviar uma candidatura espontânea."}
                   </p>
                   <button
                     type="button"
                     className="careers-spontaneous"
                     onClick={() => openFor("spontaneous")}
                   >
-                    Candidatura espontânea
+                    ✦ Candidatura espontânea
                   </button>
                 </div>
                 {notice && <p className="careers-notice">{notice}</p>}
@@ -218,20 +224,23 @@ export default function Carreiras() {
                   <ul className="careers-list">
                     {data.requisitions.map((r) => (
                       <li key={r.id} className="careers-card">
-                        <div>
+                        <div className="careers-card-badge" aria-hidden="true">
+                          {r.title.slice(0, 1).toUpperCase()}
+                        </div>
+                        <div className="careers-card-body">
                           <div className="careers-card-title">
                             <b>{r.title}</b>
                             <em className={STATUS_CLASS[r.status]}>{r.status}</em>
                           </div>
-                          <small>
-                            {r.organizationName}
-                            {r.departmentCode ? ` · ${r.departmentCode}` : ""} ·{" "}
-                            {r.employmentType}
-                          </small>
-                          <small>
-                            {r.positions} posição(ões) · início previsto em{" "}
-                            {r.targetStartDate}
-                          </small>
+                          <div className="careers-card-meta">
+                            <span>{r.organizationName}</span>
+                            {r.departmentCode && <span>{r.departmentCode}</span>}
+                            <span>{r.employmentType}</span>
+                          </div>
+                          <div className="careers-card-meta">
+                            <span>{r.positions} posição(ões)</span>
+                            <span>início previsto em {r.targetStartDate}</span>
+                          </div>
                         </div>
                         <nav>
                           {r.status === "Aberta" && (
@@ -249,7 +258,7 @@ export default function Carreiras() {
                     ))}
                   </ul>
                 )}
-              </>
+              </div>
             )
           )}
         </section>
@@ -273,29 +282,79 @@ export default function Carreiras() {
                   ×
                 </button>
               </header>
+              {step !== "done" && (
+                <div className="careers-steps" aria-hidden="true">
+                  <span className={step === "form" ? "current" : "done"}>
+                    <i>{step === "form" ? "1" : "✓"}</i>Dados
+                  </span>
+                  <em />
+                  <span className={step === "documents" ? "current" : ""}>
+                    <i>2</i>Documentos
+                  </span>
+                </div>
+              )}
               {step === "done" ? (
-                <p className="auth-feedback ok">
-                  Candidatura recebida com sucesso. A equipa de recrutamento
-                  irá contactá-lo caso o perfil avance no processo.
-                </p>
+                <div className="careers-success">
+                  <i aria-hidden="true">✓</i>
+                  <h3>Candidatura recebida com sucesso</h3>
+                  <p>
+                    A equipa de recrutamento irá contactá-lo caso o perfil
+                    avance no processo.
+                  </p>
+                  <button
+                    type="button"
+                    className="primario"
+                    onClick={() => setTarget(null)}
+                  >
+                    Concluído
+                  </button>
+                </div>
               ) : step === "documents" ? (
                 <>
                   <p className="careers-step-hint">
-                    Envie os seus documentos (o currículo é obrigatório).
+                    Passo 2 de 2 — envie os seus documentos (o currículo é
+                    obrigatório, os restantes são opcionais).
                   </p>
-                  {DOCUMENT_FIELDS.map((f) => (
-                    <label key={f.type}>
-                      {f.label}
-                      {uploadedTypes.has(f.type) ? " ✓" : ""}
-                      <input
-                        type="file"
-                        name={f.type}
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        required={f.required && !uploadedTypes.has(f.type)}
-                        disabled={uploadedTypes.has(f.type)}
-                      />
-                    </label>
-                  ))}
+                  <div className="careers-docs">
+                    {DOCUMENT_FIELDS.map((f) => {
+                      const done = uploadedTypes.has(f.type),
+                        chosen = fileNames[f.type];
+                      return (
+                        <label
+                          key={f.type}
+                          className={`careers-doc-tile${done ? " done" : ""}${chosen ? " picked" : ""}`}
+                        >
+                          <input
+                            type="file"
+                            name={f.type}
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            required={f.required && !done}
+                            disabled={done}
+                            onChange={(e) =>
+                              setFileNames((prev) => ({
+                                ...prev,
+                                [f.type]: e.currentTarget.files?.[0]?.name || "",
+                              }))
+                            }
+                          />
+                          <span className="careers-doc-icon" aria-hidden="true">
+                            {done ? "✓" : "📎"}
+                          </span>
+                          <span className="careers-doc-info">
+                            <b>
+                              {f.label}
+                              {f.required && <em> · obrigatório</em>}
+                            </b>
+                            <small>
+                              {done
+                                ? `Enviado · ${chosen}`
+                                : chosen || "Clique para escolher um ficheiro"}
+                            </small>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
                   {formMessage && <p className="erro-form">{formMessage}</p>}
                   <footer>
                     <button
