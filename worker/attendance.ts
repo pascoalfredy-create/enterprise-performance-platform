@@ -10,7 +10,7 @@ export async function attendanceApi(request:Request,db:D1Database,s:Security){
   const tenant=s.tenantId,scope=s.organizationId,now=new Date().toISOString();
   const snapshot=async()=>{const [shifts,employees,assignments,entries,timesheets]=await Promise.all([
    db.prepare("SELECT * FROM attendance_shifts WHERE tenant_id=? ORDER BY status,code").bind(tenant).all(),
-   db.prepare("SELECT id,employee_number,first_name||' '||last_name employee_name,organization_id FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo' ORDER BY employee_number").bind(tenant,scope,scope).all(),
+   db.prepare("SELECT id,employee_number,first_name||' '||last_name employee_name,organization_id FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status<>'Inativo' ORDER BY employee_number").bind(tenant,scope,scope).all(),
    db.prepare("SELECT a.*,e.employee_number,e.first_name||' '||e.last_name employee_name,s.code shift_code,s.name shift_name FROM attendance_assignments a JOIN employees e ON e.id=a.employee_id AND e.tenant_id=a.tenant_id JOIN attendance_shifts s ON s.id=a.shift_id AND s.tenant_id=a.tenant_id WHERE a.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY a.created_at DESC").bind(tenant,scope,scope).all(),
    db.prepare("SELECT a.*,e.employee_number,e.first_name||' '||e.last_name employee_name FROM attendance_entries a JOIN employees e ON e.id=a.employee_id AND e.tenant_id=a.tenant_id WHERE a.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY a.work_date DESC,a.created_at DESC LIMIT 100").bind(tenant,scope,scope).all(),
    db.prepare("SELECT t.*,e.employee_number,e.first_name||' '||e.last_name employee_name FROM attendance_timesheets t JOIN employees e ON e.id=t.employee_id AND e.tenant_id=t.tenant_id WHERE t.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY t.period DESC,t.created_at DESC").bind(tenant,scope,scope).all()
@@ -25,7 +25,7 @@ export async function attendanceApi(request:Request,db:D1Database,s:Security){
    if(!Number.isInteger(breakM)||breakM<0||span<=0)return Response.json({error:"A pausa deve preservar uma duração positiva do turno."},{status:400});
    await db.prepare("INSERT INTO attendance_shifts VALUES (?,?,?,?,?,?,?,?,'Ativo',?,?)").bind(id,tenant,b.code.trim().toUpperCase(),b.name.trim(),start,end,breakM,span,s.email,now).run();summary=`Turno ${b.code.trim().toUpperCase()} criado com ${span} minutos`;
   }else if(b.type==="assignShift"){
-   const employee=await db.prepare("SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'").bind(b.employeeId,tenant,scope,scope).first();
+   const employee=await db.prepare("SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status<>'Inativo'").bind(b.employeeId,tenant,scope,scope).first();
    if(!employee||!b.shiftId||!date.test(b.effectiveFrom||""))return Response.json({error:"Colaborador, turno e vigência são obrigatórios."},{status:400});
    await db.prepare("UPDATE attendance_assignments SET status='Encerrada',effective_to=? WHERE tenant_id=? AND employee_id=? AND status='Ativa'").bind(b.effectiveFrom,tenant,b.employeeId).run();
    await db.prepare("INSERT INTO attendance_assignments VALUES (?,?,?,?,?,NULL,'Ativa',?,?)").bind(id,tenant,b.employeeId,b.shiftId,b.effectiveFrom,s.email,now).run();summary="Turno atribuído ao colaborador";

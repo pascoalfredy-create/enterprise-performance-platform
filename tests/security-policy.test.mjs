@@ -466,3 +466,13 @@ test("workforce/workforce-plans GET requires workforce:read like every other HCM
  assert.match(compact,/"workforce:read"/);
  assert.match(compact,/apiPath==="\/api\/workforce"\|\|apiPath==="\/api\/workforce-plans"\?write\?"workforce:write":"workforce:read"/);
 });
+test("employee pickers across HCM modules accept any non-inactive employee, not only status='Ativo' (no code path ever flips a real employee from Pendente to Ativo directly — only activating its employee_contract does, via a DB trigger — so a strict 'Ativo' filter left every freshly hired or newly onboarded employee invisible in these selects and rejected by these actions)",()=>{
+ const files=["payroll-loans.ts","payroll-adjustments.ts","attendance.ts","employee-documents.ts","employee-tasks.ts","employee-onboarding-documents.ts","employee-performance-notices.ts","employee-career-notices.ts"];
+ for(const file of files){
+  const src=fs.readFileSync(new URL(`../worker/${file}`,import.meta.url),"utf8");
+  assert.match(src,/FROM employees[^"]*status<>'Inativo'/,`${file} should accept any non-inactive employee`);
+  assert.doesNotMatch(src,/FROM employees[^"]*status='Ativo'/,`${file} should not still gate on status='Ativo'`);
+ }
+ assert.match(compact,/"SELECTidFROMemployeesWHEREid=\?ANDtenant_id=\?AND\(\?ISNULLORorganization_id=\?\)ANDstatus<>'Inativo'"/);
+ assert.match(compact,/"SELECTid,employee_number,first_name,last_nameFROMemployeesWHEREtenant_id=\?AND\(\?ISNULLORorganization_id=\?\)ANDstatus<>'Inativo'/);
+});

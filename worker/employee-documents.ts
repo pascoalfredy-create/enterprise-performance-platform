@@ -37,7 +37,7 @@ export async function employeeDocumentsApi(
           .all(),
         db
           .prepare(
-            "SELECT e.id,e.employee_number,e.first_name||' '||e.last_name name,o.name organization_name FROM employees e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND e.status='Ativo' ORDER BY e.first_name,e.last_name",
+            "SELECT e.id,e.employee_number,e.first_name||' '||e.last_name name,o.name organization_name FROM employees e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND e.status<>'Inativo' ORDER BY e.first_name,e.last_name",
           )
           .bind(tenant, scope, scope)
           .all(),

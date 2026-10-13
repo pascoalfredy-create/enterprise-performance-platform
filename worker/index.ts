@@ -2379,7 +2379,7 @@ async function hcmApi(
       const minutes = Number(body.requestedMinutes),
         employee = await db
           .prepare(
-            "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'",
+            "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status<>'Inativo'",
           )
           .bind(body.employeeId, tenantId, organizationId, organizationId)
           .first();
@@ -3714,7 +3714,7 @@ async function payrollSnapshot(
       .all(),
     db
       .prepare(
-        "SELECT id,employee_number,first_name,last_name FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo' ORDER BY first_name,last_name",
+        "SELECT id,employee_number,first_name,last_name FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND status<>'Inativo' ORDER BY first_name,last_name",
       )
       .bind(tenantId, organizationId, organizationId)
       .all(),

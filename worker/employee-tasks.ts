@@ -40,7 +40,7 @@ export async function employeeTasksApi(
     if (body.type === "assignTask") {
       const employee = await db
         .prepare(
-          "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'",
+          "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status<>'Inativo'",
         )
         .bind(body.employeeId, tenant, scope, scope)
         .first();

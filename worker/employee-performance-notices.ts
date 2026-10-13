@@ -47,7 +47,7 @@ export async function employeePerformanceNoticesApi(
       return Response.json({ error: "Operação não suportada." }, { status: 400 });
     const employee = await db
       .prepare(
-        "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status='Ativo'",
+        "SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status<>'Inativo'",
       )
       .bind(body.employeeId, tenant, scope, scope)
       .first();
