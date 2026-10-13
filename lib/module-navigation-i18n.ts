@@ -36,7 +36,7 @@ const labels:Record<string,Five>={
 "Payroll Runs":["Payroll Runs","Payroll runs","Procesos de nómina","Cycles de paie","Расчёты зарплаты"],
 "Empréstimos e adiantamentos":["Empréstimos e adiantamentos","Loans & advances","Préstamos y anticipos","Prêts et avances","Займы и авансы"],
 "Retroativos e ajustes":["Retroativos e ajustes","Retroactive pay & adjustments","Retroactivos y ajustes","Rétroactifs et ajustements","Перерасчёты и корректировки"],
-"Payslips":["Payslips","Payslips","Recibos de nómina","Bulletins de paie","Расчётные листки"],
+"Recibos de vencimento":["Recibos de vencimento","Payslips","Recibos de nómina","Bulletins de paie","Расчётные листки"],
 "Payment batches":["Payment batches","Payment batches","Lotes de pago","Lots de paiement","Платёжные реестры"],
 "Workforce Cost":["Workforce Cost","Workforce cost","Coste de plantilla","Coût des effectifs","Стоимость персонала"],
 "Headcount plan":["Headcount plan","Headcount plan","Plan de plantilla","Plan des effectifs","Штатный план"],

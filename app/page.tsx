@@ -138,7 +138,7 @@ const moduleCatalog: Array<{
       { label: "Payroll Runs", target: "Operações", requires: "PAYROLL" },
       { label: "Empréstimos e adiantamentos", target: "Empréstimos", requires: "PAYROLL" },
       { label: "Retroativos e ajustes", target: "Retroativos", requires: "PAYROLL" },
-      { label: "Payslips", target: "Operações", document: true, requires: "PAYROLL" },
+      { label: "Recibos de vencimento", target: "Operações", document: true, requires: "PAYROLL" },
       { label: "Payment batches", target: "Operações", document: true, requires: "PAYROLL" },
     ],
   },
@@ -1652,7 +1652,7 @@ fr:{title:"Personnel, relations contractuelles et responsabilité",intro:"Le sal
 ru:{title:"Персонал, трудовые отношения и ответственность",intro:"Сотрудник относится к организации; договор определяет операционную доступность и право на расчёт зарплаты.",newContract:"＋ Новый договор",employees:"Сотрудники",employeeHint:"Справочник сотрудников в текущей области",activeContracts:"Активные договоры",activeHint:"Допущены к настройке зарплаты",pending:"Ожидают активации",pendingHint:"Требуют проверки HR",coverage:"Охват договорами",coverageHint:"Активные договоры к числу сотрудников",contracts:"ДОГОВОРЫ",lifecycle:"Контролируемый жизненный цикл",records:"записей",week:"неделю",activate:"Активировать",end:"Завершить",empty:"Договоров пока нет.",emptyHint:"Используйте действие выше, чтобы начать.",audit:"АУДИТ HCM",recent:"Последние изменения",auditEmpty:"Переходы договоров появятся здесь.",next:"Связанные возможности",nextText:"Подбор, адаптация, учёт времени, отсутствия, эффективность и обучение управляются в отдельных разделах.",modal:"Новые трудовые отношения",employee:"Сотрудник",select:"Выбрать",contractNumber:"Номер договора",type:"Тип",typePlaceholder:"Напр.: Бессрочный",start:"Дата начала",endDate:"Дата окончания",schedule:"График работы",schedulePlaceholder:"Напр.: Понедельник–пятница, 08:00–17:00",weekly:"Недельная нагрузка (минуты)",countryPack:"Необязательный Country Pack",countryPlaceholder:"Напр.: AO-BASE",cancel:"Отмена",saving:"Сохранение…",draft:"Создать черновик",endPrompt:"Дата окончания (ГГГГ-ММ-ДД)",loadError:"Не удалось загрузить договоры.",actionError:"Не удалось выполнить операцию.",statuses:{Ativo:"Активен",Rascunho:"Черновик",Terminado:"Завершён"},values:{"Sem termo":"Бессрочный","Segunda a sexta · 08:00–17:00":"Понедельник–пятница · 08:00–17:00"},auditEnded:"Договор завершён"}};
 function PeopleWorkspace() {
   const locale=usePlatformLocale(), copy=contractCopy[locale], localeCode={pt:"pt-AO",en:"en-GB",es:"es-ES",fr:"fr-FR",ru:"ru-RU"}[locale];
-  const sectionLabel={pt:"RH · CADASTRO DE COLABORADORES",en:"HR · EMPLOYEE MASTER",es:"RR. HH. · MAESTRO DE EMPLEADOS",fr:"RH · RÉFÉRENTIEL EMPLOYÉS",ru:"HR · СПРАВОЧНИК СОТРУДНИКОВ"}[locale];
+  const sectionLabel={pt:"RH · REGISTO DE COLABORADORES",en:"HR · EMPLOYEE MASTER",es:"RR. HH. · MAESTRO DE EMPLEADOS",fr:"RH · RÉFÉRENTIEL EMPLOYÉS",ru:"HR · СПРАВОЧНИК СОТРУДНИКОВ"}[locale];
   const modalLabel={pt:"RH · CONTRATO",en:"HR · CONTRACT",es:"RR. HH. · CONTRATO",fr:"RH · CONTRAT",ru:"HR · ДОГОВОР"}[locale];
   const localizeAudit=(summary:string)=>{
     if(locale==="pt") return summary;
