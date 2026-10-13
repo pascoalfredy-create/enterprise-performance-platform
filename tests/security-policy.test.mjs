@@ -412,3 +412,26 @@ test("attendance clock-in/out times render as HH:MM regardless of whether the st
  const demoSeed=fs.readFileSync(new URL("../worker/demo-enterprise.ts",import.meta.url),"utf8");
  assert.doesNotMatch(demoSeed,/T08:00:00Z.*T17:00:00Z/);
 });
+test("submitting an already-submitted timesheet or headcount plan fails loudly instead of reporting a false success (found during a full HCM audit: neither action checked the UPDATE's affected-row count)",()=>{
+ const attendance=fs.readFileSync(new URL("../worker/attendance.ts",import.meta.url),"utf8");
+ assert.match(attendance,/subResult\.meta\.changes/);
+ assert.match(attendance,/O timesheet não está disponível para submissão/);
+ const workforce=fs.readFileSync(new URL("../worker/workforce-plans.ts",import.meta.url),"utf8");
+ assert.match(workforce,/subResult\.meta\.changes/);
+ assert.match(workforce,/O plano não está disponível para submissão/);
+});
+test("the HR Manager Suite succession insight describes exactly what it counts (all open requisitions) rather than claiming a 'critical' filter that doesn't exist in the schema",()=>{
+ const suite=fs.readFileSync(new URL("../app/hr-manager-suite.tsx",import.meta.url),"utf8");
+ assert.doesNotMatch(suite,/successionInsightText:"[^"]*(crítica|critical|crítico|critique|критическ)/);
+ assert.match(suite,/open vacancies without a hired candidate/);
+});
+test("employee-documents registerDocument (a JSON metadata-only path with no R2 write, unreachable from the UI which always posts multipart/form-data) has been removed rather than left as a 404-on-download landmine",()=>{
+ const docs=fs.readFileSync(new URL("../worker/employee-documents.ts",import.meta.url),"utf8");
+ assert.doesNotMatch(docs,/body\.type === "registerDocument"/);
+ assert.match(docs,/body\.type === "createType"/);
+ assert.match(docs,/body\.type === "decideDocument"/);
+});
+test("workforce/workforce-plans GET requires workforce:read like every other HCM endpoint's read side (previously ungated: any authenticated user with the WORKFORCE_PLANNING module could read headcount plans regardless of role)",()=>{
+ assert.match(compact,/"workforce:read"/);
+ assert.match(compact,/apiPath==="\/api\/workforce"\|\|apiPath==="\/api\/workforce-plans"\?write\?"workforce:write":"workforce:read"/);
+});

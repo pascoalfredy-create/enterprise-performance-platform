@@ -48,7 +48,7 @@ export async function attendanceApi(request:Request,db:D1Database,s:Security){
    const worked=rows.results.reduce((a,x)=>a+Number(x.worked_minutes),0),scheduled=rows.results.reduce((a,x)=>a+Number(x.scheduled_minutes),0),overtime=rows.results.reduce((a,x)=>a+Number(x.overtime_minutes),0),hash=await digest(JSON.stringify(rows.results));
    await db.prepare("INSERT INTO attendance_timesheets VALUES (?,?,?,?,'Rascunho',?,?,?,?,?,NULL,NULL,NULL,NULL,NULL,?)").bind(id,tenant,b.employeeId,b.period,worked,scheduled,overtime,rows.results.length,hash,now).run();summary=`Timesheet ${b.period} consolidado com hash ${hash.slice(0,12)}`;
   }else if(b.type==="submitTimesheet"){
-   id=b.timesheetId;action="SUBMIT";await db.prepare("UPDATE attendance_timesheets SET status='Submetido',submitted_by=?,submitted_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'").bind(s.email,now,id,tenant).run();summary="Timesheet submetido para aprovação";
+   id=b.timesheetId;action="SUBMIT";const subResult=await db.prepare("UPDATE attendance_timesheets SET status='Submetido',submitted_by=?,submitted_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'").bind(s.email,now,id,tenant).run();if(!Number(subResult.meta.changes||0))return Response.json({error:"O timesheet não está disponível para submissão."},{status:409});summary="Timesheet submetido para aprovação";
   }else if(b.type==="decideTimesheet"){
    const row=await db.prepare("SELECT submitted_by FROM attendance_timesheets WHERE id=? AND tenant_id=? AND status='Submetido'").bind(b.timesheetId,tenant).first<Record<string,unknown>>();
    if(!row||!["Aprovado","Rejeitado"].includes(b.decision))return Response.json({error:"Timesheet submetido e decisão válida são obrigatórios."},{status:409});

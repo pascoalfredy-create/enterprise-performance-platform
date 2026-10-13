@@ -6,14 +6,6 @@ type Security = {
   role: string;
 };
 const uid = () => crypto.randomUUID();
-const digest = async (v: string) =>
-  Array.from(
-    new Uint8Array(
-      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v)),
-    ),
-  )
-    .map((x) => x.toString(16).padStart(2, "0"))
-    .join("");
 const digestBytes = async (v: ArrayBuffer) =>
   Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", v)))
     .map((x) => x.toString(16).padStart(2, "0"))
@@ -234,69 +226,6 @@ export async function employeeDocumentsApi(
           body.requiresExpiry === "1" ? 1 : 0,
           body.confidentiality,
           "Ativo",
-          security.email,
-          now,
-        )
-        .run();
-    } else if (body.type === "registerDocument") {
-      const employee = await db
-        .prepare(
-          "SELECT e.* FROM employees e WHERE e.id=? AND e.tenant_id=? AND (? IS NULL OR e.organization_id=?)",
-        )
-        .bind(body.employeeId || "", tenant, scope, scope)
-        .first();
-      if (!employee)
-        return Response.json(
-          { error: "Colaborador fora do âmbito autorizado." },
-          { status: 403 },
-        );
-      if (
-        !body.documentTypeId ||
-        !body.reference?.trim() ||
-        !body.issueDate ||
-        !body.fileName?.trim() ||
-        !body.mimeType?.trim()
-      )
-        return Response.json(
-          {
-            error:
-              "Tipo, referência, emissão e metadados do ficheiro são obrigatórios.",
-          },
-          { status: 400 },
-        );
-      const latest = await db
-          .prepare(
-            "SELECT COALESCE(MAX(version_number),0) version FROM employee_documents WHERE tenant_id=? AND employee_id=? AND document_type_id=?",
-          )
-          .bind(tenant, body.employeeId, body.documentTypeId)
-          .first<{ version: number }>(),
-        version = Number(latest?.version || 0) + 1,
-        fileSize = Math.max(0, Math.trunc(Number(body.fileSize || 0))),
-        storageKey = `pending/${tenant}/${body.employeeId}/${uid()}/${body.fileName.trim()}`;
-      entityId = uid();
-      action = "employee.document.registered";
-      summary = `Documento ${body.reference.trim()} versão ${version} registado`;
-      const evidence = await digest(
-        `${tenant}|${body.employeeId}|${body.documentTypeId}|${body.reference.trim()}|${body.issueDate}|${body.expiryDate || ""}|${body.fileName.trim()}|${fileSize}|${version}`,
-      );
-      await db
-        .prepare(
-          "INSERT INTO employee_documents (id,tenant_id,employee_id,document_type_id,reference,issue_date,expiry_date,file_name,mime_type,file_size,storage_key,evidence_hash,version_number,status,submitted_by,submitted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendente',?,?)",
-        )
-        .bind(
-          entityId,
-          tenant,
-          body.employeeId,
-          body.documentTypeId,
-          body.reference.trim(),
-          body.issueDate,
-          body.expiryDate || null,
-          body.fileName.trim(),
-          body.mimeType.trim(),
-          fileSize,
-          storageKey,
-          evidence,
-          version,
           security.email,
           now,
         )

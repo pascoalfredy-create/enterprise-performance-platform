@@ -116,6 +116,7 @@ type Permission =
   | "action:write"
   | "payroll:read"
   | "payroll:write"
+  | "workforce:read"
   | "workforce:write"
   | "reports:write"
   | "workflow:read"
@@ -166,6 +167,7 @@ const rolePermissions: Record<string, Permission[]> = {
     "action:write",
     "payroll:read",
     "payroll:write",
+    "workforce:read",
     "workforce:write",
     "reports:write",
     "workflow:read",
@@ -185,6 +187,7 @@ const rolePermissions: Record<string, Permission[]> = {
     "competency:write",
     "action:read",
     "action:write",
+    "workforce:read",
     "workforce:write",
     "reports:write",
     "workflow:read",
@@ -203,6 +206,7 @@ const rolePermissions: Record<string, Permission[]> = {
     "action:write",
     "payroll:read",
     "payroll:write",
+    "workforce:read",
     "workflow:read",
   ],
   Gestor: [
@@ -220,6 +224,7 @@ const rolePermissions: Record<string, Permission[]> = {
     "competency:write",
     "action:read",
     "action:write",
+    "workforce:read",
     "reports:write",
     "workflow:read",
   ],
@@ -6048,11 +6053,12 @@ const worker = {
                                           ? write
                                             ? "payroll:write"
                                             : "payroll:read"
-                                          : (apiPath === "/api/workforce" ||
-                                                apiPath ===
-                                                  "/api/workforce-plans") &&
-                                              write
-                                            ? "workforce:write"
+                                          : apiPath === "/api/workforce" ||
+                                              apiPath ===
+                                                "/api/workforce-plans"
+                                            ? write
+                                              ? "workforce:write"
+                                              : "workforce:read"
                                             : apiPath ===
                                                   "/api/management-reports" &&
                                                 write

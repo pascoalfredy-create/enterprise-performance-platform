@@ -163,12 +163,17 @@ export async function workforcePlansApi(
         .run();
       entityId = body.planId;
     } else if (body.type === "submitPlan") {
-      await db
+      const subResult = await db
         .prepare(
           "UPDATE workforce_plans SET status='Submetido',submitted_by=?,submitted_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'",
         )
         .bind(security.email, now, body.planId, tenant)
         .run();
+      if (!Number(subResult.meta.changes || 0))
+        return Response.json(
+          { error: "O plano não está disponível para submissão." },
+          { status: 409 },
+        );
     } else if (body.type === "approvePlan") {
       const plan = await db
         .prepare(
