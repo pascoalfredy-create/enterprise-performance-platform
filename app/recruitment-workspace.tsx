@@ -266,7 +266,7 @@ export function RecruitmentWorkspace() {
                     ＋ Candidato
                   </button>
                 )}
-              </nav>
+              {x.status==="Aberta"&&<><button onClick={()=>command({type:"closeRequisition",requisitionId:x.id,status:"Fechada"})}>Fechar vaga</button><button onClick={()=>command({type:"closeRequisition",requisitionId:x.id,status:"Cancelada"})}>Cancelar vaga</button></>}</nav>
             </section>
           ))}
         </article>

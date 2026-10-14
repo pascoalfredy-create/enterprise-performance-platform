@@ -1,3 +1,4 @@
+import type {D1Database} from "../worker-configuration";
 import {classifyDataError} from "../lib/api-error";
 
 type ReviewSecurity={tenantId:string;organizationId:string|null;email:string;role:string};

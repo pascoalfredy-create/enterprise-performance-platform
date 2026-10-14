@@ -52,6 +52,7 @@ type Data = {
   selectedModel: Model | null;
   lines: Line[];
   monthly: Month[];
+  outOfHorizonCashMinor?:number;
   audit: Array<{
     id: string;
     summary: string;
@@ -149,6 +150,7 @@ export function FinancialModelsWorkspace({
     max = Math.max(1, ...data.monthly.map((x) => Math.abs(x.closingCashMinor)));
   return (
     <section className="financial-models">
+      {!!data.outOfHorizonCashMinor&&<p role="status">Fluxos de caixa fora do horizonte: {data.outOfHorizonCashMinor/100}. Amplie o horizonte para os incluir.</p>}
       <header className="fm-top">
         <div>
           <span>FINANÇAS E FP&A · PLANEAMENTO DE NEGÓCIO</span>

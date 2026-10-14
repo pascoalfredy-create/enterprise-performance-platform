@@ -95,7 +95,7 @@ function buildZip(parts: Array<{ path: string; data: Uint8Array }>) {
   end.setUint32(12, centralSize, true);
   end.setUint32(16, centralStart, true);
   end.setUint16(20, 0, true);
-  return new Blob([...chunks, ...centralRecords, new Uint8Array(end.buffer)], {
+  return new Blob([...chunks.map(x=>new Uint8Array(x)), ...centralRecords.map(x=>new Uint8Array(x)), new Uint8Array(end.buffer)], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 }
@@ -155,7 +155,7 @@ export function buildXlsxBlob(sheets: SheetInput[]) {
 
 async function inflateIfNeeded(bytes: Uint8Array, method: number) {
   if (method === 0) return bytes;
-  const stream = new Blob([bytes])
+  const stream = new Blob([new Uint8Array(bytes)])
     .stream()
     .pipeThrough(new DecompressionStream("deflate-raw"));
   return new Uint8Array(await new Response(stream).arrayBuffer());

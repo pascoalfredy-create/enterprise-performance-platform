@@ -1,3 +1,5 @@
+import type {D1Database} from "../worker-configuration";
+import {parseMoneyMinor} from "../lib/money";
 import { classifyDataError } from "../lib/api-error";
 type Security = {
   tenantId: string;
@@ -226,9 +228,7 @@ export async function financialDataApi(
             .trim()
             .toUpperCase(),
           description = String(input[i].description || code).trim(),
-          amount = Math.round(
-            Number(String(input[i].amount ?? "").replace(",", ".")) * 100,
-          );
+          amount = parseMoneyMinor(String(input[i].amount ?? ""));
         if (!code || !description || !Number.isSafeInteger(amount))
           return Response.json(
             {
@@ -313,6 +313,7 @@ export async function financialDataApi(
           { error: "Lote carregado não encontrado." },
           { status: 404 },
         );
+      if(String(batch.created_by).toLowerCase()===security.email.toLowerCase())return Response.json({error:"Maker-checker: o criador não pode validar o próprio lote."},{status:403});
       const missing = await db
         .prepare(
           "SELECT COUNT(*) n FROM financial_import_rows r WHERE r.tenant_id=? AND r.batch_id=? AND NOT EXISTS(SELECT 1 FROM financial_source_mappings m WHERE m.tenant_id=r.tenant_id AND m.source_system=? AND m.source_code=r.source_code)",

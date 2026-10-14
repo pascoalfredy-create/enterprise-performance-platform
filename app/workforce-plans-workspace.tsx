@@ -44,13 +44,14 @@ const empty: Data = {
 };
 export function WorkforcePlansWorkspace() {
   const [data, setData] = useState<Data>(empty),
+    [period,setPeriod]=useState(new Date().toISOString().slice(0,7)),
     [selected, setSelected] = useState(""),
     [modal, setModal] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const load = useCallback(
     () =>
-      apiFetch(`/api/v1/workforce-plans?plan=${selected}`)
+      apiFetch(`/api/v1/workforce-plans?plan=${selected}&period=${period}`)
         .then(async (r) => {
           const b = await r.json();
           if (!r.ok) throw new Error(b.error);
@@ -58,7 +59,7 @@ export function WorkforcePlansWorkspace() {
           if (!selected && b.plans?.[0]) setSelected(b.plans[0].id);
         })
         .catch((e) => setError(e.message)),
-    [selected],
+    [selected,period],
   );
   useEffect(() => {
     load();
@@ -66,7 +67,7 @@ export function WorkforcePlansWorkspace() {
   async function command(payload: Record<string, string>) {
     setBusy(true);
     setError("");
-    const r = await apiFetch(`/api/v1/workforce-plans?plan=${selected}`, {
+    const r = await apiFetch(`/api/v1/workforce-plans?plan=${selected}&period=${period}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
@@ -105,6 +106,7 @@ export function WorkforcePlansWorkspace() {
       Number(data.actual?.actual_headcount || 0);
   return (
     <section className="headcount">
+      <label>Período dos indicadores<input type="month" value={period} onChange={e=>setPeriod(e.target.value)}/></label>
       <header>
         <div>
           <span>PLANEAMENTO DE EFETIVOS · DOTAÇÃO</span>

@@ -1,3 +1,5 @@
+import type {D1Database,D1PreparedStatement,R2Bucket} from "../worker-configuration";
+import {parseMoneyMinor} from "../lib/money";
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import {
   handleImageOptimization,
@@ -62,7 +64,7 @@ import { employeePerformanceNoticesApi } from "./employee-performance-notices";
 import { payPayReadiness, payPaySandboxReference, type PayPayEnv } from "./paypay";
 
 interface Env extends PayPayEnv {
-  ASSETS: Fetcher;
+  ASSETS: {fetch:(request:Request)=>Promise<Response>};
   DB: D1Database;
   BUCKET: R2Bucket;
   NEXT_PUBLIC_SUPABASE_URL?: string;
@@ -1342,7 +1344,7 @@ async function securityContext(
           },
         ],
         success: true,
-        meta: {},
+        meta: {duration:0,size_after:0,rows_read:0,rows_written:0,last_row_id:0,changed_db:false,changes:0},
       };
     } else {
       const portalAccount = await db
@@ -1370,7 +1372,7 @@ async function securityContext(
       memberships = {
         results: [{ ...portalAccount, id: portalAccount.employee_id, email, role: "Colaborador" }],
         success: true,
-        meta: {},
+        meta: {duration:0,size_after:0,rows_read:0,rows_written:0,last_row_id:0,changed_db:false,changes:0},
       };
     }
   }
@@ -1771,6 +1773,7 @@ async function setupApi(
     const body = (await request.json()) as Record<string, string>,
       created = new Date().toISOString(),
       recordId = uid();
+    if(body.organizationId && !await db.prepare("SELECT 1 FROM organizations WHERE tenant_id=? AND id=? AND (? IS NULL OR id=?)").bind(tenantId,body.organizationId,organizationId,organizationId).first())return Response.json({error:"Organização fora do âmbito autorizado."},{status:403});
     let issuedInvite: { token: string; expiresAt: string } | null = null;
     const actor = actorEmail(request) || "utilizador autenticado";
     let summary = "";
@@ -2691,19 +2694,7 @@ async function hcmApi(
   }
 }
 
-function parseMinor(value: string) {
-  const clean = value.trim().replace(/\s/g, "").replace(",", ".");
-  if (!/^-?\d+(\.\d{1,2})?$/.test(clean))
-    throw new Error(
-      "Indique um valor monetário válido, com até duas casas decimais.",
-    );
-  const negative = clean.startsWith("-");
-  const [whole, dec = ""] = clean.replace("-", "").split(".");
-  const minor = Number(whole) * 100 + Number(dec.padEnd(2, "0"));
-  if (!Number.isSafeInteger(minor))
-    throw new Error("Valor fora do limite permitido.");
-  return negative ? -minor : minor;
-}
+function parseMinor(value:string){return parseMoneyMinor(value)}
 function parseScaled(value: string, scale: number) {
   const clean = value.trim().replace(",", ".");
   if (!/^-?\d+(\.\d{1,3})?$/.test(clean) || ![1, 10, 100, 1000].includes(scale))
@@ -2817,6 +2808,7 @@ async function performanceApi(
       created = new Date().toISOString(),
       recordId = uid(),
       actor = actorEmail(request) || "utilizador autenticado";
+    if(body.organizationId && !await db.prepare("SELECT 1 FROM organizations WHERE tenant_id=? AND id=? AND (? IS NULL OR id=?)").bind(tenantId,body.organizationId,organizationId,organizationId).first())return Response.json({error:"Organização fora do âmbito autorizado."},{status:403});
     let summary = "",
       entityType = body.type;
     if (body.type === "budgetVersion") {
@@ -3821,18 +3813,11 @@ async function payrollApi(
           { error: "Colaborador fora do âmbito autorizado." },
           { status: 403 },
         );
-      if (
-        await db
-          .prepare(
-            "SELECT id FROM salary_profiles WHERE tenant_id=? AND employee_id=? AND status='Ativo'",
-          )
-          .bind(tenantId, body.employeeId)
-          .first()
-      )
-        return Response.json(
-          { error: "O colaborador já possui um perfil salarial ativo." },
-          { status: 409 },
-        );
+      if(body.periodicity && body.periodicity!=="Mensal")return Response.json({error:"O motor genérico atual suporta apenas periodicidade mensal."},{status:400});
+      if(await db.prepare("SELECT 1 FROM payroll_loans WHERE tenant_id=? AND employee_id=? AND currency<>? AND status IN ('Pendente','Aprovado') UNION ALL SELECT 1 FROM payroll_adjustments WHERE tenant_id=? AND employee_id=? AND currency<>? AND status IN ('Pendente','Aprovado') LIMIT 1").bind(tenantId,body.employeeId,body.currency.toUpperCase(),tenantId,body.employeeId,body.currency.toUpperCase()).first())return Response.json({error:"Liquide ou resolva os pedidos noutra moeda antes de mudar a moeda salarial."},{status:409});
+      const previous=await db.prepare("SELECT * FROM salary_profiles WHERE tenant_id=? AND employee_id=? AND status='Ativo'").bind(tenantId,body.employeeId).first<Record<string,unknown>>();
+      if(previous && body.effectiveFrom<=String(previous.effective_from))return Response.json({error:"A revisão salarial exige uma nova vigência posterior à anterior."},{status:409});
+      if(previous && await db.prepare("SELECT 1 FROM payroll_run_lines l JOIN payroll_runs r ON r.id=l.run_id AND r.tenant_id=l.tenant_id WHERE l.tenant_id=? AND l.employee_id=? AND r.period>=? AND r.status<>'Cancelado' LIMIT 1").bind(tenantId,body.employeeId,body.effectiveFrom.slice(0,7)).first())return Response.json({error:"Existem processamentos neste período ou posteriores. Reveja-os antes de alterar a vigência salarial."},{status:409});
       const base = parseMinor(body.baseAmount);
       if (!Number.isSafeInteger(base) || base <= 0)
         return Response.json(
@@ -3840,7 +3825,7 @@ async function payrollApi(
           { status: 400 },
         );
       summary = "Perfil salarial criado";
-      await db
+      const profileInsert=db
         .prepare(
           "INSERT INTO salary_profiles (id,tenant_id,employee_id,currency,periodicity,base_minor,effective_from,effective_to,dimension_member_id,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         )
@@ -3857,7 +3842,8 @@ async function payrollApi(
           "Ativo",
           created,
         )
-        .run();
+;
+      if(previous){const end=new Date(body.effectiveFrom+"T00:00:00Z");end.setUTCDate(end.getUTCDate()-1);await db.batch([db.prepare("UPDATE salary_profiles SET status='Inativo',effective_to=? WHERE id=? AND tenant_id=? AND status='Ativo'").bind(end.toISOString().slice(0,10),previous.id,tenantId),profileInsert]);summary="Perfil salarial revisto com histórico preservado";}else await profileInsert.run();
     } else if (body.type === "payrollComponent") {
       if (
         !body.employeeId ||
@@ -3949,7 +3935,7 @@ async function payrollApi(
       if (
         await db
           .prepare(
-            "SELECT r.id FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id WHERE r.tenant_id=? AND r.period=? AND r.currency=? AND ((? IS NULL AND s.organization_id IS NULL) OR s.organization_id=?)",
+            "SELECT r.id FROM payroll_runs r LEFT JOIN payroll_run_scopes s ON s.run_id=r.id WHERE r.tenant_id=? AND r.period=? AND r.currency=? AND r.status<>'Cancelado' AND ((? IS NULL AND s.organization_id IS NULL) OR s.organization_id=?)",
           )
           .bind(
             tenantId,
@@ -3972,13 +3958,13 @@ async function payrollApi(
           "SELECT p.*,e.id AS employee_id FROM salary_profiles p JOIN employees e ON e.id=p.employee_id JOIN employee_contracts c ON c.employee_id=e.id AND c.tenant_id=e.tenant_id AND c.status='Ativo' AND c.start_date<=? AND (c.end_date IS NULL OR c.end_date>=?) WHERE p.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND p.status='Ativo' AND p.currency=? AND p.effective_from<=? AND (p.effective_to IS NULL OR p.effective_to>=?) AND e.status='Ativo'",
         )
         .bind(
-          `${body.period}-31`,
+          new Date(Date.UTC(Number(body.period.slice(0,4)),Number(body.period.slice(5,7)),0)).toISOString().slice(0,10),
           `${body.period}-01`,
           tenantId,
           organizationId,
           organizationId,
           body.currency.toUpperCase(),
-          `${body.period}-31`,
+          new Date(Date.UTC(Number(body.period.slice(0,4)),Number(body.period.slice(5,7)),0)).toISOString().slice(0,10),
           `${body.period}-01`,
         )
         .all<Record<string, unknown>>();
@@ -3990,6 +3976,7 @@ async function payrollApi(
           },
           { status: 409 },
         );
+      if (profiles.results.some(p=>p.periodicity!=="Mensal")) return Response.json({error:"O motor atual suporta apenas perfis mensais. Configure uma periodicidade suportada."},{status:409});
       let grossTotal = 0,
         dedTotal = 0,
         employerTotal = 0,
@@ -4399,6 +4386,7 @@ async function payrollApi(
           { error: "Lote não encontrado no âmbito autorizado." },
           { status: 404 },
         );
+      if(batch.status === "Preparado" && String(batch.prepared_by).toLowerCase()===actor.toLowerCase()) return Response.json({error:"Maker-checker: o preparador não pode aprovar o próprio lote."},{status:403});
       const next =
         batch.status === "Preparado"
           ? "Aprovado"
@@ -4423,6 +4411,14 @@ async function payrollApi(
         );
       summary = `Lote ${batch.batch_number}: ${next}`;
       action = next.toUpperCase();
+    } else if (body.type === "cancelPayrollRun") {
+      const security = await securityContext(request, db);
+      if (security instanceof Response) return security;
+      if (!["Administrador", "Recursos Humanos"].includes(security.role)) return denied("payroll:write");
+      if (!body.reason || body.reason.trim().length<5) return Response.json({error:"A anulação exige uma justificação."},{status:400});
+      const result=await db.prepare("UPDATE payroll_runs SET status='Cancelado' WHERE id=? AND tenant_id=? AND status IN ('Rascunho','Validado','Aprovado') AND (? IS NULL OR organization_id=?)").bind(body.runId,tenantId,organizationId,organizationId).run();
+      if (!Number(result.meta.changes||0)) return Response.json({error:"Processamento indisponível para anulação."},{status:409});
+      summary=`Payroll anulado: ${body.reason.trim()}`; action="CANCEL";
     } else if (body.type === "transitionPayrollRun") {
       const run = await db
         .prepare(
@@ -4466,7 +4462,7 @@ async function payrollApi(
           { error: "O processamento já está fechado." },
           { status: 409 },
         );
-      const transition = await db
+      const transitionStatement = db
         .prepare(
           "UPDATE payroll_runs SET status=?,closed_at=? WHERE id=? AND tenant_id=? AND status=?",
         )
@@ -4477,7 +4473,8 @@ async function payrollApi(
           tenantId,
           run.status,
         )
-        .run();
+;
+      const [transition]=await db.batch([transitionStatement,db.prepare("INSERT INTO audit_events(id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) SELECT ?,?,?,?,?,?,?,? WHERE changes()=1").bind(uid(),tenantId,next[run.status].toUpperCase(),"payrollRun",body.runId,actor,`Payroll ${run.period}: ${next[run.status]}`,created)]);
       if (!Number(transition.meta.changes || 0))
         return Response.json(
           {
@@ -4486,60 +4483,6 @@ async function payrollApi(
           },
           { status: 409 },
         );
-      if (next[run.status] === "Fechado") {
-        const [loanDeductions, adjustmentApplications] = await Promise.all([
-          db
-            .prepare(
-              "SELECT * FROM payroll_loan_deductions WHERE tenant_id=? AND run_id=? AND status='Calculada'",
-            )
-            .bind(tenantId, body.runId)
-            .all<Record<string, unknown>>(),
-          db
-            .prepare(
-              "SELECT * FROM payroll_adjustment_applications WHERE tenant_id=? AND run_id=? AND status='Calculado'",
-            )
-            .bind(tenantId, body.runId)
-            .all<Record<string, unknown>>(),
-        ]);
-        for (const d of loanDeductions.results) {
-          await db.batch([
-            db
-              .prepare(
-                "UPDATE payroll_loan_deductions SET status='Liquidada',settled_at=? WHERE id=? AND tenant_id=? AND status='Calculada'",
-              )
-              .bind(created, d.id, tenantId),
-            db
-              .prepare(
-                "UPDATE payroll_loan_installments SET status='Liquidada',paid_at=? WHERE id=? AND tenant_id=? AND status='Programada'",
-              )
-              .bind(created, d.installment_id, tenantId),
-            db
-              .prepare(
-                "UPDATE payroll_loans SET outstanding_minor=outstanding_minor-? WHERE id=? AND tenant_id=? AND status='Aprovado'",
-              )
-              .bind(d.amount_minor, d.loan_id, tenantId),
-          ]);
-          await db
-            .prepare(
-              "UPDATE payroll_loans SET status='Liquidado',completed_at=? WHERE id=? AND tenant_id=? AND status='Aprovado' AND outstanding_minor=0",
-            )
-            .bind(created, d.loan_id, tenantId)
-            .run();
-        }
-        for (const a of adjustmentApplications.results)
-          await db.batch([
-            db
-              .prepare(
-                "UPDATE payroll_adjustment_applications SET status='Processado',processed_at=? WHERE id=? AND tenant_id=? AND status='Calculado'",
-              )
-              .bind(created, a.id, tenantId),
-            db
-              .prepare(
-                "UPDATE payroll_adjustments SET status='Processado',processed_at=? WHERE id=? AND tenant_id=? AND status='Aprovado'",
-              )
-              .bind(created, a.adjustment_id, tenantId),
-          ]);
-      }
       summary = `Payroll ${run.period}: ${next[run.status]}`;
       action = next[run.status].toUpperCase();
     } else
@@ -4547,7 +4490,7 @@ async function payrollApi(
         { error: "Operação não suportada." },
         { status: 400 },
       );
-    await db
+    if(body.type!=="transitionPayrollRun") await db
       .prepare(
         "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
       )
@@ -4555,7 +4498,7 @@ async function payrollApi(
         uid(),
         tenantId,
         action,
-        body.type === "transitionPayrollRun"
+        body.type === "cancelPayrollRun"
           ? "payrollRun"
           : body.type === "issuePayslips"
             ? "payrollDocument"
@@ -4807,6 +4750,7 @@ async function dashboardApi(
   organizationId: string | null = null,
 ) {
   try {
+    if(request.method!=="GET")return Response.json({error:"Método não permitido."},{status:405});
     await ensureSetupSchema(db);
     const u = new URL(request.url),
       period = u.searchParams.get("period") || "2026-08",
@@ -5243,12 +5187,10 @@ async function readinessApi(
         },
         {
           code: "PAYROLL",
-          name: "Payroll",
-          ready: n("active_contracts") > 0 && n("salary_profiles") > 0,
-          status:
-            n("active_contracts") > 0 && n("salary_profiles") > 0
-              ? "Pronto"
-              : "Bloqueado",
+          name: "Payroll · motor genérico (sem validação fiscal)",
+          ready: false,
+          genericReady:n("active_contracts") > 0 && n("salary_profiles") > 0,
+          status:"Motor fiscal indisponível",
           evidence: `${n("active_contracts")} contrato(s) · ${n("salary_profiles")} perfil(is) salarial(is)`,
           next: n("active_contracts")
             ? "Configurar perfil salarial"
@@ -5522,7 +5464,7 @@ async function workflowApi(
         ...actionTasks,
         ...reviewTasks,
         ...feedbackTasks,
-      ].sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+      ].sort((a, b) => String(a.dueAt).localeCompare(String(b.dueAt)));
     return Response.json({
       generatedAt: new Date().toISOString(),
       tasks,

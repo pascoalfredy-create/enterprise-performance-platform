@@ -1,3 +1,4 @@
+import type {D1Database,D1PreparedStatement} from "../worker-configuration";
 type Security={tenantId:string;email:string};
 const key=(t:string,k:string)=>`demo2:${t}:${k}`;
 export async function installEnterpriseDemo(db:D1Database,s:Security){

@@ -1,3 +1,4 @@
+import type {D1Database} from "../worker-configuration";
 type Security = {
   tenantId: string;
   organizationId: string | null;

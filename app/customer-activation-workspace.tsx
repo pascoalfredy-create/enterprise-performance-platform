@@ -82,7 +82,7 @@ export function CustomerActivationWorkspace({
       .catch((e) =>
         setError(e.message || "Não foi possível avaliar a ativação."),
       );
-  useEffect(load, []);
+  useEffect(()=>{void load()}, []);
 
   async function requestChange(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

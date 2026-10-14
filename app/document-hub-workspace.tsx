@@ -61,7 +61,7 @@ export function DocumentHubWorkspace() {
         setModule((x) => x || b.modules?.[0] || "");
       })
       .catch((e) => setError(e.message));
-  useEffect(load, []);
+  useEffect(()=>{void load()}, []);
   async function command(body: Record<string, string>) {
     setBusy(true);
     setError("");

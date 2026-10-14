@@ -72,7 +72,7 @@ const moduleCatalog: Array<{
     items: [
       { label: "Ativação e subscrição", target: "Ativação" },
       { label: "Organização", target: "Administração" },
-      { label: "Utilizadores e RBAC", target: "Administração" },
+      { label: "Utilizadores e RBAC", target: "Utilizadores" },
       { label: "Document Hub e OCR", target: "Documentos" },
       { label: "Registo de auditoria", target: "Controlo", document: true },
       { label: "Demonstração guiada", target: "Centro Comercial" },
@@ -135,7 +135,7 @@ const moduleCatalog: Array<{
         document: true,
       },
       { label: "Payroll · Perfis e componentes", target: "Operações", requires: "PAYROLL" },
-      { label: "Payroll Runs", target: "Operações", requires: "PAYROLL" },
+      { label: "Payroll Runs", target: "Processamentos", requires: "PAYROLL" },
       { label: "Empréstimos e adiantamentos", target: "Empréstimos", requires: "PAYROLL" },
       { label: "Retroativos e ajustes", target: "Retroativos", requires: "PAYROLL" },
       { label: "Recibos de vencimento", target: "Operações", document: true, requires: "PAYROLL" },
@@ -578,8 +578,8 @@ export default function Home() {
           <EngineReadiness onNavigate={setModulo} locale={locale} />
           {modulo === "Ativação" ? (
             <CustomerActivationWorkspace onNavigate={setModulo} />
-          ) : modulo === "Administração" ? (
-            <ConfiguracaoReal />
+          ) : ["Administração","Utilizadores"].includes(modulo) ? (
+            <ConfiguracaoReal initialStep={modulo === "Utilizadores" ? 2 : 1} />
           ) : modulo === "Documentos" ? (
             <DocumentHubWorkspace />
           ) : modulo === "Dados financeiros" ? (
@@ -624,10 +624,10 @@ export default function Home() {
             <AbsenceWorkspace />
           ) : modulo === "Documentos HCM" ? (
             <EmployeeDocumentsWorkspace />
-          ) : modulo === "Operações" ? (
+          ) : ["Operações","Processamentos"].includes(modulo) ? (
             <>
               <PayrollCountryControls />
-              <PayrollFoundation />
+              <PayrollFoundation initialView={modulo === "Processamentos" ? "Processamentos" : "Perfis salariais"} />
             </>
           ) : modulo === "Empréstimos" ? (
             <PayrollLoansWorkspace />
@@ -906,8 +906,9 @@ const vazio: SetupData = {
   dimensions: [],
   dimensionMembers: [],
 };
-function ConfiguracaoReal() {
-  const [etapa, setEtapa] = useState(1),
+function ConfiguracaoReal({initialStep=1}:{initialStep?:number}) {
+  useEffect(()=>{setEtapa(initialStep)},[initialStep]);
+  const [etapa, setEtapa] = useState(initialStep),
     [dados, setDados] = useState<SetupData>(vazio),
     [aberto, setAberto] = useState(false),
     [tipoModal, setTipoModal] = useState(""),
@@ -4716,9 +4717,10 @@ const payrollVazio: PayrollData = {
   batches: [],
   audit: [],
 };
-function PayrollFoundation() {
+function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string}) {
+  useEffect(()=>{setVista(initialView)},[initialView]);
   const [dados, setDados] = useState<PayrollData>(payrollVazio),
-    [vista, setVista] = useState("Perfis salariais"),
+    [vista, setVista] = useState(initialView),
     [modal, setModal] = useState(""),
     [recibo, setRecibo] = useState<Payslip | null>(null),
     [erro, setErro] = useState(""),
@@ -4757,6 +4759,12 @@ function PayrollFoundation() {
     }
     setDados(body);
     setModal("");
+  }
+  async function anular(runId: string) {
+    const reason=window.prompt("Motivo da anulação (mínimo 5 caracteres)");
+    if (!reason) return;
+    setAEnviar(true); setErro("");
+    try { const res=await apiFetch("/api/payroll",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"cancelPayrollRun",runId,reason})}); const body=await res.json(); if(!res.ok) throw new Error(body.error);setDados(body); } catch(e){setErro(e instanceof Error?e.message:"Falha ao anular")} finally{setAEnviar(false)}
   }
   async function transitar(runId: string) {
     setErro("");
@@ -5120,7 +5128,8 @@ function PayrollFoundation() {
                   <em className={`run-${r.status.toLowerCase()}`}>
                     {r.status}
                   </em>
-                  {r.status !== "Fechado" ? (
+                  {r.status !== "Fechado" && r.status !== "Cancelado" && <button disabled={aEnviar} onClick={()=>anular(r.id)}>Anular</button>}
+                  {r.status === "Cancelado" ? <span>Anulado · histórico preservado</span> : r.status !== "Fechado" ? (
                     <button onClick={() => transitar(r.id)}>
                       {acao(r.status)} →
                     </button>
@@ -5325,8 +5334,7 @@ function PayrollFoundation() {
                     Periodicidade
                     <select name="periodicity">
                       <option>Mensal</option>
-                      <option>Quinzenal</option>
-                      <option>Semanal</option>
+                      
                     </select>
                   </label>
                   <label>

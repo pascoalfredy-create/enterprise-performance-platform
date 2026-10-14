@@ -47,3 +47,7 @@ O registo público, billing, catálogo comercial, subscrições, entitlements, p
 - Subscrição, entitlement e RBAC são controlos diferentes.
 - A equipa operadora não recebe acesso normal aos dados financeiros ou salariais dos clientes.
 - Todo acesso excecional de suporte deve ser consentido, temporário e auditado.
+
+## Correções independentes de 14/10/2026
+
+Ver [instruções, validação e limitações](docs/CORRECOES_2026_10_14.md) antes de integrar ou publicar esta cópia. O Payroll contém um motor genérico; o catálogo de Country Packs não representa um motor fiscal certificado.

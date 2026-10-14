@@ -1,3 +1,4 @@
+import type {D1Database,D1PreparedStatement} from "../worker-configuration";
 import{classifyDataError}from"../lib/api-error";
 import{installEnterpriseDemo}from"./demo-enterprise";
 type Security={tenantId:string;tenantName:string;organizationId:string|null;email:string;role:string};

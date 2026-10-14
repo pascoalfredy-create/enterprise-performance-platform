@@ -1,3 +1,4 @@
+import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 type Security = {
   tenantId: string;
@@ -34,21 +35,23 @@ export async function workforcePlansApi(
       scope = security.organizationId,
       url = new URL(request.url),
       selected = url.searchParams.get("plan") || "",
-      now = new Date().toISOString();
+      now = new Date().toISOString(),
+      period=url.searchParams.get("period")||new Date().toISOString().slice(0,7);
+    if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) return Response.json({error:"Período inválido."},{status:400});
     const snapshot = async () => {
       const [plans, lines, organizations, actual] = await Promise.all([
         db
           .prepare(
-            "SELECT p.*,o.name organization_name,(SELECT COALESCE(SUM(l.headcount),0) FROM workforce_plan_lines l WHERE l.tenant_id=p.tenant_id AND l.plan_id=p.id) planned_headcount,(SELECT COALESCE(SUM(l.headcount*l.monthly_cost_minor),0) FROM workforce_plan_lines l WHERE l.tenant_id=p.tenant_id AND l.plan_id=p.id) planned_monthly_cost_minor,(SELECT COUNT(*) FROM workforce_plan_lines l WHERE l.tenant_id=p.tenant_id AND l.plan_id=p.id) line_count FROM workforce_plans p JOIN organizations o ON o.id=p.organization_id AND o.tenant_id=p.tenant_id WHERE p.tenant_id=? AND (? IS NULL OR p.organization_id=?) ORDER BY p.created_at DESC",
+            "SELECT p.*,o.name organization_name,(SELECT COALESCE(SUM(l.headcount),0) FROM workforce_plan_lines l WHERE l.tenant_id=p.tenant_id AND l.plan_id=p.id AND l.period=?) planned_headcount,(SELECT COALESCE(SUM(l.headcount*l.monthly_cost_minor),0) FROM workforce_plan_lines l WHERE l.tenant_id=p.tenant_id AND l.plan_id=p.id AND l.period=?) planned_monthly_cost_minor,(SELECT COUNT(*) FROM workforce_plan_lines l WHERE l.tenant_id=p.tenant_id AND l.plan_id=p.id) line_count FROM workforce_plans p JOIN organizations o ON o.id=p.organization_id AND o.tenant_id=p.tenant_id WHERE p.tenant_id=? AND (? IS NULL OR p.organization_id=?) ORDER BY p.created_at DESC",
           )
-          .bind(tenant, scope, scope)
+          .bind(period,period,tenant, scope, scope)
           .all(),
         selected
           ? db
               .prepare(
-                "SELECT * FROM workforce_plan_lines WHERE tenant_id=? AND plan_id=? ORDER BY period,job_title",
+                "SELECT l.* FROM workforce_plan_lines l JOIN workforce_plans p ON p.id=l.plan_id AND p.tenant_id=l.tenant_id WHERE l.tenant_id=? AND l.plan_id=? AND (? IS NULL OR p.organization_id=?) ORDER BY l.period,l.job_title",
               )
-              .bind(tenant, selected)
+              .bind(tenant, selected, scope, scope)
               .all()
           : Promise.resolve({ results: [] }),
         db
@@ -69,6 +72,7 @@ export async function workforcePlansApi(
         lines: lines.results,
         organizations: organizations.results,
         actual,
+        period,
       };
     };
     if (request.method === "GET") return Response.json(await snapshot());
@@ -200,7 +204,7 @@ export async function workforcePlansApi(
         );
       const lines = await db
         .prepare(
-          "SELECT * FROM workforce_plan_lines WHERE tenant_id=? AND plan_id=? ORDER BY period,job_title",
+          "SELECT l.* FROM workforce_plan_lines l JOIN workforce_plans p ON p.id=l.plan_id AND p.tenant_id=l.tenant_id WHERE l.tenant_id=? AND l.plan_id=? AND (? IS NULL OR p.organization_id=?) ORDER BY l.period,l.job_title",
         )
         .bind(tenant, body.planId)
         .all();

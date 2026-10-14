@@ -1,3 +1,5 @@
+import type {D1Database} from "../worker-configuration";
+import {parseMoneyMinor} from "../lib/money";
 import { classifyDataError } from "../lib/api-error";
 
 type ConsolidationSecurity = {
@@ -132,6 +134,7 @@ export async function consolidationApi(
         audit: audit.results,
       };
     };
+    if (scope) return Response.json({error:"A consolidação exige âmbito de todo o tenant."},{status:403});
     if (request.method === "GET") return Response.json(await snapshot());
     if (request.method !== "POST")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
@@ -365,13 +368,14 @@ export async function consolidationApi(
           .bind(tenant, periodDate, periodDate)
           .all<Record<string, unknown>>(),
         ownershipMap = new Map(
-          ownershipRows.results.map((x) => [
+          ownershipRows.results.slice().reverse().map((x) => [
             String(x.organization_id),
             Number(x.ownership_bps),
           ]),
         ),
         prepared = [] as Array<Record<string, unknown>>;
       for (const row of sources.results) {
+        if(!ownershipMap.has(String(row.organization_id))) return Response.json({error:`Defina a participação da organização ${row.organization_id} para o período antes de consolidar.`},{status:409});
         const currency = String(row.currency),
           rate = currency === set.base_currency ? 100000000 : map.get(currency);
         if (!rate)
@@ -487,17 +491,18 @@ export async function consolidationApi(
           { error: "Run, linha, tipo, motivo e evidência são obrigatórios." },
           { status: 400 },
         );
-      const amount = Math.round(
-        Number((body.amount || "").replace(",", ".")) * 100,
-      );
+      const amount = parseMoneyMinor(body.amount || "");
       if (!Number.isSafeInteger(amount) || amount === 0)
         return Response.json(
           { error: "Montante diferente de zero é obrigatório." },
           { status: 400 },
         );
+      const ownership=await db.prepare("SELECT DISTINCT ownership_bps FROM consolidation_lines WHERE tenant_id=? AND run_id=? AND organization_id=?").bind(tenant,body.runId,body.organizationId||"").all<{ownership_bps:number}>();
+      if(ownership.results.length!==1)return Response.json({error:"Selecione uma organização do run com participação inequívoca."},{status:409});
+      const nciAmount=amount-applyBps(amount,Number(ownership.results[0].ownership_bps));
       await db
         .prepare(
-          "INSERT INTO consolidation_adjustments VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO consolidation_adjustments (id,tenant_id,run_id,line_code,line_name,amount_minor,adjustment_type,reason,evidence,created_by,created_at,organization_id,nci_amount_minor) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           uid(),
@@ -511,6 +516,8 @@ export async function consolidationApi(
           body.evidence.trim(),
           security.email,
           now,
+          body.organizationId,
+          nciAmount,
         )
         .run();
     } else if (body.type === "approveRun") {
@@ -538,26 +545,30 @@ export async function consolidationApi(
           },
           { status: 403 },
         );
+      const unallocated=await db.prepare("SELECT 1 FROM consolidation_adjustments WHERE tenant_id=? AND run_id=? AND organization_id IS NULL LIMIT 1").bind(tenant,body.runId).first();
+      if(unallocated)return Response.json({error:"Os ajustes antigos sem organização exigem revisão antes da aprovação."},{status:409});
       const adj = await db
           .prepare(
-            "SELECT COALESCE(SUM(amount_minor),0) total FROM consolidation_adjustments WHERE tenant_id=? AND run_id=?",
+            "SELECT COALESCE(SUM(amount_minor),0) total,COALESCE(SUM(nci_amount_minor),0) nci, SUM(CASE WHEN organization_id IS NULL THEN 1 ELSE 0 END) unallocated FROM consolidation_adjustments WHERE tenant_id=? AND run_id=?",
           )
           .bind(tenant, body.runId)
           .first<Record<string, unknown>>(),
         adjustment = Number(adj?.total || 0),
         reported = Number(run.converted_total_minor) + adjustment,
-        parentTotal = reported - Number(run.nci_total_minor || 0),
+        nciTotal = Number(run.nci_total_minor || 0)+Number(adj?.nci||0),
+        parentTotal = reported - nciTotal,
         approvalHash = await sha(
           `${run.input_hash}|${adjustment}|${reported}|${security.email}|${now}`,
         ),
         result = await db
           .prepare(
-            "UPDATE consolidation_runs SET status='Aprovado',adjustment_total_minor=?,reported_total_minor=?,parent_total_minor=?,approved_by=?,approved_at=?,approval_hash=? WHERE id=? AND tenant_id=? AND status='Calculado'",
+            "UPDATE consolidation_runs SET status='Aprovado',adjustment_total_minor=?,reported_total_minor=?,parent_total_minor=?,nci_total_minor=?,approved_by=?,approved_at=?,approval_hash=? WHERE id=? AND tenant_id=? AND status='Calculado'",
           )
           .bind(
             adjustment,
             reported,
             parentTotal,
+            nciTotal,
             security.email,
             now,
             approvalHash,

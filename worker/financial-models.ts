@@ -1,3 +1,4 @@
+import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 
 type Security = {
@@ -80,9 +81,9 @@ export async function financialModelsApi(
           selected
             ? db
                 .prepare(
-                  "SELECT l.*,d.code driver_line_code,d.name driver_line_name FROM financial_model_lines l LEFT JOIN financial_model_lines d ON d.id=l.driver_line_id AND d.tenant_id=l.tenant_id WHERE l.tenant_id=? AND l.model_id=? ORDER BY l.line_type,l.code",
+                  "SELECT l.*,d.code driver_line_code,d.name driver_line_name FROM financial_model_lines l LEFT JOIN financial_model_lines d ON d.id=l.driver_line_id AND d.tenant_id=l.tenant_id WHERE l.tenant_id=? AND l.model_id=? AND EXISTS(SELECT 1 FROM financial_models m WHERE m.id=l.model_id AND m.tenant_id=l.tenant_id AND (? IS NULL OR m.organization_id=?)) ORDER BY l.line_type,l.code",
                 )
-                .bind(tenant, selected)
+                .bind(tenant, selected, scope, scope)
                 .all()
             : Promise.resolve({ results: [] }),
           selected
@@ -161,6 +162,7 @@ export async function financialModelsApi(
         lines: lines.results,
         projections: projections.results,
         monthly: [...monthly.values()],
+        outOfHorizonCashMinor: model ? (projections.results as Array<Record<string,unknown>>).filter(x=>String(x.cash_period)>periodAdd(String(model.start_period),Number(model.horizon_months)-1)).reduce((n,x)=>n+Number(x.cash_amount_minor),0) : 0,
         audit: audit.results,
       };
     };

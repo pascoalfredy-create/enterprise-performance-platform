@@ -1,3 +1,5 @@
+import type {D1Database,R2Bucket} from "../worker-configuration";
+import {matchesFileSignature} from "../lib/file-signature.ts";
 import { classifyDataError } from "../lib/api-error.ts";
 
 const uid = () => crypto.randomUUID();
@@ -28,6 +30,13 @@ const DAILY_DOCUMENT_CAP = 600;
 const DOCUMENT_TYPES = ["CV", "Carta de Apresentação", "Certificado Académico", "Outro"];
 const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png"];
 const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+
+async function reservePublicQuota(request:Request,db:D1Database,tenant:string,resource:string,daily:number){
+ const ip=request.headers.get("cf-connecting-ip")||"unidentified-client",now=new Date(),day=now.toISOString().slice(0,10),hour=now.toISOString().slice(0,13);
+ const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(tenant+"|"+ip)),principal=Array.from(new Uint8Array(digest)).map(x=>x.toString(16).padStart(2,"0")).join("");
+ const sql="INSERT INTO public_write_quotas(tenant_id,principal,resource,window,used,quota_limit,expires_at) VALUES (?,?,?,?,1,?,?) ON CONFLICT(tenant_id,principal,resource,window) DO UPDATE SET used=used+1";
+ try{await db.batch([db.prepare("DELETE FROM public_write_quotas WHERE expires_at<?").bind(now.toISOString()),db.prepare(sql).bind(tenant,principal,resource,hour,30,new Date(now.getTime()+7200000).toISOString()),db.prepare(sql).bind(tenant,"tenant",resource,day,daily,new Date(now.getTime()+172800000).toISOString())]);return true}catch(e){if(String(e).includes("quota"))return false;throw e}
+}
 
 async function resolveTenant(db: D1Database, slug: string) {
   return db
@@ -153,6 +162,7 @@ export async function careersApi(
       )
       .bind(tenant.id, email)
       .first<{ id: string }>();
+    if(!await reservePublicQuota(request,db,tenant.id,"application",DAILY_APPLICATION_CAP))return Response.json({error:"Limite de tentativas atingido. Tente mais tarde."},{status:429});
     const candidateId = existingCandidate?.id || uid();
     if (!existingCandidate)
       await db
@@ -182,33 +192,7 @@ export async function careersApi(
           profile.presentation,
         )
         .run();
-    else
-      // Re-applying by email alone is not proof of identity (this endpoint is
-      // anonymous), so an existing candidate's fields are only ever filled in
-      // when still empty, never overwritten — otherwise anyone who guesses a
-      // real candidate's email could corrupt their national ID, address, etc.
-      await db
-        .prepare(
-          "UPDATE recruitment_candidates SET full_name=COALESCE(full_name,?),phone=COALESCE(phone,?),birth_date=COALESCE(birth_date,?),national_id=COALESCE(national_id,?),address=COALESCE(address,?),linkedin_url=COALESCE(linkedin_url,?),current_employer=COALESCE(current_employer,?),current_role=COALESCE(current_role,?),years_experience=COALESCE(years_experience,?),highest_education=COALESCE(highest_education,?),field_of_study=COALESCE(field_of_study,?),institution=COALESCE(institution,?),presentation=COALESCE(presentation,?) WHERE id=? AND tenant_id=?",
-        )
-        .bind(
-          body.fullName.trim(),
-          body.phone?.trim() || null,
-          profile.birthDate,
-          profile.nationalId,
-          profile.address,
-          profile.linkedinUrl,
-          profile.currentEmployer,
-          profile.currentRole,
-          profile.yearsExperience,
-          profile.highestEducation,
-          profile.fieldOfStudy,
-          profile.institution,
-          profile.presentation,
-          candidateId,
-          tenant.id,
-        )
-        .run();
+    // Existing profile is preserved: anonymous email is not proof of identity.
     let entityId: string, action: string, summary: string;
     if (spontaneous) {
       entityId = uid();
@@ -339,6 +323,8 @@ export async function careersDocumentApi(
       evidence = await digestBytes(bytes),
       entityId = uid(),
       storageKey = `${tenant.id}/careers/candidates/${candidateId}/documents/${entityId}/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    if(!matchesFileSignature(bytes,file.type))return Response.json({error:"O conteúdo do ficheiro não corresponde ao formato declarado."},{status:400});
+    if(!await reservePublicQuota(request,db,tenant.id,"document",DAILY_DOCUMENT_CAP))return Response.json({error:"Limite de documentos atingido. Tente mais tarde."},{status:429});
     await bucket.put(storageKey, bytes, {
       httpMetadata: { contentType: file.type },
       customMetadata: { tenantId: tenant.id, candidateId, evidenceHash: evidence },

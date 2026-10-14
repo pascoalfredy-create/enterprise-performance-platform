@@ -1,3 +1,4 @@
+import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 type Security = { tenantId: string; email: string };
 const uid = () => crypto.randomUUID();
@@ -110,6 +111,7 @@ export async function payrollCountryPacksApi(
             currency: meta.currency,
             language: meta.language,
             checks: meta.checks,
+            fiscalEngineAvailable:false,
             status: row?.status || "Não instalado",
             packVersion: row?.pack_version || `${code}-PAYROLL-DRAFT`,
             startedBy: row?.started_by || null,
@@ -177,47 +179,7 @@ export async function payrollCountryPacksApi(
       return Response.json({ countryCode, status: "Em parametrização" }, { status: 201 });
     }
     if (body.type === "activatePack") {
-      const existing = await db
-        .prepare(
-          "SELECT id,started_by FROM payroll_country_packs WHERE tenant_id=? AND country_code=? AND status='Em parametrização'",
-        )
-        .bind(tenant, countryCode)
-        .first<{ id: string; started_by: string }>();
-      if (!existing)
-        return Response.json(
-          { error: "Country pack em parametrização não encontrado." },
-          { status: 404 },
-        );
-      if (existing.started_by.toLowerCase() === security.email.toLowerCase())
-        return Response.json(
-          {
-            error:
-              "Maker-checker: quem iniciou a parametrização não pode ativar o mesmo pack.",
-          },
-          { status: 403 },
-        );
-      await db
-        .prepare(
-          "UPDATE payroll_country_packs SET status='Ativo',activated_by=?,activated_at=? WHERE id=? AND tenant_id=? AND status='Em parametrização'",
-        )
-        .bind(security.email, now, existing.id, tenant)
-        .run();
-      await db
-        .prepare(
-          "INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)",
-        )
-        .bind(
-          uid(),
-          tenant,
-          now,
-          "ACTIVATE",
-          "payrollCountryPack",
-          existing.id,
-          security.email,
-          `Country pack ${countryCode} ativado`,
-        )
-        .run();
-      return Response.json({ countryCode, status: "Ativo" });
+      return Response.json({error:"Este catálogo ainda não contém regras fiscais versionadas e testadas. A ativação para produção está indisponível."},{status:409});
     }
     return Response.json({ error: "Operação não suportada." }, { status: 400 });
   } catch (error) {

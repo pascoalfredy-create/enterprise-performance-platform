@@ -1,0 +1,1 @@
+CREATE TABLE public_write_quotas (tenant_id TEXT NOT NULL,principal TEXT NOT NULL,resource TEXT NOT NULL,window TEXT NOT NULL,used INTEGER NOT NULL,quota_limit INTEGER NOT NULL,expires_at TEXT NOT NULL,PRIMARY KEY(tenant_id,principal,resource,window),CHECK(used<=quota_limit));

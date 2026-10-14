@@ -320,7 +320,7 @@ test("consolidation computes non-controlling interest per line from point-in-tim
  assert.match(consolidationApi,/ownershipMap\.get\(String\(row\.organization_id\)\) \?\? 10000/);
  assert.match(consolidationApi,/ownedAmount = applyBps\(convertedAmount, ownershipBps\)/);
  assert.match(consolidationApi,/nciAmount = convertedAmount - ownedAmount/);
- assert.match(consolidationApi,/parentTotal = reported - Number\(run\.nci_total_minor \|\| 0\)/);
+ assert.match(consolidationApi,/parentTotal = reported - nciTotal/);
 });
 test("workspaces mounted multiple times with different initialView props (sidebar navigation between sibling finance/analytics views) resync their internal tab instead of keeping the first-ever initialView",()=>{
  for(const [file,extra] of [["../app/finance-suite.tsx",""],["../app/analytics-suite.tsx",""],["../app/financial-diagnostics-workspace.tsx",""],["../app/financial-models-workspace.tsx",""]]){
@@ -381,12 +381,12 @@ test("spontaneous applications can only be linked to an open requisition in scop
  assert.match(recruitment,/b\.type === "archiveSpontaneousApplication"/);
  assert.match(recruitment,/status='Em avaliação'/);
 });
-test("only payroll:write (PAYROLL module) can start or activate a country pack, and activation requires a different administrator than the one who started it (maker-checker)",()=>{
+test("only payroll:write can start configuration, and fiscal activation fails closed until a rules engine exists",()=>{
  const packs=fs.readFileSync(new URL("../worker/payroll-country-packs.ts",import.meta.url),"utf8");
  assert.match(packs,/body\.type === "startParametrization"/);
  assert.match(packs,/body\.type === "activatePack"/);
- assert.match(packs,/existing\.started_by\.toLowerCase\(\) === security\.email\.toLowerCase\(\)/);
- assert.match(packs,/Maker-checker: quem iniciou a parametrização não pode ativar o mesmo pack/);
+ assert.match(packs,/fiscalEngineAvailable:false/);
+ assert.match(packs,/A ativação para produção está indisponível/);
  assert.match(compact,/apiPath==="\/api\/payroll-country-packs"/);
  assert.match(compact,/payrollCountryPacksApi\(request,env\.DB,security\)/);
  assert.match(compact,/"\/api\/payroll-adjustments","\/api\/payroll-country-packs"/);

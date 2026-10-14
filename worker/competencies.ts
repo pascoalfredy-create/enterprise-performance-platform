@@ -1,3 +1,4 @@
+import type {D1Database} from "../worker-configuration";
 import {classifyDataError} from "../lib/api-error";
 
 type CompetencySecurity={tenantId:string;organizationId:string|null;email:string;role:string};

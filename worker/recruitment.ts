@@ -1,3 +1,4 @@
+import type {D1Database,R2Bucket} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 type Security = {
   tenantId: string;
@@ -48,7 +49,7 @@ export async function recruitmentApi(
             { status: 404 },
           );
         const safe = row.file_name.replace(/[\r\n"\\]/g, "_");
-        return new Response(object.body, {
+        return new Response(object.body as unknown as BodyInit, {
           headers: {
             "content-type": row.mime_type,
             "content-length": String(object.size),
@@ -100,9 +101,9 @@ export async function recruitmentApi(
           .all(),
         db
           .prepare(
-            "SELECT * FROM employee_onboarding_tasks WHERE tenant_id=? ORDER BY due_date",
+            "SELECT t.* FROM employee_onboarding_tasks t JOIN employee_onboarding_cases c ON c.id=t.case_id AND c.tenant_id=t.tenant_id JOIN recruitment_applications a ON a.id=c.application_id AND a.tenant_id=c.tenant_id JOIN recruitment_requisitions r ON r.id=a.requisition_id AND r.tenant_id=a.tenant_id WHERE t.tenant_id=? AND (? IS NULL OR r.organization_id=?) ORDER BY t.due_date",
           )
-          .bind(tenant)
+          .bind(tenant, scope, scope)
           .all(),
         db
           .prepare(
@@ -164,6 +165,20 @@ export async function recruitmentApi(
     if (request.method !== "POST")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const b = (await request.json()) as Record<string, string>;
+    const accessChecks: Array<[string | undefined, string]> = [
+      [b.requisitionId, "SELECT 1 FROM recruitment_requisitions WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)"],
+      [b.applicationId, "SELECT 1 FROM recruitment_applications a JOIN recruitment_requisitions r ON r.id=a.requisition_id AND r.tenant_id=a.tenant_id WHERE a.id=? AND a.tenant_id=? AND (? IS NULL OR r.organization_id=?)"],
+      [b.caseId, "SELECT 1 FROM employee_onboarding_cases c JOIN recruitment_applications a ON a.id=c.application_id AND a.tenant_id=c.tenant_id JOIN recruitment_requisitions r ON r.id=a.requisition_id AND r.tenant_id=a.tenant_id WHERE c.id=? AND c.tenant_id=? AND (? IS NULL OR r.organization_id=?)"],
+      [b.taskId, "SELECT 1 FROM employee_onboarding_tasks t JOIN employee_onboarding_cases c ON c.id=t.case_id AND c.tenant_id=t.tenant_id JOIN recruitment_applications a ON a.id=c.application_id AND a.tenant_id=c.tenant_id JOIN recruitment_requisitions r ON r.id=a.requisition_id AND r.tenant_id=a.tenant_id WHERE t.id=? AND t.tenant_id=? AND (? IS NULL OR r.organization_id=?)"],
+    ];
+    for (const [id, query] of accessChecks) {
+      if (id && !await db.prepare(query).bind(id, tenant, scope, scope).first())
+        return Response.json({error:"Recurso fora do âmbito autorizado."},{status:404});
+    }
+    if (b.organizationId && !await db.prepare("SELECT 1 FROM organizations WHERE id=? AND tenant_id=? AND (? IS NULL OR id=?)").bind(b.organizationId,tenant,scope,scope).first())
+      return Response.json({error:"Organização fora do âmbito autorizado."},{status:404});
+    if (b.taskId && b.caseId && !await db.prepare("SELECT 1 FROM employee_onboarding_tasks WHERE id=? AND tenant_id=? AND case_id=?").bind(b.taskId,tenant,b.caseId).first())
+      return Response.json({error:"A tarefa não pertence ao caso."},{status:409});
     let entityId = "",
       entityType = "recruitment";
     if (b.type === "createRequisition") {
@@ -231,12 +246,18 @@ export async function recruitmentApi(
           { status: 403 },
         );
       entityId = b.requisitionId;
-      await db
+      const changed = await db
         .prepare(
           "UPDATE recruitment_requisitions SET status='Aberta',approved_by=?,approved_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'",
         )
         .bind(s.email, now, b.requisitionId, tenant)
         .run();
+
+      if(!Number(changed.meta.changes||0))return Response.json({error:"O registo foi alterado em paralelo."},{status:409});
+    } else if (b.type === "closeRequisition") {
+      if(!["Fechada","Cancelada"].includes(b.status)) return Response.json({error:"Estado de fecho inválido."},{status:400});
+      const result=await db.prepare("UPDATE recruitment_requisitions SET status=? WHERE id=? AND tenant_id=? AND status='Aberta'").bind(b.status,b.requisitionId,tenant).run();
+      if(!Number(result.meta.changes||0))return Response.json({error:"A vaga já foi alterada ou não está aberta."},{status:409});entityId=b.requisitionId;
     } else if (b.type === "addCandidate") {
       if (
         !b.requisitionId ||
@@ -298,7 +319,7 @@ export async function recruitmentApi(
           { status: 404 },
         );
       entityId = b.applicationId;
-      await db
+      const changed = await db
         .prepare(
           "UPDATE recruitment_applications SET status=?,rating=?,decision_note=?,updated_at=? WHERE id=? AND tenant_id=? AND status=?",
         )
@@ -312,6 +333,8 @@ export async function recruitmentApi(
           item.status,
         )
         .run();
+
+      if(!Number(changed.meta.changes||0))return Response.json({error:"O registo foi alterado em paralelo."},{status:409});
     } else if (b.type === "startOnboarding") {
       const app = await db
         .prepare(
@@ -358,6 +381,8 @@ export async function recruitmentApi(
           { error: "Caso, tarefa, responsável e prazo são obrigatórios." },
           { status: 400 },
         );
+      if (!await db.prepare("SELECT 1 FROM employee_onboarding_cases WHERE id=? AND tenant_id=? AND status IN ('Preparação','Em curso')").bind(b.caseId,tenant).first())
+        return Response.json({error:"O onboarding concluído não aceita novas tarefas."},{status:409});
       entityId = b.caseId;
       entityType = "onboarding";
       await db.batch([
@@ -367,10 +392,11 @@ export async function recruitmentApi(
     } else if (b.type === "completeOnboardingTask") {
       entityId = b.caseId;
       entityType = "onboarding";
-      await db.batch([
+      const completed=await db.batch([
         db.prepare("UPDATE employee_onboarding_tasks SET status='Concluída',evidence=?,completed_at=? WHERE id=? AND tenant_id=? AND status='Pendente'").bind(b.evidence?.trim(),now,b.taskId,tenant),
         db.prepare("UPDATE employee_onboarding_cases SET status='Concluído',completed_at=? WHERE id=? AND tenant_id=? AND status='Em curso' AND EXISTS(SELECT 1 FROM employee_onboarding_tasks t WHERE t.case_id=employee_onboarding_cases.id) AND NOT EXISTS(SELECT 1 FROM employee_onboarding_tasks t WHERE t.case_id=employee_onboarding_cases.id AND t.status<>'Concluída')").bind(now,b.caseId,tenant),
       ]);
+      if(!Number(completed[0].meta.changes||0))return Response.json({error:"A tarefa já foi concluída ou alterada."},{status:409});
     } else if (b.type === "linkOnboardingEmployee") {
       const employee = await db
         .prepare(

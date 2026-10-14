@@ -1,3 +1,4 @@
+import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 type Security={tenantId:string;organizationId:string|null;email:string;role:string};
 const uid=()=>crypto.randomUUID();
@@ -17,7 +18,7 @@ export async function attendanceApi(request:Request,db:D1Database,s:Security){
   ]);return{shifts:shifts.results,employees:employees.results,assignments:assignments.results,entries:entries.results,timesheets:timesheets.results}};
   if(request.method==="GET")return Response.json(await snapshot());
   if(request.method!=="POST")return Response.json({error:"Método não permitido."},{status:405});
-  const b=await request.json() as Record<string,string>;let id=uid(),action="CREATE",summary="";
+  const b=await request.json() as Record<string,string>;for(const [id,table] of [[b.entryId,"attendance_entries"],[b.timesheetId,"attendance_timesheets"]]){if(id&&!await db.prepare(`SELECT 1 FROM ${table} a JOIN employees e ON e.id=a.employee_id AND e.tenant_id=a.tenant_id WHERE a.id=? AND a.tenant_id=? AND (? IS NULL OR e.organization_id=?)`).bind(id,tenant,scope,scope).first())return Response.json({error:"Registo fora do âmbito autorizado."},{status:404});}let id=uid(),action="CREATE",summary="";
   if(b.type==="createShift"){
    if(scope)return Response.json({error:"A configuração de turnos exige âmbito de todo o tenant."},{status:403});
    if(!b.code?.trim()||!b.name?.trim()||!time.test(b.startTime||"")||!time.test(b.endTime||""))return Response.json({error:"Código, nome e horários válidos são obrigatórios."},{status:400});
@@ -27,11 +28,11 @@ export async function attendanceApi(request:Request,db:D1Database,s:Security){
   }else if(b.type==="assignShift"){
    const employee=await db.prepare("SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?) AND status<>'Inativo'").bind(b.employeeId,tenant,scope,scope).first();
    if(!employee||!b.shiftId||!date.test(b.effectiveFrom||""))return Response.json({error:"Colaborador, turno e vigência são obrigatórios."},{status:400});
-   await db.prepare("UPDATE attendance_assignments SET status='Encerrada',effective_to=? WHERE tenant_id=? AND employee_id=? AND status='Ativa'").bind(b.effectiveFrom,tenant,b.employeeId).run();
-   await db.prepare("INSERT INTO attendance_assignments VALUES (?,?,?,?,?,NULL,'Ativa',?,?)").bind(id,tenant,b.employeeId,b.shiftId,b.effectiveFrom,s.email,now).run();summary="Turno atribuído ao colaborador";
+   await db.batch([   db.prepare("UPDATE attendance_assignments SET status='Encerrada',effective_to=? WHERE tenant_id=? AND employee_id=? AND status='Ativa'").bind(b.effectiveFrom,tenant,b.employeeId),
+   db.prepare("INSERT INTO attendance_assignments VALUES (?,?,?,?,?,NULL,'Ativa',?,?)").bind(id,tenant,b.employeeId,b.shiftId,b.effectiveFrom,s.email,now)]);summary="Turno atribuído ao colaborador";
   }else if(b.type==="clockIn"){
    if(!date.test(b.workDate||"")||!time.test(b.clockIn||""))return Response.json({error:"Data e hora de entrada válidas são obrigatórias."},{status:400});
-   const assignment=await db.prepare("SELECT s.scheduled_minutes FROM attendance_assignments a JOIN attendance_shifts s ON s.id=a.shift_id AND s.tenant_id=a.tenant_id JOIN employees e ON e.id=a.employee_id AND e.tenant_id=a.tenant_id WHERE a.tenant_id=? AND a.employee_id=? AND (? IS NULL OR e.organization_id=?) AND a.status='Ativa' AND a.effective_from<=? ORDER BY a.effective_from DESC LIMIT 1").bind(tenant,b.employeeId,scope,scope,b.workDate).first<Record<string,unknown>>();
+   const assignment=await db.prepare("SELECT s.scheduled_minutes FROM attendance_assignments a JOIN attendance_shifts s ON s.id=a.shift_id AND s.tenant_id=a.tenant_id JOIN employees e ON e.id=a.employee_id AND e.tenant_id=a.tenant_id WHERE a.tenant_id=? AND a.employee_id=? AND (? IS NULL OR e.organization_id=?) AND a.effective_from<=? AND (a.effective_to IS NULL OR a.effective_to>?) ORDER BY a.effective_from DESC LIMIT 1").bind(tenant,b.employeeId,scope,scope,b.workDate,b.workDate).first<Record<string,unknown>>();
    if(!assignment)return Response.json({error:"Não existe turno ativo para o colaborador nesta data."},{status:409});
    await db.prepare("INSERT INTO attendance_entries (id,tenant_id,employee_id,work_date,clock_in,clock_out,source,worked_minutes,scheduled_minutes,overtime_minutes,exception_code,note,created_by,created_at) VALUES (?,?,?,?,?,NULL,?,NULL,?,NULL,NULL,?,?,?)").bind(id,tenant,b.employeeId,b.workDate,b.clockIn,b.source||"Manual",assignment.scheduled_minutes,b.note?.trim()||null,s.email,now).run();summary=`Entrada registada em ${b.workDate}`;
   }else if(b.type==="clockOut"){
@@ -47,6 +48,14 @@ export async function attendanceApi(request:Request,db:D1Database,s:Security){
    if(!rows.results.length)return Response.json({error:"Não existem marcações fechadas para consolidar."},{status:409});
    const worked=rows.results.reduce((a,x)=>a+Number(x.worked_minutes),0),scheduled=rows.results.reduce((a,x)=>a+Number(x.scheduled_minutes),0),overtime=rows.results.reduce((a,x)=>a+Number(x.overtime_minutes),0),hash=await digest(JSON.stringify(rows.results));
    await db.prepare("INSERT INTO attendance_timesheets VALUES (?,?,?,?,'Rascunho',?,?,?,?,?,NULL,NULL,NULL,NULL,NULL,?)").bind(id,tenant,b.employeeId,b.period,worked,scheduled,overtime,rows.results.length,hash,now).run();summary=`Timesheet ${b.period} consolidado com hash ${hash.slice(0,12)}`;
+  }else if(b.type==="reopenTimesheet"){
+   const sheet=await db.prepare("SELECT * FROM attendance_timesheets WHERE id=? AND tenant_id=? AND status='Rejeitado'").bind(b.timesheetId,tenant).first<Record<string,unknown>>();
+   if(!sheet)return Response.json({error:"Só um timesheet rejeitado pode ser reaberto."},{status:409});
+   const rows=await db.prepare("SELECT id,work_date,clock_in,clock_out,worked_minutes,scheduled_minutes,overtime_minutes FROM attendance_entries WHERE tenant_id=? AND employee_id=? AND substr(work_date,1,7)=? AND clock_out IS NOT NULL ORDER BY work_date").bind(tenant,sheet.employee_id,sheet.period).all<Record<string,unknown>>();
+   if(!rows.results.length)return Response.json({error:"Sem marcações fechadas."},{status:409});
+   const sum=(key:string)=>rows.results.reduce((n,x)=>n+Number(x[key]||0),0), hash=await digest(JSON.stringify(rows.results));
+   await db.batch([db.prepare("UPDATE attendance_timesheets SET status='Rascunho',worked_minutes=?,scheduled_minutes=?,overtime_minutes=?,entry_count=?,source_hash=?,submitted_by=NULL,submitted_at=NULL,decided_by=NULL,decided_at=NULL,decision_note=NULL WHERE id=? AND tenant_id=? AND status='Rejeitado'").bind(sum("worked_minutes"),sum("scheduled_minutes"),sum("overtime_minutes"),rows.results.length,hash,b.timesheetId,tenant),db.prepare("INSERT INTO audit_events(id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenant,"REOPEN_EVIDENCE","attendance",b.timesheetId,s.email,JSON.stringify({previous:sheet,nextHash:hash}),now)]);
+   id=b.timesheetId;action="REOPEN";summary="Timesheet recalculado e reaberto";
   }else if(b.type==="submitTimesheet"){
    id=b.timesheetId;action="SUBMIT";const subResult=await db.prepare("UPDATE attendance_timesheets SET status='Submetido',submitted_by=?,submitted_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'").bind(s.email,now,id,tenant).run();if(!Number(subResult.meta.changes||0))return Response.json({error:"O timesheet não está disponível para submissão."},{status:409});summary="Timesheet submetido para aprovação";
   }else if(b.type==="decideTimesheet"){

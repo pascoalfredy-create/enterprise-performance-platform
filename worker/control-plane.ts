@@ -1,3 +1,4 @@
+import type {D1Database,D1PreparedStatement} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 
 type Operator = {

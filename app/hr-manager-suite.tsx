@@ -40,8 +40,8 @@ ru:{loading:"Загрузка реальных данных по персона�
 const money=(n:number)=>`${n.toFixed(1)} M AOA`;
 export function HrManagerSuite({onNavigate}:{onNavigate:(x:string)=>void}){
  const locale=usePlatformLocale(),c=ht[locale],p=peopleCopy[locale],d=deepCopy[locale];
- const [view,setView]=useState<"overview"|"people"|"cost"|"talent">("overview"),[period,setPeriod]=useState("Agosto 2026"),[unit,setUnit]=useState("Toda a empresa");
- return <section className="hr-suite"><header className="hr-head"><div><span>{locale==="pt"?"RH · GESTÃO DE PESSOAS E PAYROLL":locale==="es"?"RR. HH. · GESTIÓN DE PERSONAS Y NÓMINA":locale==="fr"?"RH · GESTION DU PERSONNEL ET DE LA PAIE":locale==="ru"?"HR · УПРАВЛЕНИЕ ПЕРСОНАЛОМ И ЗАРПЛАТОЙ":"HR · PEOPLE & PAYROLL MANAGEMENT"}</span><h1>{c.title}</h1><p>{c.intro}</p></div><div><label>{c.scope}<select value={unit} onChange={e=>setUnit(e.target.value)}><option>{c.all}</option><option>{c.operations}</option><option>{c.corporate}</option></select></label><label>{c.period}<select value={period} onChange={e=>setPeriod(e.target.value)}><option>{c.aug}</option><option>{c.jul}</option><option>{c.quarter}</option></select></label></div></header>
+ const [view,setView]=useState<"overview"|"people"|"cost"|"talent">("overview");
+ return <section className="hr-suite"><header className="hr-head"><div><span>{locale==="pt"?"RH · GESTÃO DE PESSOAS E PAYROLL":locale==="es"?"RR. HH. · GESTIÓN DE PERSONAS Y NÓMINA":locale==="fr"?"RH · GESTION DU PERSONNEL ET DE LA PAIE":locale==="ru"?"HR · УПРАВЛЕНИЕ ПЕРСОНАЛОМ И ЗАРПЛАТОЙ":"HR · PEOPLE & PAYROLL MANAGEMENT"}</span><h1>{c.title}</h1><p>{c.intro}</p></div></header>
  <nav className="hr-tabs">{(["overview","people","cost","talent"] as const).map((x,i)=><button key={x} className={view===x?"active":""} onClick={()=>setView(x)}>{c.tabs[i]}</button>)}</nav>
  {view==="overview"&&<Cockpit locale={locale}/>}
  {view==="people"&&<PeopleReal locale={locale} p={p} onNavigate={onNavigate}/>}

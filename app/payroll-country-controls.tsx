@@ -76,7 +76,7 @@ export function PayrollCountryControls() {
       <button className="payroll-governance-head" onClick={() => setOpen(!open)}>
         <span>
           <i>§</i>
-          <b>Processamento salarial por Country Pack</b>
+          <b>Catálogo de configuração · sem motor fiscal validado</b>
           <small>
             {c ? `${c.name} · ${c.packVersion} · ${c.status}` : "A carregar…"}
           </small>
@@ -124,7 +124,7 @@ export function PayrollCountryControls() {
                     — aguarda ativação por outro administrador (maker-checker).
                   </span>
                 ) : (
-                  <button disabled={busy} onClick={() => act("activatePack")}>
+                  <button disabled title="Regras fiscais ainda não implementadas" onClick={() => act("activatePack")}>
                     {busy ? "A processar…" : "Ativar pack"}
                   </button>
                 ))}
@@ -152,7 +152,7 @@ export function PayrollCountryControls() {
           <footer>
             <div>
               {(c?.checks || []).map((x) => (
-                <span key={x}>✓ {x}</span>
+                <span key={x}>· {x}</span>
               ))}
             </div>
             <p>

@@ -1,3 +1,4 @@
+import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 type Security = {
   tenantId: string;
@@ -26,7 +27,9 @@ export async function executiveCockpitApi(
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const tenant = security.tenantId,
       scope = security.organizationId,
-      currency = "AOA";
+      currency = new URL(request.url).searchParams.get("currency") || "AOA",
+      selectedPeriod = new URL(request.url).searchParams.get("period");
+    if (!/^[A-Z]{3}$/.test(currency) || (selectedPeriod && !/^\d{4}-(0[1-9]|1[0-2])$/.test(selectedPeriod))) return Response.json({error:"Período ou moeda inválidos."},{status:400});
     const [latest, activeEmployees, anyEmployees, vacancies] = await Promise.all([
       db
         .prepare(
@@ -41,8 +44,8 @@ export async function executiveCockpitApi(
         .bind(tenant, scope, scope)
         .first<{ n: number }>(),
       db
-        .prepare("SELECT 1 FROM employees WHERE tenant_id=? LIMIT 1")
-        .bind(tenant)
+        .prepare("SELECT 1 FROM employees WHERE tenant_id=? AND (? IS NULL OR organization_id=?) LIMIT 1")
+        .bind(tenant,scope,scope)
         .first(),
       db
         .prepare(
@@ -51,7 +54,7 @@ export async function executiveCockpitApi(
         .bind(tenant, scope, scope)
         .first<{ requisitions: number; positions: number }>(),
     ]);
-    const period = latest?.period ?? null;
+    const period = selectedPeriod || latest?.period || null;
     const classificationQuery =
       "SELECT COALESCE(l.classification,'Outro') classification,SUM(e.amount_minor) total FROM performance_entries e LEFT JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code WHERE e.tenant_id=? AND e.scenario='Actual' AND e.period=? AND e.currency=? AND (? IS NULL OR e.organization_id=?) AND e.version_id IS NULL GROUP BY classification";
     const actualRows = period
@@ -98,7 +101,9 @@ export async function moduleHealthApi(
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const tenant = security.tenantId,
       scope = security.organizationId,
-      currency = "AOA";
+      currency = new URL(request.url).searchParams.get("currency") || "AOA",
+      selectedPeriod = new URL(request.url).searchParams.get("period");
+    if (!/^[A-Z]{3}$/.test(currency) || (selectedPeriod && !/^\d{4}-(0[1-9]|1[0-2])$/.test(selectedPeriod))) return Response.json({error:"Período ou moeda inválidos."},{status:400});
     const [
       latestPeriod,
       activeEmployees,
@@ -124,9 +129,9 @@ export async function moduleHealthApi(
         .first<{ n: number }>(),
       db
         .prepare(
-          "SELECT period,currency,gross_minor FROM payroll_runs WHERE tenant_id=? AND status='Fechado' ORDER BY period DESC LIMIT 1",
+          "SELECT period,currency,gross_minor FROM payroll_runs WHERE tenant_id=? AND status='Fechado' AND currency=? AND (? IS NULL OR organization_id=?) AND (? IS NULL OR period=?) ORDER BY period DESC LIMIT 1",
         )
-        .bind(tenant)
+        .bind(tenant,currency,scope,scope,selectedPeriod,selectedPeriod)
         .first<{ period: string; currency: string; gross_minor: number }>(),
       db
         .prepare(
@@ -165,10 +170,11 @@ export async function moduleHealthApi(
         .bind(tenant, scope, scope)
         .first<{ total: number; validated: number }>(),
     ]);
-    const period = latestPeriod?.period ?? null;
+    const period = selectedPeriod || latestPeriod?.period || null;
     let financeRevenue = 0,
       hasFinanceData = false,
       workforceVarianceBps: number | null = null;
+    const workforceActual = period ? await db.prepare("SELECT COALESCE(SUM(total_minor),0) total FROM workforce_cost_postings WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?").bind(tenant,scope,scope,period,currency).first<{total:number}>() : null;
     if (period) {
       const rows = await db
         .prepare(
@@ -205,7 +211,7 @@ export async function moduleHealthApi(
       payroll: latestPayroll
         ? { period: latestPayroll.period, currency: latestPayroll.currency, grossMinor: latestPayroll.gross_minor }
         : null,
-      workforce: { hasBudget: Boolean(approvedBudget), varianceBps: workforceVarianceBps },
+      workforce: { hasBudget: workforceVarianceBps!==null, varianceBps: workforceVarianceBps, actualMinor:workforceActual?.total||0, currency, period },
       performance: { finalizedReviews: finalizedReviews?.n ?? 0 },
       workflow: { openTasks: openTasks?.n ?? 0, criticalTasks: criticalTasks?.n ?? 0 },
       integrations: {

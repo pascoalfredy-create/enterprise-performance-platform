@@ -1,3 +1,4 @@
+import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 type Security={tenantId:string;organizationId:string|null;email:string;role:string;modules:string[]};
 type Item={id:string;domain:string;title:string;detail:string;dueAt:string;target:string;severity:"Normal"|"Alta"|"Crítica";canAct:boolean;taskId?:string;taskStatus?:string};

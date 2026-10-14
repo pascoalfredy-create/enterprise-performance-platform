@@ -5,6 +5,21 @@ import { usePlatformLocale } from "./use-platform-locale";
 
 // Authored UI catalogue. Portuguese is the stable source key; business codes and API values are never changed.
 const rows:Array<[string,string,string,string,string]>=[
+["Saldos separados por moeda","Balances by currency","Saldos por moneda","Soldes par devise","Остатки по валютам"],
+["Cancelar pedido","Cancel request","Cancelar solicitud","Annuler la demande","Отменить заявку"],
+["Leitura dos dados","Reading the data","Lectura de los datos","Lecture des données","Чтение данных"],
+["Os indicadores acima são calculados a partir dos registos do período e moeda selecionados. Consulte os módulos de origem para detalhe e reconciliação. Um índice global de performance exige uma metodologia aprovada e ainda não está disponível.","The indicators above use records for the selected period and currency. Consult source modules for details and reconciliation. A global performance index requires an approved methodology and is not yet available.","Los indicadores utilizan registros del período y moneda seleccionados. Consulte los módulos de origen para detalle y conciliación. Un índice global requiere una metodología aprobada y aún no está disponible.","Les indicateurs utilisent les données de la période et de la devise sélectionnées. Consultez les modules sources pour le détail et le rapprochement. Un indice global nécessite une méthode approuvée et reste indisponible.","Показатели используют записи за выбранный период и в выбранной валюте. Подробности и сверку смотрите в исходных модулях. Глобальный индекс требует утверждённой методики и пока недоступен."],
+["Exemplo ilustrativo","Illustrative example","Ejemplo ilustrativo","Exemple illustratif","Иллюстративный пример"],
+["Recalcular e reabrir","Recalculate and reopen","Recalcular y reabrir","Recalculer et rouvrir","Пересчитать и открыть заново"],
+["Organização do ajustamento","Adjustment organization","Organización del ajuste","Organisation de l’ajustement","Организация корректировки"],
+["Anulado · histórico preservado","Cancelled · history retained","Anulado · historial conservado","Annulé · historique conservé","Отменён · история сохранена"],
+["Regras fiscais ainda não implementadas","Tax rules not yet implemented","Reglas fiscales aún no implementadas","Règles fiscales non encore implémentées","Налоговые правила ещё не реализованы"],
+["Fechar vaga","Close vacancy","Cerrar vacante","Clore le poste","Закрыть вакансию"],
+["Cancelar vaga","Cancel vacancy","Cancelar vacante","Annuler le poste","Отменить вакансию"],
+["Período dos indicadores","Indicator period","Período de indicadores","Période des indicateurs","Период показателей"],
+["Catálogo de configuração · sem motor fiscal validado","Configuration catalog · no validated tax engine","Catálogo de configuración · sin motor fiscal validado","Catalogue de configuration · sans moteur fiscal validé","Каталог настроек · без проверенного налогового механизма"],
+["Exportar dados JSON →","Export JSON data →","Exportar datos JSON →","Exporter les données JSON →","Экспортировать данные JSON →"],
+["Ainda indisponível","Not yet available","Aún no disponible","Pas encore disponible","Пока недоступно"],
 ["← Voltar ao site","← Back to site","← Volver al sitio","← Retour au site","← Вернуться на сайт"],
 ["ÁREA SEGURA","SECURE AREA","ÁREA SEGURA","ESPACE SÉCURISÉ","ЗАЩИЩЁННАЯ ЗОНА"],
 ["Bem-vindo novamente","Welcome back","Bienvenido de nuevo","Heureux de vous revoir","С возвращением"],

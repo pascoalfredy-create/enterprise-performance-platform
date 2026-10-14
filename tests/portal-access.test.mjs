@@ -436,7 +436,7 @@ test("RH presents Payroll as a governed submodule", () => {
 test("every operational RH workspace uses the authored five-language catalogue", () => {
   const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
   const i18n = fs.readFileSync(new URL("../app/hr-localized-surface.tsx", import.meta.url), "utf8");
-  assert.match(page, /<PlatformLocalizedSurface>[\s\S]*?<RecruitmentWorkspace \/>[\s\S]*?<PayrollFoundation \/>[\s\S]*?<PayrollAdjustmentsWorkspace \/>[\s\S]*?<\/PlatformLocalizedSurface>/);
+  assert.match(page, /<PlatformLocalizedSurface>[\s\S]*?<RecruitmentWorkspace \/>[\s\S]*?<PayrollFoundation[^>]*\/>[\s\S]*?<PayrollAdjustmentsWorkspace \/>[\s\S]*?<\/PlatformLocalizedSurface>/);
   for (const locale of ["pt", "en", "es", "fr", "ru"])
     assert.match(i18n, new RegExp(`${locale}:\\d`));
   assert.match(i18n, /business codes and API values are never changed/);

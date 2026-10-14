@@ -1,3 +1,4 @@
+import type {D1Database,R2Bucket} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 type Security = {
   tenantId: string;
@@ -81,7 +82,7 @@ export async function documentHubApi(
           { error: "Conteúdo documental não encontrado." },
           { status: 404 },
         );
-      return new Response(object.body, {
+      return new Response(object.body as unknown as BodyInit, {
         headers: {
           "content-type": String(row.mime_type),
           "content-disposition": `attachment; filename="${String(row.file_name).replace(/[\r\n"\\]/g, "_")}"`,
@@ -299,7 +300,7 @@ export async function documentHubApi(
             authorization: env.OCR_API_KEY ? `Bearer ${env.OCR_API_KEY}` : "",
             "x-document-hash": String(doc.evidence_hash),
           },
-          body: object.body,
+          body: object.body as unknown as BodyInit,
         });
         if (!response.ok) throw new Error("OCR provider failed");
         const result = (await response.json()) as {

@@ -290,7 +290,7 @@ test("public careers document upload accepts a valid CV for a known candidate an
     form.set(
       "file",
       fields.file ??
-        new File([new Uint8Array([1, 2, 3, 4])], "cv.pdf", {
+        new File([new TextEncoder().encode("%PDF-1.7\n")], "cv.pdf", {
           type: "application/pdf",
         }),
     );

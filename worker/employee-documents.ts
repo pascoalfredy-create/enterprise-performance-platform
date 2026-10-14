@@ -1,3 +1,5 @@
+import type {D1Database,R2Bucket} from "../worker-configuration";
+import {matchesFileSignature} from "../lib/file-signature";
 import { classifyDataError } from "../lib/api-error";
 type Security = {
   tenantId: string;
@@ -69,7 +71,7 @@ export async function employeeDocumentsApi(
           { status: 404 },
         );
       const safe = row.file_name.replace(/[\r\n"\\]/g, "_");
-      return new Response(object.body, {
+      return new Response(object.body as unknown as BodyInit, {
         headers: {
           "content-type": row.mime_type,
           "content-length": String(object.size),
@@ -135,6 +137,7 @@ export async function employeeDocumentsApi(
         version = Number(latest?.version || 0) + 1,
         entityId = uid(),
         storageKey = `${tenant}/employees/${employeeId}/documents/${entityId}/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      if(!matchesFileSignature(bytes,file.type))return Response.json({error:"O conteúdo do ficheiro não corresponde ao formato declarado."},{status:400});
       await bucket.put(storageKey, bytes, {
         httpMetadata: { contentType: file.type },
         customMetadata: {

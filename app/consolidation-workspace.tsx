@@ -621,6 +621,7 @@ export function ConsolidationWorkspace() {
             ) : (
               <>
                 <div>
+                  <label>Organização do ajustamento<select name="organizationId" required><option value="">Selecionar</option>{data.organizations.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
                   <label>
                     Código da linha
                     <input name="lineCode" required />
