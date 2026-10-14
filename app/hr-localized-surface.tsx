@@ -5,6 +5,12 @@ import { usePlatformLocale } from "./use-platform-locale";
 
 // Authored UI catalogue. Portuguese is the stable source key; business codes and API values are never changed.
 const rows:Array<[string,string,string,string,string]>=[
+["Controlo de integridade","Integrity checks","Controles de integridad","Contrôles d’intégrité","Проверка целостности"],
+["Eventos recentes devolvidos pelo serviço, dentro do âmbito autorizado. Esta lista não representa o histórico completo.","Recent events returned within the authorized scope. This list is not the complete history.","Eventos recientes dentro del ámbito autorizado. Esta lista no es el historial completo.","Événements récents dans le périmètre autorisé. Cette liste ne constitue pas l’historique complet.","Последние события в разрешённой области доступа. Это не полная история."],
+["A carregar eventos…","Loading events…","Cargando eventos…","Chargement des événements…","Загрузка событий…"],
+["Sem eventos disponíveis neste âmbito.","No events available in this scope.","Sin eventos en este ámbito.","Aucun événement dans ce périmètre.","В этой области событий нет."],
+["Evento","Event","Evento","Événement","Событие"],
+
 ["Saldos separados por moeda","Balances by currency","Saldos por moneda","Soldes par devise","Остатки по валютам"],
 ["Cancelar pedido","Cancel request","Cancelar solicitud","Annuler la demande","Отменить заявку"],
 ["Leitura dos dados","Reading the data","Lectura de los datos","Lecture des données","Чтение данных"],

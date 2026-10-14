@@ -74,12 +74,13 @@ const moduleCatalog: Array<{
       { label: "Organização", target: "Administração" },
       { label: "Utilizadores e RBAC", target: "Utilizadores" },
       { label: "Document Hub e OCR", target: "Documentos" },
-      { label: "Registo de auditoria", target: "Controlo", document: true },
+      { label: "Registo de auditoria", target: "Auditoria", document: true },
+      { label: "Controlo de integridade", target: "Controlo" },
       { label: "Demonstração guiada", target: "Centro Comercial" },
       { label: "Tarefas e aprovações", target: "Workflow", requires: "WORKFLOW" },
       {
         label: "Histórico de decisões",
-        target: "Workflow",
+        target: "Histórico de decisões",
         document: true,
         requires: "WORKFLOW",
       },
@@ -189,8 +190,8 @@ const moduleCatalog: Array<{
     name: "Integration Hub",
     icon: "⌁",
     items: [
-      { label: "Fontes de dados", target: "Integrações" },
-      { label: "Mappings", target: "Integrações" },
+      { label: "Fontes de dados", target: "Fontes de integração" },
+      { label: "Mappings", target: "Mappings de integração" },
       { label: "Logs de integração", target: "Integrações", document: true },
     ],
   },
@@ -656,7 +657,11 @@ export default function Home() {
           ) : modulo === "Competências" ? (
             <CompetenciesWorkspace actor={sessao.email} role={sessao.role} />
           ) : modulo === "Integrações" ? (
-            <IntegrationsWorkspace />
+            <IntegrationsWorkspace onNavigate={setModulo} />
+          ) : modulo === "Fontes de integração" || modulo === "Mappings de integração" ? (
+            <IntegrationsWorkspace initialView={modulo === "Fontes de integração" ? "Fontes" : "Mappings"} onNavigate={setModulo} />
+          ) : modulo === "Auditoria" || modulo === "Histórico de decisões" ? (
+            <RecentAudit key={modulo} decisions={modulo === "Histórico de decisões"} />
           ) : modulo === "Controlo" ? (
             <>
               <IntegrityCenter onNavigate={setModulo} />
@@ -7033,4 +7038,10 @@ function ApiContract() {
       )}
     </section>
   );
+}
+
+function RecentAudit({decisions}:{decisions:boolean}) {
+ const [events,setEvents]=useState<AuditEvent[]|null>(null),[error,setError]=useState("");
+ useEffect(()=>{let active=true;apiFetch(decisions?"/api/v1/workflow":"/api/v1/setup",{cache:"no-store"}).then(async r=>{const data=await readApiJson<{audit?:AuditEvent[];history?:AuditEvent[];error?:string}>(r);if(!r.ok)throw new Error(data.error||"Não foi possível carregar a auditoria.");if(active)setEvents((decisions?data.history:data.audit)||[])}).catch(e=>{if(active)setError(e.message)});return()=>{active=false}},[decisions]);
+ return <section className="cartao"><h1>{decisions?"Histórico de decisões":"Registo de auditoria"}</h1><p>Eventos recentes devolvidos pelo serviço, dentro do âmbito autorizado. Esta lista não representa o histórico completo.</p>{error?<p role="alert">{error}</p>:events===null?<p>A carregar eventos…</p>:events.length===0?<p>Sem eventos disponíveis neste âmbito.</p>:<table><thead><tr><th>Data</th><th>Autor</th><th>Evento</th></tr></thead><tbody>{events.map(e=><tr key={e.id}><td>{new Date(e.created_at).toLocaleString("pt-AO")}</td><td>{e.actor}</td><td>{e.summary}</td></tr>)}</tbody></table>}</section>;
 }
