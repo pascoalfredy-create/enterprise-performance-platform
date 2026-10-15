@@ -238,7 +238,7 @@ export async function financialProfitabilityApi(
     for(const row of rows.results){let unit=grouped.get(row.organization_id);if(!unit){unit={id:row.organization_id,name:row.organization_name,revenue:0,costs:0,incomeRows:0,unclassified:0,lines:[]};grouped.set(row.organization_id,unit)}unit.lines.push(row);unit.unclassified+=row.unclassified;if(row.classification==='Receita'){unit.revenue+=row.total;unit.incomeRows+=row.entry_count}else if(row.classification==='Custo'){unit.costs+=row.total;unit.incomeRows+=row.entry_count}}
     const units=[...grouped.values()].filter(unit=>unit.incomeRows>0).map(unit=>({id:unit.id,name:unit.name,revenue:unit.revenue,costs:Math.abs(unit.costs),margin:unit.unclassified?null:unit.revenue-Math.abs(unit.costs),marginPct:!unit.unclassified&&unit.revenue>0?(unit.revenue-Math.abs(unit.costs))/unit.revenue*100:null,complete:unit.unclassified===0,lines:unit.lines})).sort((a,b)=>b.revenue-a.revenue);
     const pending=new Map<string,{code:string;name:string;amount:number}>();for(const row of rows.results.filter(row=>row.unclassified)){const previous=pending.get(row.code);pending.set(row.code,{code:row.code,name:row.name,amount:(previous?.amount||0)+row.total})}
-    return Response.json({hasData:rows.results.length>0,hasIncomeData:units.length>0,period,currency,units,unclassified:[...pending.values()],canClassify:!scope&&['Administrador','Financeiro','Gestor'].includes(security.role),summary:{revenue:units.reduce((sum,u)=>sum+u.revenue,0),costs:units.reduce((sum,u)=>sum+u.costs,0),complete:pending.size===0}});
+    return Response.json({catalogLines:[...new Map(rows.results.map(row=>[row.code,{code:row.code,name:row.name,classification:row.classification}])).values()],hasData:rows.results.length>0,hasIncomeData:units.length>0,period,currency,units,unclassified:[...pending.values()],canClassify:!scope&&['Administrador','Financeiro','Gestor'].includes(security.role),summary:{revenue:units.reduce((sum,u)=>sum+u.revenue,0),costs:units.reduce((sum,u)=>sum+u.costs,0),complete:pending.size===0}});
   } catch (error) {
     return fail(error);
   }
@@ -367,3 +367,4 @@ export async function financialVarianceApi(
     return fail(error);
   }
 }
+
