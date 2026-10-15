@@ -18,3 +18,6 @@ Quatro indicadores: receitas, custos, resultado e margem sobre receitas. Gráfic
 A classificação financeira avançada permanece acessível em Configuração financeira, mesmo depois de uma rubrica sair dos pendentes ou ser movida para Ativo/Outro. A alteração é partilhada por todos os relatórios do tenant e exige o perfil autorizado. Valores internos das opções são independentes das traduções.
 
 Critério de evolução do produto: dado → explicação verificável → impacto → ação. Recomendações devem apontar os registos, período e moeda que as sustentam e distinguir realizado, projeção e dados em falta. Esta entrega cobre receitas/custos e reclassificação; não adiciona diagnóstico completo de liquidez, dívida ou gestão de pessoas.
+
+## Motor integrado
+A fonte de Saúde financeira, DRE, balanço e fluxo de caixa foi implementada no motor financeiro. Ver `docs/integrated-financial-health.md` para ativação, fórmulas, reconciliação, indicadores de pessoas e limites. Os saldos de abertura e os Actual anteriores exigem informação e ligação explícitas; não são presumidos.

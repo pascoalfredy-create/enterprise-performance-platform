@@ -1,3 +1,5 @@
+import {financialLedgerApi} from './financial-ledger';
+import type {financialLedger} from '../lib/financial-ledger';
 import type {D1Database} from "../worker-configuration";
 import { financialScope } from "./financial-scope";
 import { classifyDataError } from "../lib/api-error";
@@ -107,6 +109,14 @@ export async function financialStatementsApi(
     const tenant = security.tenantId,
       url = new URL(request.url),
       { scope, currency } = await financialScope(request, db, security);
+    const sourceBooks=await db.prepare('SELECT id FROM financial_books WHERE tenant_id=? AND currency=? AND (? IS NULL OR organization_id=?)').bind(tenant,currency,scope,scope).all<{id:string}>();
+    if(sourceBooks.results.length){
+      if(!scope)return Response.json({hasData:false,requiresOrganization:true,currency,period:url.searchParams.get('period'),source:'financialLedger'});
+      const ledgerUrl=new URL(request.url);ledgerUrl.searchParams.set('bookId',sourceBooks.results[0].id);
+      const response=await financialLedgerApi(new Request(ledgerUrl),db,security);if(!response.ok)return response;
+      const data=await response.json() as {report:ReturnType<typeof financialLedger>;quality:unknown};const r=data.report;
+      return Response.json({hasData:r.covered,source:'financialLedger',period:r.period,currency,quality:data.quality,income:{precise:true,revenue:r.income.REVENUE,cogs:r.income.COGS,grossMargin:r.income.gross,opex:r.income.OPEX,depreciation:r.income.DEPRECIATION,operatingResult:r.income.ebit,netResult:r.income.net},balanceSheet:{assets:r.balance.assets,liabilities:r.balance.liabilities,equity:r.balance.equity,grossDebt:r.balance.accounts.SHORT_DEBT+r.balance.accounts.LONG_DEBT,netDebt:r.balance.accounts.SHORT_DEBT+r.balance.accounts.LONG_DEBT-r.balance.accounts.CASH,cash:r.balance.accounts.CASH,difference:r.balance.difference},cashFlow:{operational:r.cashFlow.Operacional,investing:r.cashFlow.Investimento,financing:r.cashFlow.Financiamento,net:r.cashFlow.net,opening:r.cashFlow.opening,closing:r.cashFlow.closing,difference:r.cashFlow.difference},workingCapital:null});
+    }
     const latest = await db
       .prepare(
         "SELECT MAX(period) period FROM performance_entries WHERE tenant_id=? AND scenario='Actual' AND currency=? AND (? IS NULL OR organization_id=?)",

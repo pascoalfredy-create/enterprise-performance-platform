@@ -2,6 +2,7 @@ export type ApiErrorClassification={status:number;code:string;message:string};
 
 export function classifyDataError(error:unknown,fallback:string):ApiErrorClassification{
  const detail=error instanceof Error?error.message:String(error||"");
+ if(/linked financial source/i.test(detail))return{status:409,code:"FINANCIAL_SOURCE_LINKED",message:"Este valor já alimenta os mapas financeiros. Para alterar montante, período ou natureza, corrija primeiro o movimento em Saúde financeira e mapas. Categorias e descrições continuam editáveis."};
  if(/UNIQUE constraint failed|duplicate employee payroll period|payroll settlement source changed/i.test(detail))return{status:409,code:"CONFLICT",message:"O registo já existe ou a operação foi concluída em paralelo. Atualize os dados e confirme o resultado."};
  if(/immutable/i.test(detail))return{status:409,code:"IMMUTABLE_RECORD",message:"O registo está fechado ou emitido e já não pode ser alterado."};
  if(/not open|not closed|invalid .* transition/i.test(detail))return{status:409,code:"INVALID_STATE",message:"O estado atual do registo não permite esta operação."};
