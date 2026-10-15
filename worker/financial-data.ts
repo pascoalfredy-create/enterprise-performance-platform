@@ -91,7 +91,7 @@ export async function financialDataApi(
                 )
                 .bind(tenant)
                 .all(),
-          db.prepare("SELECT DISTINCT period FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) ORDER BY period DESC").bind(tenant,scope,scope).all(),
+          db.prepare("SELECT DISTINCT period FROM performance_entries WHERE tenant_id=? AND scenario='Actual' AND version_id IS NULL AND (? IS NULL OR organization_id=?) ORDER BY period DESC").bind(tenant,scope,scope).all(),
           db.prepare("SELECT DISTINCT currency FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) ORDER BY currency").bind(tenant,scope,scope).all(),
         ]);
       return {
@@ -113,7 +113,17 @@ export async function financialDataApi(
     const body = (await request.json()) as Record<string, string>;
     let entityId = "",
       entityType = "financialImport";
-    if (body.type === "createLine") {
+    if (body.type === "classifyLine") {
+      if (scope || !["Administrador", "Financeiro", "Gestor"].includes(security.role)) return Response.json({ error: "A classificação financeira exige permissão de configuração e âmbito de todo o tenant." }, { status: 403 });
+      const code=body.code?.trim();
+      if (!code || !["Receita","Custo","Ativo","Passivo","Capital","Caixa","Outro"].includes(body.classification)) return Response.json({error:"Código e classificação válidos são obrigatórios."},{status:400});
+      const existing=await db.prepare("SELECT id FROM financial_line_catalog WHERE tenant_id=? AND code=?").bind(tenant,code).first<{id:string}>();
+      const source=await db.prepare("SELECT line_name FROM performance_entries WHERE tenant_id=? AND line_code=? ORDER BY created_at DESC LIMIT 1").bind(tenant,code).first<{line_name:string}>();
+      if(!existing&&!source)return Response.json({error:"Rubrica não encontrada."},{status:404});
+      entityId=existing?.id||uid();entityType="financialLine";
+      await db.batch([existing?db.prepare("UPDATE financial_line_catalog SET classification=? WHERE id=? AND tenant_id=?").bind(body.classification,entityId,tenant):db.prepare("INSERT INTO financial_line_catalog VALUES (?,?,?,?,?,?,?,?,?,?)").bind(entityId,tenant,code,source!.line_name,body.classification,"Não aplicável","Natural","Ativa",security.email,now),db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(uid(),tenant,now,"classifyLine",entityType,entityId,security.email,code+": "+body.classification)]);
+      return financialDataApi(new Request(request.url),db,security);
+    } else if (body.type === "createLine") {
       if (scope)
         return Response.json(
           { error: "O catálogo financeiro exige âmbito de todo o tenant." },

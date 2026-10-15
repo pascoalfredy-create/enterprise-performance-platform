@@ -23,3 +23,7 @@ export function treasuryForecast(opening:number,start:string,flows:TreasuryFlow[
  }
  return {opening,inflows,outflows,closing:balance,minimum,firstShortfall,overdue:included.filter(x=>x.due_date<start).length,weeks,categories:[...categories.values()].sort((a,b)=>b.amount-a.amount)};
 }
+export function treasuryWeekItems<T extends {due_date:string;status:string}>(flows:T[],asOf:string,from:string,to:string,showDeleted=false):T[]{
+ if(![asOf,from,to].every(validTreasuryDate)||from>to)throw new Error('invalid treasury week');
+ return flows.filter(flow=>(showDeleted||flow.status==='Previsto')&&(flow.due_date<asOf?asOf:flow.due_date)>=from&&(flow.due_date<asOf?asOf:flow.due_date)<=to);
+}

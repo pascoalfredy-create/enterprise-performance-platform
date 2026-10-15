@@ -26,3 +26,9 @@ SQLite-backed runtime tests cover 13-week arithmetic, daily shortfalls, overdue 
 ## Management-data editing verification
 
 The correction, deletion and restoration paths are tested through the API, including recalculation of cash, manager access, scope checks, stale revisions, duplicate references and rollback after an injected audit failure. All 266 tests, TypeScript and production build passed for this change. No authenticated UI completion is claimed.
+
+## Weekly movements and profitability usability
+
+Each weekly forecast row opens its source movements, including overdue items in week one, using the same date window as the cash engine. Edit/delete/recover operate on these source items and recalculate the projection.
+
+Profitability identifies catalog coverage gaps, allows authorized tenant-wide users to classify missing lines, displays null margins while coverage is incomplete, retains genuine zero-value income rows, and exposes line detail and XLSX export. Initial financial periods come from live Actual data rather than Budget-only future months. Migration 0062 repairs only known ERP Demo codes; custom business data is not classified by guessing from its name. The demo installer creates matching catalog rows for new installations.

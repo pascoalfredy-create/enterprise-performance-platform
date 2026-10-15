@@ -233,45 +233,12 @@ export async function financialProfitabilityApi(
     const period = url.searchParams.get("period") || latest?.period || null;
     if (!period)
       return Response.json({ hasData: false, currency, period: null, units: [] });
-    const rows = await db
-      .prepare(
-        "SELECT o.id organization_id,o.name organization_name,COALESCE(l.classification,'Outro') classification,SUM(e.amount_minor) total FROM performance_entries e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id LEFT JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code WHERE e.tenant_id=? AND e.scenario='Actual' AND e.period=? AND e.currency=? AND (? IS NULL OR e.organization_id=?) AND e.version_id IS NULL GROUP BY o.id,classification",
-      )
-      .bind(tenant, period, currency, scope, scope)
-      .all<{
-        organization_id: string;
-        organization_name: string;
-        classification: string;
-        total: number;
-      }>();
-    const byOrg = new Map<string, { name: string; revenue: number; costs: number }>();
-    for (const row of rows.results) {
-      if (!byOrg.has(row.organization_id))
-        byOrg.set(row.organization_id, {
-          name: row.organization_name,
-          revenue: 0,
-          costs: 0,
-        });
-      const entry = byOrg.get(row.organization_id)!;
-      if (row.classification === "Receita") entry.revenue += row.total;
-      else if (row.classification === "Custo") entry.costs += Math.abs(row.total);
-    }
-    const units = Array.from(byOrg.values())
-      .filter((u) => u.revenue !== 0 || u.costs !== 0)
-      .map((u) => ({
-        name: u.name,
-        revenue: u.revenue,
-        costs: u.costs,
-        margin: u.revenue - u.costs,
-        marginPct: u.revenue > 0 ? ((u.revenue - u.costs) / u.revenue) * 100 : null,
-      }))
-      .sort((a, b) => b.revenue - a.revenue);
-    return Response.json({
-      hasData: units.length > 0,
-      period,
-      currency,
-      units,
-    });
+    const rows=await db.prepare("SELECT o.id organization_id,o.name organization_name,e.line_code code,MAX(e.line_name) name,COALESCE(l.classification,'Outro') classification,CASE WHEN l.id IS NULL THEN 1 ELSE 0 END unclassified,SUM(e.amount_minor) total,COUNT(*) entry_count FROM performance_entries e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id LEFT JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code WHERE e.tenant_id=? AND e.scenario='Actual' AND e.period=? AND e.currency=? AND (? IS NULL OR e.organization_id=?) AND e.version_id IS NULL GROUP BY o.id,e.line_code,l.classification,l.id ORDER BY o.name,e.line_code").bind(tenant,period,currency,scope,scope).all<{organization_id:string;organization_name:string;code:string;name:string;classification:string;unclassified:number;total:number;entry_count:number}>();
+    const grouped=new Map<string,{id:string;name:string;revenue:number;costs:number;incomeRows:number;unclassified:number;lines:typeof rows.results}>();
+    for(const row of rows.results){let unit=grouped.get(row.organization_id);if(!unit){unit={id:row.organization_id,name:row.organization_name,revenue:0,costs:0,incomeRows:0,unclassified:0,lines:[]};grouped.set(row.organization_id,unit)}unit.lines.push(row);unit.unclassified+=row.unclassified;if(row.classification==='Receita'){unit.revenue+=row.total;unit.incomeRows+=row.entry_count}else if(row.classification==='Custo'){unit.costs+=row.total;unit.incomeRows+=row.entry_count}}
+    const units=[...grouped.values()].filter(unit=>unit.incomeRows>0).map(unit=>({id:unit.id,name:unit.name,revenue:unit.revenue,costs:Math.abs(unit.costs),margin:unit.unclassified?null:unit.revenue-Math.abs(unit.costs),marginPct:!unit.unclassified&&unit.revenue>0?(unit.revenue-Math.abs(unit.costs))/unit.revenue*100:null,complete:unit.unclassified===0,lines:unit.lines})).sort((a,b)=>b.revenue-a.revenue);
+    const pending=new Map<string,{code:string;name:string;amount:number}>();for(const row of rows.results.filter(row=>row.unclassified)){const previous=pending.get(row.code);pending.set(row.code,{code:row.code,name:row.name,amount:(previous?.amount||0)+row.total})}
+    return Response.json({hasData:rows.results.length>0,hasIncomeData:units.length>0,period,currency,units,unclassified:[...pending.values()],canClassify:!scope&&['Administrador','Financeiro','Gestor'].includes(security.role),summary:{revenue:units.reduce((sum,u)=>sum+u.revenue,0),costs:units.reduce((sum,u)=>sum+u.costs,0),complete:pending.size===0}});
   } catch (error) {
     return fail(error);
   }

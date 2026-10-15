@@ -29,6 +29,7 @@ export async function installEnterpriseDemo(db:D1Database,s:Security){
   ["CAPEX","CAPEX",[120000000,80000000,95000000,135000000,70000000,110000000],[100000000,100000000,100000000,100000000,100000000,100000000]],
   ["CASH","Caixa disponível",[760000000,815000000,860000000,920000000,980000000,1050000000],[740000000,790000000,835000000,890000000,945000000,1000000000]]
  ] as const;
+ for(const [code,name] of lines)statements.push(q("INSERT OR IGNORE INTO financial_line_catalog VALUES (?,?,?,?,?,?,?,?,?,?)",key(t,`catalog-${code}`),t,code,name,code==="REVENUE"?"Receita":["COGS","OPEX"].includes(code)?"Custo":"Ativo","Não aplicável","Natural","Ativa",actor,now));
  for(const [code,name,actual,bud] of lines)for(let i=0;i<periods.length;i++)statements.push(
   q("INSERT OR IGNORE INTO performance_entries (id,tenant_id,created_at,organization_id,period,scenario,version_id,currency,line_code,line_name,dimension_member_id,amount_minor,source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",key(t,`actual-${code}-${i}`),t,now,org,periods[i],"Actual",null,"AOA",code,name,member,actual[i],"ERP Demo"),
   q("INSERT OR IGNORE INTO performance_entries (id,tenant_id,created_at,organization_id,period,scenario,version_id,currency,line_code,line_name,dimension_member_id,amount_minor,source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",key(t,`budget-${code}-${i}`),t,now,org,periods[i],"Budget",budget,"AOA",code,name,member,bud[i],"FP&A Demo")
