@@ -55,6 +55,7 @@
 // pattern is a real, new problem and still aborts the whole migration
 // step loudly, exactly as before — this only changes the one specific
 // case of a historically-applied-but-untracked file.
+import { parseMigrationResults } from "./d1-migration-results.mjs";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -142,16 +143,20 @@ if (!ensureTracking.ok) {
   process.exit();
 }
 
-const appliedCheck = runWranglerD1Sql("SELECT filename FROM _schema_migrations;");
-if (!appliedCheck.ok) {
-  console.error(appliedCheck.output);
-  console.error(`Could not read _schema_migrations on the ${target} D1 database.`);
-  process.exitCode = 1;
-  process.exit();
+// Query results require --command: remote --file returns an import summary.
+// Invoke the JS CLI without a shell to preserve SQL arguments on Windows too.
+let appliedFilenames;
+try {
+  const output = execFileSync(process.execPath, [
+    path.join(projectRoot, "node_modules", "wrangler", "bin", "wrangler.js"),
+    "d1", "execute", "site-creator-d1", "--config", configPath,
+    ...locationArgs(), "--command", "SELECT filename FROM _schema_migrations;", "--json",
+  ], { cwd: projectRoot, encoding: "utf8" });
+  appliedFilenames = parseMigrationResults(output);
+} catch (error) {
+  console.error(`Could not read _schema_migrations on the ${target} D1 database.`, error.message);
+  process.exit(1);
 }
-const appliedFilenames = new Set(
-  [...(appliedCheck.output ?? "").matchAll(/"filename":\s*"([^"]+)"/g)].map((m) => m[1]),
-);
 const pending = files.filter((name) => !appliedFilenames.has(name));
 
 if (!pending.length) {
