@@ -5,6 +5,24 @@ import { usePlatformLocale } from "./use-platform-locale";
 
 // Authored UI catalogue. Portuguese is the stable source key; business codes and API values are never changed.
 const rows:Array<[string,string,string,string,string]>=[
+["Portal do colaborador","Employee portal","Portal del empleado","Portail collaborateur","Портал сотрудника"],
+["O meu espaço","My workspace","Mi espacio","Mon espace","Моё пространство"],
+["O MEU PORTAL","MY PORTAL","MI PORTAL","MON PORTAIL","МОЙ ПОРТАЛ"],
+["Mais","More","Más","Plus","Ещё"],
+["Navegação do portal","Portal navigation","Navegación del portal","Navigation du portail","Навигация портала"],
+["Mais opções","More options","Más opciones","Plus d’options","Другие разделы"],
+["Fechar mais opções","Close more options","Cerrar más opciones","Fermer les options","Закрыть другие разделы"],
+["O essencial do seu dia, num só lugar.","Your daily essentials in one place.","Lo esencial de su día en un solo lugar.","L’essentiel de votre journée au même endroit.","Всё важное за день в одном месте."],
+["Registe a sua presença e consulte as marcações.","Record your attendance and view your entries.","Registre su asistencia y consulte los registros.","Enregistrez votre présence et consultez vos pointages.","Отмечайте присутствие и просматривайте записи."],
+["Consulte os seus recibos de vencimento.","View your payslips.","Consulte sus nóminas.","Consultez vos bulletins de paie.","Просматривайте расчётные листки."],
+["Consulte saldos e acompanhe os seus pedidos.","View balances and track your requests.","Consulte saldos y siga sus solicitudes.","Consultez vos soldes et suivez vos demandes.","Просматривайте остатки и отслеживайте заявки."],
+["Acompanhe o trabalho que tem a realizar.","Track the work you need to complete.","Siga el trabajo que debe realizar.","Suivez le travail à effectuer.","Следите за своими задачами."],
+["Consulte documentos e assinaturas pendentes.","View documents and pending signatures.","Consulte documentos y firmas pendientes.","Consultez les documents et signatures en attente.","Просматривайте документы и ожидающие подписи."],
+["Consulte e mantenha os seus dados atualizados.","View and keep your details up to date.","Consulte y mantenga sus datos actualizados.","Consultez et mettez à jour vos informations.","Просматривайте и обновляйте свои данные."],
+["Férias e ausências","Leave and absences","Vacaciones y ausencias","Congés et absences","Отпуска и отсутствия"],
+["Os meus documentos","My documents","Mis documentos","Mes documents","Мои документы"],
+["O meu perfil","My profile","Mi perfil","Mon profil","Мой профиль"],
+
 ["O serviço de e-mail aceitou o convite para envio. A receção ainda não está confirmada.","The email service accepted the invitation for sending. Receipt is not yet confirmed.","El servicio aceptó el envío de la invitación. La recepción no está confirmada.","Le service a accepté l’envoi de l’invitation. La réception reste non confirmée.","Почтовый сервис принял приглашение к отправке. Получение пока не подтверждено."],
 ["Convite criado, mas o envio de e-mail não está configurado. Nenhum e-mail foi enviado.","Invitation created, but email sending is not configured. No email was sent.","Invitación creada, pero el envío no está configurado. No se envió ningún correo.","Invitation créée, mais l’envoi n’est pas configuré. Aucun e-mail n’a été envoyé.","Приглашение создано, но отправка почты не настроена. Письмо не отправлено."],
 ["Convite criado, mas o envio de e-mail falhou. Pode tentar novamente.","Invitation created, but email sending failed. You can retry.","Invitación creada, pero el envío falló. Puede reintentarlo.","Invitation créée, mais l’envoi a échoué. Vous pouvez réessayer.","Приглашение создано, но отправка не удалась. Можно повторить."],
