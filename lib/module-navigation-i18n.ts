@@ -2,6 +2,7 @@ import type { PlatformLocale } from "./platform-i18n";
 
 type Five=[string,string,string,string,string];
 const labels:Record<string,Five>={
+"Extratos bancários":["Extratos bancários","Bank statements","Extractos bancarios","Relevés bancaires","Банковские выписки"],
 "Ativação e subscrição":["Ativação e subscrição","Activation & subscription","Activación y suscripción","Activation et abonnement","Активация и подписка"],
 "Organização":["Organização","Organisation","Organización","Organisation","Организация"],
 "Utilizadores e RBAC":["Utilizadores e RBAC","Users & RBAC","Usuarios y RBAC","Utilisateurs et RBAC","Пользователи и RBAC"],

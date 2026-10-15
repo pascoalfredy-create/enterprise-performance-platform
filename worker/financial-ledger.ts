@@ -1,3 +1,4 @@
+import {bankCashSummary} from './bank-statements';
 import {financialActualPreview,type PreviewLine} from '../lib/financial-actual-preview';
 import type {D1Database} from '../worker-configuration';
 import {financialScope} from './financial-scope';
@@ -70,8 +71,8 @@ export async function financialLedgerApi(request:Request,db:D1Database,security:
    const rows=await db.prepare("SELECT COALESCE(l.classification,'Por classificar') classification,COALESCE(NULLIF(m.category,''),l.name,e.line_name) category,e.amount_minor FROM performance_entries e LEFT JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code LEFT JOIN management_actuals m ON m.tenant_id=e.tenant_id AND m.entry_id=e.id WHERE e.tenant_id=? AND e.currency=? AND (? IS NULL OR e.organization_id=?) AND e.period BETWEEN ? AND ? AND e.scenario='Actual' AND e.version_id IS NULL").bind(tenant,currency,scope,scope,start,end).all<PreviewLine>();
    return {...financialActualPreview(rows.results),period:end,start};
   };
-  const [current,previous]=await Promise.all([read(period),read(comparePeriod)]);
-  return Response.json({books:books.results,selectedBook:null,organizations:organizations.results,canWrite,period,currency,legacy:{current,previous}});
+  const [current,previous,bankCash]=await Promise.all([read(period),read(comparePeriod),bankCashSummary(db,tenant,scope,currency,period)]);
+  return Response.json({books:books.results,selectedBook:null,organizations:organizations.results,canWrite,period,currency,legacy:{current,previous,bankCash}});
  }
  const comparePeriod=url.searchParams.get('comparePeriod')||previousMonth(period);if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(comparePeriod)||comparePeriod>now.slice(0,7))return error('Período de comparação inválido.');
  const basis=url.searchParams.get('basis')||'month';if(!['month','ytd'].includes(basis))return error('Base de apresentação inválida.');

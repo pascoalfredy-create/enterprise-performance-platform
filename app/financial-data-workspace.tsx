@@ -1,9 +1,12 @@
 "use client";
+import {parseXlsxFile} from '../lib/xlsx';
+import {usePlatformLocale} from './use-platform-locale';
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { ApprovalAction } from "../lib/approval-policy";
 import { apiFetch, readApiJson } from "../lib/api-client";
 import {
   financialCsvTemplate,
+  mapAssistedRows,
   parseFinancialCsv,
   type AssistedRow,
 } from "../lib/assisted-import";
@@ -79,6 +82,10 @@ const empty: Data = {
   members: [],
 };
 export function FinancialDataWorkspace() {
+  const importLocale=usePlatformLocale(),importIndex={pt:0,en:1,es:2,fr:3,ru:4}[importLocale];
+  const importLabel=['Escolher CSV ou Excel','Choose CSV or Excel','Elegir CSV o Excel','Choisir CSV ou Excel','Выбрать CSV или Excel'][importIndex];
+  const importHint=['Selecione dados do ERP em CSV ou Excel','Select ERP data in CSV or Excel','Seleccione datos ERP en CSV o Excel','Sélectionnez les données ERP en CSV ou Excel','Выберите данные ERP в CSV или Excel'][importIndex];
+  const importError=['Selecione um ficheiro .csv ou .xlsx até 5 MB.','Choose a .csv or .xlsx file up to 5 MB.','Seleccione un .csv o .xlsx de hasta 5 MB.','Choisissez un fichier .csv ou .xlsx de 5 Mo maximum.','Выберите .csv или .xlsx до 5 МБ.'][importIndex];
   const [data, setData] = useState<Data>(empty),
     [view, setView] = useState("Importações"),
     [selected, setSelected] = useState(""),
@@ -138,13 +145,13 @@ export function FinancialDataWorkspace() {
     setImportErrors([]);
     setImportFile(file?.name || "");
     if (!file) return;
-    if (!/\.csv$/i.test(file.name) || file.size > 5 * 1024 * 1024) {
-      setImportErrors(["Selecione um CSV até 5 MB."]);
+    if (!/\.(csv|xlsx)$/i.test(file.name) || file.size > 5 * 1024 * 1024) {
+      setImportErrors([importError]);
       return;
     }
-    const result = parseFinancialCsv(await file.text());
+    try {const result = /\.xlsx$/i.test(file.name)?mapAssistedRows(await parseXlsxFile(file)):parseFinancialCsv(await file.text());
     setImportRows(result.rows);
-    setImportErrors(result.errors);
+    setImportErrors(result.errors);}catch{setImportErrors([importError]);}
   }
   function downloadTemplate() {
     const url = URL.createObjectURL(
@@ -540,14 +547,14 @@ export function FinancialDataWorkspace() {
                 </div>
                 <section className="fd-dropzone">
                   <div>
-                    <b>{importFile || "Selecione o balancete em CSV"}</b>
+                    <b>{importFile || importHint}</b>
                     <small>Cabeçalhos reconhecidos: código, descrição e valor · máximo 5 MB</small>
                   </div>
                   <label className="primario">
-                    Escolher CSV
+                    {importLabel}
                     <input
                       type="file"
-                      accept=".csv,text/csv"
+                      accept=".csv,.xlsx"
                       onChange={(event) => chooseImport(event.target.files?.[0])}
                     />
                   </label>
@@ -605,3 +612,4 @@ export function FinancialDataWorkspace() {
     </section>
   );
 }
+
