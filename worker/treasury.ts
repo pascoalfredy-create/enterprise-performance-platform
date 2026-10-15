@@ -20,7 +20,7 @@ export async function treasuryApi(request:Request,db:D1Database,security:Securit
    if(!account)return Response.json({error:'Conta não encontrada no âmbito autorizado.'},{status:404});
    if(body.type==='importFlows'){
     const rows=parseTreasuryCsv(body.csv||'');
-    await db.batch([...rows.map(row=>db.prepare('INSERT INTO treasury_flows VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant,body.accountId,row.date,row.direction,row.category,row.description,parseMoneyMinor(row.amount),row.reference,'Previsto',security.email,now)),db.prepare('INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)').bind(id,tenant,now,'importFlows','treasury',body.accountId,security.email,'Importação de previsões: '+rows.length)]);
+    await db.batch([...rows.map(row=>db.prepare('INSERT INTO treasury_flows (id,tenant_id,account_id,due_date,direction,category,description,amount_minor,reference,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant,body.accountId,row.date,row.direction,row.category,row.description,parseMoneyMinor(row.amount),row.reference,'Previsto',security.email,now)),db.prepare('INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)').bind(id,tenant,now,'importFlows','treasury',body.accountId,security.email,'Importação de previsões: '+rows.length)]);
     return treasuryApi(new Request(request.url),db,security);
    }else if(body.type==='recordBalance'){
     if(!validTreasuryDate(body.date)||!body.reference?.trim())return Response.json({error:'Data e referência do extrato são obrigatórias.'},{status:400});
@@ -28,13 +28,26 @@ export async function treasuryApi(request:Request,db:D1Database,security:Securit
    }else if(body.type==='createFlow'){
     const amount=parseMoneyMinor(body.amount);
     if(!validTreasuryDate(body.date)||!['Entrada','Saída'].includes(body.direction)||!body.category?.trim()||!body.description?.trim()||!body.reference?.trim()||amount<=0)return Response.json({error:'Data, direção, rubrica, descrição, referência e valor positivo são obrigatórios.'},{status:400});
-    statement=db.prepare('INSERT INTO treasury_flows VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,tenant,body.accountId,body.date,body.direction,body.category.trim(),body.description.trim(),amount,body.reference.trim(),'Previsto',security.email,now);
-   }else if(body.type==='cancelFlow'){
-    const flow=await db.prepare("SELECT id FROM treasury_flows WHERE id=? AND tenant_id=? AND account_id=? AND status='Previsto'").bind(body.flowId||'',tenant,body.accountId).first();if(!flow)return Response.json({error:'Previsão ativa não encontrada.'},{status:409});
-    statement=db.prepare("UPDATE treasury_flows SET status='Cancelado' WHERE id=? AND tenant_id=? AND status='Previsto'").bind(body.flowId,tenant);
+    statement=db.prepare('INSERT INTO treasury_flows (id,tenant_id,account_id,due_date,direction,category,description,amount_minor,reference,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,tenant,body.accountId,body.date,body.direction,body.category.trim(),body.description.trim(),amount,body.reference.trim(),'Previsto',security.email,now);
+   }else if(['editFlow','cancelFlow','deleteFlow','restoreFlow'].includes(body.type)){
+    const flow=await db.prepare("SELECT f.* FROM treasury_flows f JOIN treasury_accounts a ON a.id=f.account_id AND a.tenant_id=f.tenant_id WHERE f.id=? AND f.tenant_id=? AND (? IS NULL OR a.organization_id=?)").bind(body.flowId||'',tenant,scope,scope).first<Record<string,unknown>>();
+    if(!flow)return Response.json({error:'Movimento não encontrado no âmbito autorizado.'},{status:404});
+    const revision=body.type==='cancelFlow'&&body.revision===undefined?Number(flow.revision):Number(body.revision),restoring=body.type==='restoreFlow';
+    if(!Number.isSafeInteger(revision)||revision!==Number(flow.revision)||flow.status!==(restoring?'Cancelado':'Previsto'))return Response.json({error:'O movimento foi alterado. Atualize os dados antes de tentar novamente.'},{status:409});
+    if(body.type==='editFlow'){
+     const amount=parseMoneyMinor(body.amount);
+     if(!validTreasuryDate(body.date)||!['Entrada','Saída'].includes(body.direction)||!body.category?.trim()||!body.description?.trim()||!body.reference?.trim()||amount<=0)return Response.json({error:'Data, direção, rubrica, descrição, referência e valor positivo são obrigatórios.'},{status:400});
+     const sourceAccount=await db.prepare('SELECT organization_id,currency FROM treasury_accounts WHERE id=? AND tenant_id=?').bind(flow.account_id,tenant).first<{organization_id:string;currency:string}>();
+     const targetAccount=await db.prepare('SELECT organization_id,currency FROM treasury_accounts WHERE id=? AND tenant_id=?').bind(body.accountId,tenant).first<{organization_id:string;currency:string}>();
+     if(!sourceAccount||!targetAccount||sourceAccount.organization_id!==targetAccount.organization_id||sourceAccount.currency!==targetAccount.currency)return Response.json({error:'A correção da conta deve manter a organização e a moeda do movimento.'},{status:400});
+     statement=db.prepare("UPDATE treasury_flows SET account_id=?,due_date=?,direction=?,category=?,description=?,amount_minor=?,reference=?,revision=revision+1,updated_by=?,updated_at=? WHERE id=? AND tenant_id=? AND revision=? AND status='Previsto'").bind(body.accountId,body.date,body.direction,body.category.trim(),body.description.trim(),amount,body.reference.trim(),security.email,now,body.flowId,tenant,revision);
+    }else{
+     statement=db.prepare('UPDATE treasury_flows SET status=?,revision=revision+1,updated_by=?,updated_at=? WHERE id=? AND tenant_id=? AND revision=? AND status=?').bind(restoring?'Previsto':'Cancelado',security.email,now,body.flowId,tenant,revision,flow.status);
+    }
    }else return Response.json({error:'Operação de tesouraria desconhecida.'},{status:400});
   }
-  await db.batch([statement,db.prepare('INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant,now,body.type,'treasury',body.flowId||id,security.email,'Tesouraria: '+body.type)]);
+  const results=await db.batch([statement,db.prepare('INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) SELECT ?,?,?,?,?,?,?,? WHERE changes()>0').bind(crypto.randomUUID(),tenant,now,body.type,'treasury',body.flowId||id,security.email,'Tesouraria: '+body.type)]);
+  if(['editFlow','cancelFlow','deleteFlow','restoreFlow'].includes(body.type)&&!Number(results[0].meta.changes))return Response.json({error:'O movimento foi alterado. Atualize os dados antes de tentar novamente.'},{status:409});
   return treasuryApi(new Request(request.url),db,security);
  }
  if(request.method!=='GET')return Response.json({error:'Método não permitido.'},{status:405});
