@@ -1,3 +1,4 @@
+import {financialActualPreview,type PreviewLine} from '../lib/financial-actual-preview';
 import type {D1Database} from '../worker-configuration';
 import {financialScope} from './financial-scope';
 import {parseMoneyMinor,isCurrency} from '../lib/money';
@@ -62,7 +63,16 @@ export async function financialLedgerApi(request:Request,db:D1Database,security:
  }
  if(request.method!=='GET')return error('Método não permitido.',405);
  const organizations=await db.prepare("SELECT id,name,currency FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name").bind(tenant,scope,scope).all();
- if(!selected)return Response.json({books:books.results,selectedBook:null,organizations:organizations.results,canWrite,period,currency});
+ if(!selected){
+  const comparePeriod=url.searchParams.get('comparePeriod')||previousMonth(period),basis=url.searchParams.get('basis')||'month';
+  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(comparePeriod)||comparePeriod>now.slice(0,7)||!['month','ytd'].includes(basis))return error('Período ou base de comparação inválidos.');
+  const read=async (end:string)=>{const start=basis==='ytd'?end.slice(0,4)+'-01':end;
+   const rows=await db.prepare("SELECT COALESCE(l.classification,'Por classificar') classification,COALESCE(NULLIF(m.category,''),l.name,e.line_name) category,e.amount_minor FROM performance_entries e LEFT JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code LEFT JOIN management_actuals m ON m.tenant_id=e.tenant_id AND m.entry_id=e.id WHERE e.tenant_id=? AND e.currency=? AND (? IS NULL OR e.organization_id=?) AND e.period BETWEEN ? AND ? AND e.scenario='Actual' AND e.version_id IS NULL").bind(tenant,currency,scope,scope,start,end).all<PreviewLine>();
+   return {...financialActualPreview(rows.results),period:end,start};
+  };
+  const [current,previous]=await Promise.all([read(period),read(comparePeriod)]);
+  return Response.json({books:books.results,selectedBook:null,organizations:organizations.results,canWrite,period,currency,legacy:{current,previous}});
+ }
  const comparePeriod=url.searchParams.get('comparePeriod')||previousMonth(period);if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(comparePeriod)||comparePeriod>now.slice(0,7))return error('Período de comparação inválido.');
  const basis=url.searchParams.get('basis')||'month';if(!['month','ytd'].includes(basis))return error('Base de apresentação inválida.');
  const report=financialLedger(selected,operations,period,now.slice(0,10),basis as 'month'|'ytd'),previous=financialLedger(selected,operations,comparePeriod,now.slice(0,10),basis as 'month'|'ytd');

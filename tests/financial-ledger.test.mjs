@@ -111,3 +111,27 @@ test('linked Actual amounts and classifications cannot silently diverge from the
  const code=sql.prepare('SELECT line_code FROM performance_entries WHERE id=?').get(source.entry_id).line_code;r=await financialDataApi(request('/api/financial-data',{type:'classifyLine',code,classification:'Custo'}),db,maker);assert.equal(r.status,409);assert.throws(()=>sql.prepare('DELETE FROM performance_entries WHERE id=?').run(source.entry_id),/immutable/);
  r=await financialDataApi(request(actualPath,{...edit,amount:'100.00',category:'Consultoria',description:'Consulting renamed'}),db,maker);assert.equal(r.status,200);actual=await r.json();assert.equal(actual.rows[0].category,'Consultoria');book=await(await financialLedgerApi(request(path),db,maker)).json();assert.equal(book.report.income.REVENUE,10000);assert.equal(book.quality.complete,true);sql.close();
 });
+
+test('existing Actual income is immediately visible without opening balances and stays scoped',async()=>{
+ const {sql,db}=setup();
+ entry(sql,'sale','a','2026-08','AOA','REV',100000);
+ entry(sql,'cost','a','2026-08','AOA','COST',30000);
+ entry(sql,'refund','a','2026-08','AOA','COST',-5000,'Cost recovery');
+ entry(sql,'prior','a','2026-07','AOA','REV',80000);
+ entry(sql,'foreignOrg','b','2026-08','AOA','REV',9000000);
+ entry(sql,'foreignCurrency','a','2026-08','USD','REV',8000000);
+ const response=await financialLedgerApi(request(path+'&organizationId=a&comparePeriod=2026-07'),db,maker),data=await response.json();
+ assert.equal(response.status,200);assert.equal(data.selectedBook,null);
+ assert.equal(data.legacy.current.revenue,100000);assert.equal(data.legacy.current.costs,25000);assert.equal(data.legacy.current.result,75000);assert.equal(data.legacy.previous.revenue,80000);
+ assert.equal(data.report,undefined);assert.equal(sql.prepare('SELECT COUNT(*) n FROM financial_books').get().n,0);assert.equal(sql.prepare('SELECT COUNT(*) n FROM financial_operations').get().n,0);
+ assert.equal((await financialLedgerApi(request(path+'&organizationId=b'),db,{...maker,organizationId:'a'})).status,403);
+ const scoped=await (await financialLedgerApi(request(path),db,{...maker,organizationId:'a'})).json();assert.equal(scoped.legacy.current.revenue,100000);
+ sql.close();
+});
+
+test('automatic Actual preview respects YTD and does not certify unclassified results',async()=>{
+ const {sql,db}=setup();entry(sql,'jan','a','2026-01','AOA','REV',50000);entry(sql,'aug','a','2026-08','AOA','REV',100000);entry(sql,'unmapped','a','2026-08','AOA','UNKNOWN',1000);
+ const response=await financialLedgerApi(request(path+'&organizationId=a&basis=ytd'),db,maker),data=await response.json();
+ assert.equal(response.status,200);assert.equal(data.legacy.current.revenue,150000);assert.equal(data.legacy.current.pending,1);assert.equal(data.legacy.current.result,null);assert.equal(data.legacy.current.start,'2026-01');
+ assert.equal((await financialLedgerApi(request(path+'&comparePeriod=bad'),db,maker)).status,400);sql.close();
+});
