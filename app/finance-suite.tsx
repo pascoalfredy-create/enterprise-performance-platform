@@ -1,5 +1,5 @@
 "use client";
-import {FinancialLedgerWorkspace} from "./financial-ledger-workspace";
+import {FinancialLedgerWorkspace,type Tab as LedgerTab} from "./financial-ledger-workspace";
 import {ManagementActuals} from "./management-actuals";
 import { TreasuryWorkspace } from "./treasury-workspace";
 import { useEffect, useState } from "react";
@@ -63,6 +63,8 @@ type View=(typeof packages)[number];
 export function FinanceSuite({initialView="Cockpit CFO",onNavigate}:{initialView?:View;onNavigate?:(x:string)=>void}){
  const locale=usePlatformLocale(),c=fc[locale],d=fd[locale],r=frx[locale],z=closeCopy[locale],t=rc[locale];
  const [view,setView]=useState<View>(initialView),[period,setPeriod]=useState(""),[currency,setCurrency]=useState("AOA"),[entity,setEntity]=useState("");
+ const [treasuryTab,setTreasuryTab]=useState<LedgerTab|null>(null);
+ const openTreasury=(tab:LedgerTab)=>{setTreasuryTab(tab);setView('Tesouraria')};
  const [filters,setFilters]=useState<{organizations:{id:string;name:string;currency:string}[];reportingPeriods:string[];reportingCurrencies:string[]}|null>(null);
  const [error,setError]=useState(""),[exporting,setExporting]=useState(false);
  useEffect(()=>{let active=true;apiFetch("/api/v1/financial-data",{cache:"no-store"}).then(async response=>{const body=await readApiJson<{organizations:{id:string;name:string;currency:string}[];reportingPeriods:string[];reportingCurrencies:string[];error?:string}>(response);if(!response.ok)throw new Error(body.error);if(active){setFilters(body);setPeriod(body.reportingPeriods[0]||new Date().toISOString().slice(0,7));setCurrency(body.reportingCurrencies.includes("AOA")?"AOA":body.reportingCurrencies[0]||body.organizations[0]?.currency||"AOA")}}).catch(()=>{if(active)setError(t.error)});return()=>{active=false}},[t.error]);
@@ -75,12 +77,12 @@ export function FinanceSuite({initialView="Cockpit CFO",onNavigate}:{initialView
   <p className="status-note">{["Cockpit CFO","Demonstrações","Working Capital"].includes(view)?["Fonte: movimentos integrados e saldos de abertura · mapas de gestão","Source: linked transactions and opening balances · management statements","Fuente: movimientos integrados y saldos de apertura · estados de gestión","Source : mouvements rattachés et soldes d’ouverture · états de gestion","Источник: связанные операции и начальные остатки · управленческая отчётность"][{pt:0,en:1,es:2,fr:3,ru:4}[locale]]:filterCopy.basis}</p>
   {error&&<p className="status-note bad" role="alert">{error}</p>}
   <nav className="finance-tabs" aria-label={c.tabs}>{packages.map((x,i)=><button key={x} className={view===x?"active":""} onClick={()=>setView(x)}><i>{i+1}</i>{x==="Cockpit CFO"?(locale==="es"?"Cockpit del CFO":locale==="fr"?"Cockpit du CFO":locale==="ru"?"Панель CFO":"Cockpit CFO"):x==="Demonstrações"?c.statements:x==="Performance"?c.performance:x==="Desvios"?c.variance:x==="Tesouraria"?c.treasury:x==="Working Capital"?(locale==="es"?"Capital circulante":locale==="fr"?"Besoin en fonds de roulement":locale==="ru"?"Оборотный капитал":"Working Capital"):c.profitability}</button>)}</nav>
-  {view==="Cockpit CFO"&&<FinancialLedgerWorkspace key={query} query={query} initialTab="health"/>}
-  {view==="Demonstrações"&&<FinancialLedgerWorkspace key={query} query={query} initialTab="dre"/>}
+  {view==="Cockpit CFO"&&<FinancialLedgerWorkspace key={query} query={query} initialTab="health" onTreasury={openTreasury}/>}
+  {view==="Demonstrações"&&<FinancialLedgerWorkspace key={query} query={query} initialTab="dre" onTreasury={openTreasury}/>}
   {view==="Performance"&&<><TrendReal key={query} query={query} locale={locale} d={d} onNavigate={onNavigate}/></>}
   {view==="Desvios"&&<><VarianceReal key={query} query={query} locale={locale} r={r} onNavigate={onNavigate}/></>}
-  {view==="Tesouraria"&&<><TreasuryWorkspace key={query} query={query} organizations={filters?.organizations||[]}/></>}
-  {view==="Working Capital"&&<FinancialLedgerWorkspace key={query} query={query} initialTab="health"/>}
+  {view==="Tesouraria"&&<><nav className="fl-tabs" aria-label={c.treasury}><button className={!treasuryTab?'active':''} onClick={()=>setTreasuryTab(null)}>{['Posição e projeção','Position and forecast','Posición y previsión','Position et prévision','Позиция и прогноз'][{pt:0,en:1,es:2,fr:3,ru:4}[locale]]}</button><button className={treasuryTab?'active':''} onClick={()=>setTreasuryTab('AR')}>{['Receber, pagar e impostos','Receivables, payables and taxes','Cobros, pagos e impuestos','Créances, dettes et impôts','Дебиторская задолженность, обязательства и налоги'][{pt:0,en:1,es:2,fr:3,ru:4}[locale]]}</button></nav>{treasuryTab?<FinancialLedgerWorkspace key={query+treasuryTab} query={query} treasury initialTab={treasuryTab}/>:<TreasuryWorkspace key={query} query={query} organizations={filters?.organizations||[]}/>}</>}
+  {view==="Working Capital"&&<FinancialLedgerWorkspace key={query} query={query} initialTab="health" onTreasury={openTreasury}/>}
   {view==="Rentabilidade"&&<><ProfitabilityReal key={query} query={query} locale={locale} z={z} onNavigate={onNavigate}/></>}
  </section>
 }
