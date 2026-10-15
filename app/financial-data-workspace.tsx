@@ -1,6 +1,7 @@
 "use client";
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { apiFetch } from "../lib/api-client";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import type { ApprovalAction } from "../lib/approval-policy";
+import { apiFetch, readApiJson } from "../lib/api-client";
 import {
   financialCsvTemplate,
   parseFinancialCsv,
@@ -36,6 +37,7 @@ type Batch = {
   total_minor: number;
   input_hash: string;
   created_by: string;
+  actions: { validate: ApprovalAction; publish: ApprovalAction };
 };
 type Row = {
   id: string;
@@ -50,6 +52,7 @@ type Row = {
   row_hash: string;
 };
 type Data = {
+  capabilities?: { canWrite: boolean; canConfigure: boolean };
   lines: Line[];
   mappings: Mapping[];
   batches: Batch[];
@@ -85,41 +88,32 @@ export function FinancialDataWorkspace() {
     [importErrors, setImportErrors] = useState<string[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const load = useCallback(
-    () =>
-      apiFetch(`/api/v1/financial-data${selected ? `?batch=${selected}` : ""}`)
-        .then(async (r) => {
-          const b = await r.json();
-          if (!r.ok) throw new Error(b.error);
-          setData(b);
-        })
-        .catch((e) => setError(e.message)),
-    [selected],
-  );
-  useEffect(() => {
-    load();
-  }, [load]);
+  const requestSequence = useRef(0);
+  const load = useCallback(async () => {
+    const sequence = ++requestSequence.current;
+    try {
+      const response = await apiFetch(`/api/v1/financial-data${selected ? `?batch=${encodeURIComponent(selected)}` : ""}`, { cache: "no-store" });
+      const body = await readApiJson<Data & { error?: string }>(response);
+      if (!response.ok) throw new Error(body.error || "Não foi possível carregar os dados financeiros.");
+      if (sequence === requestSequence.current) { setData(body); setError(""); }
+    } catch (cause) { if (sequence === requestSequence.current) setError(cause instanceof Error ? cause.message : "Não foi possível carregar os dados financeiros."); }
+  }, [selected]);
+  useEffect(() => { load(); return () => { requestSequence.current++; }; }, [load]);
   async function command(payload: Record<string, string>) {
+    if (busy) return;
+    requestSequence.current++;
     setBusy(true);
     setError("");
-    const r = await apiFetch(
-        `/api/v1/financial-data${selected ? `?batch=${selected}` : ""}`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      ),
-      b = await r.json();
-    setBusy(false);
-    if (!r.ok) {
-      setError(b.error);
-      return;
-    }
-    setData(b);
-    if (b.batches?.some((x: Batch) => x.id === b.rows?.[0]?.batch_id))
-      setSelected(b.rows[0].batch_id);
-    setModal("");
+    try {
+      const response = await apiFetch(`/api/v1/financial-data${selected ? `?batch=${encodeURIComponent(selected)}` : ""}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), cache: "no-store" });
+      const body = await readApiJson<Data & { error?: string }>(response);
+      if (!response.ok) throw new Error(body.error || "Não foi possível concluir a operação.");
+      setData(body);
+      const batchId = body.rows[0]?.batch_id;
+      if (batchId) setSelected(batchId);
+      setModal("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível confirmar o resultado. Atualize os dados antes de tentar novamente."); }
+    finally { setBusy(false); }
   }
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -162,6 +156,7 @@ export function FinancialDataWorkspace() {
     anchor.click();
     URL.revokeObjectURL(url);
   }
+  const selectedBatch = data.batches.find((batch) => batch.id === selected);
   const pending = data.rows.filter((x) => !x.line_code).length,
     total = data.batches.reduce((n, x) => n + x.row_count, 0),
     money = (n: number, c: string) =>
@@ -182,11 +177,12 @@ export function FinancialDataWorkspace() {
           </p>
         </div>
         <div>
-          <button className="secundario" onClick={() => setModal("createLine")}>
+          <button className="secundario" disabled={busy || !data.capabilities?.canConfigure} onClick={() => setModal("createLine")}>
             ＋ Linha financeira
           </button>
           <button
             className="primario"
+            disabled={busy || !data.capabilities?.canWrite}
             onClick={() => {
               setImportFile("");
               setImportRows([]);
@@ -216,7 +212,7 @@ export function FinancialDataWorkspace() {
         </article>
         <article className={pending ? "risk" : ""}>
           <span>Pendentes no lote</span>
-          <strong>{pending}</strong>
+          <strong>{selectedBatch ? pending : "—"}</strong>
           <small>Exigem mapping</small>
         </article>
       </section>
@@ -274,7 +270,7 @@ export function FinancialDataWorkspace() {
               <span>TRADUÇÃO DE ORIGEM</span>
               <h2>Mappings por sistema</h2>
             </div>
-            <button onClick={() => setModal("createMapping")}>
+            <button disabled={busy || !data.capabilities?.canConfigure} onClick={() => setModal("createMapping")}>
               ＋ Mapping
             </button>
           </div>
@@ -321,7 +317,9 @@ export function FinancialDataWorkspace() {
               >
                 <button
                   className="batch-main"
-                  onClick={() => setSelected(x.id)}
+                  disabled={busy}
+                  aria-pressed={selected === x.id}
+                  onClick={() => { setData((current) => ({ ...current, rows: [] })); setSelected(x.id); }}
                 >
                   <i>
                     {x.status === "Publicado"
@@ -342,7 +340,8 @@ export function FinancialDataWorkspace() {
                 <nav>
                   {x.status === "Carregado" && (
                     <button
-                      disabled={busy}
+                      disabled={busy || !x.actions?.validate.allowed}
+                      title={x.actions?.validate.reason || undefined}
                       onClick={() =>
                         command({ type: "validateBatch", batchId: x.id })
                       }
@@ -352,7 +351,8 @@ export function FinancialDataWorkspace() {
                   )}
                   {x.status === "Validado" && (
                     <button
-                      disabled={busy}
+                      disabled={busy || !x.actions?.publish.allowed}
+                      title={x.actions?.publish.reason || undefined}
                       onClick={() =>
                         command({ type: "postBatch", batchId: x.id })
                       }
@@ -361,6 +361,7 @@ export function FinancialDataWorkspace() {
                     </button>
                   )}
                 </nav>
+                {(x.status === "Carregado" || x.status === "Validado") && <p className="fd-approval-note">{(x.status === "Carregado" ? x.actions?.validate.reason : x.actions?.publish.reason) || "Disponível para revisão por este utilizador."}</p>}
               </section>
             ))}
           </article>
@@ -372,6 +373,9 @@ export function FinancialDataWorkspace() {
               </div>
               <em>{data.rows.length}</em>
             </div>
+            {!selectedBatch && <p className="fd-approval-note">Selecione um lote para consultar as linhas e os valores na moeda de origem.</p>}
+            {selectedBatch && <p className="fd-approval-note">{selectedBatch.file_name} · {selectedBatch.period} · {selectedBatch.currency}</p>}
+            {selectedBatch && !data.rows.length && <p className="fd-approval-note">A carregar linhas do lote…</p>}
             {data.rows.map((x) => (
               <div key={x.id}>
                 <span>
@@ -383,7 +387,7 @@ export function FinancialDataWorkspace() {
                       : "Mapping pendente"}
                   </small>
                 </span>
-                <strong>{x.amount_minor.toLocaleString("pt-PT")}</strong>
+                <strong>{money(x.amount_minor, selectedBatch?.currency || "AOA")}</strong>
                 <i className={x.line_code ? "ok" : "pending"}>
                   {x.line_code ? "✓" : "!"}
                 </i>

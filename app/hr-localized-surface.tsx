@@ -5,6 +5,17 @@ import { usePlatformLocale } from "./use-platform-locale";
 
 // Authored UI catalogue. Portuguese is the stable source key; business codes and API values are never changed.
 const rows:Array<[string,string,string,string,string]>=[
+["Selecione um lote para consultar as linhas e os valores na moeda de origem.","Select a batch to view its lines and amounts in the source currency.","Seleccione un lote para ver sus líneas e importes en la moneda de origen.","Sélectionnez un lot pour consulter ses lignes et montants dans la devise source.","Выберите пакет для просмотра строк и сумм в исходной валюте."],
+["A carregar linhas do lote…","Loading batch lines…","Cargando líneas del lote…","Chargement des lignes du lot…","Загрузка строк пакета…"],
+["Disponível para revisão por este utilizador.","Available for review by this user.","Disponible para revisión por este usuario.","Disponible pour examen par cet utilisateur.","Доступно для проверки этим пользователем."],
+["O seu perfil permite apenas consulta.","Your role only allows viewing.","Su perfil solo permite consultas.","Votre profil permet uniquement la consultation.","Ваша роль разрешает только просмотр."],
+["O estado atual não permite esta ação.","The current status does not allow this action.","El estado actual no permite esta acción.","L’état actuel ne permet pas cette action.","Текущий статус не позволяет выполнить это действие."],
+["Outro utilizador autorizado deve validar este lote, porque foi criado por si.","Another authorized user must validate this batch because you created it.","Otro usuario autorizado debe validar este lote porque usted lo creó.","Un autre utilisateur autorisé doit valider ce lot car vous l’avez créé.","Этот пакет должен проверить другой уполномоченный пользователь, поскольку вы его создали."],
+["Outro utilizador autorizado deve publicar este lote, porque foi criado por si.","Another authorized user must post this batch because you created it.","Otro usuario autorizado debe publicar este lote porque usted lo creó.","Un autre utilisateur autorisé doit publier ce lot car vous l’avez créé.","Этот пакет должен опубликовать другой уполномоченный пользователь, поскольку вы его создали."],
+["Outro utilizador autorizado deve decidir esta execução, porque foi validada por si.","Another authorized user must decide on this run because you validated it.","Otro usuario autorizado debe decidir esta ejecución porque usted la validó.","Un autre utilisateur autorisé doit décider de cette exécution car vous l’avez validée.","Решение по этому запуску должен принять другой уполномоченный пользователь, поскольку вы его проверили."],
+["A execução deve estar validada antes da decisão.","The run must be validated before a decision.","La ejecución debe estar validada antes de la decisión.","L’exécution doit être validée avant la décision.","Перед принятием решения запуск должен быть проверен."],
+["A execução não tem um validador registado.","The run has no recorded validator.","La ejecución no tiene un validador registrado.","Aucun validateur n’est enregistré pour cette exécution.","У запуска не зарегистрирован проверяющий."],
+
 ["Portal do colaborador","Employee portal","Portal del empleado","Portail collaborateur","Портал сотрудника"],
 ["O meu espaço","My workspace","Mi espacio","Mon espace","Моё пространство"],
 ["O MEU PORTAL","MY PORTAL","MI PORTAL","MON PORTAIL","МОЙ ПОРТАЛ"],

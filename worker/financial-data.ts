@@ -1,4 +1,6 @@
 import type {D1Database} from "../worker-configuration";
+import { financialScope } from "./financial-scope";
+import { financialBatchActions } from "../lib/approval-policy";
 import {parseMoneyMinor} from "../lib/money";
 import { classifyDataError } from "../lib/api-error";
 type Security = {
@@ -39,7 +41,7 @@ export async function financialDataApi(
       selected = url.searchParams.get("batch") || "",
       now = new Date().toISOString();
     const snapshot = async () => {
-      const [lines, mappings, batches, rows, organizations, members, audit] =
+      const [lines, mappings, batches, rows, organizations, members, audit, reportingPeriods, reportingCurrencies] =
         await Promise.all([
           db
             .prepare(
@@ -87,11 +89,16 @@ export async function financialDataApi(
                 )
                 .bind(tenant)
                 .all(),
+          db.prepare("SELECT DISTINCT period FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) ORDER BY period DESC").bind(tenant,scope,scope).all(),
+          db.prepare("SELECT DISTINCT currency FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) ORDER BY currency").bind(tenant,scope,scope).all(),
         ]);
       return {
+        reportingPeriods: reportingPeriods.results.map(row=>row.period),
+        reportingCurrencies: reportingCurrencies.results.map(row=>row.currency),
         lines: lines.results,
         mappings: mappings.results,
-        batches: batches.results,
+        batches: batches.results.map((batch) => ({ ...batch, actions: financialBatchActions(batch as { status: string; created_by: unknown }, security.email, security.role) })),
+        capabilities: { canWrite: ["Administrador", "Financeiro", "Gestor"].includes(security.role), canConfigure: !scope && ["Administrador", "Financeiro", "Gestor"].includes(security.role) },
         rows: rows.results,
         organizations: organizations.results,
         members: members.results,
@@ -141,7 +148,7 @@ export async function financialDataApi(
       entityType = "financialLine";
       await db
         .prepare(
-          "INSERT INTO financial_line_catalog VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO financial_line_catalog (id,tenant_id,code,name,classification,cash_flow_category,sign_mode,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           entityId,
@@ -253,9 +260,13 @@ export async function financialDataApi(
         });
       }
       entityId = uid();
-      const inputHash = await sha(JSON.stringify(prepared)),
-        total = prepared.reduce((n, x) => n + Number(x.amount), 0),
-        statements = [
+      const inputHash = await sha(JSON.stringify(prepared));
+      let total = 0;
+      for (const row of prepared) {
+        total += Number(row.amount);
+        if (!Number.isSafeInteger(total)) return Response.json({ error: "O total do lote excede o limite numérico permitido." }, { status: 400 });
+      }
+      const statements = [
           db
             .prepare(
               "INSERT INTO financial_import_batches VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -313,7 +324,8 @@ export async function financialDataApi(
           { error: "Lote carregado não encontrado." },
           { status: 404 },
         );
-      if(String(batch.created_by).toLowerCase()===security.email.toLowerCase())return Response.json({error:"Maker-checker: o criador não pode validar o próprio lote."},{status:403});
+      const action = financialBatchActions(batch as { status: string; created_by: unknown }, security.email, security.role).validate;
+      if (!action.allowed) return Response.json({ error: action.reason, code: "APPROVAL_BLOCKED" }, { status: 403 });
       const missing = await db
         .prepare(
           "SELECT COUNT(*) n FROM financial_import_rows r WHERE r.tenant_id=? AND r.batch_id=? AND NOT EXISTS(SELECT 1 FROM financial_source_mappings m WHERE m.tenant_id=r.tenant_id AND m.source_system=? AND m.source_code=r.source_code)",
@@ -349,13 +361,12 @@ export async function financialDataApi(
           { error: "Lote validado não encontrado." },
           { status: 404 },
         );
-      if (
-        String(batch.created_by).toLowerCase() === security.email.toLowerCase()
-      )
+      const action = financialBatchActions(batch as { status: string; created_by: unknown }, security.email, security.role).publish;
+      if (!action.allowed)
         return Response.json(
           {
             error:
-              "Maker-checker: o autor do lote não pode publicá-lo no Actual.",
+              action.reason || "Maker-checker: o autor do lote não pode publicá-lo no Actual.",
           },
           { status: 403 },
         );
@@ -468,9 +479,8 @@ export async function financialCockpitApi(
     if (request.method !== "GET")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const tenant = security.tenantId,
-      scope = security.organizationId,
       url = new URL(request.url),
-      currency = (url.searchParams.get("currency") || "AOA").toUpperCase();
+      { scope, currency } = await financialScope(request, db, security);
     const [latest, anyData] = await Promise.all([
       db
         .prepare(
@@ -479,8 +489,8 @@ export async function financialCockpitApi(
         .bind(tenant, currency, scope, scope)
         .first<{ period: string | null }>(),
       db
-        .prepare("SELECT 1 FROM performance_entries WHERE tenant_id=? LIMIT 1")
-        .bind(tenant)
+        .prepare("SELECT 1 FROM performance_entries WHERE tenant_id=? AND currency=? AND scenario='Actual' AND version_id IS NULL AND (? IS NULL OR organization_id=?) LIMIT 1")
+        .bind(tenant, currency, scope, scope)
         .first(),
     ]);
     const period =
@@ -489,9 +499,9 @@ export async function financialCockpitApi(
       new Date().toISOString().slice(0, 7);
     const approvedBudget = await db
       .prepare(
-        "SELECT id,name FROM budget_versions WHERE tenant_id=? AND status='Aprovado' ORDER BY approved_at DESC LIMIT 1",
+        "SELECT id,name FROM budget_versions WHERE tenant_id=? AND status='Aprovado' AND fiscal_year=? ORDER BY approved_at DESC LIMIT 1",
       )
-      .bind(tenant)
+      .bind(tenant, Number(period.slice(0,4)))
       .first<{ id: string; name: string }>();
     const classificationQuery =
       "SELECT COALESCE(l.classification,'Outro') classification,SUM(e.amount_minor) total FROM performance_entries e LEFT JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code WHERE e.tenant_id=? AND e.scenario=? AND e.period=? AND e.currency=? AND (? IS NULL OR e.organization_id=?)";
@@ -522,7 +532,7 @@ export async function financialCockpitApi(
       currency,
       hasData: Boolean(anyData),
       hasPeriodData: actualRows.results.length > 0,
-      hasBudget: Boolean(approvedBudget),
+      hasBudget: budgetRows.results.length > 0,
       budgetVersionName: approvedBudget?.name ?? null,
       actual: {
         revenue: sum(actualRows.results, "Receita"),
