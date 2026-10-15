@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api-client";
+import { portalFetch } from "../../lib/portal-client";
 import { PlatformLocalizedSurface } from "../hr-localized-surface";
 import "../portal.css";
 
@@ -391,7 +392,7 @@ export default function Portal() {
     resource: string,
     assign: (body: T) => void,
   ) {
-    apiFetch(`/api/self-service?resource=${resource}`)
+    portalFetch(`/api/self-service?resource=${resource}`)
       .then((r) => r.json() as Promise<T>)
       .then((body) => {
         if (body.error) {
@@ -477,8 +478,9 @@ export default function Portal() {
     e.preventDefault();
     setFormBusy(true);
     setFormMessage("");
-    const f = new FormData(e.currentTarget);
-    const r = await apiFetch("/api/self-service", {
+    const form = e.currentTarget;
+    const f = new FormData(form);
+    const r = await portalFetch("/api/self-service", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -496,7 +498,7 @@ export default function Portal() {
       return;
     }
     setFormMessage("Pedido submetido com sucesso.");
-    e.currentTarget.reset();
+    form.reset();
     load<Leave & { error?: string }>("leave", setLeave);
   }
 
@@ -504,8 +506,9 @@ export default function Portal() {
     e.preventDefault();
     setFormBusy(true);
     setFormMessage("");
-    const f = new FormData(e.currentTarget);
-    const r = await apiFetch("/api/self-service", {
+    const form = e.currentTarget;
+    const f = new FormData(form);
+    const r = await portalFetch("/api/self-service", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -533,7 +536,7 @@ export default function Portal() {
 
   async function transitionTask(taskId: string, status: string) {
     setTaskBusy(taskId);
-    const r = await apiFetch("/api/self-service", {
+    const r = await portalFetch("/api/self-service", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -556,7 +559,7 @@ export default function Portal() {
 
   async function acknowledgeNotice(noticeId: string) {
     setNoticeBusy(noticeId);
-    const r = await apiFetch("/api/self-service", {
+    const r = await portalFetch("/api/self-service", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "acknowledgeNotice", noticeId }),
@@ -575,7 +578,7 @@ export default function Portal() {
 
   async function acknowledgeCareerNotice(noticeId: string) {
     setCareerNoticeBusy(noticeId);
-    const r = await apiFetch("/api/self-service", {
+    const r = await portalFetch("/api/self-service", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "acknowledgeCareerNotice", noticeId }),
@@ -599,7 +602,7 @@ export default function Portal() {
       return;
     }
     setOnboardingDocBusy(documentId);
-    const r = await apiFetch("/api/self-service", {
+    const r = await portalFetch("/api/self-service", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -655,7 +658,7 @@ export default function Portal() {
     setError("");
     const location = await capturePunchLocation();
     setLocatingPunch(false);
-    const r = await apiFetch("/api/self-service", {
+    const r = await portalFetch("/api/self-service", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: action, ...location }),

@@ -53,7 +53,13 @@ for (const line of readFileSync(devVarsPath, "utf8").split("\n")) {
 }
 
 const config = JSON.parse(readFileSync(wranglerPath, "utf8"));
-config.vars = { ...config.vars, ...vars };
+config.vars = {
+  ...config.vars, ...vars,
+  INVITATION_FROM_EMAIL: "YelaPerformance <convites@yelaperformance.com>",
+  PUBLIC_APP_URL: "https://app.yelaperformance.com",
+};
+// Preserve dashboard-managed runtime variables; API secrets stay in Cloudflare.
+config.keep_vars = true;
 for (const db of config.d1_databases ?? []) {
   db.database_id = databaseId;
 }
