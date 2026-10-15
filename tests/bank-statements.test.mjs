@@ -80,3 +80,9 @@ test('company categories are editable without accounting codes and failed audits
  sql.exec("CREATE TRIGGER reject_category_audit BEFORE INSERT ON audit_events WHEN NEW.action='classifyGroup' BEGIN SELECT RAISE(ABORT,'audit unavailable'); END");
  response=await bankStatementsApi(request({type:'classifyGroup',statementId:id,revision:1,iban,category:'Outros'}),db,security);assert.equal(response.status,500);assert.equal(sql.prepare('SELECT revision FROM bank_statement_imports').get().revision,1);assert.equal(sql.prepare('SELECT category FROM bank_statement_movements WHERE iban=? LIMIT 1').get(iban).category,'Serviços de sondagem');sql.close();
 });
+
+test('large bank imports use a bounded statement batch and preserve every original row',async()=>{
+ const {sql,db}=setup(),large=[['Banco','BAI'],['Conta','LARGE-001'],['Moeda','AOA'],['Saldo inicial','0.00'],['data','descricao','valor','referencia'],...Array.from({length:2000},(_,index)=>['2026-10-01',index===999?"O’Brien\nUnitel":'Transferência','0.01','ROW-'+index])];
+ let batchSize=0;const originalBatch=db.batch.bind(db);db.batch=async statements=>{batchSize=statements.length;return originalBatch(statements)};
+ const response=await bankStatementsApi(request(payload(large)),db,security);assert.equal(response.status,200,JSON.stringify(await response.clone().json()));assert.ok(batchSize<=5);const data=await response.json();assert.equal(data.movements.length,2000);assert.equal(data.selected.closing_minor,2000);assert.equal(data.movements[999].description,"O’Brien\nUnitel");assert.equal(sql.prepare('SELECT COUNT(*) n FROM bank_statement_movements').get().n,2000);sql.close();
+});
