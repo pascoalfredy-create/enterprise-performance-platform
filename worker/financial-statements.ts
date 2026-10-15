@@ -1,4 +1,5 @@
 import type {D1Database} from "../worker-configuration";
+import { financialScope } from "./financial-scope";
 import { classifyDataError } from "../lib/api-error";
 type Security = {
   tenantId: string;
@@ -27,23 +28,22 @@ export async function financialTrendApi(
     if (request.method !== "GET")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const tenant = security.tenantId,
-      scope = security.organizationId,
       url = new URL(request.url),
-      currency = (url.searchParams.get("currency") || "AOA").toUpperCase();
+      { scope, currency } = await financialScope(request, db, security);
     const periodsRow = await db
       .prepare(
-        "SELECT DISTINCT period FROM performance_entries WHERE tenant_id=? AND scenario='Actual' AND currency=? AND (? IS NULL OR organization_id=?) ORDER BY period DESC LIMIT 8",
+        "SELECT DISTINCT period FROM performance_entries WHERE tenant_id=? AND scenario='Actual' AND version_id IS NULL AND currency=? AND (? IS NULL OR organization_id=?) AND (? IS NULL OR period<=?) ORDER BY period DESC LIMIT 8",
       )
-      .bind(tenant, currency, scope, scope)
+      .bind(tenant, currency, scope, scope, url.searchParams.get("period"), url.searchParams.get("period"))
       .all<{ period: string }>();
     const periods = periodsRow.results.map((r) => r.period).sort();
     if (!periods.length)
       return Response.json({ hasData: false, currency, periods: [] });
     const approvedBudget = await db
       .prepare(
-        "SELECT id FROM budget_versions WHERE tenant_id=? AND status='Aprovado' ORDER BY approved_at DESC LIMIT 1",
+        "SELECT id FROM budget_versions WHERE tenant_id=? AND status='Aprovado' AND fiscal_year=? ORDER BY approved_at DESC LIMIT 1",
       )
-      .bind(tenant)
+      .bind(tenant, Number(periods[periods.length-1].slice(0,4)))
       .first<{ id: string }>();
     const placeholders = periods.map(() => "?").join(",");
     const classificationByPeriod =
@@ -84,7 +84,7 @@ export async function financialTrendApi(
     return Response.json({
       hasData: true,
       currency,
-      hasBudget: Boolean(approvedBudget),
+      hasBudget: budgetRows.results.length > 0,
       series: periods.map((period) => ({
         period,
         actual: actualAt(period),
@@ -105,9 +105,8 @@ export async function financialStatementsApi(
     if (request.method !== "GET")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const tenant = security.tenantId,
-      scope = security.organizationId,
       url = new URL(request.url),
-      currency = (url.searchParams.get("currency") || "AOA").toUpperCase();
+      { scope, currency } = await financialScope(request, db, security);
     const latest = await db
       .prepare(
         "SELECT MAX(period) period FROM performance_entries WHERE tenant_id=? AND scenario='Actual' AND currency=? AND (? IS NULL OR organization_id=?)",
@@ -126,13 +125,13 @@ export async function financialStatementsApi(
         .all<{ classification: string; total: number }>(),
       db
         .prepare(
-          "SELECT r.role_code,SUM(e.amount_minor) total FROM performance_entries e JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code JOIN diagnostic_line_roles r ON r.line_id=l.id AND r.tenant_id=l.tenant_id WHERE e.tenant_id=? AND e.scenario='Actual' AND e.period=? AND e.currency=? AND (? IS NULL OR e.organization_id=?) GROUP BY r.role_code",
+          "SELECT r.role_code,SUM(e.amount_minor) total FROM performance_entries e JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code JOIN diagnostic_line_roles r ON r.line_id=l.id AND r.tenant_id=l.tenant_id WHERE e.tenant_id=? AND e.scenario='Actual' AND e.period=? AND e.currency=? AND (? IS NULL OR e.organization_id=?) AND e.version_id IS NULL GROUP BY r.role_code",
         )
         .bind(tenant, period, currency, scope, scope)
         .all<{ role_code: string; total: number }>(),
       db
         .prepare(
-          "SELECT COALESCE(l.cash_flow_category,'Não aplicável') category,SUM(e.amount_minor) total FROM performance_entries e LEFT JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code WHERE e.tenant_id=? AND e.scenario='Actual' AND e.period=? AND e.currency=? AND (? IS NULL OR e.organization_id=?) GROUP BY category",
+          "SELECT COALESCE(l.cash_flow_category,'Não aplicável') category,SUM(e.amount_minor) total FROM performance_entries e LEFT JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code WHERE e.tenant_id=? AND e.scenario='Actual' AND e.period=? AND e.currency=? AND (? IS NULL OR e.organization_id=?) AND e.version_id IS NULL GROUP BY category",
         )
         .bind(tenant, period, currency, scope, scope)
         .all<{ category: string; total: number }>(),
@@ -145,10 +144,11 @@ export async function financialStatementsApi(
     const revenue = num(cls, "Receita"),
       costs = Math.abs(num(cls, "Custo")),
       netSimple = revenue - costs,
-      hasIncome = classificationRows.results.length > 0;
+      hasIncome = classificationRows.results.some(row=>row.classification === "Receita" || row.classification === "Custo");
     const hasRoles = roleRows.results.length > 0;
     const r = (k: string) => Math.abs(num(roles, k));
-    const income = hasRoles
+    const coverage = await db.prepare("SELECT COUNT(*) total,SUM(CASE WHEN r.role_code IN ('REVENUE','COGS','OPEX','INTEREST','TAX') THEN 1 ELSE 0 END) covered FROM performance_entries e JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code LEFT JOIN diagnostic_line_roles r ON r.tenant_id=l.tenant_id AND r.line_id=l.id WHERE e.tenant_id=? AND e.organization_id=COALESCE(?,e.organization_id) AND e.period=? AND e.currency=? AND e.scenario='Actual' AND e.version_id IS NULL AND l.classification IN ('Receita','Custo')").bind(tenant,scope,period,currency).first<{total:number;covered:number}>();
+    const income = hasIncome && Number(coverage?.total)>0 && coverage?.total===coverage?.covered
       ? {
           precise: true,
           revenue: r("REVENUE"),
@@ -176,12 +176,13 @@ export async function financialStatementsApi(
     const balanceSheet = hasBalance
       ? { assets, liabilities, equity, netDebt, grossDebt, cash: r("CASH") }
       : null;
-    const hasWorkingCapital = hasRoles && r("REVENUE") > 0;
+    const hasWorkingCapital = hasRoles && r("REVENUE") > 0 && r("COGS") > 0 && ["RECEIVABLES", "INVENTORY", "PAYABLES"].every(role=>roles.has(role));
     let workingCapital: { dso: number; dio: number; dpo: number; ccc: number } | null = null;
     if (hasWorkingCapital) {
-      const dso = (r("RECEIVABLES") / r("REVENUE")) * 30,
-        dio = r("COGS") > 0 ? (r("INVENTORY") / r("COGS")) * 30 : 0,
-        dpo = r("COGS") > 0 ? (r("PAYABLES") / r("COGS")) * 30 : 0;
+      const days = new Date(Date.UTC(Number(period.slice(0,4)), Number(period.slice(5,7)), 0)).getUTCDate();
+      const dso = (r("RECEIVABLES") / r("REVENUE")) * days,
+        dio = (r("INVENTORY") / r("COGS")) * days,
+        dpo = (r("PAYABLES") / r("COGS")) * days;
       workingCapital = { dso, dio, dpo, ccc: dso + dio - dpo };
     }
     const operational = num(cash, "Operacional"),
@@ -199,7 +200,7 @@ export async function financialStatementsApi(
         }
       : null;
     return Response.json({
-      hasData: true,
+      hasData: classificationRows.results.length > 0,
       period,
       currency,
       income,
@@ -221,9 +222,8 @@ export async function financialProfitabilityApi(
     if (request.method !== "GET")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const tenant = security.tenantId,
-      scope = security.organizationId,
       url = new URL(request.url),
-      currency = (url.searchParams.get("currency") || "AOA").toUpperCase();
+      { scope, currency } = await financialScope(request, db, security);
     const latest = await db
       .prepare(
         "SELECT MAX(period) period FROM performance_entries WHERE tenant_id=? AND scenario='Actual' AND currency=? AND (? IS NULL OR organization_id=?)",
@@ -286,9 +286,8 @@ export async function financialVarianceApi(
     if (request.method !== "GET")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const tenant = security.tenantId,
-      scope = security.organizationId,
       url = new URL(request.url),
-      currency = (url.searchParams.get("currency") || "AOA").toUpperCase();
+      { scope, currency } = await financialScope(request, db, security);
     const latest = await db
       .prepare(
         "SELECT MAX(period) period FROM performance_entries WHERE tenant_id=? AND scenario='Actual' AND currency=? AND (? IS NULL OR organization_id=?)",
@@ -299,9 +298,9 @@ export async function financialVarianceApi(
     const approvedBudget = period
       ? await db
           .prepare(
-            "SELECT id FROM budget_versions WHERE tenant_id=? AND status='Aprovado' ORDER BY approved_at DESC LIMIT 1",
+            "SELECT id FROM budget_versions WHERE tenant_id=? AND status='Aprovado' AND fiscal_year=? ORDER BY approved_at DESC LIMIT 1",
           )
-          .bind(tenant)
+          .bind(tenant, Number(period.slice(0,4)))
           .first<{ id: string }>()
       : null;
     if (!period || !approvedBudget)
@@ -333,6 +332,7 @@ export async function financialVarianceApi(
           total: number;
         }>(),
     ]);
+    if (!budgetRows.results.length) return Response.json({ hasData: false, period, currency, hasBudget: false });
     if (!actualRows.results.length && !budgetRows.results.length)
       return Response.json({
         hasData: false,
@@ -343,15 +343,10 @@ export async function financialVarianceApi(
     type Line = { name: string; classification: string; actual: number; budget: number };
     const lines = new Map<string, Line>();
     for (const r of actualRows.results)
-      lines.set(r.line_code, {
-        name: r.line_name,
-        classification: r.classification,
-        actual: r.total,
-        budget: 0,
-      });
+      { const previous = lines.get(r.line_code); if (previous) previous.actual += r.total; else lines.set(r.line_code, { name: r.line_name, classification: r.classification, actual: r.total, budget: 0 }); }
     for (const r of budgetRows.results) {
       const existing = lines.get(r.line_code);
-      if (existing) existing.budget = r.total;
+      if (existing) existing.budget += r.total;
       else
         lines.set(r.line_code, {
           name: r.line_name,

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import type { PlatformLocale } from "../lib/platform-i18n";
 import { usePlatformLocale } from "./use-platform-locale";
-import { apiFetch } from "../lib/api-client";
+import { apiFetch, readApiJson } from "../lib/api-client";
 import { buildXlsxBlob } from "../lib/xlsx";
 import "./finance-suite.css";
 
@@ -56,42 +56,45 @@ ru:{cycle:"ДЕНЕЖНЫЙ ЦИКЛ",ccc:"Цикл конверсии дене�
 
 const packages = ["Cockpit CFO","Demonstrações","Performance","Desvios","Tesouraria","Working Capital","Rentabilidade"] as const;
 type View=(typeof packages)[number];
-const actual=[318,334,351,362,389,407,421,438], budget=[310,326,343,365,380,398,415,432];
-const money=(n:number)=>`${new Intl.NumberFormat("pt-PT",{maximumFractionDigits:1}).format(n)} M AOA`;
-const pct=(n:number)=>`${n>0?"+":""}${n.toFixed(1)}%`;
 
 export function FinanceSuite({initialView="Cockpit CFO",onNavigate}:{initialView?:View;onNavigate?:(x:string)=>void}){
  const locale=usePlatformLocale(),c=fc[locale],d=fd[locale],r=frx[locale],z=closeCopy[locale],t=rc[locale];
- const [view,setView]=useState<View>(initialView),[period,setPeriod]=useState("Agosto 2026"),[scenario,setScenario]=useState("Actual vs Budget"),[entity,setEntity]=useState("Grupo consolidado");
+ const [view,setView]=useState<View>(initialView),[period,setPeriod]=useState(""),[currency,setCurrency]=useState("AOA"),[entity,setEntity]=useState("");
+ const [filters,setFilters]=useState<{organizations:{id:string;name:string;currency:string}[];reportingPeriods:string[];reportingCurrencies:string[]}|null>(null);
+ const [error,setError]=useState(""),[exporting,setExporting]=useState(false);
+ useEffect(()=>{let active=true;apiFetch("/api/v1/financial-data",{cache:"no-store"}).then(async response=>{const body=await readApiJson<{organizations:{id:string;name:string;currency:string}[];reportingPeriods:string[];reportingCurrencies:string[];error?:string}>(response);if(!response.ok)throw new Error(body.error);if(active){setFilters(body);setPeriod(body.reportingPeriods[0]||new Date().toISOString().slice(0,7));setCurrency(body.reportingCurrencies.includes("AOA")?"AOA":body.reportingCurrencies[0]||body.organizations[0]?.currency||"AOA")}}).catch(()=>{if(active)setError(t.error)});return()=>{active=false}},[t.error]);
+ const query="?"+new URLSearchParams({...(period?{period}:{}),currency,...(entity?{organizationId:entity}:{})}).toString();
+ const filterCopy={pt:{all:"Todas as organizações autorizadas",currency:"Moeda",basis:"Actual publicado · comparação com orçamento aprovado",summary:"Resumo financeiro",scope:"Âmbito",noRows:"Sem dados no período selecionado."},en:{all:"All authorized organizations",currency:"Currency",basis:"Posted Actual · comparison with approved budget",summary:"Financial summary",scope:"Scope",noRows:"No data for the selected period."},es:{all:"Todas las organizaciones autorizadas",currency:"Moneda",basis:"Real publicado · comparación con presupuesto aprobado",summary:"Resumen financiero",scope:"Ámbito",noRows:"Sin datos en el período seleccionado."},fr:{all:"Toutes les organisations autorisées",currency:"Devise",basis:"Réel publié · comparaison au budget approuvé",summary:"Synthèse financière",scope:"Périmètre",noRows:"Aucune donnée pour la période sélectionnée."},ru:{all:"Все доступные организации",currency:"Валюта",basis:"Опубликованный факт · сравнение с утверждённым бюджетом",summary:"Финансовая сводка",scope:"Область",noRows:"Нет данных за выбранный период."}}[locale];
  useEffect(()=>{setView(initialView)},[initialView]);
- const variance=actual[7]-budget[7], variancePct=variance/budget[7]*100;
- const exportPack=()=>{const content=`MANAGEMENT PACK | ${entity} | ${period}\n${z.revenue}: ${money(438)}\nEBITDA: ${money(82.4)}\n${c.net}: ${money(49.6)}\n${c.cash}: ${money(214.8)}\n${d.variance}: ${money(variance)} (${pct(variancePct)})\n\n${z.exportConclusion}`;const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type:"text/plain;charset=utf-8"}));a.download=`management-pack-${period.toLowerCase().replaceAll(" ","-")}.txt`;a.click();URL.revokeObjectURL(a.href)};
+ const exportPack=async()=>{if(exporting)return;setExporting(true);setError("");try{const response=await apiFetch("/api/financial-cockpit"+query,{cache:"no-store"});const body=await readApiJson<CockpitData>(response);if(!response.ok)throw new Error(t.error);if(!body.hasPeriodData){setError(filterCopy.noRows);return}downloadXlsx(`management-pack-${body.period}-${body.currency}.xlsx`,[{name:filterCopy.summary,rows:[[filterCopy.scope,filters?.organizations.find(x=>x.id===entity)?.name||filterCopy.all],[c.period,body.period],[filterCopy.currency,body.currency],[filterCopy.basis],[t.revenue,body.actual.revenue/100],[t.costs,Math.abs(body.actual.costs)/100],[t.net,body.actual.net/100],...(body.hasBudget?[[t.budget,body.budget.net/100],[t.variance,(body.actual.net-body.budget.net)/100]]:[])]},{name:"Actual",rows:[[d.line,filterCopy.currency],...body.actual.classifications.map(row=>[row.classification,row.total/100])]}])}catch{setError(t.error)}finally{setExporting(false)}};
  return <section className="finance-suite">
-  <header className="finance-hero"><div><span>{locale==="es"?"RENDIMIENTO FINANCIERO Y GESTIÓN DE DECISIONES":locale==="fr"?"PERFORMANCE FINANCIÈRE ET GESTION DES DÉCISIONS":locale==="ru"?"ФИНАНСОВАЯ ЭФФЕКТИВНОСТЬ И УПРАВЛЕНИЕ РЕШЕНИЯМИ":"FINANCE PERFORMANCE & DECISION MANAGEMENT"}</span><h1>{c.title}</h1><p>{c.intro}</p></div><div className="finance-controls"><label>{c.company}<select value={entity} onChange={e=>setEntity(e.target.value)}><option>{c.group}</option><option>{c.angola}</option><option>{c.corporate}</option></select></label><label>{c.period}<select value={period} onChange={e=>setPeriod(e.target.value)}><option>{c.aug}</option><option>{c.jul}</option><option>{c.quarter}</option></select></label><label>{c.comparison}<select value={scenario} onChange={e=>setScenario(e.target.value)}><option>{locale==="es"?"Real vs Presupuesto":locale==="fr"?"Réel vs Budget":locale==="ru"?"Факт к бюджету":"Actual vs Budget"}</option><option>{locale==="es"?"Real vs Previsión":locale==="fr"?"Réel vs Prévision":locale==="ru"?"Факт к прогнозу":"Actual vs Forecast"}</option><option>{c.previous}</option></select></label><button onClick={exportPack}>{c.export}</button></div></header>
+  <header className="finance-hero"><div><span>{locale==="es"?"RENDIMIENTO FINANCIERO Y GESTIÓN DE DECISIONES":locale==="fr"?"PERFORMANCE FINANCIÈRE ET GESTION DES DÉCISIONS":locale==="ru"?"ФИНАНСОВАЯ ЭФФЕКТИВНОСТЬ И УПРАВЛЕНИЕ РЕШЕНИЯМИ":"FINANCE PERFORMANCE & DECISION MANAGEMENT"}</span><h1>{c.title}</h1><p>{c.intro}</p></div><div className="finance-controls"><label>{c.company}<select value={entity} disabled={!filters} onChange={e=>setEntity(e.target.value)}><option value="">{filterCopy.all}</option>{filters?.organizations.map(org=><option key={org.id} value={org.id}>{org.name}</option>)}</select></label><label>{c.period}<input type="month" value={period} disabled={!filters} onChange={e=>setPeriod(e.target.value)}/></label><label>{filterCopy.currency}<select value={currency} disabled={!filters} onChange={e=>setCurrency(e.target.value)}>{Array.from(new Set([currency,...(filters?.reportingCurrencies||[]),...(filters?.organizations.map(org=>org.currency)||[])])).sort().map(code=><option key={code}>{code}</option>)}</select></label><button disabled={!filters||exporting} onClick={exportPack}>{exporting?t.loading:c.export}</button></div></header>
+  <p className="status-note">{filterCopy.basis}</p>
+  {error&&<p className="status-note bad" role="alert">{error}</p>}
   <nav className="finance-tabs" aria-label={c.tabs}>{packages.map((x,i)=><button key={x} className={view===x?"active":""} onClick={()=>setView(x)}><i>{i+1}</i>{x==="Cockpit CFO"?(locale==="es"?"Cockpit del CFO":locale==="fr"?"Cockpit du CFO":locale==="ru"?"Панель CFO":"Cockpit CFO"):x==="Demonstrações"?c.statements:x==="Performance"?c.performance:x==="Desvios"?c.variance:x==="Tesouraria"?c.treasury:x==="Working Capital"?(locale==="es"?"Capital circulante":locale==="fr"?"Besoin en fonds de roulement":locale==="ru"?"Оборотный капитал":"Working Capital"):c.profitability}</button>)}</nav>
-  {view==="Cockpit CFO"&&<Cockpit locale={locale} onNavigate={onNavigate}/>}
-  {view==="Demonstrações"&&<StatementsReal locale={locale} d={d} onNavigate={onNavigate}/>}
-  {view==="Performance"&&<><TrendReal locale={locale} d={d} onNavigate={onNavigate}/><PreviewBanner t={t}/><Performance d={d}/></>}
-  {view==="Desvios"&&<><VarianceReal locale={locale} r={r} onNavigate={onNavigate}/><PreviewBanner t={t}/><Bridges r={r}/></>}
-  {view==="Tesouraria"&&<><DebtReal locale={locale} r={r} onNavigate={onNavigate}/><PreviewBanner t={t}/><Treasury r={r}/></>}
-  {view==="Working Capital"&&<><WorkingCapitalReal locale={locale} z={z} onNavigate={onNavigate}/><PreviewBanner t={t}/><WorkingCapital z={z}/></>}
-  {view==="Rentabilidade"&&<><ProfitabilityReal locale={locale} z={z} onNavigate={onNavigate}/><PreviewBanner t={t}/><Profitability z={z}/></>}
+  {view==="Cockpit CFO"&&<Cockpit key={query} query={query} locale={locale} onNavigate={onNavigate}/>}
+  {view==="Demonstrações"&&<StatementsReal key={query} query={query} locale={locale} d={d} onNavigate={onNavigate}/>}
+  {view==="Performance"&&<><TrendReal key={query} query={query} locale={locale} d={d} onNavigate={onNavigate}/></>}
+  {view==="Desvios"&&<><VarianceReal key={query} query={query} locale={locale} r={r} onNavigate={onNavigate}/></>}
+  {view==="Tesouraria"&&<><DebtReal key={query} query={query} locale={locale} r={r} onNavigate={onNavigate}/></>}
+  {view==="Working Capital"&&<><WorkingCapitalReal key={query} query={query} locale={locale} z={z} onNavigate={onNavigate}/></>}
+  {view==="Rentabilidade"&&<><ProfitabilityReal key={query} query={query} locale={locale} z={z} onNavigate={onNavigate}/></>}
  </section>
 }
 
 type CockpitTotals={revenue:number;costs:number;net:number;classifications:{classification:string;total:number}[]};
 type CockpitData={period:string;currency:string;hasData:boolean;hasPeriodData:boolean;hasBudget:boolean;budgetVersionName:string|null;actual:CockpitTotals;budget:CockpitTotals};
-function Cockpit({locale,onNavigate}:{locale:PlatformLocale;onNavigate?:(x:string)=>void}){
+function Cockpit({query,locale,onNavigate}:{query:string;locale:PlatformLocale;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:CockpitData}>({status:"loading"});
  useEffect(()=>{
   let active=true;
-  apiFetch("/api/financial-cockpit")
-   .then(async r=>({ok:r.ok,body:await r.json() as CockpitData}))
+  apiFetch("/api/financial-cockpit"+query,{cache:"no-store"})
+   .then(async r=>({ok:r.ok,body:await readApiJson<CockpitData>(r)}))
    .then(({ok,body})=>{if(active)setState(ok?{status:"ready",data:body}:{status:"error"})})
    .catch(()=>{if(active)setState({status:"error"})});
   return ()=>{active=false};
- },[]);
+ },[query]);
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
@@ -107,7 +110,6 @@ function Cockpit({locale,onNavigate}:{locale:PlatformLocale;onNavigate?:(x:strin
  {data.hasBudget&&<div className="finance-grid"><article className="finance-card"><span>{t.variance}</span><strong className={variance>=0?"good":"bad"}>{moneyReal(variance)}</strong></article></div>}
  <p className="status-note">{t.periodLabel}: {data.period}</p></>
 }
-function PreviewBanner({t}:{t:RealCopy}){return <div className="preview-banner"><b>{t.previewLabel}</b><span>{t.previewText}</span></div>}
 function EmptyCta({t,onNavigate,targets}:{t:RealCopy;onNavigate?:(x:string)=>void;targets:("data"|"planning")[]}){
  if(!onNavigate)return null;
  return <div className="empty-cta">{targets.includes("data")&&<button onClick={()=>onNavigate("Dados financeiros")}>{t.openFinancialData}</button>}{targets.includes("planning")&&<button onClick={()=>onNavigate("Planeamento")}>{t.openPlanning}</button>}</div>
@@ -116,44 +118,45 @@ function CardTitle({tag,title,action,onClick}:{tag:string;title:string;action?:s
 function RealMetricRows({rows,moneyReal}:{rows:[string,number][];moneyReal:(n:number)=>string}){return <div className="metric-rows">{rows.map(x=><div key={x[0]}><span>{x[0]}</span><b className={x[1]<0?"bad":undefined}>{moneyReal(x[1])}</b></div>)}</div>}
 
 type TrendData={hasData:boolean;currency:string;hasBudget?:boolean;series?:{period:string;actual:{revenue:number;costs:number;net:number};budget:{revenue:number;costs:number;net:number}}[]};
-function TrendReal({locale,d,onNavigate}:{locale:PlatformLocale;d:DeepCopy;onNavigate?:(x:string)=>void}){
+function TrendReal({query,locale,d,onNavigate}:{query:string;locale:PlatformLocale;d:DeepCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:TrendData}>({status:"loading"});
  useEffect(()=>{
   let active=true;
-  apiFetch("/api/financial-trend")
-   .then(async r=>({ok:r.ok,body:await r.json() as TrendData}))
+  apiFetch("/api/financial-trend"+query,{cache:"no-store"})
+   .then(async r=>({ok:r.ok,body:await readApiJson<TrendData>(r)}))
    .then(({ok,body})=>{if(active)setState(ok?{status:"ready",data:body}:{status:"error"})})
    .catch(()=>{if(active)setState({status:"error"})});
   return ()=>{active=false};
- },[]);
+ },[query]);
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
  if(!data.hasData||!data.series?.length)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.emptyText}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data","planning"]}/></article>;
  const max=Math.max(1,...data.series.flatMap(s=>[s.actual.revenue,s.budget.revenue]))*1.15;
- return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag="ACTUAL · BUDGET" title={d.performanceTitle}/><div className="trend-chart"><div className="chart-legend"><span><i className="a"/>{d.actual}</span><span><i className="b"/>{d.budget}</span></div><div className="bars">{data.series.map(s=><div key={s.period}><section><i className="b" style={{height:`${s.budget.revenue/max*100}%`}}/><i className="a" style={{height:`${s.actual.revenue/max*100}%`}}/></section><small>{s.period}</small></div>)}</div></div></article></div>
+ return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag="ACTUAL · BUDGET" title={d.performanceTitle}/><div className="trend-chart"><div className="chart-legend"><span><i className="a"/>{d.actual}</span>{data.hasBudget&&<span><i className="b"/>{d.budget}</span>}</div><div className="bars">{data.series.map(s=><div key={s.period}><section>{data.hasBudget&&<i className="b" style={{height:`${s.budget.revenue/max*100}%`}}/>}<i className="a" style={{height:`${s.actual.revenue/max*100}%`}}/></section><small>{s.period}</small></div>)}</div></div></article></div>
 }
 
+const cashBasis:Record<PlatformLocale,string>={pt:"Agrupamento por categoria configurada. A classificação de linhas, por si só, não constitui uma demonstração de fluxos de caixa reconciliada.",en:"Grouped by configured category. Line classification alone does not constitute a reconciled cash flow statement.",es:"Agrupación por categoría configurada. La clasificación de líneas por sí sola no constituye un estado de flujos de efectivo conciliado.",fr:"Regroupement par catégorie configurée. La classification seule ne constitue pas un tableau des flux de trésorerie rapproché.",ru:"Группировка по настроенной категории. Классификация строк сама по себе не является сверенным отчётом о движении денежных средств."};
 type StatementsData={hasData:boolean;period:string|null;currency?:string;income:{precise:boolean;revenue:number;costs?:number;cogs?:number;grossMargin?:number;opex?:number;operatingResult?:number;netResult:number}|null;balanceSheet:{assets:number;liabilities:number;equity:number;netDebt:number;grossDebt:number;cash:number}|null;cashFlow:{operational:number;investing:number;financing:number;net:number}|null;workingCapital:{dso:number;dio:number;dpo:number;ccc:number}|null};
-function StatementsReal({locale,d,onNavigate}:{locale:PlatformLocale;d:DeepCopy;onNavigate?:(x:string)=>void}){
+function StatementsReal({query,locale,d,onNavigate}:{query:string;locale:PlatformLocale;d:DeepCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:StatementsData}>({status:"loading"});
  useEffect(()=>{
   let active=true;
-  apiFetch("/api/financial-statements")
-   .then(async r=>({ok:r.ok,body:await r.json() as StatementsData}))
+  apiFetch("/api/financial-statements"+query,{cache:"no-store"})
+   .then(async r=>({ok:r.ok,body:await readApiJson<StatementsData>(r)}))
    .then(({ok,body})=>{if(active)setState(ok?{status:"ready",data:body}:{status:"error"})})
    .catch(()=>{if(active)setState({status:"error"})});
   return ()=>{active=false};
- },[]);
+ },[query]);
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
  if(!data.hasData)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.emptyText}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data","planning"]}/></article>;
  const moneyReal=(minor:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:data.currency||"AOA",maximumFractionDigits:0}).format(minor/100);
  const income=data.income;
- const incomeRows:[string,number][]=income?(income.precise?[[d.incomeRows[0],income.revenue],[d.incomeRows[1],-income.cogs!],[d.incomeRows[2],income.grossMargin!],[d.incomeRows[3],-income.opex!],[d.incomeRows[4],income.operatingResult!],[d.incomeRows[5],income.netResult]]:[[d.incomeRows[0],income.revenue],[d.incomeRows[1],-(income.costs||0)],[d.incomeRows[5],income.netResult]]):[];
+ const incomeRows:[string,number][]=income?(income.precise?[[d.incomeRows[0],income.revenue],[d.incomeRows[1],-income.cogs!],[d.incomeRows[2],income.grossMargin!],[d.incomeRows[3],-income.opex!],[d.incomeRows[4],income.operatingResult!],[d.incomeRows[5],income.netResult]]:[[t.revenue,income.revenue],[t.costs,-(income.costs||0)],[t.net,income.netResult]]):[];
  const exportStatements=()=>downloadXlsx(`demonstracoes-${data.period}.xlsx`,[
   {name:d.income.slice(0,31),rows:[[d.line,data.period||""],...incomeRows.map(([label,value])=>[label,value/100])]},
   ...(data.balanceSheet?[{name:d.position.slice(0,31),rows:[[d.line,data.period||""],...d.balanceRows.map((label,i)=>[label,[data.balanceSheet!.assets,data.balanceSheet!.liabilities,data.balanceSheet!.equity,data.balanceSheet!.netDebt][i]/100])]}]:[]),
@@ -162,41 +165,41 @@ function StatementsReal({locale,d,onNavigate}:{locale:PlatformLocale;d:DeepCopy;
  return <div className="finance-grid">
   <article className="finance-card span2"><CardTitle tag={d.integrated} title={d.income} action={income?t.exportXlsx:undefined} onClick={income?exportStatements:undefined}/>{income?<RealMetricRows rows={incomeRows} moneyReal={moneyReal}/>:<><p className="status-note">{t.emptyText}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data","planning"]}/></>}</article>
   <article className="finance-card"><CardTitle tag={d.balance} title={d.position}/>{data.balanceSheet?<RealMetricRows rows={d.balanceRows.map((label,i)=>[label,[data.balanceSheet!.assets,data.balanceSheet!.liabilities,data.balanceSheet!.equity,data.balanceSheet!.netDebt][i]])} moneyReal={moneyReal}/>:<><p className="status-note">{t.noRoleData}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data"]}/></>}</article>
-  <article className="finance-card"><CardTitle tag={d.cashflow} title={d.cashReconciliation}/>{data.cashFlow?<RealMetricRows rows={d.cashRows.map((label,i)=>[label,[data.cashFlow!.operational,data.cashFlow!.investing,data.cashFlow!.financing,data.cashFlow!.net][i]])} moneyReal={moneyReal}/>:<><p className="status-note">{t.noCashFlowData}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data"]}/></>}</article>
+  <article className="finance-card"><CardTitle tag={d.cashflow} title={d.cashReconciliation}/><p className="status-note">{cashBasis[locale]}</p>{data.cashFlow?<RealMetricRows rows={d.cashRows.map((label,i)=>[label,[data.cashFlow!.operational,data.cashFlow!.investing,data.cashFlow!.financing,data.cashFlow!.net][i]])} moneyReal={moneyReal}/>:<><p className="status-note">{t.noCashFlowData}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data"]}/></>}</article>
  </div>
 }
 
 type ProfitabilityData={hasData:boolean;period:string|null;currency?:string;units:{name:string;revenue:number;costs:number;margin:number;marginPct:number|null}[]};
-function ProfitabilityReal({locale,z,onNavigate}:{locale:PlatformLocale;z:ClosingCopy;onNavigate?:(x:string)=>void}){
+function ProfitabilityReal({query,locale,z,onNavigate}:{query:string;locale:PlatformLocale;z:ClosingCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:ProfitabilityData}>({status:"loading"});
  useEffect(()=>{
   let active=true;
-  apiFetch("/api/financial-profitability")
-   .then(async r=>({ok:r.ok,body:await r.json() as ProfitabilityData}))
+  apiFetch("/api/financial-profitability"+query,{cache:"no-store"})
+   .then(async r=>({ok:r.ok,body:await readApiJson<ProfitabilityData>(r)}))
    .then(({ok,body})=>{if(active)setState(ok?{status:"ready",data:body}:{status:"error"})})
    .catch(()=>{if(active)setState({status:"error"})});
   return ()=>{active=false};
- },[]);
+ },[query]);
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
  if(!data.hasData)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.noUnitData}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data"]}/></article>;
  const moneyReal=(minor:number)=>new Intl.NumberFormat("pt-PT",{style:"currency",currency:data.currency||"AOA",maximumFractionDigits:0}).format(minor/100);
- return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag={z.multi} title={z.marginUnit}/><div className="finance-table"><table><thead><tr><th>{z.unit}</th><th>{z.revenue}</th><th>{t.marginLabel}</th><th>{z.signal}</th></tr></thead><tbody>{data.units.map(u=><tr key={u.name}><th>{u.name}</th><td>{moneyReal(u.revenue)}</td><td className={u.margin>=0?"good":"bad"}>{u.marginPct!==null?`${u.marginPct.toFixed(1)}%`:"—"}</td><td><em className={u.marginPct!==null&&u.marginPct>10?"good":"bad"}>{u.marginPct!==null&&u.marginPct>10?z.creator:z.review}</em></td></tr>)}</tbody></table></div></article></div>
+ return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag={z.multi} title={z.marginUnit}/><div className="finance-table"><table><thead><tr><th>{z.unit}</th><th>{z.revenue}</th><th>{t.costs}</th><th>{t.marginLabel}</th><th>%</th></tr></thead><tbody>{data.units.map(u=><tr key={u.name}><th>{u.name}</th><td>{moneyReal(u.revenue)}</td><td>{moneyReal(u.costs)}</td><td className={u.margin>=0?"good":"bad"}>{moneyReal(u.margin)}</td><td>{u.marginPct!==null?`${u.marginPct.toFixed(1)}%`:"—"}</td></tr>)}</tbody></table></div></article></div>
 }
 
-function DebtReal({locale,r,onNavigate}:{locale:PlatformLocale;r:RiskCopy;onNavigate?:(x:string)=>void}){
+function DebtReal({query,locale,r,onNavigate}:{query:string;locale:PlatformLocale;r:RiskCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:StatementsData}>({status:"loading"});
  useEffect(()=>{
   let active=true;
-  apiFetch("/api/financial-statements")
-   .then(async res=>({ok:res.ok,body:await res.json() as StatementsData}))
+  apiFetch("/api/financial-statements"+query,{cache:"no-store"})
+   .then(async res=>({ok:res.ok,body:await readApiJson<StatementsData>(res)}))
    .then(({ok,body})=>{if(active)setState(ok?{status:"ready",data:body}:{status:"error"})})
    .catch(()=>{if(active)setState({status:"error"})});
   return ()=>{active=false};
- },[]);
+ },[query]);
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
@@ -205,17 +208,17 @@ function DebtReal({locale,r,onNavigate}:{locale:PlatformLocale;r:RiskCopy;onNavi
  return <div className="finance-grid"><article className="finance-card"><CardTitle tag={r.debt} title={r.financing}/><RealMetricRows rows={[[r.debtRows[0],data.balanceSheet.grossDebt],[r.debtRows[1],data.balanceSheet.netDebt]]} moneyReal={moneyReal}/></article></div>
 }
 
-function WorkingCapitalReal({locale,z,onNavigate}:{locale:PlatformLocale;z:ClosingCopy;onNavigate?:(x:string)=>void}){
+function WorkingCapitalReal({query,locale,z,onNavigate}:{query:string;locale:PlatformLocale;z:ClosingCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:StatementsData}>({status:"loading"});
  useEffect(()=>{
   let active=true;
-  apiFetch("/api/financial-statements")
-   .then(async res=>({ok:res.ok,body:await res.json() as StatementsData}))
+  apiFetch("/api/financial-statements"+query,{cache:"no-store"})
+   .then(async res=>({ok:res.ok,body:await readApiJson<StatementsData>(res)}))
    .then(({ok,body})=>{if(active)setState(ok?{status:"ready",data:body}:{status:"error"})})
    .catch(()=>{if(active)setState({status:"error"})});
   return ()=>{active=false};
- },[]);
+ },[query]);
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
@@ -223,22 +226,19 @@ function WorkingCapitalReal({locale,z,onNavigate}:{locale:PlatformLocale;z:Closi
  const days=(n:number)=>`${n.toFixed(0)} dias`;
  return <div className="finance-grid"><article className="finance-card"><CardTitle tag={z.cycle} title={z.ccc}/><div className="score"><strong>{days(data.workingCapital.ccc)}</strong></div><div className="metric-rows"><div><span>{z.cycleRows[0].replace(/\s*·.*/,"")}</span><b>{days(data.workingCapital.dso)}</b></div><div><span>{z.cycleRows[1].replace(/\s*·.*/,"")}</span><b>{days(data.workingCapital.dio)}</b></div><div><span>{z.cycleRows[2].replace(/\s*·.*/,"")}</span><b>{days(data.workingCapital.dpo)}</b></div></div></article></div>
 }
-function MetricRows({rows}:{rows:[string,number][]}){return <div className="metric-rows">{rows.map(x=><div key={x[0]}><span>{x[0]}</span><b>{money(x[1])}</b></div>)}</div>}
-function Performance({d}:{d:DeepCopy}){return <div className="finance-grid"><article className="finance-card"><CardTitle tag={d.forecastQuality} title={d.quality}/><div className="score"><strong>94,2%</strong><span>{d.qualityDelta}</span></div><MetricRows rows={d.forecastRows.map((x,i)=>[x,[5284,988,236][i]])}/></article><article className="finance-card"><CardTitle tag={d.drivers} title={d.assumptions}/><ul className="driver-list">{d.assumptionRows.map((x,i)=><li key={x}><b>{x}</b><em>{["+4,2%","+2,6%","1 012 AOA","18,4%"][i]}</em></li>)}</ul></article></div>}
-function Bridges({r}:{r:RiskCopy}){return <div className="finance-grid"><article className="finance-card"><CardTitle tag={r.causes} title={r.classification}/><MetricRows rows={r.causeRows.map((x,i)=>[x,[-9.1,-4.6,-5.8,-7.9][i]])}/></article><article className="finance-card"><CardTitle tag={r.impact} title={r.annual}/><div className="score warning"><strong>−38,6 M</strong><span>{r.annualRisk}</span></div></article></div>}
 
 type VarianceData={hasData:boolean;period:string|null;currency?:string;hasBudget:boolean;actualNet?:number;budgetNet?:number;netVariance?:number;drivers?:{lineCode:string;lineName:string;classification:string;contribution:number}[];residual?:number};
-function VarianceReal({locale,r,onNavigate}:{locale:PlatformLocale;r:RiskCopy;onNavigate?:(x:string)=>void}){
+function VarianceReal({query,locale,r,onNavigate}:{query:string;locale:PlatformLocale;r:RiskCopy;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:VarianceData}>({status:"loading"});
  useEffect(()=>{
   let active=true;
-  apiFetch("/api/financial-variance")
-   .then(async res=>({ok:res.ok,body:await res.json() as VarianceData}))
+  apiFetch("/api/financial-variance"+query,{cache:"no-store"})
+   .then(async res=>({ok:res.ok,body:await readApiJson<VarianceData>(res)}))
    .then(({ok,body})=>{if(active)setState(ok?{status:"ready",data:body}:{status:"error"})})
    .catch(()=>{if(active)setState({status:"error"})});
   return ()=>{active=false};
- },[]);
+ },[query]);
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}</div>;
  const {data}=state;
@@ -254,6 +254,3 @@ function VarianceReal({locale,r,onNavigate}:{locale:PlatformLocale;r:RiskCopy;on
  const exportVariance=()=>downloadXlsx(`variacao-${data.period}.xlsx`,[{name:r.bridge.slice(0,31),rows:[["Linha","Valor"],...bars.map(b=>[b.label,b.value/100])]}]);
  return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag={r.bridge} title={r.bridgeTitle} action={t.exportXlsx} onClick={exportVariance}/><div className="bridge">{bars.map((b,i)=><div key={i}><span>{b.label}</span><i className={b.kind} style={{height:`${Math.max(22,Math.abs(b.value)/max*155)}px`}}/><b>{moneyReal(b.value)}</b></div>)}</div></article></div>
 }
-function Treasury({r}:{r:RiskCopy}){const weeks=[214,202,187,192,174,158,146,132,126,139,151,168,183];return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag={r.cash13} title={r.projected}/><div className="line-bars">{weeks.map((x,i)=><div key={i}><i style={{height:`${x/2.4}px`}}/><b>{x}</b><small>{r.week}{i+1}</small></div>)}</div></article><article className="finance-card"><CardTitle tag={r.bank} title={r.currency}/><MetricRows rows={r.bankRows.map((x,i)=>[x,[124.6,76.2,14][i]])}/></article></div>}
-function WorkingCapital({z}:{z:ClosingCopy}){const agingValues=[[184,64],[58,20],[27,9],[12,4],[8,3]];return <div className="finance-grid"><article className="finance-card span2"><CardTitle tag={z.aging} title={z.receivables}/><div className="aging">{z.agingRows.map((label,i)=><div key={label}><span>{label}</span><section><i style={{width:`${agingValues[i][1]}%`}}/></section><b>{money(agingValues[i][0])}</b></div>)}</div></article><article className="finance-card span2"><CardTitle tag={z.opportunity} title={z.release}/><div className="opportunity"><strong>28,4 M AOA</strong><p>{z.releaseText}</p><button>{z.actionPlan}</button></div></article></div>}
-function Profitability({z}:{z:ClosingCopy}){return <div className="finance-grid"><article className="finance-card"><CardTitle tag={z.economics} title={z.customer}/><MetricRows rows={z.economicsRows.map((x,i)=>[x,[12.8,8.1,4.7][i]])}/></article><article className="finance-card"><CardTitle tag={z.concentration} title={z.commercialRisk}/><div className="score warning"><strong>38%</strong><span>{z.topCustomers}</span></div><p className="status-note bad">! {z.limit}</p></article></div>}
