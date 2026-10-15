@@ -1,3 +1,4 @@
+import { sendInvitationEmail, type InvitationEmailEnv, type InvitationDelivery } from "./invitation-email";
 import type {D1Database,D1PreparedStatement,R2Bucket} from "../worker-configuration";
 import {parseMoneyMinor} from "../lib/money";
 /** Cloudflare Worker entry point for the vinext-starter template. */
@@ -63,7 +64,7 @@ import { employeeOnboardingDocumentsApi } from "./employee-onboarding-documents"
 import { employeePerformanceNoticesApi } from "./employee-performance-notices";
 import { payPayReadiness, payPaySandboxReference, type PayPayEnv } from "./paypay";
 
-interface Env extends PayPayEnv {
+interface Env extends PayPayEnv, InvitationEmailEnv {
   ASSETS: {fetch:(request:Request)=>Promise<Response>};
   DB: D1Database;
   BUCKET: R2Bucket;
@@ -1763,6 +1764,7 @@ async function setupApi(
   db: D1Database,
   tenantId: string,
   organizationId: string | null = null,
+  emailEnv: InvitationEmailEnv = {},
 ) {
   try {
     await ensureSetupSchema(db);
@@ -1775,6 +1777,8 @@ async function setupApi(
       recordId = uid();
     if(body.organizationId && !await db.prepare("SELECT 1 FROM organizations WHERE tenant_id=? AND id=? AND (? IS NULL OR id=?)").bind(tenantId,body.organizationId,organizationId,organizationId).first())return Response.json({error:"Organização fora do âmbito autorizado."},{status:403});
     let issuedInvite: { token: string; expiresAt: string } | null = null;
+    let inviteRecipient: {email:string;name:string} | null = null;
+    let emailDelivery: InvitationDelivery | null = null;
     const actor = actorEmail(request) || "utilizador autenticado";
     let summary = "";
     if (body.type === "organization") {
@@ -1827,7 +1831,8 @@ async function setupApi(
           { error: "Este email já tem acesso ou convite." },
           { status: 409 },
         );
-      summary = `Convite enviado a ${body.email.trim()}`;
+      summary = `Convite preparado para ${body.email.trim()}`;
+      inviteRecipient = {email:body.email.trim().toLowerCase(),name:body.name.trim()};
       await db
         .prepare(
           "INSERT INTO platform_users (id,tenant_id,name,email,role,organization_id,status,created_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -1914,7 +1919,8 @@ async function setupApi(
           .bind(created, body.userId, tenantId)
           .run();
         issuedInvite = await issueInvitation(db, tenantId, body.userId);
-        summary = `Convite reenviado a ${targetEmail}`;
+        summary = `Novo convite preparado para ${targetEmail}`;
+        inviteRecipient = {email:targetEmail,name:String(target.name)};
       } else if (action === "cancel") {
         if (targetStatus === "Ativo")
           return Response.json(
@@ -2090,6 +2096,10 @@ async function setupApi(
         { error: "Operação não suportada." },
         { status: 400 },
       );
+    if (issuedInvite && inviteRecipient) {
+      emailDelivery = await sendInvitationEmail(emailEnv, {...inviteRecipient,...issuedInvite,idempotencyKey:`invitation/${await sha256(issuedInvite.token)}`});
+      summary += emailDelivery.status === "accepted" ? " · e-mail aceite pelo serviço de envio" : emailDelivery.status === "not_configured" ? " · envio de e-mail não configurado" : " · falha no envio de e-mail";
+    }
     await db
       .prepare(
         "INSERT INTO audit_events (id,tenant_id,action,entity_type,entity_id,actor,summary,created_at) VALUES (?,?,?,?,?,?,?,?)",
@@ -2110,7 +2120,7 @@ async function setupApi(
     return Response.json(
       {
         ...(await setupSnapshot(db, tenantId, organizationId)),
-        ...(issuedInvite ? { invite: issuedInvite } : {}),
+        ...(issuedInvite ? { invite: {...issuedInvite, delivery:emailDelivery} } : {}),
       },
       { status: 201 },
     );
@@ -6195,7 +6205,7 @@ const worker = {
       if (apiPath === "/api/tenants")
         return tenantsApi(request, env.DB, security);
       if (apiPath === "/api/setup")
-        return setupApi(request, env.DB, tenantId, organizationId);
+        return setupApi(request, env.DB, tenantId, organizationId, env);
       if (apiPath === "/api/hcm")
         return hcmApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/hr-cockpit")

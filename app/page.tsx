@@ -920,6 +920,7 @@ function ConfiguracaoReal({initialStep=1}:{initialStep?:number}) {
     [dimensaoAtiva, setDimensaoAtiva] = useState(""),
     [erro, setErro] = useState(""),
     [inviteLink, setInviteLink] = useState(""),
+    [inviteDelivery, setInviteDelivery] = useState(""),
     [aCarregar, setACarregar] = useState(true),
     [aEnviar, setAEnviar] = useState(false);
   const carregar = () => {
@@ -952,6 +953,7 @@ function ConfiguracaoReal({initialStep=1}:{initialStep?:number}) {
     e.preventDefault();
     setErro("");
     setInviteLink("");
+    setInviteDelivery("");
     setAEnviar(true);
     const form = new FormData(e.currentTarget);
     const payload = Object.fromEntries(form.entries());
@@ -963,17 +965,19 @@ function ConfiguracaoReal({initialStep=1}:{initialStep?:number}) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const body = await readApiJson<SetupData & { error?: string; invite?: { token: string } }>(res);
+    const body = await readApiJson<SetupData & { error?: string; invite?: { token: string; delivery?: {status:string} } }>(res);
     setAEnviar(false);
     if (!res.ok) {
       setErro(body.error || "Não foi possível guardar.");
       return;
     }
     setDados(body);
-    if (body.invite)
+    if (body.invite) {
+      setInviteDelivery(body.invite.delivery?.status === "accepted" ? "O serviço de e-mail aceitou o convite para envio. A receção ainda não está confirmada." : body.invite.delivery?.status === "not_configured" ? "Convite criado, mas o envio de e-mail não está configurado. Nenhum e-mail foi enviado." : "Convite criado, mas o envio de e-mail falhou. Pode tentar novamente.");
       setInviteLink(
         `${window.location.origin}/?invite=${encodeURIComponent(body.invite.token)}`,
       );
+    }
     setAberto(false);
   }
   async function gerirUtilizador(
@@ -983,23 +987,26 @@ function ConfiguracaoReal({initialStep=1}:{initialStep?:number}) {
   ) {
     setErro("");
     setInviteLink("");
+    setInviteDelivery("");
     setAEnviar(true);
     const res = await apiFetch("/api/v1/setup", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "userAction", userId, action, role }),
     });
-    const body = await readApiJson<SetupData & { error?: string; invite?: { token: string } }>(res);
+    const body = await readApiJson<SetupData & { error?: string; invite?: { token: string; delivery?: {status:string} } }>(res);
     setAEnviar(false);
     if (!res.ok) {
       setErro(body.error || "Não foi possível alterar o acesso.");
       return;
     }
     setDados(body);
-    if (body.invite)
+    if (body.invite) {
+      setInviteDelivery(body.invite.delivery?.status === "accepted" ? "O serviço de e-mail aceitou o convite para envio. A receção ainda não está confirmada." : body.invite.delivery?.status === "not_configured" ? "Convite criado, mas o envio de e-mail não está configurado. Nenhum e-mail foi enviado." : "Convite criado, mas o envio de e-mail falhou. Pode tentar novamente.");
       setInviteLink(
         `${window.location.origin}/?invite=${encodeURIComponent(body.invite.token)}`,
       );
+    }
   }
   const total =
     dados.organizations.length +
@@ -1152,6 +1159,7 @@ function ConfiguracaoReal({initialStep=1}:{initialStep?:number}) {
             </div>
           ) : etapa === 2 ? (
             <div className="user-list acessos">
+              {inviteDelivery && <p role="status">{inviteDelivery}</p>}
               {inviteLink && (
                 <div className="convite-link">
                   <span>
@@ -1193,7 +1201,7 @@ function ConfiguracaoReal({initialStep=1}:{initialStep?:number}) {
                       <option>Gestor</option>
                       <option>Leitura</option>
                     </select>
-                    <em>{u.status}</em>
+                    <em>{u.status === "Convite enviado" ? "Aguarda aceitação" : u.status}</em>
                     <div className="acoes-acesso">
                       {u.status === "Ativo" ? (
                         <button
@@ -1208,7 +1216,7 @@ function ConfiguracaoReal({initialStep=1}:{initialStep?:number}) {
                             disabled={aEnviar}
                             onClick={() => gerirUtilizador(u.id, "resend")}
                           >
-                            Gerar novo link
+                            Reenviar convite por e-mail
                           </button>
                           {u.status !== "Cancelado" && (
                             <button
