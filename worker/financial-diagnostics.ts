@@ -1,3 +1,5 @@
+import {financialLedgerApi} from './financial-ledger';
+import type {financialLedger} from '../lib/financial-ledger';
 import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 type Security = {
@@ -578,12 +580,24 @@ export async function financialDiagnosticsApi(
           { error: "Framework ativo não encontrado." },
           { status: 404 },
         );
-      const rows = await db
+      const book=await db.prepare('SELECT id FROM financial_books WHERE tenant_id=? AND organization_id=? AND currency=?').bind(tenant,org,currency).first<{id:string}>();
+      let rows:{results:Record<string,unknown>[]};
+      if(book){
+        const ledgerUrl=new URL(request.url);ledgerUrl.searchParams.set('organizationId',String(org));ledgerUrl.searchParams.set('currency',currency);ledgerUrl.searchParams.set('period',body.period);ledgerUrl.searchParams.set('bookId',book.id);
+        const response=await financialLedgerApi(new Request(ledgerUrl),db,security);if(!response.ok)return response;
+        const source=await response.json() as {report:ReturnType<typeof financialLedger>;quality:{complete:boolean}};
+        if(!source.quality.complete)return Response.json({error:'Complete a integração e reconciliação dos mapas financeiros antes de pontuar o diagnóstico.'},{status:409});
+        const r=source.report,x=r.balance.accounts;
+        const mapped:Record<string,number>={REVENUE:r.income.REVENUE,COGS:r.income.COGS,OPEX:r.income.OPEX,DEPRECIATION:r.income.DEPRECIATION,INTEREST:r.income.INTEREST,TAX:r.income.TAX,CASH:x.CASH,RECEIVABLES:x.AR,INVENTORY:x.INVENTORY,OTHER_CURRENT_ASSET:x.TAX_ASSET+x.OTHER_CA,NONCURRENT_ASSET:r.balance.noncurrentAssets,PAYABLES:x.AP,CURRENT_DEBT:x.SHORT_DEBT,OTHER_CURRENT_LIABILITY:x.TAX_PAYABLE+x.OTHER_CL,LONGTERM_DEBT:x.LONG_DEBT,OTHER_NONCURRENT_LIABILITY:x.OTHER_NCL,EQUITY:r.balance.equity,OPERATING_CASH_FLOW:r.cashFlow.Operacional};
+        rows={results:Object.entries(mapped).map(([role_code,amount])=>({role_code,amount}))};
+      }else{
+        rows = await db
         .prepare(
           "SELECT r.role_code,SUM(ABS(e.amount_minor)) amount FROM performance_entries e JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code JOIN diagnostic_line_roles r ON r.line_id=l.id AND r.tenant_id=l.tenant_id WHERE e.tenant_id=? AND e.organization_id=? AND e.period=? AND e.currency=? AND e.scenario='Actual' GROUP BY r.role_code",
         )
         .bind(tenant, org, body.period, currency)
         .all<Record<string, unknown>>();
+      }
       if (!rows.results.length)
         return Response.json(
           {
@@ -597,7 +611,7 @@ export async function financialDiagnosticsApi(
         ),
         v = (x: string) => a.get(x) || 0,
         revenue = v("REVENUE"),
-        netIncome = revenue - v("COGS") - v("OPEX") - v("INTEREST") - v("TAX"),
+        netIncome = revenue - v("COGS") - v("OPEX") - v("DEPRECIATION") - v("INTEREST") - v("TAX"),
         currentAssets =
           v("CASH") +
           v("RECEIVABLES") +
@@ -663,7 +677,9 @@ export async function financialDiagnosticsApi(
           .bind(tenant, body.frameworkId)
           .all<Record<string, unknown>>(),
         prepared = [] as Array<Record<string, unknown>>;
+      const denominators:Record<string,number>={CURRENT_RATIO:currentLiabilities,QUICK_RATIO:currentLiabilities,CASH_RATIO:currentLiabilities,SOLVENCY:liabilities,AUTONOMY:assets,DEBT_RATIO:assets,NET_MARGIN:revenue,ROA:assets,ROE:equity,ASSET_TURNOVER:assets};
       for (const config of configs.results) {
+        if(String(config.metric_code) in denominators&&denominators[String(config.metric_code)]<=0)return Response.json({error:'Base nula ou não positiva: não é possível pontuar '+config.metric_code+'. Reveja a cobertura e o framework.'},{status:409});
         const def = metricDefinitions.find((x) => x[0] === config.metric_code),
           value = values.get(String(config.metric_code));
         if (!def || !value) continue;

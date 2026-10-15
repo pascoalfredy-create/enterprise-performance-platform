@@ -1,4 +1,5 @@
 "use client";
+import {PeopleHealthWorkspace} from "./people-health-workspace";
 import { useEffect, useState } from "react";
 import type { PlatformLocale } from "../lib/platform-i18n";
 import { usePlatformLocale } from "./use-platform-locale";
@@ -40,9 +41,10 @@ ru:{loading:"Загрузка реальных данных по персона�
 const money=(n:number)=>`${n.toFixed(1)} M AOA`;
 export function HrManagerSuite({onNavigate}:{onNavigate:(x:string)=>void}){
  const locale=usePlatformLocale(),c=ht[locale],p=peopleCopy[locale],d=deepCopy[locale];
- const [view,setView]=useState<"overview"|"people"|"cost"|"talent">("overview");
+ const [view,setView]=useState<"overview"|"people"|"cost"|"talent"|"health">("health");
  return <section className="hr-suite"><header className="hr-head"><div><span>{locale==="pt"?"RH · GESTÃO DE PESSOAS E PAYROLL":locale==="es"?"RR. HH. · GESTIÓN DE PERSONAS Y NÓMINA":locale==="fr"?"RH · GESTION DU PERSONNEL ET DE LA PAIE":locale==="ru"?"HR · УПРАВЛЕНИЕ ПЕРСОНАЛОМ И ЗАРПЛАТОЙ":"HR · PEOPLE & PAYROLL MANAGEMENT"}</span><h1>{c.title}</h1><p>{c.intro}</p></div></header>
- <nav className="hr-tabs">{(["overview","people","cost","talent"] as const).map((x,i)=><button key={x} className={view===x?"active":""} onClick={()=>setView(x)}>{c.tabs[i]}</button>)}</nav>
+ <nav className="hr-tabs">{(["overview","people","cost","talent"] as const).map((x,i)=><button key={x} className={view===x?"active":""} onClick={()=>setView(x)}>{c.tabs[i]}</button>)}<button className={view==="health"?"active":""} onClick={()=>setView("health")}>{["Indicadores de gestão","Management indicators","Indicadores de gestión","Indicateurs de gestion","Показатели управления"][{pt:0,en:1,es:2,fr:3,ru:4}[locale]]}</button></nav>
+ {view==="health"&&<PeopleHealthWorkspace/>}
  {view==="overview"&&<Cockpit locale={locale}/>}
  {view==="people"&&<PeopleReal locale={locale} p={p} onNavigate={onNavigate}/>}
  {view==="cost"&&<CostReal locale={locale} d={d} onNavigate={onNavigate}/>}

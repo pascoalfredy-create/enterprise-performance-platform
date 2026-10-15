@@ -1,3 +1,4 @@
+import {peopleHealthApi} from './people-health';
 import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 type Security = {
@@ -22,6 +23,7 @@ export async function hrCockpitApi(
   db: D1Database,
   security: Security,
 ) {
+  if(new URL(request.url).searchParams.get("resource")==="health")return peopleHealthApi(request,db,security);
   try {
     if (request.method !== "GET")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
@@ -48,9 +50,9 @@ export async function hrCockpitApi(
         .first(),
       db
         .prepare(
-          "SELECT period,currency,employee_count,gross_minor,net_minor,employer_minor FROM payroll_runs WHERE tenant_id=? AND status='Fechado' ORDER BY period DESC LIMIT 1",
+          "SELECT r.period,r.currency,COUNT(DISTINCT l.employee_id) employee_count,SUM(l.gross_minor) gross_minor,SUM(l.net_minor) net_minor,SUM(l.employer_minor) employer_minor FROM payroll_runs r JOIN payroll_run_lines l ON l.run_id=r.id AND l.tenant_id=r.tenant_id JOIN employees e ON e.id=l.employee_id AND e.tenant_id=l.tenant_id WHERE r.tenant_id=? AND r.status='Fechado' AND (? IS NULL OR e.organization_id=?) GROUP BY r.period,r.currency ORDER BY r.period DESC,r.currency LIMIT 1",
         )
-        .bind(tenant)
+        .bind(tenant,scope,scope)
         .first<{
           period: string;
           currency: string;
@@ -257,9 +259,9 @@ export async function hrPayrollCostApi(
       scope = security.organizationId;
     const latestPayroll = await db
       .prepare(
-        "SELECT id,period,currency,employee_count,gross_minor,net_minor,employer_minor FROM payroll_runs WHERE tenant_id=? AND status='Fechado' ORDER BY period DESC LIMIT 1",
+        "SELECT r.id,r.period,r.currency,COUNT(DISTINCT l.employee_id) employee_count,SUM(l.gross_minor) gross_minor,SUM(l.net_minor) net_minor,SUM(l.employer_minor) employer_minor FROM payroll_runs r JOIN payroll_run_lines l ON l.run_id=r.id AND l.tenant_id=r.tenant_id JOIN employees e ON e.id=l.employee_id AND e.tenant_id=l.tenant_id WHERE r.tenant_id=? AND r.status='Fechado' AND (? IS NULL OR e.organization_id=?) GROUP BY r.id ORDER BY r.period DESC,r.created_at DESC LIMIT 1",
       )
-      .bind(tenant)
+      .bind(tenant,scope,scope)
       .first<{
         id: string;
         period: string;
