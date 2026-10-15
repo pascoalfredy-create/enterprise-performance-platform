@@ -1,4 +1,5 @@
 import type {D1Database} from '../worker-configuration';
+import {isCurrency} from '../lib/money';
 import {financialScope} from './financial-scope';
 import {parseBankRows,parseBankOfx,summarizeBank} from '../lib/bank-statements';
 import {classifyDataError} from '../lib/api-error';
@@ -7,6 +8,7 @@ const fail=(error:string,status=400)=>Response.json({error},{status});
 const digest=async(value:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(x=>x.toString(16).padStart(2,'0')).join('');
 export async function bankStatementsApi(request:Request,db:D1Database,security:Security):Promise<Response>{try{
  const url=new URL(request.url),{scope,currency,period}=await financialScope(request,db,security),tenant=security.tenantId,canWrite=['Administrador','Financeiro','Gestor'].includes(security.role),now=new Date().toISOString();
+ if(!isCurrency(currency))return fail('Moeda inválida.');
  const snapshot=async(selectedId=url.searchParams.get('statementId')||'')=>{
   const organizations=await db.prepare("SELECT id,name,currency FROM organizations WHERE tenant_id=? AND status='Ativa' AND (? IS NULL OR id=?) ORDER BY name").bind(tenant,scope,scope).all();
   const accounts=await db.prepare('SELECT * FROM treasury_accounts WHERE tenant_id=? AND currency=? AND (? IS NULL OR organization_id=?) ORDER BY name').bind(tenant,currency,scope,scope).all();

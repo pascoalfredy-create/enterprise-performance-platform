@@ -69,7 +69,7 @@ test('bank resource rejects different company, tenant and currency, and central 
  assert.equal((await bankStatementsApi(request(payload()),db,{...security,organizationId:'b'})).status,403);
  const scoped=await (await bankStatementsApi(request(null,path+'&organizationId=a'),db,{...security,organizationId:'b'})).json();assert.ok(scoped.error);
  const foreign=await (await bankStatementsApi(request(null),db,{...security,tenantId:'x'})).json();assert.equal(foreign.statements.length,0);
- const wrong=await bankStatementsApi(request(payload(),path.replace('AOA','USD')),db,security);assert.equal(wrong.status,400);
+ const wrong=await bankStatementsApi(request(payload(),path.replace('AOA','USD')),db,security);assert.equal(wrong.status,400);assert.equal((await bankStatementsApi(request(payload(),path.replace('AOA','ZZZ')),db,security)).status,400);
  const routed=await financialDataApi(request(null,path+'&organizationId=a'),db,security);assert.equal(routed.status,200);assert.equal((await routed.json()).movements.length,4);sql.close();
 });
 
