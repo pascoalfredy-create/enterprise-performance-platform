@@ -318,6 +318,12 @@ function Skeleton({ lines = 2 }: { lines?: number }) {
 export default function Portal() {
   const [authState, setAuthState] = useState<"loading" | "ready">("loading");
   const [tab, setTab] = useState<Tab>("inicio");
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  function navigatePortal(next: Tab) {
+    setTab(next);
+    setMoreMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
   const [profile, setProfile] = useState<Profile | null>(null);
   const [payslips, setPayslips] = useState<Payslip[] | null>(null);
   const [leave, setLeave] = useState<Leave | null>(null);
@@ -700,6 +706,7 @@ export default function Portal() {
       <div className="portal-shell">
         <header className="portal-header">
           <div className="portal-header-top">
+            <span className="portal-brand-label">Portal do colaborador</span>
             <b>{profile?.organizationName || "Portal do colaborador"}</b>
           </div>
           {profile && (
@@ -714,13 +721,15 @@ export default function Portal() {
             </div>
           )}
         </header>
-        <main className="portal-content" key={tab}>
+        <main className={`portal-content portal-view-${tab}`} key={tab} id="portal-main">
+          <div className="portal-page-heading">
+            <span className="portal-eyebrow">O meu espaço</span>
+            <h1>{tab === "inicio" ? `${greeting()}, ${firstName}` : ({ picagem: "Picagem", recibos: "Recibos", ferias: "Férias e ausências", tarefas: "As minhas tarefas", documentos: "Os meus documentos", perfil: "O meu perfil" } as Record<string, string>)[tab]}</h1>
+            <p>{({ inicio: "O essencial do seu dia, num só lugar.", picagem: "Registe a sua presença e consulte as marcações.", recibos: "Consulte os seus recibos de vencimento.", ferias: "Consulte saldos e acompanhe os seus pedidos.", tarefas: "Acompanhe o trabalho que tem a realizar.", documentos: "Consulte documentos e assinaturas pendentes.", perfil: "Consulte e mantenha os seus dados atualizados." })[tab]}</p>
+          </div>
           {error && <p className="portal-error">{error}</p>}
           {tab === "inicio" && profile && (
             <>
-              <h2 className="portal-greeting">
-                {greeting()}, {firstName}
-              </h2>
               {onboardingDocuments &&
                 onboardingDocuments
                   .filter((d) => d.status === "Pendente")
@@ -916,17 +925,17 @@ export default function Portal() {
                 </dl>
               </section>
               <div className="portal-quick-actions">
-                <button onClick={() => setTab("picagem")}>
+                <button onClick={() => navigatePortal("picagem")}>
                   {Icon.badge}{" "}
                   {attendance?.openEntry ? "Registar saída" : "Picagem"}
                 </button>
-                <button onClick={() => setTab("recibos")}>
+                <button onClick={() => navigatePortal("recibos")}>
                   {Icon.receipt} Ver recibos
                 </button>
-                <button onClick={() => setTab("ferias")}>
+                <button onClick={() => navigatePortal("ferias")}>
                   {Icon.calendar} Pedir férias
                 </button>
-                <button onClick={() => setTab("tarefas")}>
+                <button onClick={() => navigatePortal("tarefas")}>
                   {Icon.tasks} Ver tarefas
                 </button>
               </div>
@@ -1566,55 +1575,67 @@ export default function Portal() {
             </>
           )}
         </main>
-        <nav className="portal-nav">
+        <nav className={`portal-nav${moreMenuOpen ? " portal-nav-expanded" : ""}`} aria-label="Navegação do portal">
+          <span className="portal-nav-caption">O MEU PORTAL</span>
           <button
-            className={tab === "inicio" ? "active" : ""}
-            onClick={() => setTab("inicio")}
+            className={`${tab === "inicio" ? "active" : ""}`}
+            aria-current={tab === "inicio" ? "page" : undefined}
+            onClick={() => navigatePortal("inicio")}
           >
             <span className="portal-nav-icon">{Icon.home}</span>
             Início
           </button>
           <button
-            className={tab === "picagem" ? "active" : ""}
-            onClick={() => setTab("picagem")}
+            className={`${tab === "picagem" ? "active" : ""}`}
+            aria-current={tab === "picagem" ? "page" : undefined}
+            onClick={() => navigatePortal("picagem")}
           >
             <span className="portal-nav-icon">{Icon.badge}</span>
             Picagem
           </button>
           <button
-            className={tab === "recibos" ? "active" : ""}
-            onClick={() => setTab("recibos")}
+            className={`${tab === "recibos" ? "active" : ""}`}
+            aria-current={tab === "recibos" ? "page" : undefined}
+            onClick={() => navigatePortal("recibos")}
           >
             <span className="portal-nav-icon">{Icon.receipt}</span>
             Recibos
           </button>
           <button
-            className={tab === "ferias" ? "active" : ""}
-            onClick={() => setTab("ferias")}
+            className={`${tab === "ferias" ? "active" : ""}`}
+            aria-current={tab === "ferias" ? "page" : undefined}
+            onClick={() => navigatePortal("ferias")}
           >
             <span className="portal-nav-icon">{Icon.calendar}</span>
             Férias
           </button>
           <button
-            className={tab === "tarefas" ? "active" : ""}
-            onClick={() => setTab("tarefas")}
+            className={`${tab === "tarefas" ? "active" : ""} portal-nav-secondary`}
+            aria-current={tab === "tarefas" ? "page" : undefined}
+            onClick={() => navigatePortal("tarefas")}
           >
             <span className="portal-nav-icon">{Icon.tasks}</span>
             Tarefas
           </button>
           <button
-            className={tab === "documentos" ? "active" : ""}
-            onClick={() => setTab("documentos")}
+            className={`${tab === "documentos" ? "active" : ""} portal-nav-secondary`}
+            aria-current={tab === "documentos" ? "page" : undefined}
+            onClick={() => navigatePortal("documentos")}
           >
             <span className="portal-nav-icon">{Icon.folder}</span>
             Documentos
           </button>
           <button
-            className={tab === "perfil" ? "active" : ""}
-            onClick={() => setTab("perfil")}
+            className={`${tab === "perfil" ? "active" : ""} portal-nav-secondary`}
+            aria-current={tab === "perfil" ? "page" : undefined}
+            onClick={() => navigatePortal("perfil")}
           >
             <span className="portal-nav-icon">{Icon.user}</span>
             Perfil
+          </button>
+          <button className={`portal-nav-more${["tarefas", "documentos", "perfil"].includes(tab) ? " active" : ""}`} aria-expanded={moreMenuOpen} aria-label={moreMenuOpen ? "Fechar mais opções" : "Mais opções"} onClick={() => setMoreMenuOpen(!moreMenuOpen)}>
+            <span className="portal-nav-icon" aria-hidden>{"•••"}</span>
+            Mais
           </button>
         </nav>
       </div>

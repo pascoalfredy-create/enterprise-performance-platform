@@ -873,3 +873,88 @@
 .portal-punch-out {
   background: #c23b3b;
 }
+
+/* Employee portal owns its layout independently of the administrative main. */
+.ui-scale .portal-shell {
+  --ui-text-body: 14px;
+  --ui-text-support: 12px;
+  --ui-text-emphasis: 16px;
+  width: 100%;
+  max-width: none;
+  min-height: 100dvh;
+  color: var(--portal-ink);
+  font-family: Arial, Helvetica, sans-serif;
+  box-sizing: border-box;
+}
+.portal-shell *, .portal-shell *::before, .portal-shell *::after { box-sizing: border-box; }
+.portal-shell .portal-header { padding: 16px 20px; gap: 14px; }
+.portal-brand-label { display: block; color: #aabbd5; margin-bottom: 4px; }
+.portal-header-top, .portal-header-identity > div { min-width: 0; overflow-wrap: anywhere; }
+.portal-shell .portal-content {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  padding: 22px 16px calc(100px + env(safe-area-inset-bottom));
+  align-self: start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 16px;
+}
+.portal-page-heading { margin-bottom: 4px; }
+.portal-eyebrow { display: block; color: #65748a; margin-bottom: 6px; }
+.ui-scale.ui-scale.ui-scale .portal-page-heading h1 { font-size: 26px !important; line-height: 1.2; margin: 0 0 8px; letter-spacing: -.6px; }
+.portal-page-heading p { margin: 0; color: #65748a; }
+.portal-shell .portal-card { min-width: 0; border: 1px solid var(--portal-border); box-shadow: 0 2px 8px #11182b05; padding: 20px; margin: 0; }
+.portal-shell .portal-stats, .portal-shell .portal-quick-actions { margin: 0; }
+.portal-shell .portal-stat { align-items: flex-start; text-align: left; padding: 16px; border: 1px solid var(--portal-border); box-shadow: none; gap: 7px; }
+.ui-scale.ui-scale.ui-scale .portal-stat b { font-size: 23px !important; letter-spacing: -.5px; overflow-wrap: anywhere; }
+.portal-shell .portal-quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.portal-shell .portal-quick-actions button { min-height: 56px; text-align: left; justify-content: flex-start; }
+.portal-shell button, .portal-shell a, .portal-shell input, .portal-shell select { touch-action: manipulation; }
+.portal-shell button { cursor: pointer; }
+.portal-shell button:focus-visible, .portal-shell a:focus-visible, .portal-shell input:focus-visible, .portal-shell select:focus-visible { outline: 3px solid #2e9eff; outline-offset: 3px; }
+.portal-shell input, .portal-shell select, .portal-shell textarea { min-width: 0; max-width: 100%; min-height: 46px; }
+.ui-scale.ui-scale.ui-scale .portal-shell input, .ui-scale.ui-scale.ui-scale .portal-shell select, .ui-scale.ui-scale.ui-scale .portal-shell textarea { font-size: 16px !important; }
+.portal-shell .portal-card dd { min-width: 0; overflow-wrap: anywhere; }
+.portal-shell .portal-nav { max-width: none; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 24px #11182b08; }
+.portal-shell .portal-nav button { min-width: 0; min-height: 50px; border-radius: 10px; }
+.ui-scale.ui-scale.ui-scale .portal-nav button { font-size: 11px !important; }
+.portal-shell .portal-nav button.active { background: var(--portal-accent-soft); color: #1263ae; }
+.portal-shell .portal-nav-caption, .portal-shell .portal-nav-secondary { display: none; }
+.portal-shell .portal-nav-more { display: flex; grid-column: 5; grid-row: 1; }
+.portal-nav-more .portal-nav-icon { font-weight: 700; letter-spacing: 2px; }
+.portal-shell .portal-nav-expanded .portal-nav-secondary { display: flex; grid-row: 1; background: #f2f7ff; }
+.portal-shell .portal-nav-expanded { grid-template-rows: auto auto; gap: 8px 2px; }
+.portal-shell .portal-nav-expanded > button:not(.portal-nav-secondary) { grid-row: 2; }
+.portal-shell .portal-nav-expanded .portal-nav-secondary:nth-of-type(5) { grid-column: 1 / 3; }
+.portal-shell .portal-nav-expanded .portal-nav-secondary:nth-of-type(6) { grid-column: 3 / 5; }
+.portal-shell .portal-nav-expanded .portal-nav-secondary:nth-of-type(7) { grid-column: 5; }
+.portal-shell:has(.portal-nav-expanded) .portal-content { padding-bottom: calc(165px + env(safe-area-inset-bottom)); }
+@media (min-width: 600px) and (max-width: 879px) {
+  .portal-shell .portal-content { padding-inline: 28px; }
+  .portal-shell .portal-header { flex-direction: row; justify-content: space-between; align-items: center; }
+  .portal-shell .portal-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 880px) {
+  .ui-scale .portal-shell { grid-template-columns: 224px minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .portal-shell .portal-header { padding: 18px 28px; }
+  .portal-shell .portal-nav { top: 0; bottom: auto; left: auto; right: auto; height: calc(100dvh - 90px); padding: 28px 14px; background: #fff; gap: 6px; box-shadow: none; }
+  .portal-shell .portal-nav-caption { display: block; padding: 0 14px 14px; color: #7b879a; letter-spacing: 1.2px; }
+  .portal-shell .portal-nav-secondary { display: flex; }
+  .portal-shell .portal-nav-more { display: none; }
+  .portal-shell .portal-nav button { min-height: 46px; }
+  .ui-scale.ui-scale.ui-scale .portal-nav button { font-size: 14px !important; }
+  .portal-shell .portal-content, .portal-shell:has(.portal-nav-expanded) .portal-content { padding: 28px 32px 48px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .portal-page-heading, .portal-content > .portal-stats, .portal-content > .portal-quick-actions, .portal-content > .portal-error, .portal-content > .portal-notice { grid-column: 1 / -1; }
+  .portal-shell .portal-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  .portal-shell .portal-quick-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .portal-view-inicio > .portal-card, .portal-view-recibos > .portal-card, .portal-view-tarefas > .portal-card, .portal-view-documentos > .portal-card { grid-column: 1 / -1; }
+  .portal-shell .portal-nav-expanded .portal-nav-secondary { grid-column: auto; background: none; }
+  .portal-shell .portal-nav-expanded .portal-nav-secondary.active { background: var(--portal-accent-soft); }
+  .portal-shell .portal-nav-expanded { display: flex; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portal-content, .portal-loading-spinner { animation: none; }
+}
