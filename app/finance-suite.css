@@ -7,3 +7,5 @@
 .financial-rubrics{border-collapse:collapse;width:100%}.financial-rubrics th,.financial-rubrics td{padding:12px;text-align:right;border-bottom:1px solid #e6ebef;white-space:nowrap}.financial-rubrics th:first-child{text-align:left}.financial-rubrics small{display:block;color:#748093;font-weight:400}
 
 .treasury-workspace .modal-inline form{max-height:calc(100dvh - 40px);overflow:auto}.treasury-workspace .treasury-row{flex-wrap:wrap}.treasury-workspace .treasury-row>span{flex:1;min-width:180px}.treasury-workspace .treasury-row>button{padding:7px 10px}
+
+.profit-classification{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #e6ebef}.profit-classification small{display:block;color:#748093}.profit-classification form{display:flex;gap:8px;flex-wrap:wrap}.profit-classification select,.profit-classification button{padding:8px;border:1px solid #d7e3e8;border-radius:7px;background:#fff}.profit-classification button{background:#edf7f5;color:#087e73}
