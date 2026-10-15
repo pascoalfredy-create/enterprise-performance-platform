@@ -1,4 +1,5 @@
 "use client";
+import {ManagementActuals} from "./management-actuals";
 import { TreasuryWorkspace } from "./treasury-workspace";
 import { useEffect, useState } from "react";
 import type { PlatformLocale } from "../lib/platform-i18n";
@@ -182,10 +183,11 @@ function ProfitabilityReal({query,locale,z,onNavigate}:{query:string;locale:Plat
  if(state.status==="loading")return <div className="status-note">{t.loading}</div>;
  if(state.status==="error")return <div className="status-note bad">{t.error}<button onClick={()=>setRevision(value=>value+1)}>{text.retry[i]}</button></div>;
  const {data}=state;
- if(!data.hasData)return <article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.noUnitData}</p><EmptyCta t={t} onNavigate={onNavigate} targets={["data"]}/></article>;
+ if(!data.hasData)return <div className="finance-grid"><ManagementActuals query={query} onChanged={()=>setRevision(value=>value+1)}/><article className="finance-card"><h2>{t.emptyTitle}</h2><p>{t.noUnitData}</p></article></div>;
  const moneyReal=(minor:number|null)=>minor===null?"—":new Intl.NumberFormat(locale,{style:"currency",currency:data.currency||"AOA",maximumFractionDigits:2}).format(minor/100);
  const exportProfitability=()=>downloadXlsx(`rentabilidade-${data.period}-${data.currency}.xlsx`,[{name:"Rentabilidade",rows:[[t.periodLabel,data.period||""],["Currency",data.currency||""],[z.unit,z.revenue,t.costs,t.marginLabel,"%"],...data.units.map(unit=>[unit.name,unit.revenue/100,unit.costs/100,unit.margin===null?"":unit.margin/100,unit.marginPct===null?"":unit.marginPct])]}]);
  return <div className="finance-grid">
+ <ManagementActuals query={query} onChanged={()=>setRevision(value=>value+1)}/>
  {!!data.unclassified?.length&&<article className="finance-card span2"><p className="status-note bad">{text.pending[i]}</p><p>{text.scope[i]}</p>{data.unclassified.map(line=><div className="profit-classification" key={line.code}><span><b>{line.code} · {line.name}</b><small>{moneyReal(line.amount)}</small></span>{data.canClassify?<form onSubmit={event=>{event.preventDefault();const fields=new FormData(event.currentTarget);classify(line.code,String(fields.get("classification")))}}><select name="classification" required defaultValue=""><option value="" disabled>{text.choose[i]}</option>{["Receita","Custo","Ativo","Passivo","Capital","Caixa","Outro"].map(value=><option key={value}>{value}</option>)}</select><button disabled={!!busy}>{text.classify[i]}</button></form>:<EmptyCta t={t} onNavigate={onNavigate} targets={["data"]}/>}</div>)}{error&&<p className="status-note bad" role="alert">{error}</p>}</article>}
  {!data.units.length?<article className="finance-card span2"><p>{text.noIncome[i]}</p></article>:<article className="finance-card span2"><CardTitle tag={z.multi} title={z.marginUnit} action={t.exportXlsx} onClick={exportProfitability}/><div className="finance-table"><table><thead><tr><th>{z.unit}</th><th>{z.revenue}</th><th>{t.costs}</th><th>{t.marginLabel}</th><th>%</th><th>{text.detail[i]}</th></tr></thead><tbody>{data.units.map(unit=><tr key={unit.id}><th>{unit.name}</th><td>{moneyReal(unit.revenue)}</td><td>{moneyReal(unit.costs)}</td><td className={unit.margin!==null&&unit.margin<0?"bad":undefined}>{moneyReal(unit.margin)}</td><td>{unit.marginPct!==null?`${unit.marginPct.toFixed(1)}%`:"—"}</td><td><details><summary>{text.detail[i]}</summary>{unit.lines.map(line=><p key={line.code}>{line.code} · {line.name} · {line.classification}: {moneyReal(line.total)}</p>)}</details></td></tr>)}</tbody></table></div></article>}
  </div>

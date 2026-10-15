@@ -1,0 +1,12 @@
+ALTER TABLE treasury_balances ADD COLUMN status TEXT NOT NULL DEFAULT 'Ativo' CHECK(status IN ('Ativo','Apagado'));
+ALTER TABLE treasury_balances ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE treasury_balances ADD COLUMN updated_by TEXT;
+ALTER TABLE treasury_balances ADD COLUMN updated_at TEXT;
+CREATE TABLE treasury_balance_history(id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,balance_id TEXT NOT NULL,revision INTEGER NOT NULL,actor TEXT NOT NULL,changed_at TEXT NOT NULL,before_json TEXT NOT NULL,after_json TEXT NOT NULL,UNIQUE(tenant_id,balance_id,revision));
+DROP TRIGGER treasury_balance_immutable;
+CREATE TRIGGER treasury_balance_edit_guard BEFORE UPDATE ON treasury_balances WHEN NEW.id<>OLD.id OR NEW.tenant_id<>OLD.tenant_id OR NEW.account_id<>OLD.account_id OR NEW.balance_date<>OLD.balance_date OR NEW.created_by<>OLD.created_by OR NEW.created_at<>OLD.created_at OR NEW.revision<>OLD.revision+1 OR NEW.updated_by IS NULL OR NEW.updated_at IS NULL BEGIN SELECT RAISE(ABORT,'invalid balance revision'); END;
+CREATE TRIGGER treasury_balance_history_capture AFTER UPDATE ON treasury_balances BEGIN INSERT INTO treasury_balance_history VALUES(lower(hex(randomblob(16))),NEW.tenant_id,NEW.id,NEW.revision,NEW.updated_by,NEW.updated_at,json_object('amount',OLD.amount_minor,'reference',OLD.reference,'status',OLD.status),json_object('amount',NEW.amount_minor,'reference',NEW.reference,'status',NEW.status)); END;
+CREATE TRIGGER treasury_balance_history_no_update BEFORE UPDATE ON treasury_balance_history BEGIN SELECT RAISE(ABORT,'immutable history'); END;
+CREATE TRIGGER treasury_balance_history_no_delete BEFORE DELETE ON treasury_balance_history BEGIN SELECT RAISE(ABORT,'immutable history'); END;
+CREATE TABLE management_actuals(id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,entry_id TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0,reference TEXT NOT NULL,mutation_id TEXT,FOREIGN KEY(entry_id) REFERENCES performance_entries(id));
+CREATE TABLE feasibility_studies(id TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,organization_id TEXT NOT NULL,name TEXT NOT NULL,currency TEXT NOT NULL,assumptions_json TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0,updated_by TEXT NOT NULL,updated_at TEXT NOT NULL,FOREIGN KEY(organization_id) REFERENCES organizations(id));

@@ -1,3 +1,5 @@
+import {feasibilityApi} from './feasibility';
+import {managementActualsApi} from './management-actuals';
 import { treasuryApi } from "./treasury";
 import type {D1Database} from "../worker-configuration";
 import { financialScope } from "./financial-scope";
@@ -36,6 +38,8 @@ export async function financialDataApi(
   security: Security,
 ) {
   if (new URL(request.url).searchParams.get("resource") === "treasury") return treasuryApi(request, db, security);
+  if (new URL(request.url).searchParams.get("resource") === "actuals") return managementActualsApi(request,db,security);
+  if (new URL(request.url).searchParams.get("resource") === "feasibility") return feasibilityApi(request,db,security);
   try {
     const tenant = security.tenantId,
       scope = security.organizationId,

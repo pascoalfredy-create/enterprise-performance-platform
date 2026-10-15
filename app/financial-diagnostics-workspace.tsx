@@ -1,4 +1,5 @@
 "use client";
+import {FeasibilityWorkspace} from "./feasibility-workspace";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../lib/api-client";
 import "./financial-diagnostics.css";
@@ -266,9 +267,9 @@ export function FinancialDiagnosticsWorkspace({
           ) : view === "Investimento" ? (
             <button
               className="primario"
-              onClick={() => setModal("createInvestmentCase")}
+              onClick={() => document.querySelector(".feasibility-workspace")?.scrollIntoView({behavior:"smooth",block:"start"})}
             >
-              ＋ Caso de investimento
+              Premissas do estudo ↓
             </button>
           ) : (
             <button
@@ -428,7 +429,7 @@ export function FinancialDiagnosticsWorkspace({
           </aside>
         </div>
       ) : view === "Investimento" ? (
-        <div className="dg-grid">
+        <div><FeasibilityWorkspace/><details><summary>Casos anteriores · fluxos manuais e aprovações</summary><div className="dg-grid">
           <article className="cartao dg-investments">
             <div className="cab">
               <div>
@@ -534,7 +535,7 @@ export function FinancialDiagnosticsWorkspace({
               são alterados por IA.
             </footer>
           </aside>
-        </div>
+        </div></details></div>
       ) : (
         <div className="dg-method">
           <article className="cartao dg-industry" style={{ gridColumn: "1 / -1", padding: 21 }}>

@@ -24,7 +24,13 @@ export async function treasuryApi(request:Request,db:D1Database,security:Securit
     return treasuryApi(new Request(request.url),db,security);
    }else if(body.type==='recordBalance'){
     if(!validTreasuryDate(body.date)||!body.reference?.trim())return Response.json({error:'Data e referência do extrato são obrigatórias.'},{status:400});
-    statement=db.prepare('INSERT INTO treasury_balances VALUES (?,?,?,?,?,?,?,?)').bind(id,tenant,body.accountId,body.date,parseMoneyMinor(body.amount),body.reference.trim(),security.email,now);
+    statement=db.prepare('INSERT INTO treasury_balances (id,tenant_id,account_id,balance_date,amount_minor,reference,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)').bind(id,tenant,body.accountId,body.date,parseMoneyMinor(body.amount),body.reference.trim(),security.email,now);
+   }else if(['editBalance','deleteBalance'].includes(body.type)){
+    const balance=await db.prepare("SELECT * FROM treasury_balances WHERE id=? AND tenant_id=? AND account_id=? AND status='Ativo'").bind(body.balanceId||'',tenant,body.accountId).first<Record<string,unknown>>();
+    if(!balance)return Response.json({error:'Saldo não encontrado.'},{status:404});
+    if(Number(body.revision)!==Number(balance.revision))return Response.json({error:'Saldo alterado por outro utilizador. Atualize os dados.'},{status:409});
+    if(body.type==='editBalance'&&!body.reference?.trim())return Response.json({error:'Indique a referência do saldo.'},{status:400});
+    statement=db.prepare("UPDATE treasury_balances SET amount_minor=?,reference=?,status=?,revision=revision+1,updated_by=?,updated_at=? WHERE id=? AND tenant_id=? AND revision=? AND status='Ativo'").bind(body.type==='editBalance'?parseMoneyMinor(body.amount):balance.amount_minor,body.type==='editBalance'?body.reference.trim():balance.reference,body.type==='deleteBalance'?'Apagado':'Ativo',security.email,now,body.balanceId,tenant,Number(body.revision));
    }else if(body.type==='createFlow'){
     const amount=parseMoneyMinor(body.amount);
     if(!validTreasuryDate(body.date)||!['Entrada','Saída'].includes(body.direction)||!body.category?.trim()||!body.description?.trim()||!body.reference?.trim()||amount<=0)return Response.json({error:'Data, direção, rubrica, descrição, referência e valor positivo são obrigatórios.'},{status:400});
@@ -46,12 +52,12 @@ export async function treasuryApi(request:Request,db:D1Database,security:Securit
     }
    }else return Response.json({error:'Operação de tesouraria desconhecida.'},{status:400});
   }
-  const results=await db.batch([statement,db.prepare('INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) SELECT ?,?,?,?,?,?,?,? WHERE changes()>0').bind(crypto.randomUUID(),tenant,now,body.type,'treasury',body.flowId||id,security.email,'Tesouraria: '+body.type)]);
-  if(['editFlow','cancelFlow','deleteFlow','restoreFlow'].includes(body.type)&&!Number(results[0].meta.changes))return Response.json({error:'O movimento foi alterado. Atualize os dados antes de tentar novamente.'},{status:409});
+  const results=await db.batch([statement,db.prepare('INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) SELECT ?,?,?,?,?,?,?,? WHERE changes()>0').bind(crypto.randomUUID(),tenant,now,body.type,'treasury',body.balanceId||body.flowId||id,security.email,'Tesouraria: '+body.type)]);
+  if(['editBalance','deleteBalance','editFlow','cancelFlow','deleteFlow','restoreFlow'].includes(body.type)&&!Number(results[0].meta.changes))return Response.json({error:'O movimento foi alterado. Atualize os dados antes de tentar novamente.'},{status:409});
   return treasuryApi(new Request(request.url),db,security);
  }
  if(request.method!=='GET')return Response.json({error:'Método não permitido.'},{status:405});
- const accounts=await db.prepare('SELECT a.*,b.amount_minor,b.reference balance_reference,b.balance_date FROM treasury_accounts a LEFT JOIN treasury_balances b ON b.tenant_id=a.tenant_id AND b.account_id=a.id AND b.balance_date=? AND b.rowid=(SELECT b2.rowid FROM treasury_balances b2 WHERE b2.tenant_id=a.tenant_id AND b2.account_id=a.id AND b2.balance_date=b.balance_date ORDER BY b2.rowid DESC LIMIT 1) WHERE a.tenant_id=? AND a.currency=? AND (? IS NULL OR a.organization_id=?) ORDER BY a.name').bind(asOf,tenant,currency,scope,scope).all<Record<string,unknown>>();
+ const accounts=await db.prepare('SELECT a.*,b.id balance_id,b.revision balance_revision,CASE WHEN b.status=char(65,116,105,118,111) THEN b.amount_minor ELSE NULL END amount_minor,b.reference balance_reference,b.balance_date FROM treasury_accounts a LEFT JOIN treasury_balances b ON b.tenant_id=a.tenant_id AND b.account_id=a.id AND b.balance_date=? AND b.rowid=(SELECT b2.rowid FROM treasury_balances b2 WHERE b2.tenant_id=a.tenant_id AND b2.account_id=a.id AND b2.balance_date=b.balance_date ORDER BY b2.rowid DESC LIMIT 1) WHERE a.tenant_id=? AND a.currency=? AND (? IS NULL OR a.organization_id=?) ORDER BY a.name').bind(asOf,tenant,currency,scope,scope).all<Record<string,unknown>>();
  const flows=await db.prepare('SELECT f.*,a.name account_name FROM treasury_flows f JOIN treasury_accounts a ON a.id=f.account_id AND a.tenant_id=f.tenant_id WHERE f.tenant_id=? AND a.currency=? AND (? IS NULL OR a.organization_id=?) ORDER BY f.due_date,f.created_at').bind(tenant,currency,scope,scope).all<Record<string,unknown>>();
  const missing=accounts.results.filter(x=>x.amount_minor===null||x.amount_minor===undefined).length;
  let opening=0;for(const account of accounts.results){opening+=Number(account.amount_minor||0);if(!Number.isSafeInteger(opening))throw new Error('invalid treasury numeric range')}
