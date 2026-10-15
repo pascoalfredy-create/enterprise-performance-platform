@@ -5,6 +5,12 @@ import { usePlatformLocale } from "./use-platform-locale";
 
 // Authored UI catalogue. Portuguese is the stable source key; business codes and API values are never changed.
 const rows:Array<[string,string,string,string,string]>=[
+["O serviço de e-mail aceitou o convite para envio. A receção ainda não está confirmada.","The email service accepted the invitation for sending. Receipt is not yet confirmed.","El servicio aceptó el envío de la invitación. La recepción no está confirmada.","Le service a accepté l’envoi de l’invitation. La réception reste non confirmée.","Почтовый сервис принял приглашение к отправке. Получение пока не подтверждено."],
+["Convite criado, mas o envio de e-mail não está configurado. Nenhum e-mail foi enviado.","Invitation created, but email sending is not configured. No email was sent.","Invitación creada, pero el envío no está configurado. No se envió ningún correo.","Invitation créée, mais l’envoi n’est pas configuré. Aucun e-mail n’a été envoyé.","Приглашение создано, но отправка почты не настроена. Письмо не отправлено."],
+["Convite criado, mas o envio de e-mail falhou. Pode tentar novamente.","Invitation created, but email sending failed. You can retry.","Invitación creada, pero el envío falló. Puede reintentarlo.","Invitation créée, mais l’envoi a échoué. Vous pouvez réessayer.","Приглашение создано, но отправка не удалась. Можно повторить."],
+["Aguarda aceitação","Awaiting acceptance","Pendiente de aceptación","En attente d’acceptation","Ожидает принятия"],
+["Reenviar convite por e-mail","Resend invitation by email","Reenviar invitación por correo","Renvoyer l’invitation par e-mail","Повторно отправить приглашение"],
+
 ["Controlo de integridade","Integrity checks","Controles de integridad","Contrôles d’intégrité","Проверка целостности"],
 ["Eventos recentes devolvidos pelo serviço, dentro do âmbito autorizado. Esta lista não representa o histórico completo.","Recent events returned within the authorized scope. This list is not the complete history.","Eventos recientes dentro del ámbito autorizado. Esta lista no es el historial completo.","Événements récents dans le périmètre autorisé. Cette liste ne constitue pas l’historique complet.","Последние события в разрешённой области доступа. Это не полная история."],
 ["A carregar eventos…","Loading events…","Cargando eventos…","Chargement des événements…","Загрузка событий…"],

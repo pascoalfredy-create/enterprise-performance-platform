@@ -57,7 +57,7 @@ test("tenant context is selected from an authenticated membership",()=>{
  assert.match(source,/O tenant solicitado não pertence ao utilizador autenticado/);
 });
 test("every vertical slice receives the resolved tenant",()=>{
- assert.match(compact,/setupApi\(request,env\.DB,tenantId,organizationId\)/);
+ assert.match(compact,/setupApi\(request,env\.DB,tenantId,organizationId,env\)/);
  assert.match(rawSource,/performanceApi\(\s*request,\s*env\.DB,\s*tenantId,\s*organizationId/);
  assert.match(rawSource,/payrollApi\(\s*request,\s*env\.DB,\s*tenantId,\s*organizationId/);
  for(const api of ["workforceApi","dashboardApi","managementReportApi","hcmApi","integrityApi"])
