@@ -1,4 +1,5 @@
 "use client";
+import { TreasuryWorkspace } from "./treasury-workspace";
 import { useEffect, useState } from "react";
 import type { PlatformLocale } from "../lib/platform-i18n";
 import { usePlatformLocale } from "./use-platform-locale";
@@ -68,7 +69,7 @@ export function FinanceSuite({initialView="Cockpit CFO",onNavigate}:{initialView
  useEffect(()=>{setView(initialView)},[initialView]);
  const exportPack=async()=>{if(exporting)return;setExporting(true);setError("");try{const response=await apiFetch("/api/financial-cockpit"+query,{cache:"no-store"});const body=await readApiJson<CockpitData>(response);if(!response.ok)throw new Error(t.error);if(!body.hasPeriodData){setError(filterCopy.noRows);return}downloadXlsx(`management-pack-${body.period}-${body.currency}.xlsx`,[{name:filterCopy.summary,rows:[[filterCopy.scope,filters?.organizations.find(x=>x.id===entity)?.name||filterCopy.all],[c.period,body.period],[filterCopy.currency,body.currency],[filterCopy.basis],[t.revenue,body.actual.revenue/100],[t.costs,Math.abs(body.actual.costs)/100],[t.net,body.actual.net/100],...(body.hasBudget?[[t.budget,body.budget.net/100],[t.variance,(body.actual.net-body.budget.net)/100]]:[])]},{name:"Actual",rows:[[d.line,filterCopy.currency],...body.actual.classifications.map(row=>[row.classification,row.total/100])]}])}catch{setError(t.error)}finally{setExporting(false)}};
  return <section className="finance-suite">
-  <header className="finance-hero"><div><span>{locale==="es"?"RENDIMIENTO FINANCIERO Y GESTIÓN DE DECISIONES":locale==="fr"?"PERFORMANCE FINANCIÈRE ET GESTION DES DÉCISIONS":locale==="ru"?"ФИНАНСОВАЯ ЭФФЕКТИВНОСТЬ И УПРАВЛЕНИЕ РЕШЕНИЯМИ":"FINANCE PERFORMANCE & DECISION MANAGEMENT"}</span><h1>{c.title}</h1><p>{c.intro}</p></div><div className="finance-controls"><label>{c.company}<select value={entity} disabled={!filters} onChange={e=>setEntity(e.target.value)}><option value="">{filterCopy.all}</option>{filters?.organizations.map(org=><option key={org.id} value={org.id}>{org.name}</option>)}</select></label><label>{c.period}<input type="month" value={period} disabled={!filters} onChange={e=>setPeriod(e.target.value)}/></label><label>{filterCopy.currency}<select value={currency} disabled={!filters} onChange={e=>setCurrency(e.target.value)}>{Array.from(new Set([currency,...(filters?.reportingCurrencies||[]),...(filters?.organizations.map(org=>org.currency)||[])])).sort().map(code=><option key={code}>{code}</option>)}</select></label><button disabled={!filters||exporting} onClick={exportPack}>{exporting?t.loading:c.export}</button></div></header>
+  <header className="finance-hero"><div><span>{locale==="es"?"RENDIMIENTO FINANCIERO Y GESTIÓN DE DECISIONES":locale==="fr"?"PERFORMANCE FINANCIÈRE ET GESTION DES DÉCISIONS":locale==="ru"?"ФИНАНСОВАЯ ЭФФЕКТИВНОСТЬ И УПРАВЛЕНИЕ РЕШЕНИЯМИ":"FINANCE PERFORMANCE & DECISION MANAGEMENT"}</span><h1>{c.title}</h1><p>{c.intro}</p></div><div className="finance-controls"><label>{c.company}<select value={entity} disabled={!filters} onChange={e=>setEntity(e.target.value)}><option value="">{filterCopy.all}</option>{filters?.organizations.map(org=><option key={org.id} value={org.id}>{org.name}</option>)}</select></label>{view!=="Tesouraria"&&<label>{c.period}<input type="month" value={period} disabled={!filters} onChange={e=>setPeriod(e.target.value)}/></label>}<label>{filterCopy.currency}<select value={currency} disabled={!filters} onChange={e=>setCurrency(e.target.value)}>{Array.from(new Set([currency,...Intl.supportedValuesOf("currency"),...(filters?.reportingCurrencies||[]),...(filters?.organizations.map(org=>org.currency)||[])])).sort().map(code=><option key={code}>{code}</option>)}</select></label>{view!=="Tesouraria"&&<button disabled={!filters||exporting} onClick={exportPack}>{exporting?t.loading:c.export}</button>}</div></header>
   <p className="status-note">{filterCopy.basis}</p>
   {error&&<p className="status-note bad" role="alert">{error}</p>}
   <nav className="finance-tabs" aria-label={c.tabs}>{packages.map((x,i)=><button key={x} className={view===x?"active":""} onClick={()=>setView(x)}><i>{i+1}</i>{x==="Cockpit CFO"?(locale==="es"?"Cockpit del CFO":locale==="fr"?"Cockpit du CFO":locale==="ru"?"Панель CFO":"Cockpit CFO"):x==="Demonstrações"?c.statements:x==="Performance"?c.performance:x==="Desvios"?c.variance:x==="Tesouraria"?c.treasury:x==="Working Capital"?(locale==="es"?"Capital circulante":locale==="fr"?"Besoin en fonds de roulement":locale==="ru"?"Оборотный капитал":"Working Capital"):c.profitability}</button>)}</nav>
@@ -76,14 +77,14 @@ export function FinanceSuite({initialView="Cockpit CFO",onNavigate}:{initialView
   {view==="Demonstrações"&&<StatementsReal key={query} query={query} locale={locale} d={d} onNavigate={onNavigate}/>}
   {view==="Performance"&&<><TrendReal key={query} query={query} locale={locale} d={d} onNavigate={onNavigate}/></>}
   {view==="Desvios"&&<><VarianceReal key={query} query={query} locale={locale} r={r} onNavigate={onNavigate}/></>}
-  {view==="Tesouraria"&&<><DebtReal key={query} query={query} locale={locale} r={r} onNavigate={onNavigate}/></>}
+  {view==="Tesouraria"&&<><TreasuryWorkspace key={query} query={query} organizations={filters?.organizations||[]}/></>}
   {view==="Working Capital"&&<><WorkingCapitalReal key={query} query={query} locale={locale} z={z} onNavigate={onNavigate}/></>}
   {view==="Rentabilidade"&&<><ProfitabilityReal key={query} query={query} locale={locale} z={z} onNavigate={onNavigate}/></>}
  </section>
 }
 
 type CockpitTotals={revenue:number;costs:number;net:number;classifications:{classification:string;total:number}[]};
-type CockpitData={period:string;currency:string;hasData:boolean;hasPeriodData:boolean;hasBudget:boolean;budgetVersionName:string|null;actual:CockpitTotals;budget:CockpitTotals};
+type CockpitData={period:string;currency:string;hasData:boolean;hasPeriodData:boolean;hasBudget:boolean;budgetVersionName:string|null;actual:CockpitTotals;budget:CockpitTotals;rubrics?:{code:string;name:string;classification:string;actual:number;budget:number;sourceCount:number}[]};
 function Cockpit({query,locale,onNavigate}:{query:string;locale:PlatformLocale;onNavigate?:(x:string)=>void}){
  const t=rc[locale];
  const [state,setState]=useState<{status:"loading"}|{status:"error"}|{status:"ready";data:CockpitData}>({status:"loading"});
@@ -108,7 +109,8 @@ function Cockpit({query,locale,onNavigate}:{query:string;locale:PlatformLocale;o
   <article><span>{t.budget}</span>{data.hasBudget?<strong>{moneyReal(data.budget.net)}</strong>:<small>{t.noBudget}</small>}</article>
  </section>
  {data.hasBudget&&<div className="finance-grid"><article className="finance-card"><span>{t.variance}</span><strong className={variance>=0?"good":"bad"}>{moneyReal(variance)}</strong></article></div>}
- <p className="status-note">{t.periodLabel}: {data.period}</p></>
+ <p className="status-note">{t.periodLabel}: {data.period}</p>
+ <details className="finance-card" open><summary>{{pt:"Rubricas e resultados",en:"Financial lines and results",es:"Rubros y resultados",fr:"Rubriques et résultats",ru:"Статьи и результаты"}[locale]}</summary><div className="table-scroll"><table className="financial-rubrics"><thead><tr><th>{{pt:"Rubrica",en:"Line",es:"Rubro",fr:"Rubrique",ru:"Статья"}[locale]}</th><th>Actual</th>{data.hasBudget&&<><th>{t.budget}</th><th>{{pt:"Δ Actual − Budget",en:"Δ Actual − Budget",es:"Δ Real − Presupuesto",fr:"Δ Réel − Budget",ru:"Δ Факт − Бюджет"}[locale]}</th></>}</tr></thead><tbody>{data.rubrics?.map(line=><tr key={line.code}><th><code>{line.code}</code> · {line.name}<small>{line.classification}</small></th><td>{moneyReal(line.actual)}</td>{data.hasBudget&&<><td>{moneyReal(line.budget)}</td><td>{moneyReal(line.actual-line.budget)}</td></>}</tr>)}</tbody></table></div></details></>
 }
 function EmptyCta({t,onNavigate,targets}:{t:RealCopy;onNavigate?:(x:string)=>void;targets:("data"|"planning")[]}){
  if(!onNavigate)return null;

@@ -1,3 +1,4 @@
+import { treasuryApi } from "./treasury";
 import type {D1Database} from "../worker-configuration";
 import { financialScope } from "./financial-scope";
 import { financialBatchActions } from "../lib/approval-policy";
@@ -34,6 +35,7 @@ export async function financialDataApi(
   db: D1Database,
   security: Security,
 ) {
+  if (new URL(request.url).searchParams.get("resource") === "treasury") return treasuryApi(request, db, security);
   try {
     const tenant = security.tenantId,
       scope = security.organizationId,
@@ -517,6 +519,7 @@ export async function financialCockpitApi(
             .all<{ classification: string; total: number }>()
         : Promise.resolve({ results: [] as { classification: string; total: number }[] }),
     ]);
+    const rubrics = await db.prepare("SELECT e.line_code code,COALESCE(l.name,MAX(e.line_name)) name,COALESCE(l.classification,'Outro') classification,SUM(CASE WHEN e.scenario='Actual' AND e.version_id IS NULL THEN e.amount_minor ELSE 0 END) actual,SUM(CASE WHEN e.scenario='Budget' AND e.version_id=? THEN e.amount_minor ELSE 0 END) budget,COUNT(DISTINCT e.source) sourceCount FROM performance_entries e LEFT JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code WHERE e.tenant_id=? AND e.period=? AND e.currency=? AND (? IS NULL OR e.organization_id=?) AND ((e.scenario='Actual' AND e.version_id IS NULL) OR (e.scenario='Budget' AND e.version_id=?)) GROUP BY e.line_code,l.name,l.classification ORDER BY e.line_code").bind(approvedBudget?.id||"",tenant,period,currency,scope,scope,approvedBudget?.id||"").all();
     const sum = (
       rows: { classification: string; total: number }[],
       cls: string,
@@ -530,6 +533,7 @@ export async function financialCockpitApi(
     return Response.json({
       period,
       currency,
+      rubrics: rubrics.results,
       hasData: Boolean(anyData),
       hasPeriodData: actualRows.results.length > 0,
       hasBudget: budgetRows.results.length > 0,
