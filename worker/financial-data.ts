@@ -1,3 +1,4 @@
+import {bankStatementsApi} from './bank-statements';
 import {financialLedgerApi} from './financial-ledger';
 import {feasibilityApi} from './feasibility';
 import {managementActualsApi} from './management-actuals';
@@ -38,6 +39,7 @@ export async function financialDataApi(
   db: D1Database,
   security: Security,
 ) {
+  if (new URL(request.url).searchParams.get("resource") === "bankStatements") return bankStatementsApi(request,db,security);
   if (new URL(request.url).searchParams.get("resource") === "treasury") return treasuryApi(request, db, security);
   if (new URL(request.url).searchParams.get("resource") === "actuals") return managementActualsApi(request,db,security);
   if (new URL(request.url).searchParams.get("resource") === "feasibility") return feasibilityApi(request,db,security);

@@ -1,4 +1,6 @@
 "use client";
+import {ModuleTransferToolbar} from './module-transfer-toolbar';
+import {BankStatementsWorkspace} from './bank-statements-workspace';
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, readApiJson } from "../lib/api-client";
 import { mapAssistedRows, parseFinancialCsv } from "../lib/assisted-import";
@@ -576,6 +578,7 @@ export default function Home() {
                 sessao.tenantName.toLowerCase().includes("calculo sutil"))
             }
           />
+          <ModuleTransferToolbar key={modulo} module={moduleItemLabel(locale,modulo)} onNavigate={setModulo}/>
           <EngineReadiness onNavigate={setModulo} locale={locale} />
           {modulo === "Ativação" ? (
             <CustomerActivationWorkspace onNavigate={setModulo} />
@@ -583,6 +586,8 @@ export default function Home() {
             <ConfiguracaoReal initialStep={modulo === "Utilizadores" ? 2 : 1} />
           ) : modulo === "Documentos" ? (
             <DocumentHubWorkspace />
+          ) : modulo === "Extratos bancários" ? (
+            <BankStatementsWorkspace query={"?period="+new Date().toISOString().slice(0,7)+"&currency=AOA"}/>
           ) : modulo === "Dados financeiros" ? (
             <FinancialDataWorkspace />
           ) : modulo === "Cockpit CFO" ? (
