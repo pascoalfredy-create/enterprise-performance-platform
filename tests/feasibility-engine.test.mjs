@@ -41,3 +41,9 @@ test('payback display converts decimal years to rounded months without changing 
  assert.equal(formatPaybackDuration(1+2/12,'en'),'1 year and 2 months');
  assert.equal(formatPaybackDuration(1+11/12,'ru'),'1 год и 11 месяцев');
 });
+
+const {reportNotes,reportCopy}=await import('../lib/feasibility-report.ts');
+test('report notes cover cash timing and model limits in every supported language',()=>{
+ for(const locale of ['pt','en','es','fr','ru']){const notes=reportNotes(locale);assert.equal(notes.length,5);assert.ok(notes.every(note=>typeof note==='string'&&note.length>80));}
+ assert.match(reportNotes('pt')[0],/ano zero/);assert.match(reportNotes('pt')[1],/primeira recuperação/);assert.match(reportNotes('pt')[2],/sem reporte de prejuízos/);assert.match(reportNotes('pt')[3],/365 dias/);assert.match(reportNotes('pt')[4],/±20%/);assert.match(reportCopy.source[0],/Não representam resultados realizados/);
+});

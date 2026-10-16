@@ -33,3 +33,9 @@ Authenticated visual validation on the user's tenant and their exact saved high-
 ## Continuação — 16 outubro 2026
 
 PR #16 integrada e publicada (main 1a2889bda349e32e5e31d6c19bacd0132e0fdba4; deployment 38883307809). Nesta continuação, os paybacks passam de anos decimais para anos e meses arredondados ao mês mais próximo, preservando o cálculo e a coluna decimal no Excel. Exemplos: 1,62 anos → 1 ano e 7 meses; 1,90 → 1 ano e 11 meses. O campo residual inclui definição, exemplo líquido de custos/impostos e orientação para usar zero sem recuperação prevista. Não altera premissas guardadas nem fórmulas. Inclui teste de arredondamento, mudança de ano, ausência de recuperação e traduções.
+
+## Continuação — cartões e relatório
+
+Captura identificou cartões globais ainda ligados a casos antigos, não ao estudo novo. Na vista Investimento, o resumo passa a acompanhar o estudo ativo (VAL, TIR e dois paybacks), incluindo edições por guardar e estado de premissas inválidas. Indicadores de diagnóstico não são inferidos de projeções.
+
+Pacote do estudo: resumo executivo condicionado ao VAL; origem e premissas; projeção anual em blocos de cinco anos; gráfico de fluxos; sensibilidade ±20%; alertas; cinco notas sobre método, recuperação, depreciação/imposto/residual, fundo de maneio e exclusões. Acesso por botão, impressão/guardar PDF pelo navegador; Excel inclui folha de notas. Não se trata de demonstrações realizadas/auditadas. Metadados identificam organização, moeda, estudo e estado de gravação. Sem alterações ao motor ou a dados guardados.
