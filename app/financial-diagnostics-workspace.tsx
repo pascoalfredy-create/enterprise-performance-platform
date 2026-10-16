@@ -1,4 +1,9 @@
 "use client";
+import {reportCopy} from "../lib/feasibility-report";
+import {type StudySummary} from "./feasibility-report";
+import {formatPaybackDuration} from "../lib/payback-duration";
+import {usePlatformLocale} from "./use-platform-locale";
+import {formatNumberValue} from "../lib/number-input";
 import {FeasibilityWorkspace} from "./feasibility-workspace";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../lib/api-client";
@@ -170,6 +175,8 @@ export function FinancialDiagnosticsWorkspace({
 }: {
   initialView?: string;
 } = {}) {
+  const locale=usePlatformLocale(),copyIndex={pt:0,en:1,es:2,fr:3,ru:4}[locale],reportText=(key:keyof typeof reportCopy)=>reportCopy[key][copyIndex];
+  const [studySummary,setStudySummary]=useState<StudySummary>(null);
   const [data, setData] = useState<Data>(empty),
     [view, setView] = useState(initialView),
     [modal, setModal] = useState(""),
@@ -281,7 +288,12 @@ export function FinancialDiagnosticsWorkspace({
           )}
         </div>
       </header>
-      <section className="dg-kpis">
+      {view === "Investimento" ? <section className="dg-kpis" aria-label={reportText('summary')}>{[
+        ['VAL / VPL',studySummary?formatNumberValue(studySummary.npv,locale)+' '+studySummary.currency:'—'],
+        [reportText('irr'),studySummary?.irr!=null?formatNumberValue(studySummary.irr,locale)+'%':'—'],
+        [reportText('payback'),studySummary?formatPaybackDuration(studySummary.payback,locale):'—'],
+        [reportText('discounted'),studySummary?formatPaybackDuration(studySummary.discountedPayback,locale):'—']
+      ].map(([label,value])=><article key={label}><span>{label}</span><strong>{value}</strong><small>{studySummary?(studySummary.name||reportText('newStudy'))+(studySummary.dirty?' · '+reportText('draft'):''):reportText('missing')}</small></article>)}</section> : <section className="dg-kpis">
         <article>
           <span>Score financeiro</span>
           <strong>
@@ -291,7 +303,7 @@ export function FinancialDiagnosticsWorkspace({
         </article>
         <article className={critical ? "risk" : ""}>
           <span>Indicadores críticos</span>
-          <strong>{critical}</strong>
+          <strong>{run?critical:"—"}</strong>
           <small>Com recomendação configurada</small>
         </article>
         <article>
@@ -312,7 +324,7 @@ export function FinancialDiagnosticsWorkspace({
           </strong>
           <small>Payback {item?.payback_period ?? "—"} período(s)</small>
         </article>
-      </section>
+      </section>}
       <nav className="dg-tabs">
         {["Diagnóstico", "Investimento", "Metodologia"].map((x) => (
           <button
@@ -429,7 +441,7 @@ export function FinancialDiagnosticsWorkspace({
           </aside>
         </div>
       ) : view === "Investimento" ? (
-        <div><FeasibilityWorkspace/><details><summary>Casos anteriores · fluxos manuais e aprovações</summary><div className="dg-grid">
+        <div><FeasibilityWorkspace onSummary={setStudySummary}/><details><summary>Casos anteriores · fluxos manuais e aprovações</summary><div className="dg-grid">
           <article className="cartao dg-investments">
             <div className="cab">
               <div>
@@ -954,3 +966,4 @@ function ModalFields({ type, data }: { type: string; data: Data }) {
     </>
   );
 }
+
