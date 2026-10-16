@@ -1,4 +1,5 @@
 "use client";
+import {reportCopy} from "../lib/feasibility-report";
 import {type StudySummary} from "./feasibility-report";
 import {formatPaybackDuration} from "../lib/payback-duration";
 import {usePlatformLocale} from "./use-platform-locale";
@@ -174,7 +175,7 @@ export function FinancialDiagnosticsWorkspace({
 }: {
   initialView?: string;
 } = {}) {
-  const locale=usePlatformLocale();
+  const locale=usePlatformLocale(),copyIndex={pt:0,en:1,es:2,fr:3,ru:4}[locale],reportText=(key:keyof typeof reportCopy)=>reportCopy[key][copyIndex];
   const [studySummary,setStudySummary]=useState<StudySummary>(null);
   const [data, setData] = useState<Data>(empty),
     [view, setView] = useState(initialView),
@@ -287,12 +288,12 @@ export function FinancialDiagnosticsWorkspace({
           )}
         </div>
       </header>
-      {view === "Investimento" ? <section className="dg-kpis" aria-label="Resumo do estudo ativo">{[
+      {view === "Investimento" ? <section className="dg-kpis" aria-label={reportText('summary')}>{[
         ['VAL / VPL',studySummary?formatNumberValue(studySummary.npv,locale)+' '+studySummary.currency:'—'],
-        ['TIR anual',studySummary?.irr!=null?formatNumberValue(studySummary.irr,locale)+'%':'—'],
-        ['Payback simples',studySummary?formatPaybackDuration(studySummary.payback,locale):'—'],
-        ['Payback descontado',studySummary?formatPaybackDuration(studySummary.discountedPayback,locale):'—']
-      ].map(([label,value])=><article key={label}><span>{label}</span><strong>{value}</strong><small>{studySummary?(studySummary.name||'Novo estudo')+(studySummary.dirty?' · alterações por guardar':''):'Preencha ou selecione um estudo válido abaixo'}</small></article>)}</section> : <section className="dg-kpis">
+        [reportText('irr'),studySummary?.irr!=null?formatNumberValue(studySummary.irr,locale)+'%':'—'],
+        [reportText('payback'),studySummary?formatPaybackDuration(studySummary.payback,locale):'—'],
+        [reportText('discounted'),studySummary?formatPaybackDuration(studySummary.discountedPayback,locale):'—']
+      ].map(([label,value])=><article key={label}><span>{label}</span><strong>{value}</strong><small>{studySummary?(studySummary.name||reportText('newStudy'))+(studySummary.dirty?' · '+reportText('draft'):''):reportText('missing')}</small></article>)}</section> : <section className="dg-kpis">
         <article>
           <span>Score financeiro</span>
           <strong>
