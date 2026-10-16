@@ -26,3 +26,18 @@ test('numeric drafts group thousands without changing decimal magnitude',()=>{
 test('pasted amounts support both decimal conventions and reject malformed grouping',()=>{
  for(const raw of ['1.000.000,50','1,000,000.50','1 000 000,50','1000000.50'])assert.equal(pastedNumber(raw,'pt').value,1000000.5,raw);assert.equal(pastedNumber('1.000.000,50','en').value,1000000.5);assert.equal(pastedNumber('1..000','pt').valid,false);assert.equal(pastedNumber('not a value','pt').valid,false);assert.equal(numberDraft('9999999999999999999999','pt').valid,false);
 });
+
+const {formatPaybackDuration}=await import('../lib/payback-duration.ts');
+test('payback display converts decimal years to rounded months without changing calculations',()=>{
+ assert.equal(formatPaybackDuration(1+2/12),'1 ano e 2 meses');
+ assert.equal(formatPaybackDuration(1+11/12),'1 ano e 11 meses');
+ assert.equal(formatPaybackDuration(1.62),'1 ano e 7 meses');
+ assert.equal(formatPaybackDuration(1.9),'1 ano e 11 meses');
+ assert.equal(formatPaybackDuration(1.999),'2 anos');
+ assert.equal(formatPaybackDuration(1/12),'1 mês');
+ assert.equal(formatPaybackDuration(.01),'Menos de 1 mês');
+ assert.equal(formatPaybackDuration(0),'0 meses');
+ assert.equal(formatPaybackDuration(null),'Não recuperado no horizonte');
+ assert.equal(formatPaybackDuration(1+2/12,'en'),'1 year and 2 months');
+ assert.equal(formatPaybackDuration(1+11/12,'ru'),'1 год и 11 месяцев');
+});
