@@ -41,3 +41,9 @@ Captura identificou cartões globais ainda ligados a casos antigos, não ao estu
 Pacote do estudo: resumo executivo condicionado ao VAL; origem e premissas; projeção anual em blocos de cinco anos; gráfico de fluxos; sensibilidade ±20%; alertas; cinco notas sobre método, recuperação, depreciação/imposto/residual, fundo de maneio e exclusões. Acesso por botão, impressão/guardar PDF pelo navegador; Excel inclui folha de notas. Não se trata de demonstrações realizadas/auditadas. Metadados identificam organização, moeda, estudo e estado de gravação. Sem alterações ao motor ou a dados guardados.
 
 Ao abrir, o estudo guardado mais recente é selecionado automaticamente; Novo estudo continua disponível. Verificação local: 318 testes aprovados, incluindo catálogo de idiomas; typecheck aprovado. Verificação visual autenticada e impressão continuam pendentes.
+
+## Correção de PDF e gravação — 16 outubro 2026
+
+O PDF geral exportava a vista sem o relatório fechado; as notas existiam apenas no modal aberto. O relatório completo passa a estar disponível oculto na árvore, e tanto o PDF geral como o botão do relatório selecionam esse conteúdo para um documento de impressão isolado, removendo o estado oculto. As regras de impressão só se aplicam a um relatório visível. Dois testes verificam as cinco notas antes de abrir e a seleção/remoção de hidden nos dois caminhos de impressão. Não houve inspeção visual autenticada de impressão.
+
+Guardar deixa de ficar silenciosamente desativado por nome/organização/moeda/premissas em falta: apresenta validação e confirmação de sucesso. O servidor devolve savedStudyId e a interface confirma exatamente esse estudo, incluindo revisão, antes de confirmar a gravação. O teste da API cria e relê o estudo devolvido; persistem os testes de conflito, acesso e rollback de auditoria. Sem migrações ou alterações aos cálculos.

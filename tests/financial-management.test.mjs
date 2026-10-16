@@ -52,7 +52,7 @@ test('feasibility reconciles operating profit, tax, initial WC, terminal recover
 });
 test('feasibility save persists assumptions, rejects stale updates and protects organization scope',async()=>{
  const{sql,db}=setup(),path='/api/financial-data?resource=feasibility',payload={name:'New facility',organizationId:'a',currency:'AOA',assumptions:{...feasibilityDefaults,capex:1000,units:100,price:10}};
- let r=await financialDataApi(request(path,payload),db,maker);assert.equal(r.status,200);let body=await r.json(),study=body.studies[0];assert.equal(JSON.parse(study.assumptions_json).capex,1000);
+ let r=await financialDataApi(request(path,payload),db,maker);assert.equal(r.status,200);let body=await r.json(),study=body.studies[0];assert.equal(body.savedStudyId,study.id);assert.equal(JSON.parse(study.assumptions_json).capex,1000);const read=await feasibilityApi(new Request('https://example.test'+path),db,maker);assert.equal((await read.json()).studies.find(x=>x.id===body.savedStudyId).name,payload.name);
  const edit={...payload,id:study.id,revision:0,name:'Revised facility'};assert.equal((await feasibilityApi(request(path,edit),db,maker)).status,200);assert.equal((await feasibilityApi(request(path,edit),db,maker)).status,409);assert.equal((await feasibilityApi(request(path,{...edit,revision:1}),db,{...maker,role:'Leitura'})).status,403);assert.equal((await feasibilityApi(request(path,{...edit,revision:1}),db,{...maker,organizationId:'b'})).status,409);assert.equal(sql.prepare("SELECT COUNT(*) n FROM audit_events WHERE entity_type='feasibility'").get().n,2);sql.close();
 });
 
