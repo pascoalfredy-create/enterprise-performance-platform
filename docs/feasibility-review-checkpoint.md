@@ -39,3 +39,5 @@ PR #16 integrada e publicada (main 1a2889bda349e32e5e31d6c19bacd0132e0fdba4; dep
 Captura identificou cartões globais ainda ligados a casos antigos, não ao estudo novo. Na vista Investimento, o resumo passa a acompanhar o estudo ativo (VAL, TIR e dois paybacks), incluindo edições por guardar e estado de premissas inválidas. Indicadores de diagnóstico não são inferidos de projeções.
 
 Pacote do estudo: resumo executivo condicionado ao VAL; origem e premissas; projeção anual em blocos de cinco anos; gráfico de fluxos; sensibilidade ±20%; alertas; cinco notas sobre método, recuperação, depreciação/imposto/residual, fundo de maneio e exclusões. Acesso por botão, impressão/guardar PDF pelo navegador; Excel inclui folha de notas. Não se trata de demonstrações realizadas/auditadas. Metadados identificam organização, moeda, estudo e estado de gravação. Sem alterações ao motor ou a dados guardados.
+
+Ao abrir, o estudo guardado mais recente é selecionado automaticamente; Novo estudo continua disponível. Verificação local: 318 testes aprovados, incluindo catálogo de idiomas; typecheck aprovado. Verificação visual autenticada e impressão continuam pendentes.
