@@ -1,0 +1,31 @@
+# Feasibility review and continuation checkpoint
+
+Date: 2026-10-16. Scope: project valuation formula audit, explicit activity units/periods, and decimal/thousands input formatting. The repository is Enterprise Performance Platform; this work does not involve YelaPay or YelaCore ERP.
+
+## Implemented
+
+- Correct negative opening working capital: suppliers' trade credit is not cash already received before the activity starts. Opening financing reserves positive first-year working capital only. Negative operating working capital is recognised in year-one cash flow and settled at project closure. Positive-working-capital cases keep the existing annual end-of-year change convention.
+- Explicit monthly/yearly period for entered quantities and fixed costs. Monthly data is multiplied by 12 once; unit prices, unit variable cost, growth, discount and tax assumptions remain annual/per-unit as labelled. Legacy studies without a period remain annual. Saved inputs are not silently rewritten.
+- NPV includes cash flow zero undiscounted and future flows at year end. IRR is an annual percentage derived from the same cash-flow vector. Genuine high IRRs are flagged for assumption review, not capped. Nonconventional cash-flow sequences keep IRR unavailable.
+- Cumulative depreciation allocation reconciles the depreciable amount exactly to cents, including very small investments spread across many years. Operating break-even includes depreciation; cash break-even excludes it.
+- First-year quantity × price cross-check, annual operating cost, high-growth / missing-cost / supplier-credit / high-return review flags, and cash-flow chart.
+- Shared localized numeric input: live thousands grouping, decimal entry, paste handling, canonical ungrouped numeric form values, and existing-value formatting. Applied to feasibility, manual income/cost inputs, treasury amount corrections/forecasts and financial operation amounts. Unit prices and quantities can retain four decimal places; aggregate money uses two.
+- API accepts the optional explicit period, rejects unsupported assumptions/periods and validates currency.
+
+## References inspected
+
+User-provided excerpt of *Análise Financeira de Empresas*, Queirós et al., 2020: PDF has 36 pages, not the complete book. The annual financial-plan discussion on PDF page 9 (printed page 32), and working-capital discussion around PDF pages 12–13 support distinguishing turnover, balances, payment terms and liquidity. Do not claim this excerpt provides a complete investment-valuation model or that the platform is certified by the authors. No pages or text from the private upload are committed.
+
+Microsoft official NPV / IRR reference used to verify timing and annual periodicity:
+- https://support.microsoft.com/en-us/excel/functions/npv-function
+- https://support.microsoft.com/en-us/excel/functions/irr-function
+
+The model remains a simplified unlevered project model: operating taxes on positive EBIT, no tax-loss carryforward, financing instalments, VAT, reinvestments or terminal perpetuity. Working-capital payables use variable cost as a proxy; a full purchases/inventory schedule is not implemented. Its annual year-end convention approximates intrayear timing. Those limits must remain visible; never lower an output just because it looks large.
+
+## Validation and next steps
+
+Targeted engine, numeric-format and API tests passed (16 tests). TypeScript passed. Full production build and all 316 tests passed locally. The localisation audit remains at the prior 5 known static-analysis false positives. Record CI and deployment status in the PR. New benchmarks include [-1000, 600, 600] => NPV at 10% = 41.32 and IRR ≈ 13.06623863%; monthly and equivalent annual inputs have identical flows; negative WC is not financing at t0; valid IRR over 100% remains visible; depreciation never becomes negative due to cent rounding.
+
+Before publishing: inspect final full-suite output; browser interaction verification was attempted but blocked because the Playwright browser executable is absent (only the Playwright library is installed); commit only the reviewed files; create a PR and wait for CI; merge under the standing authorization; confirm database/deploy workflow success. If the automatic deployment does not start, the previously successful retry is a same-tree child commit on main with an expected-head guarded ref update. Do not rerun an older deployment that would ship an older commit.
+
+Authenticated visual validation on the user's tenant and their exact saved high-return study has not been performed. No password/authenticator code should be requested in chat. A real high-return study must be reconciled against its quantities, unit prices, expense completeness and monthly/yearly basis; a formula fix alone cannot prove those business assumptions are correct.

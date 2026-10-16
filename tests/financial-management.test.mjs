@@ -80,3 +80,11 @@ test('an unclassified income source blocks conclusions and category percentages 
 test('a known financial line remains available for correcting its classification, including after moving it out of income',async()=>{
  const{sql,db}=setup();entry(sql,'actual-row','a','2026-10','AOA','REV',10000);for(const classification of ['Custo','Ativo','Receita']){let r=await financialDataApi(request('/api/financial-data',{type:'classifyLine',code:'REV',classification}),db,maker);assert.equal(r.status,200);r=await financialProfitabilityApi(request('/api/profitability?period=2026-10&currency=AOA'),db,maker);const body=await r.json();assert.equal(body.catalogLines.find(line=>line.code==='REV').classification,classification)}sql.close();
 });
+
+test('feasibility accepts explicit monthly inputs, preserves annual legacy studies and rejects unknown assumptions',async()=>{
+ const {sql,db}=setup(),path='/api/financial-data?resource=feasibility',assumptions={...feasibilityDefaults,capex:1000,units:100,price:10,fixedCosts:100,activityPeriod:'month'};
+ let response=await feasibilityApi(request(path,{name:'Monthly plan',organizationId:'a',currency:'AOA',assumptions}),db,maker);assert.equal(response.status,200);let saved=(await response.json()).studies[0];assert.equal(JSON.parse(saved.assumptions_json).activityPeriod,'month');assert.equal(feasibility(JSON.parse(saved.assumptions_json)).rows[0].revenue,12000);
+ response=await feasibilityApi(request(path,{name:'Invalid',organizationId:'a',currency:'AOA',assumptions:{...assumptions,activityPeriod:'day'}}),db,maker);assert.equal(response.status,400);
+ response=await feasibilityApi(request(path,{name:'Invalid',organizationId:'a',currency:'AOA',assumptions:{...assumptions,unexpected:1}}),db,maker);assert.equal(response.status,400);
+ response=await feasibilityApi(request(path,{name:'Invalid currency',organizationId:'a',currency:'ZZZ',assumptions}),db,maker);assert.equal(response.status,400);assert.equal(sql.prepare('SELECT COUNT(*) n FROM feasibility_studies').get().n,1);sql.close();
+});
