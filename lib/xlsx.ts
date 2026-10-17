@@ -38,7 +38,7 @@ const colLetters = (index: number) => {
 };
 
 export type XlsxCell=string|number|{formula?:string;value:string|number;style?:number};
-export type SheetInput={name:string;rows:XlsxCell[][];protect?:boolean;widths?:number[];freeze?:boolean;hiddenColumns?:number[];validations?:{range:string;type:'decimal'|'whole'|'list';min?:number;max?:number|string;values?:string}[]};
+export type SheetInput={name:string;rows:XlsxCell[][];protect?:boolean;widths?:number[];freeze?:boolean;hiddenColumns?:number[];hiddenRows?:number[];validations?:{range:string;type:'decimal'|'whole'|'list';min?:number;max?:number|string;values?:string}[]};
 
 function buildZip(parts: Array<{ path: string; data: Uint8Array }>) {
   const chunks: Uint8Array[] = [];
@@ -115,7 +115,7 @@ function sheetXml(sheet:SheetInput) {
           return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(text)}</t></is></c>`;
         })
         .join("");
-      return `<row r="${rIndex + 1}">${cells}</row>`;
+      return `<row r="${rIndex + 1}"${sheet.hiddenRows?.includes(rIndex+1)?' hidden="1"':''}>${cells}</row>`;
     })
     .join("");
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${sheet.freeze?'<sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="2" topLeftCell="C3" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>':''}${sheet.widths?'<cols>'+sheet.widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')+(sheet.hiddenColumns||[]).map(i=>`<col min="${i+1}" max="${i+1}" hidden="1"/>`).join('')+'</cols>':''}<sheetData>${rowsXml}</sheetData>${sheet.protect?'<sheetProtection sheet="1" objects="1" scenarios="1"/>':''}${sheet.validations?.length?'<dataValidations count="'+sheet.validations.length+'">'+sheet.validations.map(v=>`<dataValidation type="${v.type}" ${v.type==='list'?'':'operator="between" '}allowBlank="0" showErrorMessage="1" errorStyle="stop" sqref="${escapeXml(v.range)}"><formula1>${v.type==='list'?'&quot;'+escapeXml(v.values||'')+'&quot;':v.min??0}</formula1>${v.type==='list'?'':`<formula2>${v.max??1000000000000}</formula2>`}</dataValidation>`).join('')+'</dataValidations>':''}</worksheet>`;

@@ -23,7 +23,7 @@ This release implements the common financial model and report/UI improvements ap
 - Income tax is estimated monthly, with optional interest deductibility and no loss carryforward or separate payment lag. Liquidation sale proceeds are already net of sale taxes/costs; disposal book-value differences reconcile equity.
 - DSCR uses post-estimated-tax operating cash less operating working-capital change and additional CAPEX, excluding terminal recoveries/residual. Threshold is configurable, not universal bank approval.
 - Liquidation assumes recovery/settlement of projected operating balances, net residual sale, remaining debt repayment and positive cash distribution. With liquidation disabled, there is no automatic perpetual/exit value and no intermediate dividend schedule.
-- NPV uses equivalent monthly discount; conventional monthly IRR is annualized by compounding. Nonconventional/unavailable IRR remains unavailable. Simple/discounted payback is interpolated by month.
+- NPV uses equivalent monthly discount; conventional monthly IRR is annualized by compounding. Startup negative flows before the first positive receipt still permit IRR when there is exactly one nonzero sign change. Nonconventional/unavailable IRR remains unavailable. Simple/discounted payback is interpolated by month.
 
 ## Verification
 - Dedicated tests cover loan methods/grace, VAT/reinvestment/ongoing/closing cases, balance/cash/debt reconciliation, automatic/manual funding, fixed-rate project invariance to debt, periodic discount/IRR, legacy preservation, import round-trip, formula ranges and workbook parity.
