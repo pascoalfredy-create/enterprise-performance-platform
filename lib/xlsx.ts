@@ -37,7 +37,8 @@ const colLetters = (index: number) => {
   return letters;
 };
 
-type SheetInput = { name: string; rows: Array<Array<string | number>> };
+export type XlsxCell=string|number|{formula?:string;value:string|number;style?:number};
+export type SheetInput={name:string;rows:XlsxCell[][];protect?:boolean;widths?:number[];freeze?:boolean;hiddenColumns?:number[];hiddenRows?:number[];validations?:{range:string;type:'decimal'|'whole'|'list';min?:number;max?:number|string;values?:string}[]};
 
 function buildZip(parts: Array<{ path: string; data: Uint8Array }>) {
   const chunks: Uint8Array[] = [];
@@ -100,22 +101,24 @@ function buildZip(parts: Array<{ path: string; data: Uint8Array }>) {
   });
 }
 
-function sheetXml(rows: Array<Array<string | number>>) {
+function sheetXml(sheet:SheetInput) {
+  const rows=sheet.rows;
   const rowsXml = rows
     .map((row, rIndex) => {
       const cells = row
         .map((value, cIndex) => {
           const ref = `${colLetters(cIndex)}${rIndex + 1}`;
-          if (typeof value === "number" && Number.isFinite(value))
-            return `<c r="${ref}"><v>${value}</v></c>`;
-          const text = value === null || value === undefined ? "" : String(value);
-          return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(text)}</t></is></c>`;
+          if(typeof value==='object'&&value?.formula&&value.formula.length>8192)throw new Error('A fórmula excede o limite do Excel.');
+          const cell=typeof value==='object'&&value!==null?value:{value},v=cell.value,style=cell.style??0,f=cell.formula?`<f>${escapeXml(cell.formula.replace(/^=/,''))}</f>`:'';
+          if(typeof v==='number')return Number.isFinite(v)?`<c r="${ref}" s="${style}">${f}<v>${v}</v></c>`:`<c r="${ref}" s="${style}" t="e">${f}<v>#N/A</v></c>`;
+          const text=v===null||v===undefined?'':String(v);
+          return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(text)}</t></is></c>`;
         })
         .join("");
-      return `<row r="${rIndex + 1}">${cells}</row>`;
+      return `<row r="${rIndex + 1}"${sheet.hiddenRows?.includes(rIndex+1)?' hidden="1"':''}>${cells}</row>`;
     })
     .join("");
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rowsXml}</sheetData></worksheet>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${sheet.freeze?'<sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="2" topLeftCell="C3" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>':''}${sheet.widths?'<cols>'+sheet.widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')+(sheet.hiddenColumns||[]).map(i=>`<col min="${i+1}" max="${i+1}" hidden="1"/>`).join('')+'</cols>':''}<sheetData>${rowsXml}</sheetData>${sheet.protect?'<sheetProtection sheet="1" objects="1" scenarios="1"/>':''}${sheet.validations?.length?'<dataValidations count="'+sheet.validations.length+'">'+sheet.validations.map(v=>`<dataValidation type="${v.type}" ${v.type==='list'?'':'operator="between" '}allowBlank="0" showErrorMessage="1" errorStyle="stop" sqref="${escapeXml(v.range)}"><formula1>${v.type==='list'?'&quot;'+escapeXml(v.values||'')+'&quot;':v.min??0}</formula1>${v.type==='list'?'':`<formula2>${v.max??1000000000000}</formula2>`}</dataValidation>`).join('')+'</dataValidations>':''}</worksheet>`;
 }
 
 export function buildXlsxBlob(sheets: SheetInput[]) {
@@ -137,8 +140,8 @@ export function buildXlsxBlob(sheets: SheetInput[]) {
       (sheet, i) =>
         `<sheet name="${escapeXml(sheet.name.slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`,
     )
-    .join("")}</sheets></workbook>`;
-  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellXfs></styleSheet>`;
+    .join("")}</sheets><calcPr calcId="191029" calcMode="auto" fullCalcOnLoad="1" forceFullCalc="1"/></workbook>`;
+  const styles=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/><color rgb="FF173455"/></font><font><b/><sz val="11"/><name val="Calibri"/><color rgb="FFFFFFFF"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE4EFFA"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF07574C"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="4" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/><xf numFmtId="4" fontId="0" fillId="2" borderId="0" applyNumberFormat="1" applyProtection="1"><protection locked="0"/></xf><xf numFmtId="0" fontId="1" fillId="3" borderId="0"/><xf numFmtId="0" fontId="0" fillId="2" borderId="0" applyProtection="1"><protection locked="0"/></xf><xf numFmtId="1" fontId="0" fillId="2" borderId="0" applyProtection="1"><protection locked="0"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
   const parts: Array<{ path: string; data: Uint8Array }> = [
     { path: "[Content_Types].xml", data: textToBytes(contentTypes) },
     { path: "_rels/.rels", data: textToBytes(rootRels) },
@@ -147,7 +150,7 @@ export function buildXlsxBlob(sheets: SheetInput[]) {
     { path: "xl/styles.xml", data: textToBytes(styles) },
     ...sheets.map((sheet, i) => ({
       path: `xl/worksheets/sheet${i + 1}.xml`,
-      data: textToBytes(sheetXml(sheet.rows)),
+      data: textToBytes(sheetXml(sheet)),
     })),
   ];
   return buildZip(parts);

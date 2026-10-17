@@ -20,3 +20,11 @@ test('general and report PDF actions choose the complete report and remove hidde
  globalThis.document={createElement:()=>frame,body:{appendChild(){}},querySelectorAll:()=>[]};await exportModulePdf(root,'Study');assert.equal(printed,true);assert.equal(selected,!direct);}}
  finally{globalThis.document=previous;t.mock.timers.reset()}
 });
+
+test('integrated report includes full financial statements and its own assumptions before opening the preview',()=>{
+ const require=createRequire(import.meta.url),React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{buildSync}=require('esbuild'),dir=mkdtempSync(path.join(process.cwd(),'.integrated-print-'));
+ try{const file=path.join(dir,'report.cjs');buildSync({entryPoints:['app/feasibility-report.tsx'],bundle:true,platform:'node',format:'cjs',jsx:'automatic',packages:'external',loader:{'.css':'empty'},outfile:file});const {FeasibilityReport}=require(file),input={...feasibilityDefaults,years:2,capex:1000,units:120,price:20,unitCost:10};
+ const {buildPlanningModel,planningDefaults,calculateStudy}=require((()=>{const helper=path.join(dir,'engine.cjs');buildSync({entryPoints:['lib/feasibility-planning.ts'],bundle:true,platform:'node',format:'cjs',packages:'external',outfile:helper});return helper})());input.planning={...planningDefaults,debt:500,debtRate:12,debtMonths:24};const financial=buildPlanningModel(input);
+ const html=renderToStaticMarkup(React.createElement(FeasibilityReport,{input,result:calculateStudy(input),financial,name:'Integrated',organization:'Company',currency:'AOA',locale:'pt',dirty:true,saved:null,assumptions:[],rows:[],flags:[]}));for(const text of ['data-study-pdf-preview','03_Balanco_Projetado','04_Fluxo_de_Caixa','Caixa disponível para serviço da dívida','liquidação','Impostos estimados mensalmente'])assert.ok(html.includes(text),text);assert.ok(!html.includes('exclui empréstimos, IVA, reinvestimentos'));assert.ok(!html.includes('NaN'));assert.ok(!html.includes('Infinity'));
+ }finally{rmSync(dir,{recursive:true,force:true})}
+});
