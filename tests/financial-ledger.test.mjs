@@ -135,3 +135,13 @@ test('automatic Actual preview respects YTD and does not certify unclassified re
  assert.equal(response.status,200);assert.equal(data.legacy.current.revenue,150000);assert.equal(data.legacy.current.pending,1);assert.equal(data.legacy.current.result,null);assert.equal(data.legacy.current.start,'2026-01');
  assert.equal((await financialLedgerApi(request(path+'&comparePeriod=bad'),db,maker)).status,400);sql.close();
 });
+
+test('executive financial history and approved budget remain organization and currency scoped',async()=>{
+ const {sql,db}=setup();await opening(db);await bodyOk(await post(db,{kind:'saleCash',amount:'100.00'}));
+ sql.exec("INSERT INTO budget_versions VALUES ('v','t','now','Approved plan',2026,'Rascunho',NULL)");entry(sql,'budget-a','a','2026-08','AOA','REV',12000,'Revenue','Budget','v');entry(sql,'budget-b','b','2026-08','AOA','REV',999999,'Foreign revenue','Budget','v');
+ sql.exec("UPDATE budget_versions SET status='Aprovado',approved_at='now' WHERE id='v'");const result=await bodyOk(await financialLedgerApi(request(path+'&executive=1'),db,maker));assert.equal(result.executive.history.length,12);assert.equal(result.executive.history.at(-1).revenue,10000);assert.equal(result.executive.budgetVersion.id,'v');assert.equal(result.executive.budget.reduce((s,b)=>s+b.amount,0),12000);assert.equal(result.executive.history[0].covered,false);
+ assert.equal((await financialLedgerApi(request(path+'&executive=1&organizationId=a'),db,{...maker,organizationId:'b'})).status,403);sql.close();
+});
+test('people executive history keeps missing payroll null and cannot cross organization scope',async()=>{
+ const {sql,db}=setup();const url='/api/hr-cockpit?resource=health&history=1&period=2026-08&currency=AOA';const body=await bodyOk(await peopleHealthApi(request(url),db,{...maker,role:'RH'}));assert.equal(body.history.length,13);assert.ok(body.history.every(h=>h.cost===null));assert.ok(body.history.every(h=>h.scheduled===null));assert.equal((await peopleHealthApi(request(url+'&organizationId=a'),db,{...maker,role:'RH',organizationId:'b'})).status,403);sql.close();
+});
