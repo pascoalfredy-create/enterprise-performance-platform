@@ -20,6 +20,8 @@ export async function analysisAutomationApi(request:Request,db:D1Database,securi
  const {scope,currency}=await financialScope(request,db,security),tenant=security.tenantId,canWrite=['Administrador','Financeiro','Gestor'].includes(security.role),organizations=await db.prepare("SELECT id,name,currency FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name").bind(tenant,scope,scope).all<{id:string;name:string;currency:string}>(),org=scope||new URL(request.url).searchParams.get('organizationId')||'';
  if(!isCurrency(currency))return Response.json({error:'Moeda inválida.'},{status:400});
  if(org&&!organizations.results.some(o=>o.id===org))return Response.json({error:'Organização indisponível.'},{status:403});
+ const query=new URL(request.url).searchParams,requestedPeriod=query.get('period'),requestedStart=query.get('startPeriod');
+ if(requestedPeriod)analysisMonthCount(requestedStart||requestedPeriod,requestedPeriod);else if(requestedStart)throw new Error('invalid analysis interval');
  const now=new Date().toISOString();
  if(request.method==='POST'){
  if(!canWrite)return Response.json({error:'Apenas consulta.'},{status:403});if(!org)return Response.json({error:'Selecione a organização.'},{status:400});

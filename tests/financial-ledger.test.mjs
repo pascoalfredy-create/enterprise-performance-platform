@@ -188,5 +188,5 @@ test('source period basis persists with explicit opening exclusion, idempotency 
  const ytd=await bodyOk(await financialLedgerApi(request(path+'&organizationId=a&executive=1&basis=ytd'),db,maker));assert.equal(ytd.imported.report.income.REVENUE,10000);assert.equal(ytd.imported.summary.months,8);assert.equal(ytd.imported.summary.rows.find(r=>r.key==='REVENUE').average,1250);
  assert.equal((await analysisAutomationApi(request(autoPath,{...payload,periodBasis:'month'}),db,maker)).status,409);
  b=await bodyOk(await analysisAutomationApi(request(autoPath,{...payload,periodBasis:'month',replaceId:old.id,replaceRevision:old.revision}),db,maker));assert.equal(b.snapshots[0].period_basis,'month');assert.equal(b.snapshots[0].revision,1);
- assert.equal((await analysisAutomationApi(request(autoPath+'&startPeriod=2026-09'),db,maker)).status,422);sql.close();
+ assert.equal((await analysisAutomationApi(request(autoPath+'&startPeriod=2026-09'),db,maker)).status,422);const count=sql.prepare('SELECT COUNT(*) n FROM analysis_imports').get().n;assert.equal((await analysisAutomationApi(request(autoPath+'&startPeriod=2026-09',importSource('2026-07')),db,maker)).status,422);assert.equal(sql.prepare('SELECT COUNT(*) n FROM analysis_imports').get().n,count);sql.close();
 });
