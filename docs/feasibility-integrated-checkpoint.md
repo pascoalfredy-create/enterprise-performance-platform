@@ -1,13 +1,13 @@
 # Assumption-driven feasibility, report previews and live Excel
 
 ## Delivery boundary
-This release implements the common financial model and report/UI improvements approved in the discussion. It does not activate the ten industry packs, Monte Carlo, market-data feeds, complex project pipelines or jurisdictional tax compliance. The established annual study remains available unchanged until an owner explicitly enables the integrated model. New studies use the integrated model by default.
+This release implements the common financial model and report/UI improvements approved in the discussion. It does not activate the ten industry packs, Monte Carlo, market-data feeds, complex project pipelines or jurisdictional tax compliance. Opening an established annual study now prepares an integrated draft automatically. This retains its base assumptions, discount rate and useful-life horizon; saved revisions remain unchanged until the user saves. A visible notice explains recalculation. New studies use the integrated model by default. The legacy calculator remains available for explicit comparison.
 
 ## Preserved and improved
 - Existing study IDs, organizations, revisions, audit controls and saved assumptions remain in the same D1 table. No destructive migration.
-- Existing annual engine/model 2 stays mathematically unchanged. Integrated assumptions are stored under a strictly validated `planning` object with version 1; results are model 3.
+- Existing annual engine/model 2 stays mathematically unchanged; editable drafts use model 3 automatically. Integrated assumptions are stored under a strictly validated `planning` object with version 1; results are model 3.
 - Existing feasibility KPI cards remain. Annual projections and financial statement tables are collapsed on the main page; complete statements appear in the PDF preview.
-- PDF and Excel have preview actions, including the general module transfer toolbar. Excel download occurs inside its preview.
+- Projected statements have a separate visible preview action with income, balance and cash-flow tabs; tables stay collapsed on the main page. PDF and Excel have preview actions, including the general module transfer toolbar. Excel download occurs inside its preview.
 - Excel has exactly five sheets: assumptions, income, balance, cash/debt and metrics. Inputs are blue/unlocked; formulas are protected but visible. Sheet protection is accidental-edit protection, not encryption.
 - Own-model Excel assumptions can be imported, previewed and applied before saving. Currency, unique keys, required values and finance configuration are validated. This is not a Primavera PDF/XLS reader.
 
