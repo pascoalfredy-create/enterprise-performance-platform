@@ -41,3 +41,17 @@ test('integrated statements support zero initial CAPEX and an empty draft withou
  const sheets=studyWorkbook(empty,{name:'Draft',organization:'A',currency:'AOA'}),{parseStudyAssumptions}=await import('../lib/feasibility-input-import.ts');const table=sheets[0].rows.map(r=>(r||[]).map(c=>String(c&&typeof c==='object'?c.value:c??'')));assert.equal(parseStudyAssumptions(table,'AOA').capex,0);const capexRow=sheets[0].rows.findIndex(row=>row?.[6]==='capex')+1;assert.equal(sheets[0].validations.find(v=>v.range==='C'+capexRow).min,0);
  for(const capex of [-1,-.01])assert.throws(()=>calculateStudy({...empty,capex}));assert.throws(()=>calculateStudy({...empty,residual:1}));const legacy={...empty};delete legacy.planning;assert.throws(()=>feasibility(legacy));
 });
+
+
+test('IAPMEI presentation reconciles income, balance and treasury without changing valuation',async()=>{
+ const {statementLayouts}=await import('../lib/feasibility-statements.ts');
+ for(const closeProject of [false,true])for(const repayment of ['annuity','principal','bullet']){
+ const input=sample({closeProject,repayment,debt:6000,debtRate:12,graceMonths:3,totalGrace:true,vatRate:14,vatRecovery:50,capexEvents:[{month:7,amount:700}]},{receivableDays:45,payableDays:60,inventoryDays:30}),p=buildPlanningModel(input),layouts=statementLayouts(p),get=(n,key,y)=>p.model.evaluate(layouts[n].lines.find(r=>r.id===key).value(y));
+ for(let y=0;y<=input.years;y++){
+ near(get(0,'revenue',y)+get(0,'variable',y)+get(0,'fixed',y),get(0,'ebitda',y));near(get(0,'ebitda',y)+get(0,'depreciation',y),get(0,'ebit',y));near(get(0,'pbt',y)+get(0,'tax',y),get(0,'net',y));
+ near(get(1,'noncurrent',y)+get(1,'current',y),get(1,'assets',y));near(get(1,'capital',y)+get(1,'retained',y)+get(1,'net',y),get(1,'equity',y));near(get(1,'assets',y),get(1,'equityLiabilities',y));near(get(1,'check',y),0);
+ near(get(2,'operating',y)+get(2,'financial',y)+get(2,'investing',y),get(2,'movement',y));near(get(2,'opening',y)+get(2,'movement',y),get(2,'closing',y));near(get(2,'closing',y),get(1,'cash',y));near(get(2,'check',y),0);
+ }
+ const sheets=studyWorkbook(input,{name:'IAPMEI adapted',organization:'A',currency:'AOA'},0,p);assert.ok(sheets[1].hiddenRows.includes(4));assert.equal(sheets[1].rows[43][0].value,'Rubrica');assert.ok(sheets[1].rows.slice(44).some(r=>r[0]?.value==='Resultado líquido do período'&&r[0].style===7));near(sheets[4].rows[7][1].value,p.metrics.npv);
+ }
+});

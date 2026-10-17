@@ -2,10 +2,11 @@ import {buildPlanningModel,studySheets,planningDreRows,planningBalanceRows,plann
 import {StudyModel,address,column,formula,add,sub,mul,div,pow,max,min,round,when,eq,lt,le,expr,type Expr} from './study-model';
 import {feasibility} from './feasibility-engine';
 import {integratedCopy,studyLabel} from './feasibility-integrated-copy';
+import {statementLayouts,statementCopy} from './feasibility-statements';
 import {buildXlsxBlob,type SheetInput,type XlsxCell} from './xlsx';
 export type StudyDocument={name:string;organization:string;currency:string;id?:string|null;dirty?:boolean};
 function cellValue(cell:XlsxCell|undefined){return typeof cell==='object'&&cell!==null?cell.value:cell??''}
-export function workbookPreview(sheets:SheetInput[],years:number){return sheets.map((sheet,i)=>({name:sheet.name,rows:(i===0?sheet.rows:sheet.rows.slice(i===4?0:43)).map(row=>row.slice(0,i===0?5:years+3).map(cellValue)).filter(row=>row.some(v=>v!==''))}))}
+export function workbookPreview(sheets:SheetInput[],years:number){return sheets.map((sheet,i)=>{const entries=(i===0?sheet.rows:sheet.rows.slice(i===4?0:43)).map(row=>({values:row.slice(0,i===0?5:years+3).map(cellValue),styles:row.slice(0,i===0?5:years+3).map(c=>typeof c==='object'&&c!==null?c.style??0:0)})).filter(row=>row.values.some(v=>v!==''));return {name:sheet.name,rows:entries.map(r=>r.values),styles:entries.map(r=>r.styles)}})}
 export function studyWorkbook(input:StudyAssumptions,meta:StudyDocument,index=0,provided?:PlanningResult|null):SheetInput[]{
  if(!input.planning)return legacyWorkbook(input,meta,index);
  const p=provided||buildPlanningModel(input);const labels:Record<string,number>[]=[{},planningDreRows,planningBalanceRows,planningCashRows,planningMetricRows],sheets:SheetInput[]=studySheets.map((name,i)=>({name,rows:[[i===0?meta.name:name,meta.organization,meta.currency,meta.id||'',meta.dirty?'Draft':'Saved'],[],[]],protect:true,hiddenColumns:i===0?[5,6]:undefined,hiddenRows:i===3?[36,37,38,40,41,42,43]:i===2?[28]:undefined,freeze:i!==4,widths:i===0?[30,65,20,20,75]:i===4?[58,24,72]:[50,22,...Array(361).fill(16)]}));
@@ -21,6 +22,15 @@ export function studyWorkbook(input:StudyAssumptions,meta:StudyDocument,index=0,
    for(const [key,row] of Object.entries(labels[i])){if(key==='balanceAbsolute')continue;if(i===3&&['payback','discountedPayback','cashBeforeEquity','dscr','dscrForMinimum','cashDifference','debtDifference','projectSign','projectSignChanges','investorSign','investorSignChanges'].includes(key))continue;write(i,out,0,studyLabel(i===2&&key==='debt'?'closingDebt':i===2&&key==='equity'?'equityTotal':key,index));write(i,out,1,key);
     for(let y=0;y<=30;y++){const at=y*12,isPosition=i===2||i===1&&['bookBefore','depAccum'].includes(key)||i===3&&['openingDebt','closingDebt','closingCash','cashAfterDistribution','distributions','projectCumulative','discountedCumulative','profitCumulative'].includes(key),e=y===0?address(studySheets[i],row,2):isPosition?address(studySheets[i],row,at+2):add(...Array.from({length:12},(_,j)=>address(studySheets[i],row,(y-1)*12+j+3)));const expression=y>0&&i===1&&key==='price'||y>0&&i===3&&key==='openingDebt'?address(studySheets[i],row,(y-1)*12+3):e;const value=p.model.evaluate(expression);write(i,out,y+2,{formula:formula(expression),value,style:1});}out++;}
   }
+ }
+ // Reader-facing maps follow the IAPMEI statement structure. Calculation rows
+ // remain linked and protected, but are hidden instead of shown as statements.
+ for(const [n,layout] of statementLayouts(p).entries()){
+  const i=n+1,sheet=sheets[i];sheet.rows=sheet.rows.slice(0,43);sheet.hiddenRows=Array.from({length:42},(_,r)=>r+2);sheet.freeze=false;sheet.hiddenColumns=[1,...Array.from({length:330},(_,c)=>c+33)];
+  sheet.rows[0]=[{value:layout.title[index],style:3},'',meta.organization,meta.currency];
+  sheet.rows[43]=[{value:statementCopy.item[index],style:3},'',...Array.from({length:31},(_,y)=>({value:y,style:3}))];
+  for(const line of layout.lines){const style=line.kind==='total'?7:line.kind==='section'?8:line.kind==='subtotal'?6:9;sheet.rows.push([{value:line.label[index],style},'',...Array.from({length:31},(_,y)=>{if(!line.value)return {value:'',style};const e=when(le(y,address(studySheets[0],p.inputRows.find(r=>r.key==='years')!.row,2)),line.value(y));return {formula:formula(e),value:p.model.evaluate(e),style}})]);}
+  sheet.rows.push([statementCopy.note[index]],[statementCopy.source[index]]);
  }
  sheets[0].validations=p.inputRows.map(entry=>{const v=inputValidation(entry.key,'C'+entry.row);if(entry.key==='graceMonths')v.max='$C$'+p.inputRows.find(r=>r.key==='debtMonths')!.row+'-1';if(entry.key==='residual')v.max='$C$'+p.inputRows.find(r=>r.key==='capex')!.row;return v});for(let i=0;i<24;i++)sheets[0].validations.push({range:'C'+(p.eventStart+i),type:'whole',min:0,max:360},{range:'D'+(p.eventStart+i),type:'decimal',min:0,max:1000000000000});
  const notes=[integratedCopy.previewNote[index],integratedCopy.method[index],integratedCopy.exitNote[index],integratedCopy.coverageNote[index],integratedCopy.valuationNote[index]];for(const [i,note] of notes.entries())write(4,23+i,0,note);
