@@ -10,3 +10,10 @@ export function peopleMovement(contracts:Employment[],first:string,last:string){
  }
  const average=(start+end)/2;return {start,end,average,hires,exits,turnoverPct:average>0?exits/average*100:null,representedEmployees:byPerson.size};
 }
+/** Contracts ending on the closing date still count in closing headcount (inclusive dates). */
+export function peopleBridge(m:{start:number;end:number;hires:number;exits:number}){return {opening:m.start,hires:m.hires,exits:-m.exits,boundary:m.end-m.start-m.hires+m.exits,closing:m.end}}
+/** Management estimate using loaded monthly cost; does not post payroll or contracts. */
+export function workforceWhatIf(input:{headcount:number;payroll:number;hires:number;exits:number;loadedCost:number;salaryGrowth:number}){
+ if(Object.values(input).some(v=>!Number.isFinite(v))||![input.headcount,input.hires,input.exits].every(Number.isInteger)||Math.min(input.headcount,input.payroll,input.hires,input.exits,input.loadedCost)<0||input.exits>input.headcount||input.salaryGrowth< -100||input.salaryGrowth>100)throw new Error('Invalid workforce scenario');
+ const salaryEffect=input.payroll*input.salaryGrowth/100,hiringEffect=input.hires*input.loadedCost,exitEffect=-input.exits*input.loadedCost,cost=input.payroll+salaryEffect+hiringEffect+exitEffect;if(cost<0)throw new Error('Workforce cost cannot be negative');return {headcount:input.headcount+input.hires-input.exits,cost,salaryEffect,hiringEffect,exitEffect};
+}

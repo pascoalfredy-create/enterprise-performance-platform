@@ -2,6 +2,7 @@ import type {D1Database} from '../worker-configuration';
 import {financialScope} from './financial-scope';
 import {periodEnd} from '../lib/financial-ledger';
 import {peopleMovement,type Employment} from '../lib/people-health';
+import {monthSequence} from '../lib/executive-finance';
 import {classifyDataError} from '../lib/api-error';
 type Security={tenantId:string;organizationId:string|null;role:string;email:string};
 export async function peopleHealthApi(request:Request,db:D1Database,security:Security):Promise<Response>{try{
@@ -20,5 +21,13 @@ export async function peopleHealthApi(request:Request,db:D1Database,security:Sec
   db.prepare("SELECT id,name FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name").bind(tenant,scope,scope).all()
  ]);
  const [contracts,missing,attendance,payroll,vacancies,reviews,structure,ending,organizations]=results,movement=peopleMovement(contracts.results,first,asOf),complete=Number(missing?.n||0)===0,covered=first<=asOf;
- return Response.json({period,currency,asOf,covered,organizations:organizations.results,movement:{...movement,turnoverPct:complete&&covered?movement.turnoverPct:null},quality:{contractHistoryComplete:complete,employeesWithoutContracts:Number(missing?.n||0)},attendance:{...attendance,shortfallPct:attendance&&attendance.scheduled>0?attendance.shortfall/attendance.scheduled*100:null,coveragePct:movement.end>0?Number(attendance?.employees||0)/movement.end*100:null},payroll:{...payroll,available:Number(payroll?.n||0)>0,averageCost:payroll&&payroll.employees>0?payroll.cost/payroll.employees:null},vacancies,reviews:{...reviews,averagePct:reviews?.score===null?null:Number(reviews?.score||0)/100},structure:structure.results,contractsEnding60Days:Number(ending?.n||0)});
+ let history:unknown;
+ if(new URL(request.url).searchParams.get('history')==='1'){
+ const months=monthSequence(period,13),[pay,att]=await Promise.all([
+ db.prepare("SELECT r.period,COUNT(DISTINCT l.employee_id) employees,COUNT(*) n,SUM(l.gross_minor+l.employer_minor) cost FROM payroll_run_lines l JOIN payroll_runs r ON r.id=l.run_id AND r.tenant_id=l.tenant_id JOIN employees e ON e.id=l.employee_id AND e.tenant_id=l.tenant_id WHERE l.tenant_id=? AND r.period BETWEEN ? AND ? AND r.currency=? AND r.status='Fechado' AND (? IS NULL OR e.organization_id=?) GROUP BY r.period").bind(tenant,months[0],period,currency,scope,scope).all<{period:string;employees:number;n:number;cost:number}>(),
+ db.prepare("SELECT t.period,SUM(t.scheduled_minutes) scheduled,SUM(t.worked_minutes) worked,SUM(t.overtime_minutes) overtime,COUNT(DISTINCT t.employee_id) employees FROM attendance_timesheets t JOIN employees e ON e.id=t.employee_id AND e.tenant_id=t.tenant_id WHERE t.tenant_id=? AND t.period BETWEEN ? AND ? AND t.status='Aprovado' AND (? IS NULL OR e.organization_id=?) GROUP BY t.period").bind(tenant,months[0],period,scope,scope).all<{period:string;scheduled:number;worked:number;overtime:number;employees:number}>()
+ ]);
+ history=months.map(month=>{const end=month===period?asOf:periodEnd(month),m=peopleMovement(contracts.results,month+'-01',end),p=pay.results.find(x=>x.period===month),a=att.results.find(x=>x.period===month);return {period:month,...m,turnoverPct:complete?m.turnoverPct:null,cost:p?.cost??null,paid:p?.employees??0,scheduled:a?.scheduled??null,worked:a?.worked??null,overtime:a?.overtime??null};});
+ }
+ return Response.json({...(history?{history}:{}),period,currency,asOf,covered,organizations:organizations.results,movement:{...movement,turnoverPct:complete&&covered?movement.turnoverPct:null},quality:{contractHistoryComplete:complete,employeesWithoutContracts:Number(missing?.n||0)},attendance:{...attendance,shortfallPct:attendance&&attendance.scheduled>0?attendance.shortfall/attendance.scheduled*100:null,coveragePct:movement.end>0?Number(attendance?.employees||0)/movement.end*100:null},payroll:{...payroll,available:Number(payroll?.n||0)>0,averageCost:payroll&&payroll.employees>0?payroll.cost/payroll.employees:null},vacancies,reviews:{...reviews,averagePct:reviews?.score===null?null:Number(reviews?.score||0)/100},structure:structure.results,contractsEnding60Days:Number(ending?.n||0)});
 }catch(cause){const failure=classifyDataError(cause,'Não foi possível calcular os indicadores de pessoas.');return Response.json({error:failure.message},{status:failure.status})}}
