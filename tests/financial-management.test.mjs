@@ -88,3 +88,8 @@ test('feasibility accepts explicit monthly inputs, preserves annual legacy studi
  response=await feasibilityApi(request(path,{name:'Invalid',organizationId:'a',currency:'AOA',assumptions:{...assumptions,unexpected:1}}),db,maker);assert.equal(response.status,400);
  response=await feasibilityApi(request(path,{name:'Invalid currency',organizationId:'a',currency:'ZZZ',assumptions}),db,maker);assert.equal(response.status,400);assert.equal(sql.prepare('SELECT COUNT(*) n FROM feasibility_studies').get().n,1);sql.close();
 });
+test('integrated studies persist assumptions and reject invalid financial settings without losing legacy compatibility',async()=>{
+ const {planningDefaults}=await import('../lib/feasibility-planning.ts');const {sql,db}=setup(),path='/api/financial-data?resource=feasibility',assumptions={...feasibilityDefaults,capex:10000,units:1200,price:20,unitCost:10,planning:{...planningDefaults,debt:6000,debtRate:12,debtMonths:24,capexEvents:[{month:6,amount:500}]}};
+ let r=await feasibilityApi(request(path,{name:'Integrated',organizationId:'a',currency:'AOA',assumptions}),db,maker);assert.equal(r.status,200,JSON.stringify(await r.clone().json()));const b=await r.json();assert.deepEqual(JSON.parse(b.studies[0].assumptions_json).planning,assumptions.planning);
+ r=await feasibilityApi(request(path,{name:'Invalid',organizationId:'a',currency:'AOA',assumptions:{...assumptions,planning:{...assumptions.planning,debtMonths:0}}}),db,maker);assert.equal(r.status,400);assert.equal(sql.prepare('SELECT COUNT(*) n FROM feasibility_studies').get().n,1);sql.close();
+});
