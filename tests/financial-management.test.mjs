@@ -93,3 +93,10 @@ test('integrated studies persist assumptions and reject invalid financial settin
  let r=await feasibilityApi(request(path,{name:'Integrated',organizationId:'a',currency:'AOA',assumptions}),db,maker);assert.equal(r.status,200,JSON.stringify(await r.clone().json()));const b=await r.json();assert.deepEqual(JSON.parse(b.studies[0].assumptions_json).planning,assumptions.planning);
  r=await feasibilityApi(request(path,{name:'Invalid',organizationId:'a',currency:'AOA',assumptions:{...assumptions,planning:{...assumptions.planning,debtMonths:0}}}),db,maker);assert.equal(r.status,400);assert.equal(sql.prepare('SELECT COUNT(*) n FROM feasibility_studies').get().n,1);sql.close();
 });
+
+
+test('integrated studies with zero initial investment persist and reject negative investments',async()=>{
+ const {planningDefaults}=await import('../lib/feasibility-planning.ts'),{sql,db}=setup(),path='/api/financial-data?resource=feasibility',assumptions={...feasibilityDefaults,capex:0,units:120,price:100,unitCost:20,planning:{...planningDefaults}};
+ const r=await feasibilityApi(request(path,{name:'Services without initial CAPEX',organizationId:'a',currency:'AOA',assumptions}),db,maker);assert.equal(r.status,200,JSON.stringify(await r.clone().json()));assert.equal(JSON.parse((await r.json()).studies[0].assumptions_json).capex,0);
+ assert.equal((await feasibilityApi(request(path,{name:'Invalid',organizationId:'a',currency:'AOA',assumptions:{...assumptions,capex:-1}}),db,maker)).status,400);sql.close();
+});

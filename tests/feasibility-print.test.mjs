@@ -37,3 +37,16 @@ test('projected statements have their own visible entry action without opening P
  assert.match(statement,/data-study-statements-preview="true"/);assert.match(statement,/Ver demonstrações projetadas/);assert.ok(!statement.includes('data-study-excel-preview'));assert.match(workbook,/data-study-excel-preview="true"/);assert.ok(!statement.includes('hidden='));
  }finally{rmSync(dir,{recursive:true,force:true})}
 });
+
+
+test('an invalid draft keeps the statements action visible and disabled with an explanation',()=>{
+ const require=createRequire(import.meta.url),React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{buildSync}=require('esbuild'),dir=mkdtempSync(path.join(process.cwd(),'.invalid-preview-'));
+ try{const file=path.join(dir,'preview.cjs');buildSync({entryPoints:['app/feasibility-planning.tsx'],bundle:true,platform:'node',format:'cjs',jsx:'automatic',packages:'external',outfile:file});const {StudyWorkbookPreview}=require(file),html=renderToStaticMarkup(React.createElement(StudyWorkbookPreview,{input:feasibilityDefaults,financial:null,meta:{name:'Draft',organization:'A',currency:'AOA'},locale:'pt',view:'statements',unavailable:'Horizonte inválido'}));assert.match(html,/Ver demonstrações projetadas/);assert.match(html,/disabled=""/);assert.match(html,/title="Horizonte inválido"/);assert.ok(!html.includes('hidden='));
+ }finally{rmSync(dir,{recursive:true,force:true})}
+});
+
+test('the initial empty workspace renders the projected statements entry without a positive investment',()=>{
+ const require=createRequire(import.meta.url),React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{buildSync}=require('esbuild'),dir=mkdtempSync(path.join(process.cwd(),'.empty-study-'));
+ try{const file=path.join(dir,'workspace.cjs');buildSync({entryPoints:['app/feasibility-workspace.tsx'],bundle:true,platform:'node',format:'cjs',jsx:'automatic',packages:'external',outfile:file});const {FeasibilityWorkspace}=require(file),html=renderToStaticMarkup(React.createElement(FeasibilityWorkspace));assert.match(html,/data-study-statements-preview="true"/);assert.match(html,/Mapas preparados sem atividade operacional prevista/);assert.ok(!html.includes('investimento mínimo de 0,01'));
+ }finally{rmSync(dir,{recursive:true,force:true})}
+});
