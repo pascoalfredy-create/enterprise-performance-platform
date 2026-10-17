@@ -4,6 +4,11 @@ export type PlanningInput={version:1;debt:number;debtRate:number;debtMonths:numb
 export const planningDefaults:PlanningInput={version:1,debt:0,debtRate:0,debtMonths:60,graceMonths:0,repayment:'annuity',totalGrace:false,debtFee:0,equityAuto:true,equity:0,minimumCash:0,ke:12,useWacc:false,interestShield:true,usefulLifeYears:5,vatRate:0,vatRecovery:100,vatFixedShare:0,vatSettlementMonths:1,refundVat:false,closeProject:true,dscrLimit:1.2,capexEvents:[]};
 export const studySheets=['01_Premissas_e_Inputs','02_DRE','03_Balanco_Projetado','04_Fluxo_de_Caixa','05_Metricas_Viabilidade'] as const;
 export type StudyAssumptions=FeasibilityAssumptions&{planning?:PlanningInput};
+// Upgrade only the editable draft. Stored revisions and source assumptions stay unchanged.
+export function prepareStudyDraft(input:StudyAssumptions):{input:StudyAssumptions;upgraded:boolean}{
+ if(input.planning)return {input,upgraded:false};
+ return {input:{...input,planning:{...planningDefaults,ke:input.discountRate,usefulLifeYears:input.years,capexEvents:[]}},upgraded:true};
+}
 export function validatePlanning(raw:unknown):PlanningInput{
  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('Premissa inválida: configuração financeira.');const p=raw as PlanningInput;
  if(Object.keys(p).some(k=>!(k in planningDefaults))||Object.keys(planningDefaults).some(k=>!(k in p))||p.version!==1||!['annuity','principal','bullet'].includes(p.repayment))throw new Error('Premissa inválida: configuração financeira.');

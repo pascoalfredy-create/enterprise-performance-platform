@@ -21,3 +21,14 @@ test('assumption import round-trips exported inputs and requires matching curren
 test('the actual protected XLSX reimports its hidden stable input codes',async()=>{const {buildXlsxBlob,parseXlsxFile}=await import('../lib/xlsx.ts');const {parseStudyAssumptions}=await import('../lib/feasibility-input-import.ts');const input=sample({debt:2000,capexEvents:[{month:7,amount:250}]}),sheets=studyWorkbook(input,{name:'price',organization:'A',currency:'AOA'}),blob=buildXlsxBlob(sheets),table=await parseXlsxFile(new File([blob],'study.xlsx'));const result=parseStudyAssumptions(table,'AOA');assert.equal(result.price,input.price);assert.deepEqual(result.planning,input.planning);});
 test('startup losses before the first positive flow remain a conventional project with one valid IRR',()=>{const p=buildPlanningModel(sample({}, {receivableDays:90,inventoryDays:0,payableDays:0}));assert.ok(p.flows[1]<0);assert.ok(p.metrics.irr!==null);const monthly=(1+p.metrics.irr/100)**(1/12)-1;near(netPresentValue(p.flows,monthly),0,.001);});
 test('currency half-cent rounding matches spreadsheet ROUND for positive and negative amounts',async()=>{const {StudyModel,round}=await import('../lib/study-model.ts');const model=new StudyModel();assert.equal(model.evaluate(round(564.425)),564.43);assert.equal(model.evaluate(round(-564.425)),-564.43);assert.equal(model.evaluate(round(1.005)),1.01);});
+
+
+test('opening a saved annual study prepares all integrated statements without mutating the saved assumptions',async()=>{
+ const {prepareStudyDraft}=await import('../lib/feasibility-planning.ts');
+ const saved=sample({}, {years:4,discountRate:17});delete saved.planning;const before=JSON.stringify(saved),draft=prepareStudyDraft(saved);
+ assert.equal(draft.upgraded,true);assert.equal(JSON.stringify(saved),before);assert.equal(draft.input.planning.usefulLifeYears,4);assert.equal(draft.input.planning.ke,17);
+ const result=calculateStudy(draft.input);assert.ok(result.financial);assert.equal(result.financial.annual.length,4);near(result.financial.metrics.balanceCheck,0);
+ const {workbookPreview}=await import('../lib/feasibility-workbook.ts'),preview=workbookPreview(studyWorkbook(draft.input,{name:'Existing',organization:'A',currency:'AOA'},0,result.financial),4);
+ for(const i of [1,2,3]){assert.ok(preview[i].rows.length>8);assert.ok(preview[i].rows.some(row=>row.some(cell=>typeof cell==='number'&&cell!==0)));assert.ok(preview[i].rows.some(row=>row.includes(0)&&row.includes(4)));}
+ const existing=sample({debt:2500,debtRate:9,ke:18});assert.equal(prepareStudyDraft(existing).input,existing);assert.equal(prepareStudyDraft(existing).upgraded,false);
+});
