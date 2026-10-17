@@ -32,3 +32,12 @@ test('opening a saved annual study prepares all integrated statements without mu
  for(const i of [1,2,3]){assert.ok(preview[i].rows.length>8);assert.ok(preview[i].rows.some(row=>row.some(cell=>typeof cell==='number'&&cell!==0)));assert.ok(preview[i].rows.some(row=>row.includes(0)&&row.includes(4)));}
  const existing=sample({debt:2500,debtRate:9,ke:18});assert.equal(prepareStudyDraft(existing).input,existing);assert.equal(prepareStudyDraft(existing).upgraded,false);
 });
+
+
+test('integrated statements support zero initial CAPEX and an empty draft without inventing investment',async()=>{
+ const empty=sample({}, {...feasibilityDefaults});const result=calculateStudy(empty);near(result.initial,0);near(result.npv,0);assert.equal(result.irr,null);near(result.financial.metrics.balanceCheck,0);near(result.financial.metrics.fundingGap,0);
+ assert.ok(result.financial.monthly.every(m=>m.balance.assets===0&&m.balance.liabilities===0&&m.balance.cash===0));
+ const service=sample({}, {capex:0,residual:0});const p=calculateStudy(service);assert.ok(p.rows[0].revenue>0);assert.ok(p.rows[0].depreciation===0);assert.ok(p.npv>0);near(p.financial.metrics.balanceCheck,0);
+ const sheets=studyWorkbook(empty,{name:'Draft',organization:'A',currency:'AOA'}),{parseStudyAssumptions}=await import('../lib/feasibility-input-import.ts');const table=sheets[0].rows.map(r=>(r||[]).map(c=>String(c&&typeof c==='object'?c.value:c??'')));assert.equal(parseStudyAssumptions(table,'AOA').capex,0);const capexRow=sheets[0].rows.findIndex(row=>row?.[6]==='capex')+1;assert.equal(sheets[0].validations.find(v=>v.range==='C'+capexRow).min,0);
+ for(const capex of [-1,-.01])assert.throws(()=>calculateStudy({...empty,capex}));assert.throws(()=>calculateStudy({...empty,residual:1}));const legacy={...empty};delete legacy.planning;assert.throws(()=>feasibility(legacy));
+});

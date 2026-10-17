@@ -30,3 +30,8 @@ This release implements the common financial model and report/UI improvements ap
 - API tests cover persistence, validation and existing isolation/revision checks. Printable report tests ensure full financial statements/notes are present before preview opens.
 - Native spreadsheet QA strips cached formula values before recalculation, then compares model values with the spreadsheet engine. A second workbook changes only price, horizon and nominal debt interest on sheet 01 before forced recalculation. Cached-value inspection alone is not accepted as proof of recalculation.
 - Authenticated visual and browser print-dialog tests have not been performed; native spreadsheet checks do not certify every Excel version.
+
+
+## Live-session access regression (2026-10-17)
+The administrator session opened a new empty study, with no saved assumption-driven study selected. A legacy positive-CAPEX validation rejected its default zero investment; conditional header rendering then removed all preview buttons. Entering a temporary positive investment exposed and opened the maps, reproducing the cause without saving tenant data.
+Integrated models now allow zero initial CAPEX (services/startup drafts), while negative investment and residual above investment remain invalid. The legacy annual calculator retains its prior validation. UI, API and own-template import apply the same integrated rule. Preview actions remain visible, disabled with an explanation for genuinely invalid assumptions. Empty operating assumptions are marked as unpopulated projections, not proof of viability, including in the PDF.
