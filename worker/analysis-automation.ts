@@ -1,7 +1,7 @@
 import type {D1Database} from '../worker-configuration';
 import {financialScope} from './financial-scope';
 import {isCurrency} from '../lib/money';
-import {validateAnalysisRows,validateAnalysisSettings,type AnalysisSnapshot,type AnalysisRow} from '../lib/analysis-automation';
+import {validateAnalysisRows,validateAnalysisSettings,analysisMonthCount,type AnalysisSnapshot,type AnalysisRow} from '../lib/analysis-automation';
 import {peopleMovement,type Employment} from '../lib/people-health';
 import {periodEnd} from '../lib/financial-ledger';
 import {classifyDataError} from '../lib/api-error';
@@ -20,10 +20,12 @@ export async function analysisAutomationApi(request:Request,db:D1Database,securi
  const {scope,currency}=await financialScope(request,db,security),tenant=security.tenantId,canWrite=['Administrador','Financeiro','Gestor'].includes(security.role),organizations=await db.prepare("SELECT id,name,currency FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) AND status='Ativa' ORDER BY name").bind(tenant,scope,scope).all<{id:string;name:string;currency:string}>(),org=scope||new URL(request.url).searchParams.get('organizationId')||'';
  if(!isCurrency(currency))return Response.json({error:'Moeda inválida.'},{status:400});
  if(org&&!organizations.results.some(o=>o.id===org))return Response.json({error:'Organização indisponível.'},{status:403});
+ const query=new URL(request.url).searchParams,requestedPeriod=query.get('period'),requestedStart=query.get('startPeriod');
+ if(requestedPeriod)analysisMonthCount(requestedStart||requestedPeriod,requestedPeriod);else if(requestedStart)throw new Error('invalid analysis interval');
  const now=new Date().toISOString();
  if(request.method==='POST'){
  if(!canWrite)return Response.json({error:'Apenas consulta.'},{status:403});if(!org)return Response.json({error:'Selecione a organização.'},{status:400});
- const body=await request.json() as {type:string;revision?:number;settings?:unknown;period:string;sourceSystem:string;fileName:string;rows:AnalysisRow[];replaceId?:string;replaceRevision?:number;rememberMappings?:boolean};
+ const body=await request.json() as {type:string;periodBasis?:'month'|'ytd';openingExcluded?:boolean;revision?:number;settings?:unknown;period:string;sourceSystem:string;fileName:string;rows:AnalysisRow[];replaceId?:string;replaceRevision?:number;rememberMappings?:boolean};
  const audit=(id:string,action:string)=>db.prepare('INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),tenant,now,action,'analysisAutomation',id,security.email,JSON.stringify({organizationId:org,currency}));
  if(body.type==='saveSettings'){
  const settings=validateAnalysisSettings(body.settings),old=await db.prepare('SELECT revision,settings_json FROM analysis_settings WHERE tenant_id=? AND organization_id=? AND currency=?').bind(tenant,org,currency).first<{revision:number;settings_json:string}>();
@@ -31,14 +33,15 @@ export async function analysisAutomationApi(request:Request,db:D1Database,securi
  const statement=old?db.prepare('UPDATE analysis_settings SET settings_json=?,revision=revision+1,updated_by=?,updated_at=? WHERE tenant_id=? AND organization_id=? AND currency=? AND revision=?').bind(JSON.stringify(settings),security.email,now,tenant,org,currency,body.revision):db.prepare('INSERT INTO analysis_settings VALUES (?,?,?,?,0,?,?)').bind(tenant,org,currency,JSON.stringify(settings),security.email,now);
  const result=await db.batch([statement,db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) SELECT ?,?,?,?,?,?,?,? WHERE changes()>0").bind(crypto.randomUUID(),tenant,now,'saveAnalysisSettings','analysisAutomation',org,security.email,JSON.stringify({before:old,after:settings}))]);if(!result[0].meta.changes)return Response.json({error:'Configuração alterada. Atualize.'},{status:409});
  }else if(body.type==='importSnapshot'){
+ const periodBasis=body.periodBasis??'month';if(!['month','ytd'].includes(periodBasis)||periodBasis==='ytd'&&body.openingExcluded!==true)return Response.json({error:'Confirme a base mensal ou acumulada e exclua a abertura dos fluxos.'},{status:400});
  if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(body.period)||body.period>=now.slice(0,7)||typeof body.sourceSystem!=='string'||!body.sourceSystem.trim()||body.sourceSystem.length>100||typeof body.fileName!=='string'||body.fileName.length>200)return Response.json({error:'Indique origem e um mês já encerrado.'},{status:400});
  const known=await db.prepare('SELECT source_code,role FROM analysis_source_mappings WHERE tenant_id=? AND organization_id=? AND source_system=?').bind(tenant,org,body.sourceSystem.trim()).all<{source_code:string;role:string}>();
- const rows=validateAnalysisRows(Array.isArray(body.rows)?body.rows.map(row=>({...row,role:row.role||known.results.find(m=>m.source_code===row.code)?.role||''})):body.rows),hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(rows.map(r=>[r.code,r.description,r.role,r.amountMinor]).sort((a,b)=>String(a[0]).localeCompare(String(b[0])))))))).map(b=>b.toString(16).padStart(2,'0')).join(''),old=await db.prepare('SELECT id,revision,content_hash FROM analysis_imports WHERE tenant_id=? AND organization_id=? AND currency=? AND period=? AND active=1').bind(tenant,org,currency,body.period).first<{id:string;revision:number;content_hash:string}>();
+ const rows=validateAnalysisRows(Array.isArray(body.rows)?body.rows.map(row=>({...row,role:row.role||known.results.find(m=>m.source_code===row.code)?.role||''})):body.rows),hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(periodBasis==='month'?rows.map(r=>[r.code,r.description,r.role,r.amountMinor]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))):[periodBasis,rows.map(r=>[r.code,r.description,r.role,r.amountMinor]).sort((a,b)=>String(a[0]).localeCompare(String(b[0])))]))))).map(b=>b.toString(16).padStart(2,'0')).join(''),old=await db.prepare('SELECT id,revision,content_hash FROM analysis_imports WHERE tenant_id=? AND organization_id=? AND currency=? AND period=? AND active=1').bind(tenant,org,currency,body.period).first<{id:string;revision:number;content_hash:string}>();
  if(old?.content_hash!==hash){
  if(old&&(old.id!==body.replaceId||old.revision!==body.replaceRevision))return Response.json({error:'Este período já tem dados. Confirme a substituição na prévia e atualize a revisão.'},{status:409});
  const id=crypto.randomUUID(),statements=[];
  if(old)statements.push(db.prepare('UPDATE analysis_imports SET active=0 WHERE id=? AND tenant_id=? AND revision=? AND active=1').bind(old.id,tenant,body.replaceRevision));
- statements.push(db.prepare('INSERT INTO analysis_imports SELECT ?,?,?,?,?,?,?,?,1,?,?,? WHERE NOT EXISTS(SELECT 1 FROM analysis_imports WHERE tenant_id=? AND organization_id=? AND currency=? AND period=? AND active=1)').bind(id,tenant,org,currency,body.period,body.sourceSystem.trim(),body.fileName,hash,(old?.revision??-1)+1,security.email,now,tenant,org,currency,body.period));
+ statements.push(db.prepare('INSERT INTO analysis_imports (id,tenant_id,organization_id,currency,period,source_system,file_name,content_hash,active,revision,created_by,created_at,period_basis) SELECT ?,?,?,?,?,?,?,?,1,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM analysis_imports WHERE tenant_id=? AND organization_id=? AND currency=? AND period=? AND active=1)').bind(id,tenant,org,currency,body.period,body.sourceSystem.trim(),body.fileName,hash,(old?.revision??-1)+1,security.email,now,periodBasis,tenant,org,currency,body.period));
  const rowPayload=JSON.stringify(rows.map(row=>({id:crypto.randomUUID(),code:row.code,description:row.description,role:row.role,amount:row.amountMinor})));
  statements.push(db.prepare("INSERT INTO analysis_import_rows SELECT json_extract(value,'$.id'),?,?,json_extract(value,'$.code'),json_extract(value,'$.description'),json_extract(value,'$.role'),json_extract(value,'$.amount') FROM json_each(?)").bind(id,tenant,rowPayload));
  if(body.rememberMappings)statements.push(db.prepare("INSERT INTO analysis_source_mappings SELECT ?,?,?,json_extract(value,'$.code'),json_extract(value,'$.role'),?,? FROM json_each(?) WHERE 1 ON CONFLICT(tenant_id,organization_id,source_system,source_code) DO UPDATE SET role=excluded.role,updated_by=excluded.updated_by,updated_at=excluded.updated_at").bind(tenant,org,body.sourceSystem.trim(),security.email,now,rowPayload));
@@ -49,7 +52,9 @@ export async function analysisAutomationApi(request:Request,db:D1Database,securi
  const [settings,mappings,snapshots]=org?await Promise.all([db.prepare('SELECT * FROM analysis_settings WHERE tenant_id=? AND organization_id=? AND currency=?').bind(tenant,org,currency).first<{settings_json:string;revision:number}>(),db.prepare('SELECT source_system,source_code,role FROM analysis_source_mappings WHERE tenant_id=? AND organization_id=?').bind(tenant,org).all(),loadAnalysisSnapshots(db,tenant,org,currency)]):[null,{results:[]},[]];
  let productivity:{averageHeadcount:number|null;complete:boolean}={averageHeadcount:null,complete:false};
  const chosenPeriod=new URL(request.url).searchParams.get('period')||snapshots.at(-1)?.period;
- if(org&&chosenPeriod)productivity=await analysisProductivity(db,tenant,org,chosenPeriod);
+ const startPeriod=new URL(request.url).searchParams.get('startPeriod')||chosenPeriod;
+ if(chosenPeriod&&startPeriod)analysisMonthCount(startPeriod,chosenPeriod);
+ if(org&&chosenPeriod)productivity=await analysisProductivity(db,tenant,org,chosenPeriod,startPeriod+'-01');
  const budget=org&&chosenPeriod?await analysisBudget(db,tenant,org,currency,chosenPeriod):{budgetVersion:null,budget:[]};
  return Response.json({executiveBudget:budget,productivity,organizations:organizations.results,organizationId:org,currency,canWrite,settings:settings?JSON.parse(settings.settings_json):{},revision:settings?.revision??-1,mappings:mappings.results,snapshots});
  }catch(error){const failure=classifyDataError(error,'Não foi possível processar a automatização.');return Response.json({error:failure.message},{status:failure.status})}}

@@ -178,3 +178,15 @@ test('large automatic imports use a bounded atomic batch and server-side remembe
 test('income-only imports expose observed profit but never invent unavailable cash flows or capital ratios',async()=>{
  const {executiveFinance}=await import('../lib/executive-finance.ts');const {report}=snapshotReport({id:'s',period:'2026-08',organization_id:'a',currency:'AOA',source_system:'ERP',file_name:'s',revision:0,values:{REVENUE:10000,COGS:2000,OPEX:3000,DEPRECIATION:0,INTEREST:0,TAX:0}},undefined);assert.throws(()=>snapshotReport({id:'overflow',period:'2026-08',organization_id:'a',currency:'AOA',source_system:'ERP',file_name:'s',revision:0,values:{REVENUE:Number.MAX_SAFE_INTEGER,COGS:-Number.MAX_SAFE_INTEGER,OPEX:0,DEPRECIATION:0,INTEREST:0,TAX:0}},undefined),/numeric range|financial range/);const metrics=executiveFinance(report).metrics;assert.equal(metrics.find(m=>m.key==='net').value,5000);assert.equal(metrics.find(m=>m.key==='operating').value,null);assert.equal(metrics.find(m=>m.key==='roe').value,null);
 });
+test('source period basis persists with explicit opening exclusion, idempotency and revision-safe replacement',async()=>{
+ const {sql,db}=setup();const payload=importSource('2026-08',sourceRows(105000,true),{periodBasis:'ytd'});
+ assert.equal((await analysisAutomationApi(request(autoPath,payload),db,maker)).status,400);
+ assert.equal((await analysisAutomationApi(request(autoPath,{...payload,periodBasis:'gross'}),db,maker)).status,400);
+ let b=await bodyOk(await analysisAutomationApi(request(autoPath,{...payload,openingExcluded:true}),db,maker));const old=b.snapshots[0];assert.equal(old.period_basis,'ytd');
+ await bodyOk(await analysisAutomationApi(request(autoPath,{...payload,openingExcluded:true}),db,maker));assert.equal(sql.prepare('SELECT COUNT(*) n FROM analysis_imports').get().n,1);
+ const month=await bodyOk(await financialLedgerApi(request(path+'&organizationId=a&executive=1'),db,maker));assert.equal(month.imported.quality.incomeComplete,false);assert.equal(month.imported.summary.rows.find(r=>r.key==='REVENUE').total,null);
+ const ytd=await bodyOk(await financialLedgerApi(request(path+'&organizationId=a&executive=1&basis=ytd'),db,maker));assert.equal(ytd.imported.report.income.REVENUE,10000);assert.equal(ytd.imported.summary.months,8);assert.equal(ytd.imported.summary.rows.find(r=>r.key==='REVENUE').average,1250);
+ assert.equal((await analysisAutomationApi(request(autoPath,{...payload,periodBasis:'month'}),db,maker)).status,409);
+ b=await bodyOk(await analysisAutomationApi(request(autoPath,{...payload,periodBasis:'month',replaceId:old.id,replaceRevision:old.revision}),db,maker));assert.equal(b.snapshots[0].period_basis,'month');assert.equal(b.snapshots[0].revision,1);
+ assert.equal((await analysisAutomationApi(request(autoPath+'&startPeriod=2026-09'),db,maker)).status,422);const count=sql.prepare('SELECT COUNT(*) n FROM analysis_imports').get().n;assert.equal((await analysisAutomationApi(request(autoPath+'&startPeriod=2026-09',importSource('2026-07')),db,maker)).status,422);assert.equal(sql.prepare('SELECT COUNT(*) n FROM analysis_imports').get().n,count);sql.close();
+});
