@@ -1,3 +1,4 @@
+import {analysisAutomationApi} from './analysis-automation';
 import {bankStatementsApi} from './bank-statements';
 import {financialLedgerApi} from './financial-ledger';
 import {feasibilityApi} from './feasibility';
@@ -39,6 +40,7 @@ export async function financialDataApi(
   db: D1Database,
   security: Security,
 ) {
+  if (new URL(request.url).searchParams.get("resource") === "analysisAutomation") return analysisAutomationApi(request,db,security);
   if (new URL(request.url).searchParams.get("resource") === "bankStatements") return bankStatementsApi(request,db,security);
   if (new URL(request.url).searchParams.get("resource") === "treasury") return treasuryApi(request, db, security);
   if (new URL(request.url).searchParams.get("resource") === "actuals") return managementActualsApi(request,db,security);
@@ -99,8 +101,8 @@ export async function financialDataApi(
                 )
                 .bind(tenant)
                 .all(),
-          db.prepare("SELECT DISTINCT period FROM performance_entries WHERE tenant_id=? AND scenario='Actual' AND version_id IS NULL AND (? IS NULL OR organization_id=?) ORDER BY period DESC").bind(tenant,scope,scope).all(),
-          db.prepare("SELECT DISTINCT currency FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) ORDER BY currency").bind(tenant,scope,scope).all(),
+          db.prepare("SELECT period FROM performance_entries WHERE tenant_id=? AND scenario='Actual' AND version_id IS NULL AND (? IS NULL OR organization_id=?) UNION SELECT period FROM analysis_imports WHERE tenant_id=? AND active=1 AND (? IS NULL OR organization_id=?) ORDER BY period DESC").bind(tenant,scope,scope,tenant,scope,scope).all(),
+          db.prepare("SELECT currency FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) UNION SELECT currency FROM analysis_imports WHERE tenant_id=? AND active=1 AND (? IS NULL OR organization_id=?) ORDER BY currency").bind(tenant,scope,scope,tenant,scope,scope).all(),
         ]);
       return {
         reportingPeriods: reportingPeriods.results.map(row=>row.period),

@@ -1,4 +1,6 @@
 "use client";
+import {AnalysisAutomationWorkspace} from "./analysis-automation-workspace";
+import {automationCopy} from "./automation-copy";
 import {ModuleTransferToolbar} from './module-transfer-toolbar';
 import {BankStatementsWorkspace} from './bank-statements-workspace';
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -38,6 +40,7 @@ import "./report.css";
 import "./integrity.css";
 import "./api-contract.css";
 import "./module-nav.css";
+import "./executive-shell.css";
 import "./payslip.css";
 import "./payment-batch.css";
 import "./absence.css";
@@ -102,6 +105,7 @@ const moduleCatalog: Array<{
       { label: "Rentabilidade e custos", target: "Rentabilidade" },
       { label: "Dimensões financeiras", target: "Administração" },
       { label: "Dados, catálogo e mappings", target: "Dados financeiros" },
+      { label: "Automatização da análise", target: "Automatização" },
       { label: "Actual e Budget", target: "Planeamento" },
       { label: "Versões orçamentais", target: "Planeamento", document: true },
       { label: "Forecast e cenários", target: "Cenários" },
@@ -201,7 +205,8 @@ const moduleCatalog: Array<{
 
 export default function Home() {
   const [modulo, setModulo] = useState("Visão geral"),
-    [openDomain, setOpenDomain] = useState("ANALYTICS_REPORTING"),
+    [openDomain, setOpenDomain] = useState(""),
+    [mobileMenu,setMobileMenu] = useState(false),
     [inviteStatus, setInviteStatus] = useState(""),
     [sessionError, setSessionError] = useState(""),
     [notificationsOpen, setNotificationsOpen] = useState(false),
@@ -242,15 +247,7 @@ export default function Home() {
     window.dispatchEvent(new CustomEvent("ep:locale", { detail: locale }));
   }, [locale]);
   const navRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (!openDomain) return;
-    const onPointerDown = (e: MouseEvent) => {
-      if (navRef.current && !navRef.current.contains(e.target as Node))
-        setOpenDomain("");
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [openDomain]);
+  useEffect(()=>{if(!mobileMenu)return;const previous=document.activeElement as HTMLElement|null,overflow=document.body.style.overflow,sidebar=document.getElementById('platform-sidebar');document.body.style.overflow='hidden';sidebar?.querySelector<HTMLButtonElement>('button')?.focus();const key=(event:KeyboardEvent)=>{if(event.key==='Escape')setMobileMenu(false);if(event.key==='Tab'){const buttons=sidebar?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');if(!buttons?.length)return;const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}};window.addEventListener('keydown',key);return()=>{document.body.style.overflow=overflow;window.removeEventListener('keydown',key);previous?.focus()}},[mobileMenu]);
   const msg = (key: MessageKey) => message(locale, key);
   const nav = navigationMeta[locale];
   const moduleNameKey: Record<string, MessageKey> = {
@@ -370,7 +367,7 @@ export default function Home() {
     <div className="site">
       <PlatformLocalizedSurface>
       {inviteStatus && <div className="invite-feedback">{inviteStatus}</div>}
-      <header className="topo">
+      <header className="topo"><button className="shell-menu-toggle" aria-label={msg("shell.subscribedModules")} aria-expanded={mobileMenu} aria-controls="platform-sidebar" onClick={()=>setMobileMenu(!mobileMenu)}>☰</button>
         <div className="marca">
           <b>EP</b>
           <span>Enterprise Performance</span>
@@ -468,7 +465,7 @@ export default function Home() {
         </button>
       </div>
       <div className="workspace-layout">
-        <aside className="module-sidebar">
+        <button className={mobileMenu?"shell-backdrop visible":"shell-backdrop"} aria-label={msg("shell.subscribedModules")} onClick={()=>setMobileMenu(false)}/><aside id="platform-sidebar" role={mobileMenu?"dialog":undefined} aria-modal={mobileMenu||undefined} aria-label={automationCopy.menu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} className={mobileMenu?"module-sidebar menu-visible":"module-sidebar"}><div className="sidebar-brand"><b>EP</b><span>Enterprise Performance<small>{automationCopy.brand[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]}</small></span></div><button className="shell-menu-close" aria-label={automationCopy.closeMenu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} onClick={()=>setMobileMenu(false)}>×</button>
           <header>
             <small>{msg("shell.subscribedModules")}</small>
             <span>{sessao.modules.length} {msg("shell.active")}</span>
@@ -477,7 +474,7 @@ export default function Home() {
             className={
               modulo === "Visão geral" ? "module-home active" : "module-home"
             }
-            onClick={() => setModulo("Visão geral")}
+            onClick={() => {setModulo("Visão geral");setMobileMenu(false)}}
           >
             <i>⌂</i>
             <span>
@@ -501,6 +498,8 @@ export default function Home() {
                   >
                     <button
                       className="domain-title"
+                      aria-expanded={open}
+                      aria-controls={"module-items-"+domain.code}
                       onClick={() => setOpenDomain(open ? "" : domain.code)}
                     >
                       <i>{domain.icon}</i>
@@ -508,7 +507,7 @@ export default function Home() {
                       <em>{open ? "−" : "+"}</em>
                     </button>
                     {open && (
-                      <div className="domain-items">
+                      <div id={"module-items-"+domain.code} className="domain-items">
                         {domain.items
                           .filter((item) =>
                             item.requires
@@ -523,11 +522,11 @@ export default function Home() {
                             onClick={() => {
                               if (!item.target) return;
                               setModulo(item.target);
-                              setOpenDomain("");
+                              setMobileMenu(false);
                             }}
                           >
                             <span>
-                              {item.document ? "▧" : "·"} {moduleItemLabel(locale,item.label)}
+                              {item.document ? "▧" : "·"} {item.target==="Automatização"?automationCopy.title[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]:moduleItemLabel(locale,item.label)}
                             </span>
                             {item.future ? (
                               <em>{nav.future}</em>
@@ -588,6 +587,8 @@ export default function Home() {
             <DocumentHubWorkspace />
           ) : modulo === "Extratos bancários" ? (
             <BankStatementsWorkspace query={"?period="+new Date().toISOString().slice(0,7)+"&currency=AOA"}/>
+          ) : modulo === "Automatização" ? (
+            <AnalysisAutomationWorkspace />
           ) : modulo === "Dados financeiros" ? (
             <FinancialDataWorkspace />
           ) : modulo === "Cockpit CFO" ? (

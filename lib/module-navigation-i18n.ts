@@ -2,6 +2,8 @@ import type { PlatformLocale } from "./platform-i18n";
 
 type Five=[string,string,string,string,string];
 const labels:Record<string,Five>={
+"Automatização da análise":["Automatização da análise","Analysis automation","Automatización del análisis","Automatisation de l’analyse","Автоматизация анализа"],
+"Automatização":["Automatização","Automation","Automatización","Automatisation","Автоматизация"],
 "Extratos bancários":["Extratos bancários","Bank statements","Extractos bancarios","Relevés bancaires","Банковские выписки"],
 "Ativação e subscrição":["Ativação e subscrição","Activation & subscription","Activación y suscripción","Activation et abonnement","Активация и подписка"],
 "Organização":["Organização","Organisation","Organización","Organisation","Организация"],
