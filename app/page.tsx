@@ -111,7 +111,7 @@ const moduleCatalog: Array<{
       { label: "Forecast e cenários", target: "Cenários" },
       { label: "Diagnóstico financeiro", target: "Diagnóstico" },
       {
-        label: "Atratividade de investimento",
+        label: "Modelagem Financeira",
         target: "Investimento",
         document: true,
       },

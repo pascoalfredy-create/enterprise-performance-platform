@@ -257,7 +257,7 @@ export function FinancialDiagnosticsWorkspace({
       <header className="dg-top">
         <div>
           <span>FINANÇAS E FP&A · DIAGNÓSTICO E INVESTIMENTO</span>
-          <h1>Da situação financeira à decisão de investimento</h1>
+          <h1>{view === "Investimento" ? "Modelagem Financeira" : "Da situação financeira à decisão de investimento"}</h1>
           <p>
             Rácios explicáveis, score configurável, recomendações, VPL, TIR,
             payback e sensibilidade.
@@ -332,7 +332,7 @@ export function FinancialDiagnosticsWorkspace({
             className={view === x ? "active" : ""}
             onClick={() => setView(x)}
           >
-            {x}
+            {x === "Investimento" ? "Modelagem Financeira" : x}
           </button>
         ))}
       </nav>
@@ -445,7 +445,7 @@ export function FinancialDiagnosticsWorkspace({
           <article className="cartao dg-investments">
             <div className="cab">
               <div>
-                <span>ATRATIVIDADE FINANCEIRA</span>
+                <span>Modelagem Financeira</span>
                 <h2>Casos e retornos</h2>
               </div>
               <select

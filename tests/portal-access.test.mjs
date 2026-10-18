@@ -237,7 +237,7 @@ test("financial diagnostics and investment intelligence are operational", () => 
   );
   assert.match(page, /FinancialDiagnosticsWorkspace/);
   assert.match(page, /Diagnóstico financeiro/);
-  assert.match(page, /Atratividade de investimento/);
+  assert.match(page, /Modelagem Financeira/);
   assert.match(workspace, /Da situação financeira à decisão de investimento/);
   assert.match(workspace, /calculateDiagnostic/);
   assert.match(workspace, /calculateInvestment/);
