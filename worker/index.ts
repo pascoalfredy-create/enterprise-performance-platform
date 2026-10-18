@@ -1,3 +1,4 @@
+import {employeePayrollFile} from './payroll-employee-file.ts';
 import { sendInvitationEmail, type InvitationEmailEnv, type InvitationDelivery } from "./invitation-email";
 import type {D1Database,D1PreparedStatement,R2Bucket} from "../worker-configuration";
 import {parseMoneyMinor} from "../lib/money";
@@ -3828,6 +3829,7 @@ export async function payrollApi(
     await ensureSetupSchema(db);
     if (request.method === "GET") {
       const url=new URL(request.url),period=url.searchParams.get("sheetPeriod");
+      const employeeId=url.searchParams.get("employeeFile");if(employeeId)return Response.json(await employeePayrollFile(db,tenantId,organizationId,employeeId));
       if(period){const currency=(url.searchParams.get("currency")||"AOA").toUpperCase(),regime=url.searchParams.get("fiscalRegime")||"Generic";if(!["Generic","AO-2026"].includes(regime))return Response.json({error:"Regime salarial inválido."},{status:400});return Response.json(publicPayrollSheet(await preparePayrollSheet(db,tenantId,organizationId,period,currency,regime as "Generic"|"AO-2026")));}
       return Response.json(await payrollSnapshot(db, tenantId, organizationId));
     }
@@ -3965,6 +3967,8 @@ export async function payrollApi(
           { error: "Montante fixo inválido." },
           { status: 400 },
         );
+      if(body.treatment&&!validatePayrollTreatment(body.category,body.treatment))return Response.json({error:"Incidência incompatível com a categoria da rubrica."},{status:400});
+      if(/^(AUTO:|MONTH:|LOAN:|ADJUSTMENT:)/i.test(body.code.trim()))return Response.json({error:"Código reservado para rubricas automáticas."},{status:400});
       summary = `Componente ${body.name.trim()} criado`;
       await db.batch([
         db
@@ -3989,6 +3993,7 @@ export async function payrollApi(
             "INSERT INTO payroll_assignments (id,tenant_id,employee_id,component_id,created_at) VALUES (?,?,?,?,?)",
           )
           .bind(uid(), tenantId, body.employeeId, recordId, created),
+        ...(body.treatment?[db.prepare("INSERT INTO payroll_component_incidence (tenant_id,component_id,treatment,reviewed_by,reviewed_at) VALUES (?,?,?,?,?)").bind(tenantId,recordId,body.treatment,actor,created)]:[]),
       ]);
     } else if (body.type === "generatePayrollRun") {
       if (
