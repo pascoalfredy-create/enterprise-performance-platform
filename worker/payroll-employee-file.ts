@@ -1,0 +1,14 @@
+import type {D1Database} from '../worker-configuration';
+import {PayrollSheetError} from './payroll-sheet.ts';
+// Read the same source tables used by monthly processing. No parallel salary register.
+export async function employeePayrollFile(db:D1Database,tenantId:string,organizationId:string|null,employeeId:string){
+ const employee=await db.prepare("SELECT e.*,o.name organization_name FROM employees e JOIN organizations o ON o.id=e.organization_id AND o.tenant_id=e.tenant_id WHERE e.tenant_id=? AND e.id=? AND (? IS NULL OR e.organization_id=?)").bind(tenantId,employeeId,organizationId,organizationId).first();
+ if(!employee)throw new PayrollSheetError('Colaborador fora do âmbito autorizado.',403);
+ const [contracts,profiles,components,months,processed]=await Promise.all([
+ db.prepare("SELECT id,contract_number,contract_type,start_date,end_date,work_schedule,weekly_minutes,country_pack,status FROM employee_contracts WHERE tenant_id=? AND employee_id=? ORDER BY start_date DESC").bind(tenantId,employeeId).all(),
+ db.prepare("SELECT p.*,m.name dimension_name FROM salary_profiles p LEFT JOIN dimension_members m ON m.id=p.dimension_member_id AND m.tenant_id=p.tenant_id WHERE p.tenant_id=? AND p.employee_id=? ORDER BY p.effective_from DESC,p.created_at DESC").bind(tenantId,employeeId).all(),
+ db.prepare("SELECT c.*,i.treatment,i.reviewed_at FROM payroll_components c JOIN payroll_assignments a ON a.component_id=c.id AND a.tenant_id=c.tenant_id LEFT JOIN payroll_component_incidence i ON i.component_id=c.id AND i.tenant_id=c.tenant_id WHERE a.tenant_id=? AND a.employee_id=? ORDER BY c.calculation_order,c.code").bind(tenantId,employeeId).all(),
+ db.prepare("SELECT period,currency,included,values_json,revision,updated_by,updated_at FROM payroll_month_inputs WHERE tenant_id=? AND employee_id=? ORDER BY period DESC,currency LIMIT 36").bind(tenantId,employeeId).all(),
+ db.prepare("SELECT r.id,r.period,r.currency,r.status,l.base_minor,l.gross_minor,l.deduction_minor,l.net_minor,l.input_snapshot FROM payroll_run_lines l JOIN payroll_runs r ON r.id=l.run_id AND r.tenant_id=l.tenant_id WHERE l.tenant_id=? AND l.employee_id=? ORDER BY r.period DESC,r.created_at DESC LIMIT 36").bind(tenantId,employeeId).all()]);
+ return {employee,contracts:contracts.results,profiles:profiles.results,components:components.results,months:months.results,processed:processed.results};
+}

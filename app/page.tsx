@@ -54,6 +54,7 @@ import "./enterprise-cards.css";
 import { moduleItemLabel, navigationMeta } from "../lib/module-navigation-i18n";
 import { usePlatformLocale } from "./use-platform-locale";
 import { PayrollCalculation } from "./payroll-calculation";
+import { EmployeePayrollFile } from './employee-payroll-file';
 import { PayrollMonthlySheet } from "./payroll-monthly-sheet";
 import { payrollSheetCopy } from "../lib/payroll-sheet-copy";
 import { payrollTreatments, validatePayrollTreatment } from "../lib/payroll-engine";
@@ -136,6 +137,7 @@ const moduleCatalog: Array<{
     items: [
       { label: "Visão do Gestor RH", target: "RH Dashboard" },
       { label: "Employee Master", target: "Administração" },
+      { label: "Ficha do colaborador", target: "Ficha do colaborador", requires: "PAYROLL" },
       { label: "Contratos", target: "Pessoas" },
       { label: "Recrutamento e onboarding", target: "Recrutamento" },
       { label: "Assiduidade e timesheets", target: "Assiduidade" },
@@ -588,7 +590,7 @@ export default function Home() {
           {modulo === "Ativação" ? (
             <CustomerActivationWorkspace onNavigate={setModulo} />
           ) : ["Administração","Utilizadores"].includes(modulo) ? (
-            <ConfiguracaoReal initialStep={modulo === "Utilizadores" ? 2 : 1} />
+            <ConfiguracaoReal initialStep={modulo === "Utilizadores" ? 2 : 1} payrollEnabled={sessao.modules.includes("PAYROLL")} />
           ) : modulo === "Documentos" ? (
             <DocumentHubWorkspace />
           ) : modulo === "Extratos bancários" ? (
@@ -625,6 +627,8 @@ export default function Home() {
             <FinancialModelsWorkspace initialView="Cash-flow" />
           ) : modulo === "Consolidação" ? (
             <ConsolidationWorkspace />
+          ) : modulo === "Ficha do colaborador" ? (
+            <EmployeePayrollFile onNavigate={setModulo}/>
           ) : modulo === "Pessoas" ? (
             <PeopleWorkspace />
           ) : modulo === "RH Dashboard" ? (
@@ -925,7 +929,9 @@ const vazio: SetupData = {
   dimensions: [],
   dimensionMembers: [],
 };
-function ConfiguracaoReal({initialStep=1}:{initialStep?:number}) {
+function ConfiguracaoReal({initialStep=1,payrollEnabled=false}:{initialStep?:number;payrollEnabled?:boolean}) {
+  const fileLocale=usePlatformLocale(),fileIndex={pt:0,en:1,es:2,fr:3,ru:4}[fileLocale];
+  const [employeeFileId,setEmployeeFileId]=useState<string|null>(null);
   useEffect(()=>{setEtapa(initialStep)},[initialStep]);
   const [etapa, setEtapa] = useState(initialStep),
     [dados, setDados] = useState<SetupData>(vazio),
@@ -1113,6 +1119,7 @@ function ConfiguracaoReal({initialStep=1}:{initialStep?:number}) {
           </button>
         ))}
       </div>
+      {employeeFileId&&payrollEnabled&&<article className="cartao"><button onClick={()=>setEmployeeFileId(null)}>{payrollSheetCopy.close[fileIndex]}</button><EmployeePayrollFile key={employeeFileId} employeeId={employeeFileId}/></article>}
       <div className="config-grid">
         <article className="cartao estrutura">
           <div className="cab">
@@ -1268,6 +1275,7 @@ function ConfiguracaoReal({initialStep=1}:{initialStep?:number}) {
                       </small>
                     </span>
                     <em>{e.status}</em>
+                    {payrollEnabled&&<button onClick={()=>setEmployeeFileId(e.id)}>{payrollSheetCopy.file[fileIndex]}</button>}
                   </div>
                 ))
               ) : (
