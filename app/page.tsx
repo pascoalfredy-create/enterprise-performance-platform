@@ -53,6 +53,8 @@ import "./reviews.css";
 import "./enterprise-cards.css";
 import { moduleItemLabel, navigationMeta } from "../lib/module-navigation-i18n";
 import { usePlatformLocale } from "./use-platform-locale";
+import { PayrollCalculation } from "./payroll-calculation";
+import { payrollTreatments, validatePayrollTreatment } from "../lib/payroll-engine";
 import { PlatformLocalizedSurface } from "./hr-localized-surface";
 /* Test contract marker: legacy state "Em preparação" is now locale-driven. */
 
@@ -4677,6 +4679,7 @@ type PaymentBatch = {
   line_count: number;
 };
 type PayrollData = {
+  lines: Array<{id:string;run_id:string;employee_name:string;input_snapshot:string}>;
   profiles: Array<{
     id: string;
     employee_name: string;
@@ -4693,6 +4696,7 @@ type PayrollData = {
     code: string;
     name: string;
     category: string;
+    treatment?: string;
     method: string;
     value_minor?: number;
     rate_bps?: number;
@@ -4727,6 +4731,7 @@ type PayrollData = {
   audit: AuditEvent[];
 };
 const payrollVazio: PayrollData = {
+  lines: [],
   profiles: [],
   components: [],
   runs: [],
@@ -4742,6 +4747,9 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
     [vista, setVista] = useState(initialView),
     [modal, setModal] = useState(""),
     [recibo, setRecibo] = useState<Payslip | null>(null),
+    [calculoRun,setCalculoRun]=useState<string|null>(null),
+    [reviewComponent,setReviewComponent]=useState<PayrollData["components"][number]|null>(null),
+    [fiscalRegime,setFiscalRegime]=useState("Generic"),
     [erro, setErro] = useState(""),
     [aEnviar, setAEnviar] = useState(false);
   const carregar = () =>
@@ -4765,19 +4773,18 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
     setAEnviar(true);
     const payload = Object.fromEntries(new FormData(e.currentTarget).entries());
     payload.type = modal;
-    const res = await apiFetch("/api/payroll", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const body = await res.json();
-    setAEnviar(false);
-    if (!res.ok) {
-      setErro(body.error || "Não foi possível executar a operação.");
-      return;
-    }
-    setDados(body);
-    setModal("");
+    try {
+      const res = await apiFetch("/api/payroll", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});
+      const body=await res.json();
+      if(!res.ok)throw new Error(body.error||"Não foi possível executar a operação.");
+      setDados(body);setModal("");
+      setVista(payload.type==="generatePayrollRun"?"Processamentos":payload.type==="payrollComponent"?"Componentes":"Perfis salariais");
+    }catch(error){setErro(error instanceof Error?error.message:"Falha na comunicação.");}
+    finally{setAEnviar(false);}
+  }
+
+  async function estadoRubrica(c:PayrollData["components"][number]){
+    setAEnviar(true);setErro("");try{const res=await apiFetch("/api/payroll",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"setPayrollComponentStatus",componentId:c.id,status:c.status==="Ativo"?"Inativo":"Ativo"})});const body=await res.json();if(!res.ok)throw new Error(body.error);setDados(body);}catch(error){setErro(error instanceof Error?error.message:"Falha na alteração da rubrica")}finally{setAEnviar(false)}
   }
   async function anular(runId: string) {
     const reason=window.prompt("Motivo da anulação (mínimo 5 caracteres)");
@@ -4866,6 +4873,7 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
             jobTitle: string;
             organizationName: string;
           };
+          inputSnapshot?: Record<string,unknown>;
           amounts: {
             baseMinor: number;
             grossMinor: number;
@@ -4882,8 +4890,7 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
           <span>PAYROLL RUN FOUNDATION</span>
           <h1>Processamento salarial controlado</h1>
           <p>
-            Configuração, cálculo e workflow sem regras laborais ou fiscais
-            hardcoded.
+            Rubricas, bases fiscais e descontos com memória de cálculo. Escolha o regime e reveja a incidência antes de processar.
           </p>
         </div>
         <div>
@@ -5106,6 +5113,7 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
                     </b>
                     <small>
                       {c.employee_name || "Sem atribuição"} · {c.category}
+                      <small className="pay-incidence-hint">{payrollTreatments[(c.treatment||"Unreviewed") as keyof typeof payrollTreatments]}</small>
                     </small>
                   </span>
                   <p>
@@ -5114,6 +5122,8 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
                       : `${((c.rate_bps || 0) / 100).toFixed(2)}%`}
                     <small>{c.method}</small>
                   </p>
+                  <button onClick={()=>{setReviewComponent(c);setErro("")}}>Rever incidência</button>
+                  <button disabled={aEnviar} onClick={()=>estadoRubrica(c)}>{c.status==="Ativo"?"Desativar":"Reativar"}</button>
                   <em>{c.status}</em>
                 </div>
               ))
@@ -5147,6 +5157,7 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
                   <em className={`run-${r.status.toLowerCase()}`}>
                     {r.status}
                   </em>
+                  <button onClick={()=>setCalculoRun(r.id)}>Ver cálculo</button>
                   {r.status !== "Fechado" && r.status !== "Cancelado" && <button disabled={aEnviar} onClick={()=>anular(r.id)}>Anular</button>}
                   {r.status === "Cancelado" ? <span>Anulado · histórico preservado</span> : r.status !== "Fechado" ? (
                     <button onClick={() => transitar(r.id)}>
@@ -5273,6 +5284,7 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
                 <dd>{dinheiro(recibo.employer_minor, recibo.currency)}</dd>
               </div>
             </dl>
+            {reciboPayload.inputSnapshot&&<PayrollCalculation snapshot={JSON.stringify(reciboPayload.inputSnapshot)} currency={recibo.currency}/>}
             <footer>
               <span>
                 Hash SHA-256
@@ -5296,6 +5308,8 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
           </article>
         </div>
       )}
+      {calculoRun&&<div className="pay-calculation-modal" role="dialog" aria-modal="true" aria-label="Cálculo do processamento" onKeyDown={e=>{if(e.key==="Escape")setCalculoRun(null)}}><article><header><h2>Memória do processamento</h2><button autoFocus onClick={()=>setCalculoRun(null)}>Fechar</button></header>{(dados.lines||[]).filter(l=>l.run_id===calculoRun).map(l=><div key={l.id}><h3>{l.employee_name}</h3><PayrollCalculation snapshot={l.input_snapshot} currency={dados.runs.find(r=>r.id===calculoRun)?.currency}/></div>)}{!(dados.lines||[]).some(l=>l.run_id===calculoRun)&&<p>Não existem linhas disponíveis neste âmbito.</p>}</article></div>}
+      {reviewComponent&&<div className="modal-inline" role="dialog" aria-modal="true" aria-label="Rever incidência"><form onSubmit={async e=>{e.preventDefault();setAEnviar(true);setErro("");try{const payload=Object.fromEntries(new FormData(e.currentTarget));const res=await apiFetch("/api/payroll",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...payload,type:"reviewPayrollComponent",componentId:reviewComponent.id})});const body=await res.json();if(!res.ok)throw new Error(body.error);setDados(body);setReviewComponent(null);}catch(error){setErro(error instanceof Error?error.message:"Falha na revisão")}finally{setAEnviar(false)}}}><header><h2>{reviewComponent.code} · Incidência</h2></header><label>Tratamento da rubrica<select name="treatment" required defaultValue={reviewComponent.treatment||""}><option value="">Selecionar</option>{Object.entries(payrollTreatments).filter(([key])=>validatePayrollTreatment(reviewComponent.category,key)).map(([key,label])=><option value={key} key={key}>{label}</option>)}</select></label><p className="pay-incidence-hint">A revisão aplica-se aos próximos cálculos. Os processamentos anteriores preservam a evidência original. Impostos e contribuições manuais são incompatíveis com o regime automático.</p>{erro&&<p role="alert">{erro}</p>}<footer><button type="button" onClick={()=>setReviewComponent(null)}>Cancelar</button><button disabled={aEnviar}>Guardar revisão</button></footer></form></div>}
       {erro && <p className="erro-global">{erro}</p>}
       {modal && (
         <div className="modal-inline">
@@ -5444,7 +5458,7 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
                       name="period"
                       type="month"
                       required
-                      defaultValue="2026-08"
+                      defaultValue={new Date().toISOString().slice(0,7)}
                     />
                   </label>
                   <label>
@@ -5457,6 +5471,9 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
                     />
                   </label>
                 </div>
+                <label>Regime de cálculo<select name="fiscalRegime" value={fiscalRegime} onChange={e=>setFiscalRegime(e.target.value)}><option value="Generic">Parametrizado — sem impostos automáticos</option><option value="AO-2026">Angola · Grupo A · IRT e INSS 2026</option></select></label>
+                {fiscalRegime==="AO-2026"?<label><input name="standardRegimeConfirmed" type="checkbox" required/> Confirmo regime geral não reformado, mês completo, sem isenções pessoais, faltas por descontar ou remunerações em espécie. Rubricas e variáveis do mês revistas.</label>:<p className="pay-incidence-hint">Este modo aplica apenas os componentes introduzidos. IRT e INSS não são calculados automaticamente.</p>}
+                <p className="pay-incidence-hint">O modo automático exige rever a incidência de todas as rubricas em Componentes. Retroativos e proporcionalizações ainda exigem tratamento no modo parametrizado.</p>
                 <aside className="calculo-nota">
                   <b>Resultado imutável</b>
                   <p>

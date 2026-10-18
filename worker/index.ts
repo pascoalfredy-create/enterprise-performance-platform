@@ -1,6 +1,7 @@
 import { sendInvitationEmail, type InvitationEmailEnv, type InvitationDelivery } from "./invitation-email";
 import type {D1Database,D1PreparedStatement,R2Bucket} from "../worker-configuration";
 import {parseMoneyMinor} from "../lib/money";
+import { calculatePayroll, validatePayrollTreatment, type PayrollComponentInput } from "../lib/payroll-engine";
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import {
   handleImageOptimization,
@@ -9,7 +10,6 @@ import {
 } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import {
-  percentageAmount,
   variance,
   workforceTotal,
 } from "../lib/deterministic";
@@ -3741,6 +3741,7 @@ async function payrollSnapshot(
     members,
     payslips,
     batches,
+    lines,
     audit,
   ] = await Promise.all([
     db
@@ -3751,7 +3752,7 @@ async function payrollSnapshot(
       .all(),
     db
       .prepare(
-        "SELECT c.*, e.first_name||' '||e.last_name AS employee_name FROM payroll_components c JOIN payroll_assignments a ON a.component_id=c.id AND a.tenant_id=c.tenant_id JOIN employees e ON e.id=a.employee_id WHERE c.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY c.calculation_order,c.code",
+        "SELECT c.*, i.treatment, e.first_name||' '||e.last_name AS employee_name FROM payroll_components c JOIN payroll_assignments a ON a.component_id=c.id AND a.tenant_id=c.tenant_id JOIN employees e ON e.id=a.employee_id LEFT JOIN payroll_component_incidence i ON i.component_id=c.id AND i.tenant_id=c.tenant_id WHERE c.tenant_id=? AND (? IS NULL OR e.organization_id=?) ORDER BY c.calculation_order,c.code",
       )
       .bind(tenantId, organizationId, organizationId)
       .all(),
@@ -3785,6 +3786,7 @@ async function payrollSnapshot(
       )
       .bind(tenantId, organizationId, organizationId)
       .all(),
+    db.prepare("SELECT l.*,e.first_name||' '||e.last_name employee_name FROM payroll_run_lines l JOIN employees e ON e.id=l.employee_id AND e.tenant_id=l.tenant_id JOIN payroll_runs r ON r.id=l.run_id AND r.tenant_id=l.tenant_id LEFT JOIN payroll_run_scopes s ON s.run_id=r.id AND s.tenant_id=r.tenant_id WHERE l.tenant_id=? AND (? IS NULL OR s.organization_id=?) AND r.id IN (SELECT pr.id FROM payroll_runs pr LEFT JOIN payroll_run_scopes ps ON ps.run_id=pr.id AND ps.tenant_id=pr.tenant_id WHERE pr.tenant_id=? AND (? IS NULL OR ps.organization_id=?) ORDER BY pr.period DESC,pr.created_at DESC LIMIT 12) ORDER BY r.period DESC,e.employee_number").bind(tenantId,organizationId,organizationId,tenantId,organizationId,organizationId).all(),
     organizationId
       ? Promise.resolve({ results: [] })
       : db
@@ -3802,6 +3804,7 @@ async function payrollSnapshot(
     members: members.results,
     payslips: payslips.results,
     batches: batches.results,
+    lines: lines.results,
     audit: audit.results,
   };
 }
@@ -3814,7 +3817,7 @@ async function sha256(value: string) {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
-async function payrollApi(
+export async function payrollApi(
   request: Request,
   db: D1Database,
   tenantId: string,
@@ -3832,6 +3835,21 @@ async function payrollApi(
       actor = actorEmail(request) || "utilizador autenticado";
     let summary = "",
       action = "CREATE";
+    if (["reviewPayrollComponent","setPayrollComponentStatus"].includes(body.type)) {
+      const component=await db.prepare("SELECT c.* FROM payroll_components c WHERE c.id=? AND c.tenant_id=? AND EXISTS (SELECT 1 FROM payroll_assignments a JOIN employees e ON e.id=a.employee_id AND e.tenant_id=a.tenant_id WHERE a.component_id=c.id AND a.tenant_id=c.tenant_id AND (? IS NULL OR e.organization_id=?)) AND NOT EXISTS (SELECT 1 FROM payroll_assignments a JOIN employees e ON e.id=a.employee_id AND e.tenant_id=a.tenant_id WHERE a.component_id=c.id AND a.tenant_id=c.tenant_id AND ? IS NOT NULL AND e.organization_id<>?)").bind(body.componentId,tenantId,organizationId,organizationId,organizationId,organizationId).first<Record<string,unknown>>();
+      if(!component)return Response.json({error:"Rubrica fora do âmbito autorizado."},{status:403});
+      if(body.type==="setPayrollComponentStatus"){
+        if(!["Ativo","Inativo"].includes(body.status))return Response.json({error:"Estado da rubrica inválido."},{status:400});
+        await db.batch([db.prepare("UPDATE payroll_components SET status=? WHERE id=? AND tenant_id=?").bind(body.status,body.componentId,tenantId),db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(recordId,tenantId,created,"CHANGE_STATUS","payrollComponent",body.componentId,actor,`Rubrica ${component.code}: ${body.status}`)]);
+        return Response.json(await payrollSnapshot(db,tenantId,organizationId));
+      }
+      if(!validatePayrollTreatment(String(component.category),body.treatment))return Response.json({error:"Incidência incompatível com a categoria da rubrica."},{status:400});
+      await db.batch([
+        db.prepare("INSERT INTO payroll_component_incidence (tenant_id,component_id,treatment,reviewed_by,reviewed_at) VALUES (?,?,?,?,?) ON CONFLICT(tenant_id,component_id) DO UPDATE SET treatment=excluded.treatment,reviewed_by=excluded.reviewed_by,reviewed_at=excluded.reviewed_at").bind(tenantId,body.componentId,body.treatment,actor,created),
+        db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(recordId,tenantId,created,"REVIEW_INCIDENCE","payrollComponent",body.componentId,actor,`Incidência revista: ${component.code} — ${body.treatment}`)
+      ]);
+      return Response.json(await payrollSnapshot(db,tenantId,organizationId));
+    }
     if (body.type === "salaryProfile") {
       if (
         !body.employeeId ||
@@ -3994,9 +4012,12 @@ async function payrollApi(
           },
           { status: 409 },
         );
+      const fiscalRegime=body.fiscalRegime||"Generic";
+      if(!["Generic","AO-2026"].includes(fiscalRegime))return Response.json({error:"Regime salarial inválido."},{status:400});
+      if(fiscalRegime==="AO-2026" && (body.standardRegimeConfirmed!=="on" || body.currency.toUpperCase()!=="AOA" || !body.period.startsWith("2026-")))return Response.json({error:"Confirme o regime geral mensal de Angola 2026, em AOA, sem regimes especiais ou remunerações em espécie."},{status:400});
       const profiles = await db
         .prepare(
-          "SELECT p.*,e.id AS employee_id FROM salary_profiles p JOIN employees e ON e.id=p.employee_id JOIN employee_contracts c ON c.employee_id=e.id AND c.tenant_id=e.tenant_id AND c.status='Ativo' AND c.start_date<=? AND (c.end_date IS NULL OR c.end_date>=?) WHERE p.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND p.status='Ativo' AND p.currency=? AND p.effective_from<=? AND (p.effective_to IS NULL OR p.effective_to>=?) AND e.status='Ativo'",
+          "SELECT p.*,e.id AS employee_id,c.start_date contract_start,c.end_date contract_end,c.country_pack contract_country_pack FROM salary_profiles p JOIN employees e ON e.id=p.employee_id JOIN employee_contracts c ON c.employee_id=e.id AND c.tenant_id=e.tenant_id AND c.status='Ativo' AND c.start_date<=? AND (c.end_date IS NULL OR c.end_date>=?) WHERE p.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND p.status IN ('Ativo','Inativo') AND p.currency=? AND p.effective_from<=? AND (p.effective_to IS NULL OR p.effective_to>=?) AND e.status='Ativo'",
         )
         .bind(
           new Date(Date.UTC(Number(body.period.slice(0,4)),Number(body.period.slice(5,7)),0)).toISOString().slice(0,10),
@@ -4018,18 +4039,25 @@ async function payrollApi(
           { status: 409 },
         );
       if (profiles.results.some(p=>p.periodicity!=="Mensal")) return Response.json({error:"O motor atual suporta apenas perfis mensais. Configure uma periodicidade suportada."},{status:409});
+      if(new Set(profiles.results.map(p=>p.employee_id)).size!==profiles.results.length)return Response.json({error:"Existem contratos ou perfis sobrepostos no mês. Resolva a sobreposição antes de calcular."},{status:409});
+      if(fiscalRegime==="AO-2026"){
+        if(profiles.results.some(p=>p.contract_country_pack&&!/^(AO(?:-|$)|ANGOLA$)/i.test(String(p.contract_country_pack))))return Response.json({error:"Existe um contrato com país diferente de Angola. Separe o âmbito ou reveja o país contratual."},{status:409});
+        const first=`${body.period}-01`,last=new Date(Date.UTC(Number(body.period.slice(0,4)),Number(body.period.slice(5,7)),0)).toISOString().slice(0,10);
+        if(profiles.results.some(p=>String(p.effective_from)>first || p.effective_to&&String(p.effective_to)<last || String(p.contract_start)>first || p.contract_end&&String(p.contract_end)<last))return Response.json({error:"O cálculo automático desta versão exige mês completo. Entradas, saídas e revisões a meio do mês exigem proporcionalização no modo parametrizado."},{status:409});
+      }
       let grossTotal = 0,
         dedTotal = 0,
         employerTotal = 0,
         netTotal = 0;
       const statements = [] as D1PreparedStatement[];
       for (const p of profiles.results) {
+        if(fiscalRegime==="AO-2026" && await db.prepare("SELECT 1 FROM hcm_absence_requests a JOIN hcm_absence_types t ON t.id=a.absence_type_id AND t.tenant_id=a.tenant_id WHERE a.tenant_id=? AND a.employee_id=? AND a.status='Aprovado' AND t.paid=0 AND a.start_date<=? AND a.end_date>=? LIMIT 1").bind(tenantId,p.employee_id,new Date(Date.UTC(Number(body.period.slice(0,4)),Number(body.period.slice(5,7)),0)).toISOString().slice(0,10),`${body.period}-01`).first())return Response.json({error:"Existem ausências não remuneradas aprovadas neste mês. A proporcionalização deve ser tratada no modo parametrizado antes do cálculo fiscal."},{status:409});
         const employeeId = String(p.employee_id),
           base = Number(p.base_minor),
           lineId = uid(),
           comps = await db
             .prepare(
-              "SELECT c.* FROM payroll_components c JOIN payroll_assignments a ON a.component_id=c.id WHERE a.tenant_id=? AND a.employee_id=? AND c.status='Ativo' ORDER BY c.calculation_order,c.code",
+              "SELECT c.*,i.treatment FROM payroll_components c JOIN payroll_assignments a ON a.component_id=c.id AND a.tenant_id=c.tenant_id LEFT JOIN payroll_component_incidence i ON i.component_id=c.id AND i.tenant_id=c.tenant_id WHERE a.tenant_id=? AND a.employee_id=? AND c.status='Ativo' ORDER BY c.calculation_order,c.code",
             )
             .bind(tenantId, employeeId)
             .all<Record<string, unknown>>(),
@@ -4055,35 +4083,17 @@ async function payrollApi(
               body.period,
             )
             .all<Record<string, unknown>>();
-        let gross = base,
-          deductions = 0,
-          employer = 0;
-        const inputs = [] as Record<string, unknown>[],
+        const inputs: PayrollComponentInput[]=comps.results.map(c=>({code:String(c.code),name:String(c.name),category:String(c.category),method:String(c.method),valueMinor:c.value_minor===null?undefined:Number(c.value_minor),rateBps:c.rate_bps===null?undefined:Number(c.rate_bps),treatment:String(c.treatment||"Unreviewed")})),
           payrollExtraStatements = [] as D1PreparedStatement[];
-        for (const c of comps.results) {
-          const amount =
-            c.method === "Fixed"
-              ? Number(c.value_minor)
-              : percentageAmount(base, Number(c.rate_bps));
-          if (c.category === "Earning") gross += amount;
-          else if (c.category === "Deduction") deductions += amount;
-          else employer += amount;
-          inputs.push({
-            code: c.code,
-            category: c.category,
-            method: c.method,
-            amountMinor: amount,
-          });
-        }
         for (const installment of loanInstallments.results) {
           const amount = Number(installment.amount_minor);
-          deductions += amount;
           inputs.push({
-            code: `LOAN:${installment.reference}`,
+            code: `LOAN:${installment.reference}:${installment.id}`,
+            name: `Prestação ${installment.reference}`,
+            treatment: "OtherDeduction",
             category: "Deduction",
             method: "Installment",
             amountMinor: amount,
-            installmentId: installment.id,
           });
           payrollExtraStatements.push(
             db
@@ -4104,15 +4114,12 @@ async function payrollApi(
         }
         for (const adjustment of adjustments.results) {
           const amount = Number(adjustment.amount_minor);
-          if (adjustment.category === "Earning") gross += amount;
-          else deductions += amount;
           inputs.push({
             code: `ADJUSTMENT:${adjustment.reference}`,
-            category: adjustment.category,
+            name: String(adjustment.reason),
+            category: String(adjustment.category),
             method: "Retroactive",
             amountMinor: amount,
-            sourcePeriod: adjustment.source_period,
-            reason: adjustment.reason,
           });
           payrollExtraStatements.push(
             db
@@ -4131,20 +4138,11 @@ async function payrollApi(
               ),
           );
         }
-        const net = gross - deductions;
-        if (net < 0)
-          return Response.json(
-            {
-              error:
-                "As deduções excedem o bruto de um colaborador. Reveja prestações e componentes.",
-            },
-            { status: 409 },
-          );
-        const snapshot = JSON.stringify({
-            employeeId,
-            baseMinor: base,
-            components: inputs,
-          }),
+        let calculation;
+        try{calculation=calculatePayroll({baseMinor:base,currency:body.currency.toUpperCase(),period:body.period,regime:fiscalRegime as "Generic"|"AO-2026",components:inputs});}
+        catch(error){return Response.json({error:error instanceof Error?error.message:"Erro no cálculo salarial."},{status:400});}
+        const {grossMinor:gross,deductionMinor:deductions,employerMinor:employer,netMinor:net}=calculation;
+        const snapshot = JSON.stringify({employeeId,period:body.period,currency:body.currency.toUpperCase(),...calculation,sourceComponents:inputs,sourceAdjustments:adjustments.results.map(a=>({id:a.id,sourcePeriod:a.source_period,reason:a.reason,amountMinor:a.amount_minor,category:a.category}))}),
           hash = await sha256(snapshot);
         grossTotal += gross;
         dedTotal += deductions;
@@ -4172,6 +4170,7 @@ async function payrollApi(
           ...payrollExtraStatements,
         );
       }
+      if(![grossTotal,dedTotal,employerTotal,netTotal].every(Number.isSafeInteger))return Response.json({error:"O total salarial excede o limite monetário seguro."},{status:400});
       statements.unshift(
         db
           .prepare(
