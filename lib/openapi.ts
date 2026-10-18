@@ -299,11 +299,16 @@ export const openApiDocument = {
     },
     "/payroll": {
       get: {
-        ...read("Read payroll, payslips and payment batches", "Payroll"),
+        ...read("Read payroll history or a scoped monthly preparation sheet", "Payroll"),
+        parameters: [
+          {name:"sheetPeriod",in:"query",required:false,schema:{type:"string",pattern:"^[0-9]{4}-(0[1-9]|1[0-2])$"},description:"Returns the monthly preparation or saved evidence for this period; omitted returns the existing payroll snapshot."},
+          {name:"currency",in:"query",required:false,schema:{type:"string",default:"AOA"}},
+          {name:"fiscalRegime",in:"query",required:false,schema:{type:"string",enum:["Generic","AO-2026"],default:"Generic"}},
+        ],
         "x-permission": "payroll:read",
       },
       post: write(
-        "Configure, calculate, issue documents or transition payment batches",
+        "Save versioned monthly inputs, calculate payroll, issue documents or transition batches",
         "Payroll",
         "payroll:write",
       ),
