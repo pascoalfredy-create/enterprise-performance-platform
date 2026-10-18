@@ -5,6 +5,7 @@ import { usePlatformLocale } from "./use-platform-locale";
 
 // Authored UI catalogue. Portuguese is the stable source key; business codes and API values are never changed.
 const rows:Array<[string,string,string,string,string]>=[
+["Modelagem Financeira","Financial Modeling","Modelización Financiera","Modélisation financière","Финансовое моделирование"],
 ["Estudo de viabilidade económico-financeira","Financial feasibility study","Estudio de viabilidad económico-financiera","Étude de faisabilité économique et financière","Технико-экономическое обоснование"],
 ["Novo estudo","New study","Nuevo estudio","Nouvelle étude","Новое исследование"],
 ["Exportar Excel","Export Excel","Exportar Excel","Exporter Excel","Экспорт Excel"],

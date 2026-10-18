@@ -24,7 +24,7 @@ const labels:Record<string,Five>={
 "Versões orçamentais":["Versões orçamentais","Budget versions","Versiones presupuestarias","Versions budgétaires","Версии бюджета"],
 "Forecast e cenários":["Forecast e cenários","Forecast & scenarios","Previsión y escenarios","Prévisions et scénarios","Прогноз и сценарии"],
 "Diagnóstico financeiro":["Diagnóstico financeiro","Financial diagnostics","Diagnóstico financiero","Diagnostic financier","Финансовая диагностика"],
-"Atratividade de investimento":["Atratividade de investimento","Investment attractiveness","Atractivo de inversión","Attractivité de l’investissement","Инвестиционная привлекательность"],
+"Modelagem Financeira":["Modelagem Financeira","Financial Modeling","Modelización Financiera","Modélisation financière","Финансовое моделирование"],
 "Drivers e plano de negócios":["Drivers e plano de negócios","Drivers & business plan","Impulsores y plan de negocio","Inducteurs et plan d’affaires","Драйверы и бизнес-план"],
 "Cash-flow e financiamento":["Cash-flow e financiamento","Cash flow & financing","Flujo de caja y financiación","Flux de trésorerie et financement","Денежный поток и финансирование"],
 "Consolidação e câmbio":["Consolidação e câmbio","Consolidation & FX","Consolidación y cambio","Consolidation et change","Консолидация и валюты"],
