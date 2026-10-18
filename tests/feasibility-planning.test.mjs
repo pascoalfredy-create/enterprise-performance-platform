@@ -52,6 +52,6 @@ test('IAPMEI presentation reconciles income, balance and treasury without changi
  near(get(1,'noncurrent',y)+get(1,'current',y),get(1,'assets',y));near(get(1,'capital',y)+get(1,'retained',y)+get(1,'net',y),get(1,'equity',y));near(get(1,'assets',y),get(1,'equityLiabilities',y));near(get(1,'check',y),0);
  near(get(2,'operating',y)+get(2,'financial',y)+get(2,'investing',y),get(2,'movement',y));near(get(2,'opening',y)+get(2,'movement',y),get(2,'closing',y));near(get(2,'closing',y),get(1,'cash',y));near(get(2,'check',y),0);
  }
- const sheets=studyWorkbook(input,{name:'IAPMEI adapted',organization:'A',currency:'AOA'},0,p);assert.ok(sheets[1].hiddenRows.includes(4));assert.equal(sheets[1].rows[43][0].value,'Rubrica');assert.ok(sheets[1].rows.slice(44).some(r=>r[0]?.value==='Resultado líquido do período'&&r[0].style===7));near(sheets[4].rows[7][1].value,p.metrics.npv);
+ const sheets=studyWorkbook(input,{name:'IAPMEI adapted',organization:'A',currency:'AOA'},0,p);assert.ok(sheets[1].hiddenRows.includes(4));assert.equal(sheets[1].rows[43][0].value,'Rubrica');assert.ok(sheets[1].rows.slice(44).some(r=>r[0]?.value==='Resultado líquido do período'&&r[0].style===7));near(sheets[4].rows[7][1].value,p.metrics.npv);const {workbookPreview}=await import('../lib/feasibility-workbook.ts'),view=workbookPreview(sheets,input.years)[1];assert.ok(view.notes.some(n=>n.includes('IAPMEI')));assert.ok(view.rows.every(r=>r.length>1));
  }
 });
