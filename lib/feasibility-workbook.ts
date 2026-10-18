@@ -3,6 +3,7 @@ import {StudyModel,address,column,formula,add,sub,mul,div,pow,max,min,round,when
 import {feasibility} from './feasibility-engine';
 import {integratedCopy,studyLabel} from './feasibility-integrated-copy';
 import {financialAnalysis,analysisSheets,analysisCopy,analysisFormula,cardExplanations,cardLabels} from './feasibility-analysis';
+import {financingCopy} from './feasibility-presentation';
 import {statementLayouts,statementCopy} from './feasibility-statements';
 import {buildXlsxBlob,type SheetInput,type XlsxCell} from './xlsx';
 export type StudyDocument={name:string;organization:string;currency:string;id?:string|null;dirty?:boolean};
@@ -14,7 +15,7 @@ export function studyWorkbook(input:StudyAssumptions,meta:StudyDocument,index=0,
  const write=(i:number,row:number,col:number,v:XlsxCell)=>{while(sheets[i].rows.length<row)sheets[i].rows.push([]);sheets[i].rows[row-1][col]=v};
  for(const [key,e] of p.model.cells){const match=key.match(/^'([^']+)'!([A-Z]+)(\d+)$/)!;const i=names.indexOf(match[1]),col=[...match[2]].reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)-1;write(i,Number(match[3]),col,typeof e==='number'?{value:e,style:i===0?2:1}:{formula:formula(e),value:p.model.get(key),style:1});}
  ['columnGroup','columnVariable','columnValue','columnUnit','columnNote'].forEach((key,c)=>write(0,2,c,{value:integratedCopy[key as keyof typeof integratedCopy][index],style:3}));write(0,3,0,integratedCopy.modelVersion[index]);write(0,3,6,'MODEL_VERSION');write(0,3,2,3);
- for(const entry of p.inputRows){write(0,entry.row,0,inputGroup(entry.key,index));write(0,entry.row,6,entry.key);write(0,entry.row,1,studyLabel(entry.key,index));write(0,entry.row,3,inputUnit(entry.key,index,meta.currency));write(0,entry.row,4,entry.key==='repayment'?'0 = '+integratedCopy.annuity[index]+'; 1 = '+integratedCopy.principal[index]+'; 2 = '+integratedCopy.bullet[index]:typeof input.planning[entry.key as keyof typeof input.planning]==='boolean'?integratedCopy.booleanLegend[index]:'');}
+ for(const entry of p.inputRows){write(0,entry.row,0,inputGroup(entry.key,index));write(0,entry.row,6,entry.key);write(0,entry.row,1,entry.key==='equity'?financingCopy.manualAmount[index]:studyLabel(entry.key,index));write(0,entry.row,3,inputUnit(entry.key,index,meta.currency));write(0,entry.row,4,entry.key==='equity'?financingCopy.excelEquityHelp[index]:entry.key==='repayment'?'0 = '+integratedCopy.annuity[index]+'; 1 = '+integratedCopy.principal[index]+'; 2 = '+integratedCopy.bullet[index]:typeof input.planning[entry.key as keyof typeof input.planning]==='boolean'?integratedCopy.booleanLegend[index]:'');}
  for(let i=0;i<24;i++){write(0,p.eventStart+i,0,integratedCopy.investments[index]);write(0,p.eventStart+i,6,'CAPEX_EVENT');write(0,p.eventStart+i,1,integratedCopy.month[index]);write(0,p.eventStart+i,4,integratedCopy.amount[index]);}
  for(let i=1;i<5;i++){
   for(const [key,row] of Object.entries(labels[i])){write(i,row,0,studyLabel(i===2&&key==='debt'?'closingDebt':i===2&&key==='equity'?'equityTotal':key,index));if(i!==4)write(i,row,1,key);}
@@ -46,7 +47,7 @@ export function studyWorkbook(input:StudyAssumptions,meta:StudyDocument,index=0,
  for(const [n,row] of analysis.summaryRows.entries())write(4,row,0,['VAL FCFF / WACC','VAL FCFF / Ke','VAL FCFE / Ke','TIR FCFE (%)','Payback FCFE','Payback FCFE / Ke','Payback FCFF / WACC','Payback FCFF / Ke'][n]);
  sheets[0].validations=p.inputRows.map(entry=>{const v=inputValidation(entry.key,'C'+entry.row);if(entry.key==='graceMonths')v.max='$C$'+p.inputRows.find(r=>r.key==='debtMonths')!.row+'-1';if(entry.key==='residual')v.max='$C$'+p.inputRows.find(r=>r.key==='capex')!.row;return v});for(let i=0;i<24;i++)sheets[0].validations.push({range:'C'+(p.eventStart+i),type:'whole',min:0,max:360},{range:'D'+(p.eventStart+i),type:'decimal',min:0,max:1000000000000});
  const notes=[integratedCopy.previewNote[index],integratedCopy.method[index],integratedCopy.exitNote[index],integratedCopy.coverageNote[index],integratedCopy.valuationNote[index]];for(const [i,note] of notes.entries())write(4,23+i,0,note);
- write(4,28,0,'Model 3 · '+meta.name+' · '+meta.currency);return sheets;
+ write(4,28,0,'Model 3 · '+meta.name+' · '+meta.currency);applyResultColors(sheets);return sheets;
 }
 // The established annual model remains mathematically identical, including its
 // initial working capital convention. Its workbook also has five live sheets.
@@ -72,9 +73,18 @@ function legacyWorkbook(input:StudyAssumptions,meta:StudyDocument,index:number):
  for(const [i,names] of [[1,dnames],[2,bnames],[3,cnames]] as const){for(const [row,key] of Object.entries(names))write(i,+row,0,studyLabel(key,index));write(i,44,0,{value:integratedCopy.annual[index],style:3});for(let r=2;r<=Math.max(...Object.keys(names).map(Number));r++)sheets[i].rows[43+r-1]=[...(sheets[i].rows[r-1]||[])];for(let y=0;y<=30;y++){write(i,2,y+2,{value:y,style:3});write(i,45,y+2,{value:y,style:3});}}
  for(const [r,key] of [[4,'npv'],[5,'irr'],[6,'payback'],[7,'discountedPayback']] as const)write(4,r,0,studyLabel(key,index));write(4,10,0,'Model 2: '+meta.name);write(4,11,0,integratedCopy.preserve[index]);write(4,12,0,'Annual nominal project flows · no financing / VAT / reinvestments');
  // Independent regression checks keep this export aligned with established cards.
- if(Math.abs(model.get(address(M,4,1))-base.npv)>.011)throw new Error('Valor da projeção: divergência na exportação.');return sheets;
+ if(Math.abs(model.get(address(M,4,1))-base.npv)>.011)throw new Error('Valor da projeção: divergência na exportação.');applyResultColors(sheets);return sheets;
 }
 function inputUnit(key:string,index:number,currency:string){return ['years','usefulLifeYears'].includes(key)?integratedCopy.unitYear[index]:key.endsWith('Months')?integratedCopy.unitMonth[index]:key.endsWith('Days')?integratedCopy.unitDay[index]:key.endsWith('Growth')||['taxRate','discountRate','debtRate','ke','vatRate','vatRecovery','vatFixedShare'].includes(key)?'%':key==='dscrLimit'?'×':['capex','residual','fixedCosts','debt','debtFee','equity','minimumCash','price','unitCost'].includes(key)?currency:''}
 function inputGroup(key:string,index:number){return integratedCopy[key==='years'||key==='periodFactor'?'groupCalendar':key.startsWith('vat')||['taxRate','refundVat','interestShield'].includes(key)?'groupTax':['debt','debtRate','debtMonths','graceMonths','repayment','totalGrace','debtFee','equityAuto','equity','minimumCash','ke','useWacc','discountRate','dscrLimit'].includes(key)?'groupFinance':'groupOperations'][index]}
 function inputValidation(key:string,range:string):NonNullable<SheetInput['validations']>[number]{if(['equityAuto','totalGrace','useWacc','interestShield','refundVat','closeProject'].includes(key))return {range,type:'list',values:'0,1'};if(key==='periodFactor')return {range,type:'list',values:'1,12'};if(key==='repayment')return {range,type:'list',values:'0,1,2'};if(key==='years')return {range,type:'whole',min:1,max:30};if(key==='debtMonths')return {range,type:'whole',min:1,max:360};if(key==='graceMonths')return {range,type:'whole',min:0,max:359};if(key==='vatSettlementMonths')return {range,type:'whole',min:1,max:12};if(key==='usefulLifeYears')return {range,type:'decimal',min:1/12,max:100};if(key.endsWith('Days'))return {range,type:'decimal',min:0,max:365};if(key.endsWith('Growth'))return {range,type:'decimal',min:-99.99,max:100};if(['debtRate','ke','vatRate','vatRecovery','vatFixedShare','taxRate','discountRate'].includes(key))return {range,type:'decimal',min:0,max:100};return {range,type:'decimal',min:0,max:1000000000000}}
 export const downloadStudyWorkbook=(sheets:SheetInput[])=>buildXlsxBlob(sheets);
+
+function applyResultColors(sheets:SheetInput[]){
+ for(const index of [3,4,5,6]){const sheet=sheets[index];if(!sheet)continue;sheet.signedRanges=[];sheet.signedTotalRanges=[];
+  sheet.rows.forEach((row,n)=>{if(index===4){if(row[1]&&typeof row[1]==='object'&&typeof row[1].value==='number')sheet.signedRanges!.push('B'+(n+1));return}if(n<44)return;
+   const first=row[0];if(typeof first==='object'&&(first.style===3||first.style===8))return;
+   if(row.length<3)return;const range='C'+(n+1)+':'+column(row.length-1)+(n+1);(typeof first==='object'&&first.style===7?sheet.signedTotalRanges!:sheet.signedRanges!).push(range);
+  });
+ }
+}
