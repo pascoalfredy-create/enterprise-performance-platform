@@ -1,8 +1,7 @@
 import {type PlanningResult,studySheets,planningDreRows,planningBalanceRows,planningCashRows} from './feasibility-planning';
 import {type Expr,address,add,sub,mul,round} from './study-model';
-export const iapmeiReference='https://www.iapmei.pt/pt/saber-mais/apoio-empresarial-e-formacao/ferramentas-de-gestao/ferramenta-de-avaliacao-de-projetos/';
 export const statementCopy={
- source:['Estrutura adaptada da ferramenta de avaliação de projetos do IAPMEI (FAP V8).','Structure adapted from IAPMEI project evaluation tool (FAP V8).','Estructura adaptada de IAPMEI (FAP V8).','Structure adaptée de l’outil IAPMEI (FAP V8).','Структура адаптирована из модели IAPMEI (FAP V8).'],
+ source:['Projeções calculadas a partir dos pressupostos do estudo.','Projections calculated from study assumptions.','Proyecciones calculadas a partir de las premisas del estudio.','Projections calculées à partir des hypothèses de l’étude.','Прогноз рассчитан на основе допущений исследования.'],
  note:['Custos variáveis e fixos mantêm a classificação agregada dos pressupostos. Não se atribuem automaticamente a CMVMC, FSE ou pessoal sem detalhe de origem. Impostos seguem as taxas configuradas; não são aplicados regimes fiscais portugueses.','Variable and fixed costs retain their assumption-level aggregation. COGS, external services and personnel are not inferred without source detail. Tax follows configured rates.','Los costes mantienen la agregación de las premisas, sin inferir CMVMC, servicios o personal. Impuestos según las tasas configuradas.','Les coûts restent agrégés selon les hypothèses, sans ventilation inventée. Impôts selon les taux configurés.','Затраты остаются агрегированными по предпосылкам без вымышленного распределения. Налоги по заданным ставкам.'],
  year:['Ano','Year','Año','Année','Год'],item:['Rubrica','Item','Partida','Rubrique','Статья']
 };
