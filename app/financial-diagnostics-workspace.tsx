@@ -1,4 +1,5 @@
 "use client";
+import {CardExplanation} from './feasibility-analysis';
 import {reportCopy} from "../lib/feasibility-report";
 import {type StudySummary} from "./feasibility-report";
 import {formatPaybackDuration} from "../lib/payback-duration";
@@ -293,7 +294,7 @@ export function FinancialDiagnosticsWorkspace({
         [reportText('irr'),studySummary?.irr!=null?formatNumberValue(studySummary.irr,locale)+'%':'—'],
         [reportText('payback'),studySummary?formatPaybackDuration(studySummary.payback,locale):'—'],
         [reportText('discounted'),studySummary?formatPaybackDuration(studySummary.discountedPayback,locale):'—']
-      ].map(([label,value])=><article key={label}><span>{label}</span><strong>{value}</strong><small>{studySummary?(studySummary.name||reportText('newStudy'))+(studySummary.dirty?' · '+reportText('draft'):''):reportText('missing')}</small></article>)}</section> : <section className="dg-kpis">
+      ].map(([label,value],n)=><article key={label}><span>{label}</span><strong>{value}</strong><CardExplanation name={['npv','irr','payback','discountedPayback'][n]} locale={locale}/><small>{studySummary?(studySummary.name||reportText('newStudy'))+(studySummary.dirty?' · '+reportText('draft'):''):reportText('missing')}</small></article>)}</section> : <section className="dg-kpis">
         <article>
           <span>Score financeiro</span>
           <strong>
