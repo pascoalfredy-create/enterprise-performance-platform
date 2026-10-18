@@ -932,6 +932,7 @@ const vazio: SetupData = {
 function ConfiguracaoReal({initialStep=1,payrollEnabled=false}:{initialStep?:number;payrollEnabled?:boolean}) {
   const fileLocale=usePlatformLocale(),fileIndex={pt:0,en:1,es:2,fr:3,ru:4}[fileLocale];
   const [employeeFileId,setEmployeeFileId]=useState<string|null>(null);
+  useEffect(()=>{if(employeeFileId)document.getElementById("administration-employee-file")?.focus();},[employeeFileId]);
   useEffect(()=>{setEtapa(initialStep)},[initialStep]);
   const [etapa, setEtapa] = useState(initialStep),
     [dados, setDados] = useState<SetupData>(vazio),
@@ -1119,7 +1120,7 @@ function ConfiguracaoReal({initialStep=1,payrollEnabled=false}:{initialStep?:num
           </button>
         ))}
       </div>
-      {employeeFileId&&payrollEnabled&&<article className="cartao"><button onClick={()=>setEmployeeFileId(null)}>{payrollSheetCopy.close[fileIndex]}</button><EmployeePayrollFile key={employeeFileId} employeeId={employeeFileId}/></article>}
+      {employeeFileId&&payrollEnabled&&<article className="cartao" id="administration-employee-file" tabIndex={-1}><button onClick={()=>setEmployeeFileId(null)}>{payrollSheetCopy.close[fileIndex]}</button><EmployeePayrollFile key={employeeFileId} employeeId={employeeFileId}/></article>}
       <div className="config-grid">
         <article className="cartao estrutura">
           <div className="cab">
