@@ -10,7 +10,7 @@ export async function managementActualsApi(request:Request,db:D1Database,securit
   if(!canWrite)return Response.json({error:'Apenas consulta.'},{status:403});
   const body=await request.json() as Record<string,string>,now=new Date().toISOString(),id=crypto.randomUUID();
   if(!['saveActual','deleteActual'].includes(body.type))return Response.json({error:'Operação inválida.'},{status:400});
-  const original=body.id?await db.prepare('SELECT e.*,m.id,m.entry_id,m.revision,m.reference,m.category,l.classification FROM management_actuals m JOIN performance_entries e ON e.id=m.entry_id AND e.tenant_id=m.tenant_id JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code WHERE m.id=? AND m.tenant_id=? AND (? IS NULL OR e.organization_id=?)').bind(body.id,tenant,scope,scope).first<Record<string,unknown>>():null;
+  const original=body.id?await db.prepare('SELECT e.*,m.id manual_id,m.entry_id,m.revision,m.reference,m.category,l.classification FROM management_actuals m JOIN performance_entries e ON e.id=m.entry_id AND e.tenant_id=m.tenant_id JOIN financial_line_catalog l ON l.tenant_id=e.tenant_id AND l.code=e.line_code WHERE m.id=? AND m.tenant_id=? AND (? IS NULL OR e.organization_id=?)').bind(body.id,tenant,scope,scope).first<Record<string,unknown>>():null;
   if(body.id&&!original)return Response.json({error:'Registo não encontrado.'},{status:404});
   if(original&&Number(body.revision)!==Number(original.revision))return Response.json({error:'Registo alterado. Atualize antes de corrigir.'},{status:409});
   const statements=[];
