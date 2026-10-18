@@ -76,7 +76,7 @@ export function PayrollCountryControls() {
       <button className="payroll-governance-head" onClick={() => setOpen(!open)}>
         <span>
           <i>§</i>
-          <b>Catálogo de configuração · sem motor fiscal validado</b>
+          <b>Catálogo de configuração por país</b>
           <small>
             {c ? `${c.name} · ${c.packVersion} · ${c.status}` : "A carregar…"}
           </small>
@@ -124,7 +124,7 @@ export function PayrollCountryControls() {
                     — aguarda ativação por outro administrador (maker-checker).
                   </span>
                 ) : (
-                  <button disabled title="Regras fiscais ainda não implementadas" onClick={() => act("activatePack")}>
+                  <button disabled title="Ativação global indisponível; escolha o regime em cada processamento" onClick={() => act("activatePack")}>
                     {busy ? "A processar…" : "Ativar pack"}
                   </button>
                 ))}
@@ -138,6 +138,7 @@ export function PayrollCountryControls() {
               {error && <p className="erro-form">{error}</p>}
             </div>
           )}
+          {country==="AO"&&<p className="payroll-governance-note">O cálculo de IRT e INSS de Angola 2026 está disponível na escolha do regime ao criar um processamento. A seleção é explícita por processamento e exige revisão das rubricas; este catálogo não ativa regras automaticamente.</p>}
           <div className="payroll-erp-flow">
             {erpFlow.map((x, i) => (
               <span key={x}>
