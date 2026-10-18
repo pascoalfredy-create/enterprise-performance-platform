@@ -48,6 +48,15 @@ export async function bankStatementsApi(request:Request,db:D1Database,security:S
  const accountCode='BK_'+(await digest(JSON.stringify([bank,accountRef,currency]))).slice(0,32);
  let account=body.accountId?await db.prepare('SELECT * FROM treasury_accounts WHERE id=? AND tenant_id=? AND organization_id=? AND currency=?').bind(body.accountId,tenant,organizationId,currency).first<Record<string,unknown>>():await db.prepare('SELECT * FROM treasury_accounts WHERE tenant_id=? AND organization_id=? AND code=? AND currency=?').bind(tenant,organizationId,accountCode,currency).first<Record<string,unknown>>();
  if(body.accountId&&!account)return fail('Conta fora da empresa ou moeda selecionada.',403);
+ // A manually-picked account (the "Conta de tesouraria existente" override) bypasses
+ // the bank+accountRef+currency identity hash that normally keys deduplication and
+ // overlap checks. Without this guard, picking a *different* real bank account here
+ // would silently merge this file's balance/movements into it under no account-level
+ // protection at all, double-counting cash the moment both accounts are summed.
+ // Allow the override only onto an account that is new or already carries exactly
+ // this same bank+accountRef identity — never one established under a different one.
+ if(body.accountId&&account&&await db.prepare('SELECT 1 FROM bank_statement_imports WHERE tenant_id=? AND account_id=? AND status=\'Ativo\' AND NOT (bank_name=? AND account_reference=?) LIMIT 1').bind(tenant,body.accountId,bank,accountRef).first())
+  return fail('Esta conta já tem extratos de outro banco ou referência de conta. Selecione a conta correta ou use "Identificar / criar pelo ficheiro".',409);
  const accountId=String(account?.id||crypto.randomUUID());
  const existing=await db.prepare("SELECT id,status FROM bank_statement_imports WHERE tenant_id=? AND account_id=? AND source_hash=?").bind(tenant,accountId,hash).first<{id:string;status:string}>();if(existing)return existing.status==='Ativo'?snapshot(existing.id):fail('Este extrato já foi removido. Importe uma versão corrigida.',409);
  if(await db.prepare("SELECT id FROM bank_statement_imports WHERE tenant_id=? AND account_id=? AND status='Ativo' AND start_date<=? AND end_date>=?").bind(tenant,accountId,parsed.end,parsed.start).first())return fail('O período sobrepõe-se a um extrato já importado nesta conta. Remova a versão incorreta antes de importar a substituição.',409);

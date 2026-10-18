@@ -81,6 +81,19 @@ test('company categories are editable without accounting codes and failed audits
  response=await bankStatementsApi(request({type:'classifyGroup',statementId:id,revision:1,iban,category:'Outros'}),db,security);assert.equal(response.status,500);assert.equal(sql.prepare('SELECT revision FROM bank_statement_imports').get().revision,1);assert.equal(sql.prepare('SELECT category FROM bank_statement_movements WHERE iban=? LIMIT 1').get(iban).category,'Serviços de sondagem');sql.close();
 });
 
+test('manually picking an existing account for a statement from a different bank/reference is rejected, preventing silent double-counted cash',async()=>{
+ const {sql,db}=setup(),first=await importOne(db),accountId=first.selected.account_id;
+ const otherBank=rows();otherBank[0][1]='BIC';otherBank[1][1]='BANK-999';otherBank[8][6]='T-99';
+ const merged=await bankStatementsApi(request({...payload(otherBank),accountId}),db,security);
+ assert.equal(merged.status,409);
+ assert.equal(sql.prepare('SELECT COUNT(*) n FROM treasury_accounts').get().n,1);
+ assert.equal(sql.prepare('SELECT COUNT(*) n FROM bank_statement_imports').get().n,1);
+ const ok=await bankStatementsApi(request({...payload(otherBank)}),db,security);
+ assert.equal(ok.status,200,JSON.stringify(await ok.clone().json()));
+ assert.equal(sql.prepare('SELECT COUNT(*) n FROM treasury_accounts').get().n,2);
+ sql.close();
+});
+
 test('large bank imports use a bounded statement batch and preserve every original row',async()=>{
  const {sql,db}=setup(),large=[['Banco','BAI'],['Conta','LARGE-001'],['Moeda','AOA'],['Saldo inicial','0.00'],['data','descricao','valor','referencia'],...Array.from({length:2000},(_,index)=>['2026-10-01',index===999?"O’Brien\nUnitel":'Transferência','0.01','ROW-'+index])];
  let batchSize=0;const originalBatch=db.batch.bind(db);db.batch=async statements=>{batchSize=statements.length;return originalBatch(statements)};
