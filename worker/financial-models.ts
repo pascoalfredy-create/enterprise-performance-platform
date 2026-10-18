@@ -1,5 +1,6 @@
 import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
+import { parseMoneyMinor } from "../lib/money";
 
 type Security = {
   tenantId: string;
@@ -175,9 +176,7 @@ export async function financialModelsApi(
       const organizationId = scope || body.organizationId,
         currency = body.currency?.trim().toUpperCase(),
         horizon = Number(body.horizonMonths),
-        opening = Math.round(
-          Number((body.openingCash || "0").replace(",", ".")) * 100,
-        );
+        opening = parseMoneyMinor(body.openingCash || "0");
       if (
         !organizationId ||
         !body.name?.trim() ||
@@ -224,7 +223,7 @@ export async function financialModelsApi(
       const driverLineId = body.driverLineId?.trim() || null,
         amount = driverLineId
           ? 0
-          : Math.round(Number((body.baseAmount || "").replace(",", ".")) * 100),
+          : parseMoneyMinor(body.baseAmount || "0"),
         growth = driverLineId
           ? 0
           : Math.round(

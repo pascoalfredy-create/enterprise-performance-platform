@@ -2,6 +2,7 @@ import {financialLedgerApi} from './financial-ledger';
 import type {financialLedger} from '../lib/financial-ledger';
 import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
+import { parseMoneyMinor } from "../lib/money";
 type Security = {
   tenantId: string;
   organizationId: string | null;
@@ -900,9 +901,7 @@ export async function financialDiagnosticsApi(
         .run();
     } else if (body.type === "addCashFlow") {
       const period = Number(body.periodNumber),
-        amount = Math.round(
-          Number(String(body.amount).replace(",", ".")) * 100,
-        );
+        amount = parseMoneyMinor(String(body.amount));
       if (
         !body.caseId ||
         !Number.isInteger(period) ||
