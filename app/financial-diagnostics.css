@@ -15,3 +15,7 @@
 
 .study-indicator-note{font-size:.78rem;font-weight:400;line-height:1.5;text-align:left;white-space:normal;max-width:38rem;margin-top:.55rem}.study-indicator-note summary{cursor:pointer;color:#08685b;font-weight:600}.study-indicator-note p{margin:.55rem 0}.study-report-note{break-inside:avoid;padding:.65rem 0;border-bottom:1px solid #dce6e4}.study-analysis-report table th:first-child{min-width:17rem}.study-financial-map td:first-child{white-space:normal}.study-financial-map td{vertical-align:top}
 @media print{.study-indicator-note{display:none}.study-report-note{break-inside:avoid}.study-analysis-report h3{break-after:avoid}}
+
+/* Numeric sign only: do not colour headings, inputs, zero or unavailable values. */
+.study-negative{color:#b42318!important}.study-positive{color:#137447!important}.statement-total .study-negative,.statement-style-7 .study-negative{color:#ffb4b4!important}.statement-total .study-positive,.statement-style-7 .study-positive{color:#86efac!important}.management-bar-track .study-negative{background:#b42318!important}.management-bar-track .study-positive{background:#137447!important}.study-origin{margin:12px 0}.study-origin summary{cursor:pointer;font-weight:600;color:#145e50}
+@media print{.study-negative,.study-positive{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
