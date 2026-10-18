@@ -206,7 +206,7 @@ export async function workforcePlansApi(
         .prepare(
           "SELECT l.* FROM workforce_plan_lines l JOIN workforce_plans p ON p.id=l.plan_id AND p.tenant_id=l.tenant_id WHERE l.tenant_id=? AND l.plan_id=? AND (? IS NULL OR p.organization_id=?) ORDER BY l.period,l.job_title",
         )
-        .bind(tenant, body.planId)
+        .bind(tenant, body.planId, scope, scope)
         .all();
       const hash = await sha(JSON.stringify({ plan, lines: lines.results }));
       await db
