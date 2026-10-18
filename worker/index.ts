@@ -1982,6 +1982,19 @@ async function setupApi(
           { status: 400 },
         );
       if (
+        (organizationId && body.organizationId !== organizationId) ||
+        !(await db
+          .prepare(
+            "SELECT 1 FROM organizations WHERE id=? AND tenant_id=?",
+          )
+          .bind(body.organizationId, tenantId)
+          .first())
+      )
+        return Response.json(
+          { error: "Colaborador fora do âmbito organizacional autorizado." },
+          { status: 403 },
+        );
+      if (
         await db
           .prepare(
             "SELECT id FROM employees WHERE tenant_id=? AND employee_number=?",
@@ -3190,7 +3203,13 @@ async function scenariosApi(
           },
           { status: 400 },
         );
-      if (organizationId && body.organizationId !== organizationId)
+      if (
+        (organizationId && body.organizationId !== organizationId) ||
+        !(await db
+          .prepare("SELECT 1 FROM organizations WHERE id=? AND tenant_id=?")
+          .bind(body.organizationId, tenantId)
+          .first())
+      )
         return Response.json(
           { error: "Entrada fora do âmbito organizacional autorizado." },
           { status: 403 },
@@ -3294,7 +3313,13 @@ async function scenariosApi(
           { error: "Versão, organização, período e moeda são obrigatórios." },
           { status: 400 },
         );
-      if (organizationId && body.organizationId !== organizationId)
+      if (
+        (organizationId && body.organizationId !== organizationId) ||
+        !(await db
+          .prepare("SELECT 1 FROM organizations WHERE id=? AND tenant_id=?")
+          .bind(body.organizationId, tenantId)
+          .first())
+      )
         return Response.json(
           { error: "Importação fora do âmbito organizacional autorizado." },
           { status: 403 },
@@ -3514,7 +3539,13 @@ async function goalsApi(
           },
           { status: 400 },
         );
-      if (organizationId && body.organizationId !== organizationId)
+      if (
+        (organizationId && body.organizationId !== organizationId) ||
+        !(await db
+          .prepare("SELECT 1 FROM organizations WHERE id=? AND tenant_id=?")
+          .bind(body.organizationId, tenantId)
+          .first())
+      )
         return Response.json(
           { error: "Objetivo fora do âmbito organizacional autorizado." },
           { status: 403 },
