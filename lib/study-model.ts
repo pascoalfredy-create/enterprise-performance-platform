@@ -6,7 +6,18 @@ export function column(index:number){let n=index+1,s='';while(n){s=String.fromCh
 export const address=(sheet:string,row:number,col:number)=>`'${sheet}'!${column(col)}${row}`;
 export function formula(e:Expr):string{
  if(typeof e==='number')return String(e);if(typeof e==='string')return e;
- if(e.op==='IRR_ACTIVE'){const first=String(e.args[1]),last=String(e.args.at(-1)).split('!')[1],count=formula(e.args[0]);return 'IRR('+first+':INDEX('+first+':'+last+',1,('+count+'+1)),0.01)'}
+ if(e.op==='IRR_ACTIVE'){
+  // Excel's native IRR() uses Newton-Raphson from a single starting guess and
+  // returns #NUM! when that guess is too far from the true root — plausible
+  // here since the monthly series' true rate can be far from 1%. The JS
+  // engine itself uses a robust bounded bisection and never hits this; this
+  // only protects the live-recalculating formula in the exported workbook.
+  const first=String(e.args[1]),last=String(e.args.at(-1)).split('!')[1],count=formula(e.args[0]);
+  const range=first+':INDEX('+first+':'+last+',1,('+count+'+1))',guesses=['0.01','0.1','0.5','1','2','-0.5'];
+  let out='IRR('+range+','+guesses[guesses.length-1]+')';
+  for(let i=guesses.length-2;i>=0;i--)out='IFERROR(IRR('+range+','+guesses[i]+'),'+out+')';
+  return out;
+ }
  const args:string[]=[];
  // Excel IRR expects a range; compact consecutive horizontal references for
  // all aggregators, and keep function argument counts below Excel's limit.
