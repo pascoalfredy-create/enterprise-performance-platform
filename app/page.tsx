@@ -374,7 +374,7 @@ export default function Home() {
         </div>
         <div className="product-context">
           <small>{msg("shell.workspace")}</small>
-          <b>{modulo}</b>
+          <b>{modulo === "Investimento" ? moduleItemLabel(locale,"Modelagem Financeira") : modulo}</b>
         </div>
         <div className="acoes">
           <label className="locale-select" title="Idioma / Language">
