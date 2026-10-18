@@ -1,7 +1,8 @@
 import { sendInvitationEmail, type InvitationEmailEnv, type InvitationDelivery } from "./invitation-email";
 import type {D1Database,D1PreparedStatement,R2Bucket} from "../worker-configuration";
 import {parseMoneyMinor} from "../lib/money";
-import { calculatePayroll, validatePayrollTreatment, type PayrollComponentInput } from "../lib/payroll-engine";
+import { validatePayrollTreatment } from "../lib/payroll-engine";
+import { preparePayrollSheet, publicPayrollSheet, savePayrollMonthInput, PayrollSheetError } from "./payroll-sheet";
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import {
   handleImageOptimization,
@@ -3825,8 +3826,11 @@ export async function payrollApi(
 ) {
   try {
     await ensureSetupSchema(db);
-    if (request.method === "GET")
+    if (request.method === "GET") {
+      const url=new URL(request.url),period=url.searchParams.get("sheetPeriod");
+      if(period){const currency=(url.searchParams.get("currency")||"AOA").toUpperCase(),regime=url.searchParams.get("fiscalRegime")||"Generic";if(!["Generic","AO-2026"].includes(regime))return Response.json({error:"Regime salarial inválido."},{status:400});return Response.json(publicPayrollSheet(await preparePayrollSheet(db,tenantId,organizationId,period,currency,regime as "Generic"|"AO-2026")));}
       return Response.json(await payrollSnapshot(db, tenantId, organizationId));
+    }
     if (request.method !== "POST")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const body = (await request.json()) as Record<string, string>,
@@ -3835,6 +3839,10 @@ export async function payrollApi(
       actor = actorEmail(request) || "utilizador autenticado";
     let summary = "",
       action = "CREATE";
+    if(body.type==="savePayrollMonthInput"){
+      await savePayrollMonthInput(db,tenantId,organizationId,actor,body);
+      return Response.json({saved:true});
+    }
     if (["reviewPayrollComponent","setPayrollComponentStatus"].includes(body.type)) {
       const component=await db.prepare("SELECT c.* FROM payroll_components c WHERE c.id=? AND c.tenant_id=? AND EXISTS (SELECT 1 FROM payroll_assignments a JOIN employees e ON e.id=a.employee_id AND e.tenant_id=a.tenant_id WHERE a.component_id=c.id AND a.tenant_id=c.tenant_id AND (? IS NULL OR e.organization_id=?)) AND NOT EXISTS (SELECT 1 FROM payroll_assignments a JOIN employees e ON e.id=a.employee_id AND e.tenant_id=a.tenant_id WHERE a.component_id=c.id AND a.tenant_id=c.tenant_id AND ? IS NOT NULL AND e.organization_id<>?)").bind(body.componentId,tenantId,organizationId,organizationId,organizationId,organizationId).first<Record<string,unknown>>();
       if(!component)return Response.json({error:"Rubrica fora do âmbito autorizado."},{status:403});
@@ -4015,86 +4023,22 @@ export async function payrollApi(
       const fiscalRegime=body.fiscalRegime||"Generic";
       if(!["Generic","AO-2026"].includes(fiscalRegime))return Response.json({error:"Regime salarial inválido."},{status:400});
       if(fiscalRegime==="AO-2026" && (body.standardRegimeConfirmed!=="on" || body.currency.toUpperCase()!=="AOA" || !body.period.startsWith("2026-")))return Response.json({error:"Confirme o regime geral mensal de Angola 2026, em AOA, sem regimes especiais ou remunerações em espécie."},{status:400});
-      const profiles = await db
-        .prepare(
-          "SELECT p.*,e.id AS employee_id,c.start_date contract_start,c.end_date contract_end,c.country_pack contract_country_pack FROM salary_profiles p JOIN employees e ON e.id=p.employee_id JOIN employee_contracts c ON c.employee_id=e.id AND c.tenant_id=e.tenant_id AND c.status='Ativo' AND c.start_date<=? AND (c.end_date IS NULL OR c.end_date>=?) WHERE p.tenant_id=? AND (? IS NULL OR e.organization_id=?) AND p.status IN ('Ativo','Inativo') AND p.currency=? AND p.effective_from<=? AND (p.effective_to IS NULL OR p.effective_to>=?) AND e.status='Ativo'",
-        )
-        .bind(
-          new Date(Date.UTC(Number(body.period.slice(0,4)),Number(body.period.slice(5,7)),0)).toISOString().slice(0,10),
-          `${body.period}-01`,
-          tenantId,
-          organizationId,
-          organizationId,
-          body.currency.toUpperCase(),
-          new Date(Date.UTC(Number(body.period.slice(0,4)),Number(body.period.slice(5,7)),0)).toISOString().slice(0,10),
-          `${body.period}-01`,
-        )
-        .all<Record<string, unknown>>();
-      if (!profiles.results.length)
-        return Response.json(
-          {
-            error:
-              "Não existem colaboradores com contrato e perfil salarial elegíveis neste âmbito.",
-          },
-          { status: 409 },
-        );
-      if (profiles.results.some(p=>p.periodicity!=="Mensal")) return Response.json({error:"O motor atual suporta apenas perfis mensais. Configure uma periodicidade suportada."},{status:409});
-      if(new Set(profiles.results.map(p=>p.employee_id)).size!==profiles.results.length)return Response.json({error:"Existem contratos ou perfis sobrepostos no mês. Resolva a sobreposição antes de calcular."},{status:409});
-      if(fiscalRegime==="AO-2026"){
-        if(profiles.results.some(p=>p.contract_country_pack&&!/^(AO(?:-|$)|ANGOLA$)/i.test(String(p.contract_country_pack))))return Response.json({error:"Existe um contrato com país diferente de Angola. Separe o âmbito ou reveja o país contratual."},{status:409});
-        const first=`${body.period}-01`,last=new Date(Date.UTC(Number(body.period.slice(0,4)),Number(body.period.slice(5,7)),0)).toISOString().slice(0,10);
-        if(profiles.results.some(p=>String(p.effective_from)>first || p.effective_to&&String(p.effective_to)<last || String(p.contract_start)>first || p.contract_end&&String(p.contract_end)<last))return Response.json({error:"O cálculo automático desta versão exige mês completo. Entradas, saídas e revisões a meio do mês exigem proporcionalização no modo parametrizado."},{status:409});
-      }
+      const prepared=await preparePayrollSheet(db,tenantId,organizationId,body.period,body.currency.toUpperCase(),fiscalRegime as "Generic"|"AO-2026",false);
+      if(body.sheetFingerprint && body.sheetFingerprint!==prepared.fingerprint)return Response.json({error:"A folha mudou desde a conferência. Atualize e confira novamente antes de processar."},{status:409});
+      const selected=prepared.rows.filter(r=>r.included);
+      if(!selected.length)return Response.json({error:"Não existem colaboradores selecionados com contrato e perfil salarial elegíveis neste âmbito."},{status:409});
+      const invalid=selected.find(r=>r.issues.length||!r.calculation);
+      if(invalid){const error=invalid.issues[0]||"Não foi possível calcular o colaborador.";return Response.json({error:`${invalid.employeeName}: ${error}`},{status:/sobrepostos|mês completo|país|ausências|periodicidade/.test(error)?409:400});}
       let grossTotal = 0,
         dedTotal = 0,
         employerTotal = 0,
         netTotal = 0;
       const statements = [] as D1PreparedStatement[];
-      for (const p of profiles.results) {
-        if(fiscalRegime==="AO-2026" && await db.prepare("SELECT 1 FROM hcm_absence_requests a JOIN hcm_absence_types t ON t.id=a.absence_type_id AND t.tenant_id=a.tenant_id WHERE a.tenant_id=? AND a.employee_id=? AND a.status='Aprovado' AND t.paid=0 AND a.start_date<=? AND a.end_date>=? LIMIT 1").bind(tenantId,p.employee_id,new Date(Date.UTC(Number(body.period.slice(0,4)),Number(body.period.slice(5,7)),0)).toISOString().slice(0,10),`${body.period}-01`).first())return Response.json({error:"Existem ausências não remuneradas aprovadas neste mês. A proporcionalização deve ser tratada no modo parametrizado antes do cálculo fiscal."},{status:409});
-        const employeeId = String(p.employee_id),
-          base = Number(p.base_minor),
-          lineId = uid(),
-          comps = await db
-            .prepare(
-              "SELECT c.*,i.treatment FROM payroll_components c JOIN payroll_assignments a ON a.component_id=c.id AND a.tenant_id=c.tenant_id LEFT JOIN payroll_component_incidence i ON i.component_id=c.id AND i.tenant_id=c.tenant_id WHERE a.tenant_id=? AND a.employee_id=? AND c.status='Ativo' ORDER BY c.calculation_order,c.code",
-            )
-            .bind(tenantId, employeeId)
-            .all<Record<string, unknown>>(),
-          loanInstallments = await db
-            .prepare(
-              "SELECT i.*,l.reference FROM payroll_loan_installments i JOIN payroll_loans l ON l.id=i.loan_id AND l.tenant_id=i.tenant_id WHERE i.tenant_id=? AND l.employee_id=? AND l.currency=? AND l.status='Aprovado' AND i.period=? AND i.status='Programada'",
-            )
-            .bind(
-              tenantId,
-              employeeId,
-              body.currency.toUpperCase(),
-              body.period,
-            )
-            .all<Record<string, unknown>>(),
-          adjustments = await db
-            .prepare(
-              "SELECT * FROM payroll_adjustments WHERE tenant_id=? AND employee_id=? AND currency=? AND payment_period=? AND status='Aprovado'",
-            )
-            .bind(
-              tenantId,
-              employeeId,
-              body.currency.toUpperCase(),
-              body.period,
-            )
-            .all<Record<string, unknown>>();
-        const inputs: PayrollComponentInput[]=comps.results.map(c=>({code:String(c.code),name:String(c.name),category:String(c.category),method:String(c.method),valueMinor:c.value_minor===null?undefined:Number(c.value_minor),rateBps:c.rate_bps===null?undefined:Number(c.rate_bps),treatment:String(c.treatment||"Unreviewed")})),
-          payrollExtraStatements = [] as D1PreparedStatement[];
+      for (const row of selected) {
+        const employeeId=row.employeeId,base=row.base,lineId=uid(),loanInstallments={results:row.loans},adjustments={results:row.adjustments};
+        const payrollExtraStatements = [] as D1PreparedStatement[];
         for (const installment of loanInstallments.results) {
           const amount = Number(installment.amount_minor);
-          inputs.push({
-            code: `LOAN:${installment.reference}:${installment.id}`,
-            name: `Prestação ${installment.reference}`,
-            treatment: "OtherDeduction",
-            category: "Deduction",
-            method: "Installment",
-            amountMinor: amount,
-          });
           payrollExtraStatements.push(
             db
               .prepare(
@@ -4114,13 +4058,6 @@ export async function payrollApi(
         }
         for (const adjustment of adjustments.results) {
           const amount = Number(adjustment.amount_minor);
-          inputs.push({
-            code: `ADJUSTMENT:${adjustment.reference}`,
-            name: String(adjustment.reason),
-            category: String(adjustment.category),
-            method: "Retroactive",
-            amountMinor: amount,
-          });
           payrollExtraStatements.push(
             db
               .prepare(
@@ -4138,11 +4075,9 @@ export async function payrollApi(
               ),
           );
         }
-        let calculation;
-        try{calculation=calculatePayroll({baseMinor:base,currency:body.currency.toUpperCase(),period:body.period,regime:fiscalRegime as "Generic"|"AO-2026",components:inputs});}
-        catch(error){return Response.json({error:error instanceof Error?error.message:"Erro no cálculo salarial."},{status:400});}
+        const calculation=row.calculation!;
         const {grossMinor:gross,deductionMinor:deductions,employerMinor:employer,netMinor:net}=calculation;
-        const snapshot = JSON.stringify({employeeId,period:body.period,currency:body.currency.toUpperCase(),...calculation,sourceComponents:inputs,sourceAdjustments:adjustments.results.map(a=>({id:a.id,sourcePeriod:a.source_period,reason:a.reason,amountMinor:a.amount_minor,category:a.category}))}),
+        const snapshot = JSON.stringify({employeeId,period:body.period,currency:body.currency.toUpperCase(),...calculation,sourceComponents:row.sourceComponents,monthlyInputRevision:row.revision,monthlyValues:row.values,sourceAdjustments:adjustments.results.map(a=>({id:a.id,sourcePeriod:a.source_period,reason:a.reason,amountMinor:a.amount_minor,category:a.category}))}),
           hash = await sha256(snapshot);
         grossTotal += gross;
         dedTotal += deductions;
@@ -4189,7 +4124,7 @@ export async function payrollApi(
             body.period,
             body.currency.toUpperCase(),
             "Rascunho",
-            profiles.results.length,
+            selected.length,
             grossTotal,
             dedTotal,
             employerTotal,
@@ -4202,6 +4137,7 @@ export async function payrollApi(
       try {
         await db.batch(statements);
       } catch (e) {
+        if(/payroll monthly inputs changed/.test(String(e)))return Response.json({error:"As variáveis mensais mudaram durante o cálculo. Atualize e confira a folha."},{status:409});
         const classified = classifyDataError(e, "");
         if (classified.code === "CONFLICT")
           return Response.json(
@@ -4213,7 +4149,7 @@ export async function payrollApi(
           );
         throw e;
       }
-      summary = `Payroll ${body.period} calculado para ${profiles.results.length} colaborador(es)`;
+      summary = `Payroll ${body.period} calculado para ${selected.length} colaborador(es)`;
     } else if (body.type === "issuePayslips") {
       const run = await db
         .prepare(
@@ -4555,6 +4491,7 @@ export async function payrollApi(
       status: 201,
     });
   } catch (error) {
+    if(error instanceof PayrollSheetError)return Response.json({error:error.message},{status:error.status});
     return apiFailure(
       error,
       "Não foi possível concluir a operação de Payroll.",

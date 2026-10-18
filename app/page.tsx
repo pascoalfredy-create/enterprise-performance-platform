@@ -54,6 +54,8 @@ import "./enterprise-cards.css";
 import { moduleItemLabel, navigationMeta } from "../lib/module-navigation-i18n";
 import { usePlatformLocale } from "./use-platform-locale";
 import { PayrollCalculation } from "./payroll-calculation";
+import { PayrollMonthlySheet } from "./payroll-monthly-sheet";
+import { payrollSheetCopy } from "../lib/payroll-sheet-copy";
 import { payrollTreatments, validatePayrollTreatment } from "../lib/payroll-engine";
 import { PlatformLocalizedSurface } from "./hr-localized-surface";
 /* Test contract marker: legacy state "Em preparação" is now locale-driven. */
@@ -145,10 +147,11 @@ const moduleCatalog: Array<{
       },
       { label: "Payroll · Perfis e componentes", target: "Operações", requires: "PAYROLL" },
       { label: "Payroll Runs", target: "Processamentos", requires: "PAYROLL" },
+      { label: "Histórico salarial", target: "Histórico salarial", requires: "PAYROLL" },
       { label: "Empréstimos e adiantamentos", target: "Empréstimos", requires: "PAYROLL" },
       { label: "Retroativos e ajustes", target: "Retroativos", requires: "PAYROLL" },
-      { label: "Recibos de vencimento", target: "Operações", document: true, requires: "PAYROLL" },
-      { label: "Payment batches", target: "Operações", document: true, requires: "PAYROLL" },
+      { label: "Recibos de vencimento", target: "Recibos salariais", document: true, requires: "PAYROLL" },
+      { label: "Payment batches", target: "Pagamentos salariais", document: true, requires: "PAYROLL" },
     ],
   },
   {
@@ -236,6 +239,7 @@ export default function Home() {
       };
       tenants: Array<{ id: string; name: string; role: string }>;
     } | null>(null);
+  const openMonthly=useCallback(()=>setModulo("Processamentos"),[]);
   useEffect(() => {
     // localStorage is unavailable during SSR, so the persisted locale can only
     // be read after mount; the "pt" default above keeps server/client markup in sync.
@@ -633,10 +637,12 @@ export default function Home() {
             <AbsenceWorkspace />
           ) : modulo === "Documentos HCM" ? (
             <EmployeeDocumentsWorkspace />
-          ) : ["Operações","Processamentos"].includes(modulo) ? (
+          ) : modulo === "Processamentos" ? (
+            <PayrollMonthlySheet onNavigate={setModulo}/>
+          ) : ["Operações","Histórico salarial","Recibos salariais","Pagamentos salariais"].includes(modulo) ? (
             <>
               <PayrollCountryControls />
-              <PayrollFoundation initialView={modulo === "Processamentos" ? "Processamentos" : "Perfis salariais"} />
+              <PayrollFoundation onMonthly={openMonthly} initialView={modulo === "Histórico salarial" ? "Processamentos" : modulo === "Recibos salariais" ? "Recibos" : modulo === "Pagamentos salariais" ? "Pagamentos" : "Perfis salariais"} />
             </>
           ) : modulo === "Empréstimos" ? (
             <PayrollLoansWorkspace />
@@ -4741,7 +4747,8 @@ const payrollVazio: PayrollData = {
   batches: [],
   audit: [],
 };
-function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string}) {
+function PayrollFoundation({initialView="Perfis salariais",onMonthly}:{initialView?:string;onMonthly?:()=>void}) {
+  const monthlyLocale=usePlatformLocale(),monthlyIndex={pt:0,en:1,es:2,fr:3,ru:4}[monthlyLocale];
   useEffect(()=>{setVista(initialView)},[initialView]);
   const [dados, setDados] = useState<PayrollData>(payrollVazio),
     [vista, setVista] = useState(initialView),
@@ -4908,7 +4915,7 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
           </button>
           <button
             className="primario"
-            onClick={() => setModal("generatePayrollRun")}
+            onClick={() => onMonthly ? onMonthly() : setModal("generatePayrollRun")}
           >
             ▶ Processar
           </button>
@@ -4917,12 +4924,9 @@ function PayrollFoundation({initialView="Perfis salariais"}:{initialView?:string
       <div className="pay-alerta">
         <i>i</i>
         <div>
-          <b>Core agnóstico a país</b>
-          <p>
-            Este incremento não calcula impostos, contribuições ou regras
-            laborais. Esses cálculos serão fornecidos por Country Packs
-            versionados.
-          </p>
+          <b>{payrollSheetCopy.title[monthlyIndex]}</b>
+          <p>{payrollSheetCopy.scopeNote[monthlyIndex]}</p>
+          <button onClick={onMonthly}>{payrollSheetCopy.open[monthlyIndex]}</button>
         </div>
       </div>
       <section className="pay-resumo">

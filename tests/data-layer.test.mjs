@@ -231,6 +231,7 @@ test("employee contract lifecycle controls payroll eligibility",()=>{
 });
 
 test("payroll selection requires an active effective contract",()=>{
+ const worker=readFileSync(new URL("../worker/payroll-sheet.ts",import.meta.url),"utf8");
  assert.match(worker,/JOIN employee_contracts c ON c\.employee_id=e\.id/);
  assert.match(worker,/c\.status='Ativo'/);
  assert.match(worker,/c\.start_date<=\?/);
