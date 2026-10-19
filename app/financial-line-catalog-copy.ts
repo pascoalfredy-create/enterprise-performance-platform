@@ -224,6 +224,13 @@ export const catalogCopy: Record<string, Five> = {
     "Descendre",
     "Переместить вниз",
   ],
+  moveToGroup: [
+    "Mover para outro grupo",
+    "Move to another group",
+    "Mover a otro grupo",
+    "Déplacer vers un autre groupe",
+    "Переместить в другую группу",
+  ],
   showHiddenToggle: [
     "Mostrar rubricas ocultas",
     "Show hidden rubrics",

@@ -66,6 +66,23 @@ function flatOptions(nodes: TreeNode[], depth = 0): { id: string; label: string 
   return out;
 }
 
+// A rubrica (and everything under it) can never become its own ancestor —
+// filtered out client-side as a UX convenience; the server's cycle-guard
+// trigger is the real, authoritative check either way.
+function subtreeIds(node: TreeNode): Set<string> {
+  const ids = new Set<string>([node.id]);
+  for (const child of node.children) for (const id of subtreeIds(child)) ids.add(id);
+  return ids;
+}
+function findNode(nodes: TreeNode[], id: string): TreeNode | null {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const found = findNode(node.children, id);
+    if (found) return found;
+  }
+  return null;
+}
+
 export function FinancialLineCatalogWorkspace() {
   const locale = usePlatformLocale(),
     index = { pt: 0, en: 1, es: 2, fr: 3, ru: 4 }[locale],
@@ -177,6 +194,15 @@ export function FinancialLineCatalogWorkspace() {
     await submit("financialLineReorder", { lineId: swapWith.id, displayOrder: node.display_order });
   }
 
+  async function moveToGroup(node: LineRow, newParentId: string) {
+    if ((newParentId || null) === node.parent_id) return;
+    const newSiblings = rows.filter((r) => (r.parent_id || "") === (newParentId || ""));
+    const displayOrder = newSiblings.length
+      ? Math.max(...newSiblings.map((s) => s.display_order)) + 1
+      : 0;
+    await submit("financialLineReorder", { lineId: node.id, parentId: newParentId || null, displayOrder });
+  }
+
   return (
     <section className="catalog-universal-workspace">
       <header>
@@ -231,6 +257,20 @@ export function FinancialLineCatalogWorkspace() {
                   <button onClick={() => move(node, siblings, 1)} title={t("moveDown")}>
                     ↓
                   </button>
+                  <select
+                    title={t("moveToGroup")}
+                    value={node.parent_id || ""}
+                    onChange={(e) => moveToGroup(node, e.target.value)}
+                  >
+                    <option value="">{t("rootLevel")}</option>
+                    {parentOptions
+                      .filter((o) => !subtreeIds(node).has(o.id))
+                      .map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                  </select>
                   <button
                     onClick={() => {
                       setRenamingId(node.id);
