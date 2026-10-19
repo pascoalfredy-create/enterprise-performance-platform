@@ -57,7 +57,7 @@ export async function financialLedgerApi(request:Request,db:D1Database,security:
    actualId=body.actualEntryId;
   }else if(isIncome){
    actualId=crypto.randomUUID();const code='FL_'+id;
-   statements.push(db.prepare("INSERT INTO financial_line_catalog VALUES (?,?,?,?,?,'Não aplicável','Natural','Ativa',?,?)").bind(crypto.randomUUID(),tenant,code,body.category?.trim()||body.description.trim(),isSale?'Receita':'Custo',security.email,now));
+   statements.push(db.prepare("INSERT INTO financial_line_catalog (id,tenant_id,code,name,classification,cash_flow_category,sign_mode,status,created_by,created_at) VALUES (?,?,?,?,?,'Não aplicável','Natural','Ativa',?,?)").bind(crypto.randomUUID(),tenant,code,body.category?.trim()||body.description.trim(),isSale?'Receita':'Custo',security.email,now));
    statements.push(db.prepare("INSERT INTO performance_entries (id,tenant_id,created_at,organization_id,period,scenario,version_id,currency,line_code,line_name,amount_minor,source) VALUES (?,?,?,?,?,'Actual',NULL,?,?,?,?,'Motor financeiro')").bind(actualId,tenant,now,selected.organization_id,date.slice(0,7),currency,code,body.description.trim(),kind.includes('Return')?-amount:amount));
   }
   const operation:Operation={id,book_id:selected.id,operation_date:date,kind,amount_minor:amount,tax_minor:tax,due_date:credit?body.dueDate:null,tax_due_date:isSale&&tax?body.taxDueDate:null,party:body.party?.trim()||'',category:body.category?.trim()||body.description.trim(),description:body.description.trim(),reference:ref,target_id:body.targetId||null,cash_activity:body.cashActivity,actual_entry_id:actualId,cost_role:role};

@@ -29,6 +29,13 @@ import {
 } from "../lib/commercial-catalog";
 import { employeeCapacityError } from "./subscription-limits";
 import { isCorporateEmail } from "../lib/corporate-email";
+import {
+  adoptLineCatalogTemplate,
+  catalogTotals,
+  duplicateLineValues,
+  recomputeSubtreeLevels,
+  type FinancialLineRow,
+} from "./financial-line-catalog";
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
 import { controlPlaneApi, ensureFirstOperator } from "./control-plane";
@@ -1720,8 +1727,16 @@ async function setupSnapshot(
   tenantId: string,
   organizationId: string | null = null,
 ) {
-  const [organizations, users, employees, audit, dimensions, dimensionMembers] =
-    await Promise.all([
+  const [
+    organizations,
+    users,
+    employees,
+    audit,
+    dimensions,
+    dimensionMembers,
+    financialLineCatalog,
+    financialLineCatalogTemplates,
+  ] = await Promise.all([
       db
         .prepare(
           "SELECT * FROM organizations WHERE tenant_id=? AND (? IS NULL OR id=?) ORDER BY created_at",
@@ -1760,6 +1775,17 @@ async function setupSnapshot(
         )
         .bind(tenantId)
         .all(),
+      db
+        .prepare(
+          "SELECT * FROM financial_line_catalog WHERE tenant_id=? ORDER BY level,display_order,code",
+        )
+        .bind(tenantId)
+        .all(),
+      db
+        .prepare(
+          "SELECT * FROM financial_line_catalog_templates ORDER BY level,display_order,code",
+        )
+        .all(),
     ]);
   return {
     organizations: organizations.results,
@@ -1768,6 +1794,8 @@ async function setupSnapshot(
     audit: audit.results,
     dimensions: dimensions.results,
     dimensionMembers: dimensionMembers.results,
+    financialLineCatalog: financialLineCatalog.results,
+    financialLineCatalogTemplates: financialLineCatalogTemplates.results,
   };
 }
 async function setupApi(
@@ -1779,8 +1807,22 @@ async function setupApi(
 ) {
   try {
     await ensureSetupSchema(db);
-    if (request.method === "GET")
-      return Response.json(await setupSnapshot(db, tenantId, organizationId));
+    if (request.method === "GET") {
+      const snapshot = await setupSnapshot(db, tenantId, organizationId);
+      const catalogPeriod = new URL(request.url).searchParams.get("catalogPeriod");
+      if (!catalogPeriod) return Response.json(snapshot);
+      const params = new URL(request.url).searchParams;
+      return Response.json({
+        ...snapshot,
+        financialLineCatalogTotals: await catalogTotals(db, tenantId, {
+          organizationId,
+          period: catalogPeriod,
+          currency: params.get("catalogCurrency") || "AOA",
+          scenario: params.get("catalogScenario") === "Budget" ? "Budget" : "Actual",
+          versionId: params.get("catalogVersionId"),
+        }),
+      });
+    }
     if (request.method !== "POST")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const body = (await request.json()) as Record<string, string>,
@@ -2118,6 +2160,243 @@ async function setupApi(
           created,
         )
         .run();
+    } else if (body.type === "financialLineCreate") {
+      const classifications = ["Receita","Custo","Ativo","Passivo","Capital","Caixa","Outro"],
+        cashFlowCategories = ["Operacional","Investimento","Financiamento","Não aplicável"],
+        signModes = ["Natural","Inverter"],
+        lineKinds = ["Agregação","Analítica","Calculada"];
+      if (!body.name?.trim() || !body.code?.trim())
+        return Response.json(
+          { error: "Nome e código são obrigatórios." },
+          { status: 400 },
+        );
+      if (
+        await db
+          .prepare("SELECT id FROM financial_line_catalog WHERE tenant_id=? AND code=?")
+          .bind(tenantId, body.code.trim())
+          .first()
+      )
+        return Response.json(
+          { error: "Já existe uma rubrica com este código." },
+          { status: 409 },
+        );
+      // A rubrica created under a group inherits that group's natureza,
+      // categoria de fluxo and sinal unless explicitly overridden — matches
+      // the simple "grupo de destino + nome" creation flow, while a root
+      // rubrica (no parent) must state them explicitly.
+      let parentLevel = 0,
+        inheritedClassification: string | null = null,
+        inheritedCashFlowCategory: string | null = null,
+        inheritedSignMode: string | null = null;
+      if (body.parentId) {
+        const parent = await db
+          .prepare(
+            "SELECT level,classification,cash_flow_category,sign_mode FROM financial_line_catalog WHERE id=? AND tenant_id=? AND status='Ativa'",
+          )
+          .bind(body.parentId, tenantId)
+          .first<{ level: number; classification: string; cash_flow_category: string; sign_mode: string }>();
+        if (!parent)
+          return Response.json(
+            { error: "A rubrica superior não existe ou está desactivada." },
+            { status: 400 },
+          );
+        parentLevel = parent.level;
+        inheritedClassification = parent.classification;
+        inheritedCashFlowCategory = parent.cash_flow_category;
+        inheritedSignMode = parent.sign_mode;
+      }
+      const classification = classifications.includes(body.classification || "")
+        ? body.classification
+        : inheritedClassification;
+      const cashFlowCategory = cashFlowCategories.includes(body.cashFlowCategory || "")
+        ? body.cashFlowCategory
+        : inheritedCashFlowCategory;
+      const signMode = signModes.includes(body.signMode || "") ? body.signMode : inheritedSignMode;
+      if (!classification || !cashFlowCategory || !signMode)
+        return Response.json(
+          {
+            error:
+              "Natureza, categoria de fluxo e sinal são obrigatórios para uma rubrica sem grupo superior.",
+          },
+          { status: 400 },
+        );
+      const lineKind = lineKinds.includes(body.lineKind || "") ? body.lineKind : "Analítica";
+      summary = `Rubrica ${body.name.trim()} criada`;
+      await db
+        .prepare(
+          "INSERT INTO financial_line_catalog (id,tenant_id,code,name,classification,cash_flow_category,sign_mode,status,created_by,created_at,parent_id,level,display_order,hidden,line_kind,source_type,manual_adjustment_allowed,description) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          recordId,
+          tenantId,
+          body.code.trim(),
+          body.name.trim(),
+          classification,
+          cashFlowCategory,
+          signMode,
+          "Ativa",
+          actor,
+          created,
+          body.parentId || null,
+          parentLevel + 1,
+          Number.isInteger(Number(body.displayOrder)) ? Number(body.displayOrder) : 0,
+          0,
+          lineKind,
+          body.sourceType || "Manual",
+          (body.manualAdjustmentAllowed as unknown as boolean) === false ||
+          body.manualAdjustmentAllowed === "false"
+            ? 0
+            : 1,
+          body.description?.trim() || "",
+        )
+        .run();
+    } else if (body.type === "financialLineRename") {
+      if (!body.lineId || !body.name?.trim())
+        return Response.json(
+          { error: "Rubrica e novo nome são obrigatórios." },
+          { status: 400 },
+        );
+      const result = await db
+        .prepare(
+          "UPDATE financial_line_catalog SET name=? WHERE id=? AND tenant_id=?",
+        )
+        .bind(body.name.trim(), body.lineId, tenantId)
+        .run();
+      if (!result.meta.changes)
+        return Response.json({ error: "Rubrica não encontrada." }, { status: 404 });
+      summary = `Rubrica renomeada para ${body.name.trim()}`;
+    } else if (body.type === "financialLineSetHidden") {
+      if (!body.lineId)
+        return Response.json({ error: "Rubrica é obrigatória." }, { status: 400 });
+      const hidden = (body.hidden as unknown as boolean) === true || body.hidden === "true";
+      const result = await db
+        .prepare(
+          "UPDATE financial_line_catalog SET hidden=? WHERE id=? AND tenant_id=?",
+        )
+        .bind(hidden ? 1 : 0, body.lineId, tenantId)
+        .run();
+      if (!result.meta.changes)
+        return Response.json({ error: "Rubrica não encontrada." }, { status: 404 });
+      summary = hidden ? "Rubrica ocultada" : "Rubrica reposta na visualização";
+    } else if (body.type === "financialLineSetStatus") {
+      if (!body.lineId || !["Ativa", "Inativa"].includes(body.status || ""))
+        return Response.json(
+          { error: "Rubrica e estado válido são obrigatórios." },
+          { status: 400 },
+        );
+      const result = await db
+        .prepare(
+          "UPDATE financial_line_catalog SET status=? WHERE id=? AND tenant_id=?",
+        )
+        .bind(body.status, body.lineId, tenantId)
+        .run();
+      if (!result.meta.changes)
+        return Response.json({ error: "Rubrica não encontrada." }, { status: 404 });
+      summary = body.status === "Inativa" ? "Rubrica desactivada" : "Rubrica reactivada";
+    } else if (body.type === "financialLineReorder") {
+      if (!body.lineId || !Number.isInteger(Number(body.displayOrder)))
+        return Response.json(
+          { error: "Rubrica e posição são obrigatórias." },
+          { status: 400 },
+        );
+      const line = await db
+        .prepare("SELECT level,parent_id FROM financial_line_catalog WHERE id=? AND tenant_id=?")
+        .bind(body.lineId, tenantId)
+        .first<{ level: number; parent_id: string | null }>();
+      if (!line)
+        return Response.json({ error: "Rubrica não encontrada." }, { status: 404 });
+      const reparenting = body.parentId !== undefined && (body.parentId || null) !== line.parent_id;
+      let newLevel = line.level;
+      if (reparenting) {
+        let parentLevel = 0;
+        if (body.parentId) {
+          const parent = await db
+            .prepare("SELECT level FROM financial_line_catalog WHERE id=? AND tenant_id=?")
+            .bind(body.parentId, tenantId)
+            .first<{ level: number }>();
+          if (!parent)
+            return Response.json(
+              { error: "A rubrica superior não existe." },
+              { status: 400 },
+            );
+          parentLevel = parent.level;
+        }
+        newLevel = parentLevel + 1;
+        try {
+          await db
+            .prepare(
+              "UPDATE financial_line_catalog SET parent_id=?,level=?,display_order=? WHERE id=? AND tenant_id=?",
+            )
+            .bind(body.parentId || null, newLevel, Number(body.displayOrder), body.lineId, tenantId)
+            .run();
+        } catch {
+          return Response.json(
+            { error: "Reorganização inválida: criaria um ciclo na hierarquia." },
+            { status: 409 },
+          );
+        }
+        await recomputeSubtreeLevels(db, tenantId, body.lineId, newLevel);
+      } else {
+        await db
+          .prepare(
+            "UPDATE financial_line_catalog SET display_order=? WHERE id=? AND tenant_id=?",
+          )
+          .bind(Number(body.displayOrder), body.lineId, tenantId)
+          .run();
+      }
+      summary = "Rubrica reorganizada";
+    } else if (body.type === "financialLineDuplicate") {
+      if (!body.lineId || !body.code?.trim() || !body.name?.trim())
+        return Response.json(
+          { error: "Rubrica de origem, novo código e novo nome são obrigatórios." },
+          { status: 400 },
+        );
+      const source = await db
+        .prepare("SELECT * FROM financial_line_catalog WHERE id=? AND tenant_id=?")
+        .bind(body.lineId, tenantId)
+        .first<FinancialLineRow>();
+      if (!source)
+        return Response.json({ error: "Rubrica de origem não encontrada." }, { status: 404 });
+      if (
+        await db
+          .prepare("SELECT id FROM financial_line_catalog WHERE tenant_id=? AND code=?")
+          .bind(tenantId, body.code.trim())
+          .first()
+      )
+        return Response.json(
+          { error: "Já existe uma rubrica com este código." },
+          { status: 409 },
+        );
+      const copy = duplicateLineValues(source, body.code.trim(), body.name.trim());
+      await db
+        .prepare(
+          "INSERT INTO financial_line_catalog (id,tenant_id,code,name,classification,cash_flow_category,sign_mode,status,created_by,created_at,parent_id,level,display_order,hidden,line_kind,source_type,manual_adjustment_allowed,description) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          recordId,
+          tenantId,
+          copy.code,
+          copy.name,
+          copy.classification,
+          copy.cash_flow_category,
+          copy.sign_mode,
+          "Ativa",
+          actor,
+          created,
+          copy.parent_id,
+          copy.level,
+          copy.display_order,
+          0,
+          copy.line_kind,
+          copy.source_type,
+          copy.manual_adjustment_allowed,
+          copy.description,
+        )
+        .run();
+      summary = `Rubrica duplicada de ${source.name} para ${body.name.trim()}`;
+    } else if (body.type === "financialLineAdoptTemplate") {
+      const result = await adoptLineCatalogTemplate(db, tenantId, actor);
+      summary = `Biblioteca universal adoptada: ${result.adopted} rubricas criadas, ${result.reused} já existentes mantidas`;
     } else
       return Response.json(
         { error: "Operação não suportada." },
@@ -2136,9 +2415,25 @@ async function setupApi(
         tenantId,
         body.type === "userAction"
           ? String(body.action || "UPDATE").toUpperCase()
-          : "CREATE",
+          : [
+                "financialLineRename",
+                "financialLineSetHidden",
+                "financialLineSetStatus",
+                "financialLineReorder",
+              ].includes(body.type)
+            ? "UPDATE"
+            : "CREATE",
         body.type,
-        body.type === "userAction" ? body.userId : recordId,
+        body.type === "userAction"
+          ? body.userId
+          : [
+                "financialLineRename",
+                "financialLineSetHidden",
+                "financialLineSetStatus",
+                "financialLineReorder",
+              ].includes(body.type)
+            ? body.lineId
+            : recordId,
         actor,
         summary,
         created,

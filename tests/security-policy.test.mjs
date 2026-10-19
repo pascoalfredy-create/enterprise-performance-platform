@@ -483,3 +483,11 @@ test("opening a new commerce account (production company sign-up) requires a cor
  const checkIdx=compact.indexOf("!isCorporateEmail(email)");
  assert.ok(checkIdx>=0&&insertIdx>checkIdx,"the corporate-email check must run before commerce_accounts is inserted");
 });
+test("the universal line-catalog actions live inside setupApi, so they inherit the same setup:write gate as every other setup action (no separate, unaudited permission path)",()=>{
+ const setupStart=rawSource.indexOf("async function setupSnapshot(");
+ const setupEnd=rawSource.indexOf("\nasync function hcmSnapshot(");
+ assert.ok(setupStart>=0&&setupEnd>setupStart,"could not locate the setupApi/setupSnapshot block");
+ const setupBlock=rawSource.slice(setupStart,setupEnd);
+ for(const type of ["financialLineCreate","financialLineRename","financialLineSetHidden","financialLineSetStatus","financialLineReorder","financialLineDuplicate","financialLineAdoptTemplate"])
+  assert.match(setupBlock,new RegExp(`body\\.type === "${type}"`),`${type} should be handled inside setupApi`);
+});

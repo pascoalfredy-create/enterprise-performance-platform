@@ -11,6 +11,7 @@ import { CompetenciesWorkspace } from "./competencies-workspace";
 import { ConsolidationWorkspace } from "./consolidation-workspace";
 import { FinancialModelsWorkspace } from "./financial-models-workspace";
 import { FinancialDataWorkspace } from "./financial-data-workspace";
+import { FinancialLineCatalogWorkspace } from "./financial-line-catalog-workspace";
 import { FinancialDiagnosticsWorkspace } from "./financial-diagnostics-workspace";
 import { WorkforcePlansWorkspace } from "./workforce-plans-workspace";
 import { RecruitmentWorkspace } from "./recruitment-workspace";
@@ -113,6 +114,7 @@ const moduleCatalog: Array<{
       { label: "Dimensões financeiras", target: "Administração" },
       { label: "Dados, catálogo e mappings", target: "Dados financeiros" },
       { label: "Automatização da análise", target: "Automatização" },
+      { label: "Catálogo Universal de Rubricas", target: "Catálogo de Rubricas" },
       { label: "Actual e Budget", target: "Planeamento" },
       { label: "Versões orçamentais", target: "Planeamento", document: true },
       { label: "Forecast e cenários", target: "Cenários" },
@@ -602,6 +604,8 @@ export default function Home() {
             <AnalysisAutomationWorkspace />
           ) : modulo === "Dados financeiros" ? (
             <FinancialDataWorkspace />
+          ) : modulo === "Catálogo de Rubricas" ? (
+            <FinancialLineCatalogWorkspace />
           ) : modulo === "Cockpit CFO" ? (
             <FinanceSuite initialView="Cockpit CFO" onNavigate={setModulo} />
           ) : modulo === "Demonstrações" ? (

@@ -29,7 +29,7 @@ export async function installEnterpriseDemo(db:D1Database,s:Security){
   ["CAPEX","CAPEX",[120000000,80000000,95000000,135000000,70000000,110000000],[100000000,100000000,100000000,100000000,100000000,100000000]],
   ["CASH","Caixa disponível",[760000000,815000000,860000000,920000000,980000000,1050000000],[740000000,790000000,835000000,890000000,945000000,1000000000]]
  ] as const;
- for(const [code,name] of lines)statements.push(q("INSERT OR IGNORE INTO financial_line_catalog VALUES (?,?,?,?,?,?,?,?,?,?)",key(t,`catalog-${code}`),t,code,name,code==="REVENUE"?"Receita":["COGS","OPEX"].includes(code)?"Custo":"Ativo","Não aplicável","Natural","Ativa",actor,now));
+ for(const [code,name] of lines)statements.push(q("INSERT OR IGNORE INTO financial_line_catalog (id,tenant_id,code,name,classification,cash_flow_category,sign_mode,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",key(t,`catalog-${code}`),t,code,name,code==="REVENUE"?"Receita":["COGS","OPEX"].includes(code)?"Custo":"Ativo","Não aplicável","Natural","Ativa",actor,now));
  for(const [code,name,actual,bud] of lines)for(let i=0;i<periods.length;i++)statements.push(
   q("INSERT OR IGNORE INTO performance_entries (id,tenant_id,created_at,organization_id,period,scenario,version_id,currency,line_code,line_name,dimension_member_id,amount_minor,source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",key(t,`actual-${code}-${i}`),t,now,org,periods[i],"Actual",null,"AOA",code,name,member,actual[i],"ERP Demo"),
   q("INSERT OR IGNORE INTO performance_entries (id,tenant_id,created_at,organization_id,period,scenario,version_id,currency,line_code,line_name,dimension_member_id,amount_minor,source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",key(t,`budget-${code}-${i}`),t,now,org,periods[i],"Budget",budget,"AOA",code,name,member,bud[i],"FP&A Demo")
@@ -72,7 +72,7 @@ export async function installEnterpriseDemo(db:D1Database,s:Security){
  statements.push(q("UPDATE financial_models SET status='Calculado',input_hash=?,calculated_by=?,calculated_at=? WHERE id=? AND status='Rascunho'","model-input",actor,now,model),q("UPDATE financial_models SET status='Aprovado',approved_by=?,approved_at=?,approval_hash=? WHERE id=? AND status='Calculado'",manager,now,"model-approved",model));
  const catalog=key(t,"catalog"),batch=key(t,"batch"),diag=key(t,"diag-framework"),diagRun=key(t,"diag-run"),invest=key(t,"investment");
  statements.push(
-  q("INSERT OR IGNORE INTO financial_line_catalog VALUES (?,?,?,?,?,?,?,?,?,?)",catalog,t,"REV","Receita","Receita","Operacional","Natural","Ativa",actor,now),
+  q("INSERT OR IGNORE INTO financial_line_catalog (id,tenant_id,code,name,classification,cash_flow_category,sign_mode,status,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",catalog,t,"REV","Receita","Receita","Operacional","Natural","Ativa",actor,now),
   q("INSERT OR IGNORE INTO financial_source_mappings VALUES (?,?,?,?,?,?,?,?)",key(t,"mapping"),t,"ERP-DEMO","701",catalog,member,actor,now),
   q("INSERT OR IGNORE INTO financial_import_batches VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",batch,t,org,"2026-08","AOA","ERP-DEMO","balancete_agosto.csv","Carregado",1,2180000000,"batch-input",actor,now,null,null,null,null),
   q("INSERT OR IGNORE INTO financial_import_rows VALUES (?,?,?,?,?,?,?,?,?,?,?)",key(t,"import-row"),t,batch,1,"701","Vendas e serviços",2180000000,catalog,member,"Mapeado","row-hash"),
