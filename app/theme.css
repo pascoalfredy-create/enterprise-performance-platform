@@ -16,3 +16,9 @@
 .portal-gate>div>b.brand-mark-pulse{width:92px;height:92px;background:transparent;box-shadow:none;animation:brand-pulse 2.4s ease-in-out infinite}
 @keyframes brand-pulse{0%,100%{transform:scale(1);opacity:.92}50%{transform:scale(1.07);opacity:1}}
 @media(prefers-reduced-motion:reduce){.portal-gate>div>b.brand-mark-pulse{animation:none}}
+main.portal-gate{background:#fff;color:#10241e}
+main.portal-gate small{color:#0b6d5c}
+main.portal-gate h1{color:#10241e}
+main.portal-gate p{color:#5c6b65}
+main.portal-gate i{background:#0000001a}
+main.portal-gate i:after{background:#0b6d5c}
