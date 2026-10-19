@@ -136,7 +136,7 @@ const moduleCatalog: Array<{
     accessCodes: ["HCM", "PAYROLL"],
     items: [
       { label: "Visão do Gestor RH", target: "RH Dashboard" },
-      { label: "Employee Master", target: "Administração" },
+      { label: "Employee Master", target: "Employee Master" },
       { label: "Ficha do colaborador", target: "Ficha do colaborador", requires: "PAYROLL" },
       { label: "Contratos", target: "Pessoas" },
       { label: "Recrutamento e onboarding", target: "Recrutamento" },
@@ -589,8 +589,8 @@ export default function Home() {
           <EngineReadiness onNavigate={setModulo} locale={locale} />
           {modulo === "Ativação" ? (
             <CustomerActivationWorkspace onNavigate={setModulo} />
-          ) : ["Administração","Utilizadores"].includes(modulo) ? (
-            <ConfiguracaoReal initialStep={modulo === "Utilizadores" ? 2 : 1} payrollEnabled={sessao.modules.includes("PAYROLL")} />
+          ) : ["Administração","Utilizadores","Employee Master"].includes(modulo) ? (
+            <ConfiguracaoReal initialStep={modulo === "Utilizadores" ? 2 : modulo === "Employee Master" ? 3 : 1} autoOpenNewRecord={modulo === "Employee Master"} payrollEnabled={sessao.modules.includes("PAYROLL")} />
           ) : modulo === "Documentos" ? (
             <DocumentHubWorkspace />
           ) : modulo === "Extratos bancários" ? (
@@ -929,14 +929,14 @@ const vazio: SetupData = {
   dimensions: [],
   dimensionMembers: [],
 };
-function ConfiguracaoReal({initialStep=1,payrollEnabled=false}:{initialStep?:number;payrollEnabled?:boolean}) {
+function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=false}:{initialStep?:number;autoOpenNewRecord?:boolean;payrollEnabled?:boolean}) {
   const fileLocale=usePlatformLocale(),fileIndex={pt:0,en:1,es:2,fr:3,ru:4}[fileLocale];
   const [employeeFileId,setEmployeeFileId]=useState<string|null>(null);
   useEffect(()=>{if(employeeFileId)document.getElementById("administration-employee-file")?.focus();},[employeeFileId]);
-  useEffect(()=>{setEtapa(initialStep)},[initialStep]);
+  useEffect(()=>{setEtapa(initialStep);if(autoOpenNewRecord){setTipoModal("");setAberto(true);}},[initialStep,autoOpenNewRecord]);
   const [etapa, setEtapa] = useState(initialStep),
     [dados, setDados] = useState<SetupData>(vazio),
-    [aberto, setAberto] = useState(false),
+    [aberto, setAberto] = useState(autoOpenNewRecord),
     [tipoModal, setTipoModal] = useState(""),
     [dimensaoAtiva, setDimensaoAtiva] = useState(""),
     [erro, setErro] = useState(""),
