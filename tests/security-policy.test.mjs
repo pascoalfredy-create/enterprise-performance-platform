@@ -32,7 +32,7 @@ test("browser receives only the public identity configuration at runtime",()=>{
 });
 test("checkout is server-priced idempotent and precedes tenant provisioning",()=>{
  assert.match(source,/async function commerceCheckoutApi/);
- assert.match(rawSource,/subscriptionTotal\(\s*\{\s*bundle,\s*interval:\s*interval!,\s*users,\s*employees/);
+ assert.match(rawSource,/subscriptionTotal\(\s*\{\s*tier,\s*interval:\s*interval!,\s*extraFinancialModelProjects/);
  assert.match(source,/SELECT \* FROM checkout_sessions WHERE idempotency_key=/);
  assert.match(source,/checkout\.draft_created/);
  assert.match(source,/apiPath==="\/api\/commerce\/checkout"/);

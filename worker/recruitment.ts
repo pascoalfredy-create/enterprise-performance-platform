@@ -1,5 +1,6 @@
 import type {D1Database,R2Bucket} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
+import { employeeCapacityError } from "./subscription-limits";
 type Security = {
   tenantId: string;
   organizationId: string | null;
@@ -473,6 +474,9 @@ export async function recruitmentApi(
           { error: "O número de colaborador já existe." },
           { status: 409 },
         );
+      const capacityError = await employeeCapacityError(db, tenant);
+      if (capacityError)
+        return Response.json({ error: capacityError }, { status: 409 });
       const parts = caseRow.candidate_name.trim().split(/\s+/),
         firstName = parts[0],
         lastName = parts.slice(1).join(" ") || parts[0],

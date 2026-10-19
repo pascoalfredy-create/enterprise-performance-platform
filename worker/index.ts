@@ -22,9 +22,12 @@ import {
   bundles,
   CATALOG_VERSION,
   subscriptionTotal,
+  tierForEmployeeCount,
+  employeeTierByCode,
   type BillingInterval,
   type BundleCode,
 } from "../lib/commercial-catalog";
+import { employeeCapacityError } from "./subscription-limits";
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
 import { controlPlaneApi, ensureFirstOperator } from "./control-plane";
@@ -433,42 +436,41 @@ async function commerceCheckoutApi(request: Request, db: D1Database) {
     if (request.method !== "POST")
       return Response.json({ error: "Método não permitido." }, { status: 405 });
     const body = (await request.json()) as {
-      bundleCode?: BundleCode;
       interval?: BillingInterval;
-      users?: number;
       employees?: number;
+      extraFinancialModelProjects?: number;
     };
-    const bundle = bundles.find((x) => x.code === body.bundleCode),
+    const bundle = bundles[0],
       interval = body.interval,
-      users = Math.trunc(Number(body.users)),
-      employees = Math.trunc(Number(body.employees || 0));
+      employees = Math.trunc(Number(body.employees)),
+      extraFinancialModelProjects = Math.trunc(Number(body.extraFinancialModelProjects || 0));
     if (
-      !bundle ||
       !(["monthly", "annual"] as string[]).includes(interval || "") ||
-      !Number.isInteger(users) ||
-      users < 1 ||
-      users > 500 ||
       !Number.isInteger(employees) ||
-      employees < 0 ||
-      employees > 10000
+      employees < 1 ||
+      employees > 10000 ||
+      !Number.isInteger(extraFinancialModelProjects) ||
+      extraFinancialModelProjects < 0 ||
+      extraFinancialModelProjects > 50
     )
       return Response.json(
-        { error: "Bundle, periodicidade e dimensão válidos são obrigatórios." },
+        { error: "Periodicidade e dimensão válidos são obrigatórios." },
         { status: 400 },
       );
-    const calculated = subscriptionTotal({
-        bundle,
+    const tier = tierForEmployeeCount(employees),
+      calculated = subscriptionTotal({
+        tier,
         interval: interval!,
-        users,
-        employees,
+        extraFinancialModelProjects,
       }),
       fingerprint = JSON.stringify({
         accountId: account.id,
         catalogVersion: CATALOG_VERSION,
         bundleCode: bundle.code,
         interval,
-        users,
         employees,
+        tierCode: tier.code,
+        extraFinancialModelProjects,
         amountMinor: calculated.totalMinor,
       }),
       idempotencyKey = await sha256(fingerprint);
@@ -486,7 +488,7 @@ async function commerceCheckoutApi(request: Request, db: D1Database) {
     await db.batch([
       db
         .prepare(
-          "INSERT INTO checkout_sessions (id,account_id,catalog_version,bundle_code,billing_interval,requested_users,requested_employees,currency,amount_minor,status,idempotency_key,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO checkout_sessions (id,account_id,catalog_version,bundle_code,billing_interval,requested_users,requested_employees,requested_extra_financial_model_projects,currency,amount_minor,status,idempotency_key,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           id,
@@ -494,8 +496,9 @@ async function commerceCheckoutApi(request: Request, db: D1Database) {
           CATALOG_VERSION,
           bundle.code,
           interval,
-          users,
+          1,
           employees,
+          extraFinancialModelProjects,
           "AOA",
           calculated.totalMinor,
           "Rascunho",
@@ -527,8 +530,9 @@ async function commerceCheckoutApi(request: Request, db: D1Database) {
           catalog_version: CATALOG_VERSION,
           bundle_code: bundle.code,
           billing_interval: interval,
-          requested_users: users,
           requested_employees: employees,
+          requested_extra_financial_model_projects: extraFinancialModelProjects,
+          employee_tier: tier.code,
           currency: "AOA",
           amount_minor: calculated.totalMinor,
           status: "Rascunho",
@@ -815,16 +819,6 @@ async function testConfirmationApi(
   }
 }
 const bundleModules: Record<BundleCode, string[]> = {
-  FINANCE: ["CORE", "FINANCE_FP&A", "ANALYTICS_REPORTING", "WORKFLOW"],
-  PEOPLE: ["CORE", "HCM", "PAYROLL", "ANALYTICS_REPORTING", "WORKFLOW"],
-  PERFORMANCE: [
-    "CORE",
-    "FINANCE_FP&A",
-    "WORKFORCE_PLANNING",
-    "PERFORMANCE_MANAGEMENT",
-    "ANALYTICS_REPORTING",
-    "WORKFLOW",
-  ],
   ENTERPRISE: [
     "CORE",
     "FINANCE_FP&A",
@@ -926,7 +920,7 @@ async function provisionTenantApi(request: Request, db: D1Database) {
     }
     const source = await db
       .prepare(
-        "SELECT p.id payment_id,p.status payment_status,i.checkout_id,c.bundle_code,c.billing_interval,c.status checkout_status,c.account_id FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id JOIN checkout_sessions c ON c.id=i.checkout_id WHERE p.id=? AND c.account_id=?",
+        "SELECT p.id payment_id,p.status payment_status,i.checkout_id,c.bundle_code,c.billing_interval,c.status checkout_status,c.account_id,c.requested_employees,c.requested_extra_financial_model_projects FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id JOIN checkout_sessions c ON c.id=i.checkout_id WHERE p.id=? AND c.account_id=?",
       )
       .bind(body.paymentId, account.id)
       .first<Record<string, unknown>>();
@@ -954,6 +948,7 @@ async function provisionTenantApi(request: Request, db: D1Database) {
         { error: "Bundle contratado inválido." },
         { status: 409 },
       );
+    const employeeTier = tierForEmployeeCount(Number(source.requested_employees));
     const industry = await db
       .prepare(
         "SELECT s.code sector_code,s.name sector_name,p.code pack_code,p.name pack_name,p.description pack_description,p.methodology_name,p.status pack_status,p.version_number pack_version FROM industry_sectors s JOIN industry_packs p ON p.code=s.pack_code WHERE s.code=? AND s.status='Ativo' AND p.status IN ('Ativo','Piloto')",
@@ -1042,7 +1037,7 @@ async function provisionTenantApi(request: Request, db: D1Database) {
         ),
       db
         .prepare(
-          "INSERT INTO subscriptions (id,account_id,checkout_id,tenant_id,bundle_code,billing_interval,status,current_period_start,current_period_end,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO subscriptions (id,account_id,checkout_id,tenant_id,bundle_code,billing_interval,status,current_period_start,current_period_end,created_at,employee_tier,extra_financial_model_projects) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           subscriptionId,
@@ -1055,6 +1050,8 @@ async function provisionTenantApi(request: Request, db: D1Database) {
           created,
           periodEnd.toISOString(),
           created,
+          employeeTier.code,
+          Number(source.requested_extra_financial_model_projects || 0),
         ),
       db
         .prepare(
@@ -2008,6 +2005,9 @@ async function setupApi(
           { error: "O número de colaborador já existe." },
           { status: 409 },
         );
+      const capacityError = await employeeCapacityError(db, tenantId);
+      if (capacityError)
+        return Response.json({ error: capacityError }, { status: 409 });
       summary = `Colaborador ${body.firstName.trim()} ${body.lastName.trim()} criado`;
       await db
         .prepare(

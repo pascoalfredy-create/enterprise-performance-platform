@@ -1,6 +1,7 @@
 import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 import { parseMoneyMinor } from "../lib/money";
+import { financialModelProjectCapacityError } from "./subscription-limits";
 
 type Security = {
   tenantId: string;
@@ -200,6 +201,12 @@ export async function financialModelsApi(
         )
         .bind(tenant, organizationId, body.name.trim())
         .first<Record<string, unknown>>();
+      const isNewProject = Number(previous?.number || 0) === 0;
+      if (isNewProject) {
+        const capacityError = await financialModelProjectCapacityError(db, tenant);
+        if (capacityError)
+          return Response.json({ error: capacityError }, { status: 409 });
+      }
       entityId = uid();
       await db
         .prepare(
@@ -437,6 +444,34 @@ export async function financialModelsApi(
           { error: "O plano foi atualizado em paralelo." },
           { status: 409 },
         );
+    } else if (body.type === "purchaseExtraProject") {
+      if (security.role !== "Administrador")
+        return Response.json(
+          { error: "A compra de um projeto extra exige Administrador." },
+          { status: 403 },
+        );
+      // The commerce flow is pre-real-payment throughout this codebase (see
+      // the checkout simulator): this records the entitlement increase, not
+      // an actual charge of 500.000 Kz — billing integration will debit the
+      // account separately once a real payment processor is wired in.
+      const subscription = await db
+        .prepare(
+          "SELECT id FROM subscriptions WHERE tenant_id=? AND status='Ativa'",
+        )
+        .bind(tenant)
+        .first<{ id: string }>();
+      if (!subscription)
+        return Response.json(
+          { error: "Subscrição ativa não encontrada." },
+          { status: 404 },
+        );
+      entityId = subscription.id;
+      await db
+        .prepare(
+          "UPDATE subscriptions SET extra_financial_model_projects=extra_financial_model_projects+1 WHERE id=? AND tenant_id=?",
+        )
+        .bind(subscription.id, tenant)
+        .run();
     } else
       return Response.json(
         { error: "Operação de plano financeiro não suportada." },
