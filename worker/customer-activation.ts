@@ -29,7 +29,7 @@ export async function customerActivationApi(
       await Promise.all([
         db
           .prepare(
-            "SELECT s.*,c.requested_users,c.requested_employees,c.amount_minor,c.currency FROM subscriptions s JOIN checkout_sessions c ON c.id=s.checkout_id WHERE s.tenant_id=?",
+            "SELECT s.*,s.billing_period billing_interval,c.requested_users,c.requested_employees,c.amount_minor,c.currency FROM subscriptions s JOIN checkout_sessions c ON c.id=s.checkout_id WHERE s.tenant_id=?",
           )
           .bind(tenant)
           .first<Record<string, unknown>>(),

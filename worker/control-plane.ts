@@ -123,7 +123,7 @@ export async function controlPlaneApi(
           .all(),
         db
           .prepare(
-            "SELECT s.*,t.name tenant_name,a.email owner_email,(SELECT i.status FROM billing_invoices i WHERE i.checkout_id=s.checkout_id) invoice_status FROM subscriptions s JOIN tenants t ON t.id=s.tenant_id JOIN commerce_accounts a ON a.id=s.account_id ORDER BY s.created_at DESC",
+            "SELECT s.*,s.billing_period billing_interval,t.name tenant_name,a.email owner_email,(SELECT i.status FROM billing_invoices i WHERE i.checkout_id=s.checkout_id) invoice_status FROM subscriptions s JOIN tenants t ON t.id=s.tenant_id JOIN commerce_accounts a ON a.id=s.account_id ORDER BY s.created_at DESC",
           )
           .all(),
         db
@@ -133,7 +133,7 @@ export async function controlPlaneApi(
           .all(),
         db
           .prepare(
-            "SELECT i.*,a.email owner_email,c.bundle_code,c.billing_interval FROM billing_invoices i JOIN commerce_accounts a ON a.id=i.account_id JOIN checkout_sessions c ON c.id=i.checkout_id ORDER BY i.created_at DESC LIMIT 100",
+            "SELECT i.*,a.email owner_email,c.bundle_code,c.billing_period billing_interval FROM billing_invoices i JOIN commerce_accounts a ON a.id=i.account_id JOIN checkout_sessions c ON c.id=i.checkout_id ORDER BY i.created_at DESC LIMIT 100",
           )
           .all(),
         db

@@ -481,7 +481,9 @@ async function commerceCheckoutApi(request: Request, db: D1Database) {
       }),
       idempotencyKey = await sha256(fingerprint);
     const existing = await db
-      .prepare("SELECT * FROM checkout_sessions WHERE idempotency_key=?")
+      .prepare(
+        "SELECT *,billing_period billing_interval FROM checkout_sessions WHERE idempotency_key=?",
+      )
       .bind(idempotencyKey)
       .first();
     if (existing)
@@ -494,13 +496,14 @@ async function commerceCheckoutApi(request: Request, db: D1Database) {
     await db.batch([
       db
         .prepare(
-          "INSERT INTO checkout_sessions (id,account_id,catalog_version,bundle_code,billing_interval,requested_users,requested_employees,requested_extra_financial_model_projects,currency,amount_minor,status,idempotency_key,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO checkout_sessions (id,account_id,catalog_version,bundle_code,billing_interval,billing_period,requested_users,requested_employees,requested_extra_financial_model_projects,currency,amount_minor,status,idempotency_key,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           id,
           account.id,
           CATALOG_VERSION,
           bundle.code,
+          interval === "annual" ? "annual" : "monthly",
           interval,
           1,
           employees,
@@ -926,7 +929,7 @@ async function provisionTenantApi(request: Request, db: D1Database) {
     }
     const source = await db
       .prepare(
-        "SELECT p.id payment_id,p.status payment_status,i.checkout_id,c.bundle_code,c.billing_interval,c.status checkout_status,c.account_id,c.requested_employees,c.requested_extra_financial_model_projects FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id JOIN checkout_sessions c ON c.id=i.checkout_id WHERE p.id=? AND c.account_id=?",
+        "SELECT p.id payment_id,p.status payment_status,i.checkout_id,c.bundle_code,c.billing_period billing_interval,c.status checkout_status,c.account_id,c.requested_employees,c.requested_extra_financial_model_projects FROM payment_intents p JOIN billing_invoices i ON i.id=p.invoice_id JOIN checkout_sessions c ON c.id=i.checkout_id WHERE p.id=? AND c.account_id=?",
       )
       .bind(body.paymentId, account.id)
       .first<Record<string, unknown>>();
@@ -1045,7 +1048,7 @@ async function provisionTenantApi(request: Request, db: D1Database) {
         ),
       db
         .prepare(
-          "INSERT INTO subscriptions (id,account_id,checkout_id,tenant_id,bundle_code,billing_interval,status,current_period_start,current_period_end,created_at,employee_tier,extra_financial_model_projects) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO subscriptions (id,account_id,checkout_id,tenant_id,bundle_code,billing_interval,billing_period,status,current_period_start,current_period_end,created_at,employee_tier,extra_financial_model_projects) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           subscriptionId,
@@ -1053,6 +1056,7 @@ async function provisionTenantApi(request: Request, db: D1Database) {
           source.checkout_id,
           tenantId,
           bundle,
+          source.billing_interval === "annual" ? "annual" : "monthly",
           source.billing_interval,
           "Ativa",
           created,
