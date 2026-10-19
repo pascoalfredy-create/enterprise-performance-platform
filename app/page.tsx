@@ -17,6 +17,7 @@ import { RecruitmentWorkspace } from "./recruitment-workspace";
 import { AttendanceWorkspace } from "./attendance-workspace";
 import { PayrollLoansWorkspace } from "./payroll-loans-workspace";
 import { PayrollAdjustmentsWorkspace } from "./payroll-adjustments-workspace";
+import { SalaryNetSimulator } from "./salary-net-simulator";
 import { IntegrationsWorkspace } from "./integrations-workspace";
 import { EmployeeDocumentsWorkspace } from "./employee-documents-workspace";
 import { NotificationsCenter } from "./notifications-center";
@@ -148,6 +149,7 @@ const moduleCatalog: Array<{
         target: "Documentos HCM",
         document: true,
       },
+      { label: "Simulador de salário líquido", target: "Simulador Salarial", requires: "PAYROLL" },
       { label: "Payroll · Perfis e componentes", target: "Operações", requires: "PAYROLL" },
       { label: "Payroll Runs", target: "Processamentos", requires: "PAYROLL" },
       { label: "Histórico salarial", target: "Histórico salarial", requires: "PAYROLL" },
@@ -644,6 +646,8 @@ export default function Home() {
             <EmployeeDocumentsWorkspace />
           ) : modulo === "Processamentos" ? (
             <PayrollMonthlySheet onNavigate={setModulo}/>
+          ) : modulo === "Simulador Salarial" ? (
+            <SalaryNetSimulator />
           ) : ["Operações","Histórico salarial","Recibos salariais","Pagamentos salariais"].includes(modulo) ? (
             <>
               <PayrollCountryControls />

@@ -1,0 +1,11 @@
+.salary-simulator>header span{font-size:12px;font-weight:800;letter-spacing:.12em;color:#078683}.salary-simulator>header h1{font-size:30px;margin:6px 0}.salary-simulator>header p{font-size:14px;color:#667085;margin:0 0 18px;max-width:640px}
+.sim-mode{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid #e2ebe6;padding-bottom:14px;margin-bottom:18px}
+.sim-mode button{background:transparent;border:1px solid #d8e2dd;border-radius:9px;padding:10px 16px;font-size:13px;font-weight:700;color:#445a52;cursor:pointer}
+.sim-mode button.active{background:#eef7f2;border-color:#bfd7cb;color:#174e3b}
+.sim-grid{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start}
+.sim-inputs{display:grid;gap:14px;padding:20px}
+.sim-inputs label{display:grid;gap:6px;font-size:13px;font-weight:700;color:#334158}
+.sim-result{min-width:0}
+.sim-note{font-size:13px;color:#5d756b;line-height:1.55;margin:0 0 14px;padding:12px 14px;background:#f3f8f5;border-radius:10px}
+.sim-error{font-size:14px;background:#fff0ed;color:#a23827;padding:12px 14px;border-radius:9px;margin:0 0 14px}
+@media(max-width:860px){.sim-grid{grid-template-columns:1fr}}

@@ -43,6 +43,7 @@ const labels:Record<string,Five>={
 "Retroativos e ajustes":["Retroativos e ajustes","Retroactive pay & adjustments","Retroactivos y ajustes","Rétroactifs et ajustements","Перерасчёты и корректировки"],
 "Recibos de vencimento":["Recibos de vencimento","Payslips","Recibos de nómina","Bulletins de paie","Расчётные листки"],
 "Payment batches":["Payment batches","Payment batches","Lotes de pago","Lots de paiement","Платёжные реестры"],
+"Simulador de salário líquido":["Simulador de salário líquido","Net salary simulator","Simulador de salario neto","Simulateur de salaire net","Симулятор чистой зарплаты"],
 "Workforce Cost":["Workforce Cost","Workforce cost","Coste de plantilla","Coût des effectifs","Стоимость персонала"],
 "Headcount plan":["Headcount plan","Headcount plan","Plan de plantilla","Plan des effectifs","Штатный план"],
 "Mapa de custos":["Mapa de custos","Cost report","Informe de costes","Rapport des coûts","Отчёт по затратам"],

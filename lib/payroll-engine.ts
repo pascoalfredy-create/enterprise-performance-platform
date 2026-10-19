@@ -41,3 +41,15 @@ export function calculatePayroll(input:PayrollInput){
  return {regime:input.regime,ruleVersion:automatic?angolaPayroll2026.version:'GENERIC-2',baseMinor:input.baseMinor,grossMinor:gross,deductionMinor:deductions,employerMinor:employer,netMinor:gross-deductions,totalCostMinor:sum(gross,employer),components:items,tax:automatic?{employeeRateBps:angolaPayroll2026.employeeRateBps,employerRateBps:angolaPayroll2026.employerRateBps,socialBaseMinor:socialBase,employeeSocialMinor:employeeSocial,employerSocialMinor:employerSocial,irtExemptMinor:exempt,taxableMinor:taxable!,irtMinor:irt!.amountMinor,bracket:irt!.bracket,fixedMinor:irt!.fixedMinor,rateBps:irt!.rateBps,excessThresholdMinor:irt!.excessThresholdMinor,otherDeductionsMinor:otherDeductions}:null};
 }
 export type PayrollCalculationResult=ReturnType<typeof calculatePayroll>;
+// Net pay is monotonically non-decreasing in the base as it grows (each extra unit of gross
+// loses at most the top INSS + IRT marginal rate, well under 100%), so a bisection search over
+// baseMinor converges on the smallest gross whose calculated net reaches the target exactly.
+export function solveGrossForNet(targetNetMinor:number,fixedEarnings:PayrollComponentInput[],otherDeductionsMinor:number,period:string){
+ money(targetNetMinor);
+ const components=otherDeductionsMinor>0?[...fixedEarnings,{code:'SIM:OTHER_DEDUCTION',name:'Outros descontos',category:'Deduction',method:'Fixed',valueMinor:otherDeductionsMinor,treatment:'OtherDeduction'}]:fixedEarnings;
+ const netAt=(baseMinor:number)=>calculatePayroll({baseMinor,currency:'AOA',period,regime:'AO-2026',components}).netMinor;
+ let lo=0,hi=Math.max(targetNetMinor,100)*2,guard=0;
+ while(netAt(hi)<targetNetMinor){hi*=2;if(++guard>60)throw new Error('Líquido pretendido fora do intervalo suportado.');}
+ while(lo<hi){const mid=Math.floor((lo+hi)/2);if(netAt(mid)<targetNetMinor)lo=mid+1;else hi=mid;}
+ return calculatePayroll({baseMinor:hi,currency:'AOA',period,regime:'AO-2026',components});
+}
