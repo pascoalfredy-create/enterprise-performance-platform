@@ -1,5 +1,5 @@
-const CACHE_NAME = "portal-shell-v2";
-const SHELL_ASSETS = ["/portal-icon.svg", "/portal-manifest.json"];
+const CACHE_NAME = "portal-shell-v3";
+const SHELL_ASSETS = ["/brand-icon-192.png", "/brand-icon.png", "/portal-manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -29,7 +29,8 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || url.pathname.startsWith("/api/")) return;
   if (
     !url.pathname.startsWith("/portal") &&
-    url.pathname !== "/portal-icon.svg" &&
+    url.pathname !== "/brand-icon-192.png" &&
+    url.pathname !== "/brand-icon.png" &&
     url.pathname !== "/portal-manifest.json"
   )
     return;

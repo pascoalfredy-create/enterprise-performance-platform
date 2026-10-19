@@ -3,12 +3,12 @@ import type { Metadata, Viewport } from "next";
 export const metadata: Metadata = {
   title: "Portal do Colaborador",
   manifest: "/portal-manifest.json",
-  icons: { icon: "/portal-icon.svg", apple: "/portal-icon.svg" },
+  icons: { icon: "/brand-icon-192.png", apple: "/brand-icon-180.png" },
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Portal" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#11182b",
+  themeColor: "#084c43",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

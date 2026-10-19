@@ -349,7 +349,7 @@ export default function Home() {
     return (
       <main className="portal-gate">
         <div>
-          <b>EP</b>
+          <b className="brand-mark-pulse"><img src="/brand-mark.png" alt="" /></b>
           <small>ACESSO À PLATAFORMA</small>
           <h1>A sua sessão não está disponível</h1>
           <p>{sessionError}</p>
@@ -361,7 +361,7 @@ export default function Home() {
     return (
       <main className="portal-gate">
         <div>
-          <b>EP</b>
+          <b className="brand-mark-pulse"><img src="/brand-mark.png" alt="" /></b>
           <small>A VALIDAR IDENTIDADE E EMPRESA</small>
           <h1>A preparar o seu espaço</h1>
           <p>
@@ -378,7 +378,7 @@ export default function Home() {
       {inviteStatus && <div className="invite-feedback">{inviteStatus}</div>}
       <header className="topo"><button className="shell-menu-toggle" aria-label={msg("shell.subscribedModules")} aria-expanded={mobileMenu} aria-controls="platform-sidebar" onClick={()=>setMobileMenu(!mobileMenu)}>☰</button>
         <div className="marca">
-          <b>EP</b>
+          <b><img src="/brand-icon.png" alt="" /></b>
           <span>Enterprise Performance</span>
         </div>
         <div className="product-context">
@@ -474,7 +474,7 @@ export default function Home() {
         </button>
       </div>
       <div className="workspace-layout">
-        <button className={mobileMenu?"shell-backdrop visible":"shell-backdrop"} aria-label={msg("shell.subscribedModules")} onClick={()=>setMobileMenu(false)}/><aside id="platform-sidebar" role={mobileMenu?"dialog":undefined} aria-modal={mobileMenu||undefined} aria-label={automationCopy.menu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} className={mobileMenu?"module-sidebar menu-visible":"module-sidebar"}><div className="sidebar-brand"><b>EP</b><span>Enterprise Performance<small>{automationCopy.brand[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]}</small></span></div><button className="shell-menu-close" aria-label={automationCopy.closeMenu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} onClick={()=>setMobileMenu(false)}>×</button>
+        <button className={mobileMenu?"shell-backdrop visible":"shell-backdrop"} aria-label={msg("shell.subscribedModules")} onClick={()=>setMobileMenu(false)}/><aside id="platform-sidebar" role={mobileMenu?"dialog":undefined} aria-modal={mobileMenu||undefined} aria-label={automationCopy.menu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} className={mobileMenu?"module-sidebar menu-visible":"module-sidebar"}><div className="sidebar-brand"><b><img src="/brand-icon.png" alt="" /></b><span>Enterprise Performance<small>{automationCopy.brand[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]}</small></span></div><button className="shell-menu-close" aria-label={automationCopy.closeMenu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} onClick={()=>setMobileMenu(false)}>×</button>
           <header>
             <small>{msg("shell.subscribedModules")}</small>
             <span>{sessao.modules.length} {msg("shell.active")}</span>
@@ -6387,7 +6387,7 @@ function ManagementReport() {
             <>
               <header>
                 <div>
-                  <span>EP</span>
+                  <span><img src="/brand-icon.png" alt="" /></span>
                   <p>
                     <b>Enterprise Performance</b>
                     <small>Management Report · v{report.report_number}</small>
