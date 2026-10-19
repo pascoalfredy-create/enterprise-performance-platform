@@ -1668,6 +1668,8 @@ type HcmData = {
     emergency_contact_name: string;
     emergency_contact_phone: string;
     bank_iban: string;
+    tax_id: string;
+    id_document: string;
     requested_by: string;
     requested_at: string;
   }>;
@@ -2007,6 +2009,8 @@ function PeopleWorkspace() {
                     ? `Emergência: ${p.emergency_contact_name} · ${p.emergency_contact_phone}`
                     : "Sem contacto de emergência"}
                   {p.bank_iban ? ` · IBAN •••• ${p.bank_iban.slice(-4)}` : ""}
+                  {p.tax_id ? ` · NIF ${p.tax_id}` : ""}
+                  {p.id_document ? ` · Doc. ${p.id_document}` : ""}
                 </small>
               </p>
               <div>

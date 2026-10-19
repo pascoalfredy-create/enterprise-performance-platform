@@ -878,6 +878,8 @@ const rows:Array<[string,string,string,string,string]>=[
 ["Morada","Address","Dirección","Adresse","Адрес"],
 ["Contacto de emergência","Emergency contact","Contacto de emergencia","Contact d'urgence","Контакт для экстренной связи"],
 ["IBAN","IBAN","IBAN","IBAN","IBAN"],
+["NIF","Tax ID","NIF","Numéro fiscal","ИНН"],
+["Documento de identificação","Identity document","Documento de identidad","Document d'identité","Документ, удостоверяющий личность"],
 ["Nome do contacto de emergência","Emergency contact name","Nombre del contacto de emergencia","Nom du contact d'urgence","Имя контакта для экстренной связи"],
 ["Telefone do contacto de emergência","Emergency contact phone","Teléfono del contacto de emergencia","Téléphone du contact d'urgence","Телефон контакта для экстренной связи"],
 ["As alterações ficam pendentes de aprovação de RH antes de entrarem em vigor.","Changes stay pending HR approval before taking effect.","Los cambios quedan pendientes de aprobación de RR. HH. antes de entrar en vigor.","Les modifications restent en attente d'approbation RH avant d'entrer en vigueur.","Изменения ожидают утверждения HR, прежде чем вступить в силу."],

@@ -46,6 +46,8 @@ type PersonalDetails = {
   emergencyContactName: string;
   emergencyContactPhone: string;
   bankIban: string;
+  taxId: string;
+  idDocument: string;
   updatedAt: string | null;
   pendingRequest: { id: string; requestedAt: string } | null;
 };
@@ -524,6 +526,8 @@ export default function Portal() {
         emergencyContactName: f.get("emergencyContactName"),
         emergencyContactPhone: f.get("emergencyContactPhone"),
         bankIban: f.get("bankIban"),
+        taxId: f.get("taxId"),
+        idDocument: f.get("idDocument"),
       }),
     });
     const body = (await r.json()) as { error?: string };
@@ -1459,6 +1463,10 @@ export default function Portal() {
                           ? `•••• ${personalDetails.bankIban.slice(-4)}`
                           : "—"}
                       </dd>
+                      <dt>NIF</dt>
+                      <dd>{personalDetails.taxId || "—"}</dd>
+                      <dt>Documento de identificação</dt>
+                      <dd>{personalDetails.idDocument || "—"}</dd>
                     </dl>
                   )}
                   {!personalDetails.pendingRequest && (
@@ -1512,6 +1520,22 @@ export default function Portal() {
                           name="bankIban"
                           type="text"
                           defaultValue={personalDetails.bankIban}
+                        />
+                      </label>
+                      <label>
+                        NIF
+                        <input
+                          name="taxId"
+                          type="text"
+                          defaultValue={personalDetails.taxId}
+                        />
+                      </label>
+                      <label>
+                        Documento de identificação
+                        <input
+                          name="idDocument"
+                          type="text"
+                          defaultValue={personalDetails.idDocument}
                         />
                       </label>
                       <p className="portal-form-message">

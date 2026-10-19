@@ -86,5 +86,14 @@ export const payrollSheetCopy={
  openAdjustments:L('Abrir retroativos|Open adjustments|Abrir retroactivos|Ouvrir les rétroactifs|Открыть доплаты'),
  openAbsences:L('Abrir assiduidade|Open attendance|Abrir asistencia|Ouvrir les présences|Открыть учёт отсутствий'),
  noLinked:L('Sem registos pendentes ou aprovados neste momento.|No pending or approved records right now.|Sin registros pendientes o aprobados por ahora.|Aucun enregistrement en attente ou approuvé pour el momento.|Сейчас нет ожидающих или подтверждённых записей.'),
- unpaidAbsence:L('não remunerada|unpaid|no remunerada|non rémunérée|неоплачиваемое')
+ unpaidAbsence:L('não remunerada|unpaid|no remunerada|non rémunérée|неоплачиваемое'),
+
+ taxId:L('NIF|Tax ID|NIF|Numéro fiscal|ИНН'),
+ idDocument:L('Documento de identificação|Identity document|Documento de identidad|Document d’identité|Документ, удостоверяющий личность'),
+ phone:L('Telefone|Phone|Teléfono|Téléphone|Телефон'),
+ address:L('Morada|Address|Dirección|Adresse|Адрес'),
+ noIdentity:L('Sem dados pessoais aprovados. O colaborador submete-os no portal de self-service, sujeitos a aprovação de RH.|No approved personal details. The employee submits them in the self-service portal, subject to HR approval.|Sin datos personales aprobados. El empleado los envía en el portal de autoservicio, sujetos a aprobación de RR. HH.|Aucune donnée personnelle approuvée. Le salarié les soumet dans le portail libre-service, sous réserve d’approbation RH.|Нет подтверждённых личных данных. Сотрудник подаёт их через портал самообслуживания, с одобрения HR.'),
+ quantityDays:L('Dias pagos|Paid days|Días pagados|Jours payés|Оплачиваемые дни'),
+ dailyRate:L('Valor diário|Daily amount|Importe diario|Montant journalier|Сумма за день'),
+ daysNote:L('Indique o montante total ou preencha dias e valor diário. O valor diário é definido pela empresa; não é inferido da lei. Não substitui o registo de faltas e ausências.|Enter a total amount or days and a daily amount. The daily amount is set by the company; it is not inferred from law. It does not replace absence records.|Indique un total o complete días e importe diario. El importe diario lo define la empresa; no se deduce de la ley. No sustituye el registro de ausencias.|Saisissez un total ou des jours et un montant journalier. Le montant journalier est fixé par l’entreprise ; il n’est pas déduit de la loi. Il ne remplace pas le registre des absences.|Укажите сумму либо дни и сумму за день. Сумма за день устанавливается компанией, а не законом. Не заменяет учёт отсутствий.')
 };

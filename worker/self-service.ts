@@ -161,7 +161,7 @@ export async function selfServiceApi(
       if (resource === "personal-details") {
         const current = await db
           .prepare(
-            "SELECT phone,address,emergency_contact_name,emergency_contact_phone,bank_iban,decided_at FROM employee_personal_detail_requests WHERE tenant_id=? AND employee_id=? AND status='Aprovado' ORDER BY decided_at DESC LIMIT 1",
+            "SELECT phone,address,emergency_contact_name,emergency_contact_phone,bank_iban,tax_id,id_document,decided_at FROM employee_personal_detail_requests WHERE tenant_id=? AND employee_id=? AND status='Aprovado' ORDER BY decided_at DESC LIMIT 1",
           )
           .bind(tenant, employeeId)
           .first<{
@@ -170,6 +170,8 @@ export async function selfServiceApi(
             emergency_contact_name: string;
             emergency_contact_phone: string;
             bank_iban: string;
+            tax_id: string;
+            id_document: string;
             decided_at: string;
           }>();
         const pending = await db
@@ -184,6 +186,8 @@ export async function selfServiceApi(
           emergencyContactName: current?.emergency_contact_name || "",
           emergencyContactPhone: current?.emergency_contact_phone || "",
           bankIban: current?.bank_iban || "",
+          taxId: current?.tax_id || "",
+          idDocument: current?.id_document || "",
           updatedAt: current?.decided_at || null,
           pendingRequest: pending
             ? { id: pending.id, requestedAt: pending.requested_at }
@@ -754,7 +758,7 @@ export async function selfServiceApi(
         id = crypto.randomUUID();
       await db
         .prepare(
-          "INSERT INTO employee_personal_detail_requests (id,tenant_id,employee_id,phone,address,emergency_contact_name,emergency_contact_phone,bank_iban,status,requested_by,requested_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO employee_personal_detail_requests (id,tenant_id,employee_id,phone,address,emergency_contact_name,emergency_contact_phone,bank_iban,tax_id,id_document,status,requested_by,requested_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           id,
@@ -765,6 +769,8 @@ export async function selfServiceApi(
           (body.emergencyContactName || "").trim(),
           (body.emergencyContactPhone || "").trim(),
           iban,
+          (body.taxId || "").trim(),
+          (body.idDocument || "").trim(),
           "Pendente",
           security.email,
           now,
