@@ -3845,6 +3845,16 @@ export async function payrollApi(
       await savePayrollMonthInput(db,tenantId,organizationId,actor,body);
       return Response.json({saved:true});
     }
+    if(body.type==="employeeIdentity"){
+      if(!body.employeeId)return Response.json({error:"Colaborador obrigatório."},{status:400});
+      if(!(await db.prepare("SELECT id FROM employees WHERE id=? AND tenant_id=? AND (? IS NULL OR organization_id=?)").bind(body.employeeId,tenantId,organizationId,organizationId).first()))return Response.json({error:"Colaborador fora do âmbito autorizado."},{status:403});
+      const taxId=(body.taxId||"").trim(),idDocument=(body.idDocument||"").trim();
+      await db.batch([
+        db.prepare("INSERT INTO employee_tax_identity (tenant_id,employee_id,tax_id,id_document,updated_by,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(tenant_id,employee_id) DO UPDATE SET tax_id=excluded.tax_id,id_document=excluded.id_document,updated_by=excluded.updated_by,updated_at=excluded.updated_at").bind(tenantId,body.employeeId,taxId,idDocument,actor,created),
+        db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) VALUES (?,?,?,?,?,?,?,?)").bind(recordId,tenantId,created,"UPDATE","employee",body.employeeId,actor,"Identificação fiscal atualizada")
+      ]);
+      return Response.json({saved:true});
+    }
     if (["reviewPayrollComponent","setPayrollComponentStatus"].includes(body.type)) {
       const component=await db.prepare("SELECT c.* FROM payroll_components c WHERE c.id=? AND c.tenant_id=? AND EXISTS (SELECT 1 FROM payroll_assignments a JOIN employees e ON e.id=a.employee_id AND e.tenant_id=a.tenant_id WHERE a.component_id=c.id AND a.tenant_id=c.tenant_id AND (? IS NULL OR e.organization_id=?)) AND NOT EXISTS (SELECT 1 FROM payroll_assignments a JOIN employees e ON e.id=a.employee_id AND e.tenant_id=a.tenant_id WHERE a.component_id=c.id AND a.tenant_id=c.tenant_id AND ? IS NOT NULL AND e.organization_id<>?)").bind(body.componentId,tenantId,organizationId,organizationId,organizationId,organizationId).first<Record<string,unknown>>();
       if(!component)return Response.json({error:"Rubrica fora do âmbito autorizado."},{status:403});

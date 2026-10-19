@@ -987,12 +987,59 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
       body: JSON.stringify(payload),
     });
     const body = await readApiJson<SetupData & { error?: string; invite?: { token: string; delivery?: {status:string} } }>(res);
-    setAEnviar(false);
     if (!res.ok) {
+      setAEnviar(false);
       setErro(body.error || "Não foi possível guardar.");
       return;
     }
     setDados(body);
+    if (payload.type === "employee") {
+      const novo = body.employees.find(
+        (x) => x.employee_number === String(payload.employeeNumber).trim().toUpperCase(),
+      );
+      if (novo) {
+        const contractRes = await apiFetch("/api/v1/hcm", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            type: "createContract",
+            employeeId: novo.id,
+            contractNumber: payload.contractNumber,
+            contractType: payload.contractType,
+            startDate: payload.hireDate,
+            workSchedule: payload.workSchedule,
+            weeklyMinutes: payload.weeklyMinutes,
+            countryPack: payload.countryPack,
+          }),
+        });
+        const contractBody = await contractRes.json();
+        if (!contractRes.ok) {
+          setAEnviar(false);
+          setErro(
+            `Colaborador criado, mas o contrato não pôde ser ativado: ${contractBody.error}. Complete-o em Contratos.`,
+          );
+          return;
+        }
+        const contractId = contractBody.contracts?.[0]?.id;
+        if (contractId) {
+          const activateRes = await apiFetch("/api/v1/hcm", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ type: "activateContract", contractId }),
+          });
+          const activateBody = await activateRes.json();
+          if (!activateRes.ok) {
+            setAEnviar(false);
+            setErro(
+              `Colaborador e contrato criados, mas a ativação falhou: ${activateBody.error}. Ative-o em Contratos.`,
+            );
+            return;
+          }
+          await carregar();
+        }
+      }
+    }
+    setAEnviar(false);
     if (body.invite) {
       setInviteDelivery(body.invite.delivery?.status === "accepted" ? "O serviço de e-mail aceitou o convite para envio. A receção ainda não está confirmada." : body.invite.delivery?.status === "not_configured" ? "Convite criado, mas o envio de e-mail não está configurado. Nenhum e-mail foi enviado." : "Convite criado, mas o envio de e-mail falhou. Pode tentar novamente.");
       setInviteLink(
@@ -1600,6 +1647,45 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
                   Função
                   <input name="jobTitle" required />
                 </label>
+                <p className="config-contract-hint">
+                  O contrato é criado e ativado no mesmo passo — o colaborador fica
+                  elegível para salário de imediato, sem aprovação separada.
+                </p>
+                <div>
+                  <label>
+                    Número do contrato
+                    <input name="contractNumber" required placeholder="CTR-001" />
+                  </label>
+                  <label>
+                    Tipo de contrato
+                    <input name="contractType" required defaultValue="Efetivo" />
+                  </label>
+                </div>
+                <div>
+                  <label>
+                    Horário
+                    <input
+                      name="workSchedule"
+                      required
+                      defaultValue="Tempo inteiro"
+                    />
+                  </label>
+                  <label>
+                    Carga semanal (min.)
+                    <input
+                      name="weeklyMinutes"
+                      type="number"
+                      min="1"
+                      max="10080"
+                      defaultValue="2400"
+                      required
+                    />
+                  </label>
+                </div>
+                <label>
+                  País (opcional)
+                  <input name="countryPack" placeholder="Ex.: AO-BASE" />
+                </label>
               </>
             )}
             {erro && <p className="erro-form">{erro}</p>}
@@ -1668,8 +1754,6 @@ type HcmData = {
     emergency_contact_name: string;
     emergency_contact_phone: string;
     bank_iban: string;
-    tax_id: string;
-    id_document: string;
     requested_by: string;
     requested_at: string;
   }>;
@@ -2009,8 +2093,6 @@ function PeopleWorkspace() {
                     ? `Emergência: ${p.emergency_contact_name} · ${p.emergency_contact_phone}`
                     : "Sem contacto de emergência"}
                   {p.bank_iban ? ` · IBAN •••• ${p.bank_iban.slice(-4)}` : ""}
-                  {p.tax_id ? ` · NIF ${p.tax_id}` : ""}
-                  {p.id_document ? ` · Doc. ${p.id_document}` : ""}
                 </small>
               </p>
               <div>
