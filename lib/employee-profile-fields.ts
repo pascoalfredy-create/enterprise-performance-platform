@@ -1,6 +1,7 @@
 import type {payrollSheetCopy} from './payroll-sheet-copy';
 export type ProfileFieldOption={value:string;label:keyof typeof payrollSheetCopy};
-export type ProfileFieldDef={name:string;key:string;label:keyof typeof payrollSheetCopy;type?:'text'|'date'|'email'|'select';required?:boolean;options?:ProfileFieldOption[]};
+export type DynamicOptionsKey='costCenter'|'department';
+export type ProfileFieldDef={name:string;key:string;label:keyof typeof payrollSheetCopy;type?:'text'|'date'|'email'|'select'|'dynamic-select';required?:boolean;options?:ProfileFieldOption[];dynamicOptionsKey?:DynamicOptionsKey};
 export type ProfileTabKey='identification'|'documents'|'fiscal'|'professional';
 export const profileFieldGroups:Record<ProfileTabKey,ProfileFieldDef[]>={
  identification:[
@@ -38,6 +39,8 @@ export const profileFieldGroups:Record<ProfileTabKey,ProfileFieldDef[]>={
   {name:'educationInstitution',key:'education_institution',label:'educationInstitution',required:true},
   {name:'profession',key:'profession',label:'profession',required:true},
   {name:'educationLevel',key:'education_level',label:'educationLevel',required:true},
+  {name:'costCenterMemberId',key:'cost_center_member_id',label:'costCenter',type:'dynamic-select',dynamicOptionsKey:'costCenter'},
+  {name:'departmentOrganizationId',key:'department_organization_id',label:'department',type:'dynamic-select',dynamicOptionsKey:'department'},
  ],
 };
 export const profileTabs:[ProfileTabKey,keyof typeof payrollSheetCopy][]=[['identification','tabIdentification'],['documents','tabDocuments'],['fiscal','tabFiscalBanking'],['professional','tabProfessional']];

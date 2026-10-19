@@ -1706,7 +1706,20 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
                 <EmployeeProfileFieldset tab={registerTab} group="identification" setTab={setRegisterTab} />
                 <EmployeeProfileFieldset tab={registerTab} group="documents" setTab={setRegisterTab} />
                 <EmployeeProfileFieldset tab={registerTab} group="fiscal" setTab={setRegisterTab} />
-                <EmployeeProfileFieldset tab={registerTab} group="professional" setTab={setRegisterTab} />
+                <EmployeeProfileFieldset
+                  tab={registerTab}
+                  group="professional"
+                  setTab={setRegisterTab}
+                  costCenterOptions={dados.dimensionMembers
+                    .filter((m) => m.status === "Ativo")
+                    .map((m) => ({
+                      value: m.id,
+                      label: `${dados.dimensions.find((d) => d.id === m.dimension_id)?.name || ""} · ${m.code} · ${m.name}`,
+                    }))}
+                  departmentOptions={dados.organizations
+                    .filter((o) => o.kind === "Departamento" && o.status === "Ativa")
+                    .map((o) => ({ value: o.id, label: `${o.code} · ${o.name}` }))}
+                />
               </>
             )}
             {erro && <p className="erro-form">{erro}</p>}

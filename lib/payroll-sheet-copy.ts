@@ -137,6 +137,8 @@ export const payrollSheetCopy={
  educationInstitution:L('Instituição de ensino|Educational institution|Institución educativa|Établissement d’enseignement|Учебное заведение'),
  profession:L('Profissão|Profession|Profesión|Profession|Профессия'),
  educationLevel:L('Habilitações literárias|Education level|Nivel educativo|Niveau d’études|Уровень образования'),
+ costCenter:L('Centro de custo|Cost center|Centro de costo|Centre de coûts|Центр затрат'),
+ department:L('Departamento|Department|Departamento|Département|Отдел'),
  chooseTemplate:L('Modelo da rubrica|Component template|Modelo del concepto|Modèle de rubrique|Шаблон статьи'),
  templateCustom:L('Personalizada — preencher manualmente|Custom — fill in manually|Personalizado — completar manualmente|Personnalisée — à remplir manuellement|Пользовательская — заполнить вручную'),
  templateTransport:L('Subsídio de transporte|Transport allowance|Subsidio de transporte|Prime de transport|Транспортная надбавка'),
