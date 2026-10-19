@@ -55,6 +55,7 @@ import { moduleItemLabel, navigationMeta } from "../lib/module-navigation-i18n";
 import { usePlatformLocale } from "./use-platform-locale";
 import { PayrollCalculation } from "./payroll-calculation";
 import { EmployeePayrollFile } from './employee-payroll-file';
+import { EmployeeProfileFieldset, EmployeeProfileTabs, type ProfileTabKey } from './employee-profile-fieldset';
 import { PayrollMonthlySheet } from "./payroll-monthly-sheet";
 import { payrollSheetCopy } from "../lib/payroll-sheet-copy";
 import { payrollTreatments, validatePayrollTreatment } from "../lib/payroll-engine";
@@ -933,7 +934,7 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
   const fileLocale=usePlatformLocale(),fileIndex={pt:0,en:1,es:2,fr:3,ru:4}[fileLocale];
   const [employeeFileId,setEmployeeFileId]=useState<string|null>(null);
   useEffect(()=>{if(employeeFileId)document.getElementById("administration-employee-file")?.focus();},[employeeFileId]);
-  useEffect(()=>{setEtapa(initialStep);if(autoOpenNewRecord){setTipoModal("");setAberto(true);}},[initialStep,autoOpenNewRecord]);
+  useEffect(()=>{setEtapa(initialStep);if(autoOpenNewRecord){setTipoModal("");setRegisterTab("identification");setAberto(true);}},[initialStep,autoOpenNewRecord]);
   const [etapa, setEtapa] = useState(initialStep),
     [dados, setDados] = useState<SetupData>(vazio),
     [aberto, setAberto] = useState(autoOpenNewRecord),
@@ -943,7 +944,8 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
     [inviteLink, setInviteLink] = useState(""),
     [inviteDelivery, setInviteDelivery] = useState(""),
     [aCarregar, setACarregar] = useState(true),
-    [aEnviar, setAEnviar] = useState(false);
+    [aEnviar, setAEnviar] = useState(false),
+    [registerTab, setRegisterTab] = useState<ProfileTabKey>("identification");
   const carregar = () => {
     setACarregar(true);
     setErro("");
@@ -1032,6 +1034,19 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
             setAEnviar(false);
             setErro(
               `Colaborador e contrato criados, mas a ativação falhou: ${activateBody.error}. Ative-o em Contratos.`,
+            );
+            return;
+          }
+          const profileRes = await apiFetch("/api/payroll", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ ...payload, type: "employeeProfile", employeeId: novo.id }),
+          });
+          const profileBody = await profileRes.json();
+          if (!profileRes.ok) {
+            setAEnviar(false);
+            setErro(
+              `Colaborador e contrato criados, mas a ficha não pôde ser guardada: ${profileBody.error}. Complete-a na Ficha do colaborador.`,
             );
             return;
           }
@@ -1194,6 +1209,7 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
             <button
               onClick={() => {
                 setTipoModal(etapa === 4 ? "dimension" : "");
+                setRegisterTab("identification");
                 setAberto(true);
               }}
             >
@@ -1686,6 +1702,11 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
                   País (opcional)
                   <input name="countryPack" placeholder="Ex.: AO-BASE" />
                 </label>
+                <EmployeeProfileTabs tab={registerTab} setTab={setRegisterTab} />
+                <EmployeeProfileFieldset tab={registerTab} group="identification" setTab={setRegisterTab} />
+                <EmployeeProfileFieldset tab={registerTab} group="documents" setTab={setRegisterTab} />
+                <EmployeeProfileFieldset tab={registerTab} group="fiscal" setTab={setRegisterTab} />
+                <EmployeeProfileFieldset tab={registerTab} group="professional" setTab={setRegisterTab} />
               </>
             )}
             {erro && <p className="erro-form">{erro}</p>}
