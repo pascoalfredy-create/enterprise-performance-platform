@@ -1,7 +1,20 @@
 export const CATALOG_VERSION = "AO-2026-02";
-export const ANNUAL_MONTHS_CHARGED = 10;
 
-export type BillingInterval = "monthly" | "annual";
+export type BillingInterval = "monthly" | "semiannual" | "annual";
+
+export const billingIntervalMonths: Record<BillingInterval, number> = {
+  monthly: 1,
+  semiannual: 6,
+  annual: 12,
+};
+
+// Discount applied to the full (undiscounted) months-of-service total when
+// paying up front for the whole interval.
+export const billingIntervalDiscountPct: Record<BillingInterval, number> = {
+  monthly: 0,
+  semiannual: 0.10,
+  annual: 0.20,
+};
 // A single commercial code is kept (instead of introducing a new one) so the
 // existing subscriptions.bundle_code CHECK constraint, and every historical
 // checkout/subscription row created under the old multi-bundle catalog,
@@ -75,9 +88,12 @@ export function subscriptionTotal(input: {
   const monthly =
     input.tier.monthlyMinor +
     Math.max(0, Math.trunc(input.extraFinancialModelProjects)) * EXTRA_FINANCIAL_MODEL_PROJECT_MONTHLY_MINOR;
+  const months = billingIntervalMonths[input.interval];
+  const discountPct = billingIntervalDiscountPct[input.interval];
   return {
     monthlyMinor: monthly,
-    totalMinor: input.interval === "annual" ? monthly * ANNUAL_MONTHS_CHARGED : monthly,
+    discountPct,
+    totalMinor: Math.round(monthly * months * (1 - discountPct)),
   };
 }
 

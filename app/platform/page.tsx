@@ -321,7 +321,7 @@ export default function PlatformConsole() {
               <div>
                 <strong>{s.bundle_code}</strong>
                 <small>
-                  {s.billing_interval === "annual" ? "Anual" : "Mensal"} ·
+                  {s.billing_interval === "annual" ? "Anual" : s.billing_interval === "semiannual" ? "Semestral" : "Mensal"} ·
                   renova{" "}
                   {new Date(s.current_period_end).toLocaleDateString("pt-AO")}
                 </small>

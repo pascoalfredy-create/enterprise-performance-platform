@@ -28,6 +28,7 @@ import {
   type BundleCode,
 } from "../lib/commercial-catalog";
 import { employeeCapacityError } from "./subscription-limits";
+import { isCorporateEmail } from "../lib/corporate-email";
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
 import { controlPlaneApi, ensureFirstOperator } from "./control-plane";
@@ -404,6 +405,11 @@ async function commerceCheckoutApi(request: Request, db: D1Database) {
       .bind(identitySubject)
       .first<Record<string, unknown>>();
     if (!account) {
+      if (!isCorporateEmail(email))
+        return Response.json(
+          { error: "O cadastro comercial exige um e-mail corporativo." },
+          { status: 403 },
+        );
       const id = uid(),
         now = new Date().toISOString();
       await db
@@ -445,7 +451,7 @@ async function commerceCheckoutApi(request: Request, db: D1Database) {
       employees = Math.trunc(Number(body.employees)),
       extraFinancialModelProjects = Math.trunc(Number(body.extraFinancialModelProjects || 0));
     if (
-      !(["monthly", "annual"] as string[]).includes(interval || "") ||
+      !(["monthly", "semiannual", "annual"] as string[]).includes(interval || "") ||
       !Number.isInteger(employees) ||
       employees < 1 ||
       employees > 10000 ||
@@ -981,6 +987,8 @@ async function provisionTenantApi(request: Request, db: D1Database) {
       periodEnd = new Date(now);
     if (source.billing_interval === "annual")
       periodEnd.setUTCFullYear(periodEnd.getUTCFullYear() + 1);
+    else if (source.billing_interval === "semiannual")
+      periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 6);
     else periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
     const tenantId = uid(),
       organizationId = uid(),

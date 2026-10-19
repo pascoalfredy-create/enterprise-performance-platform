@@ -179,7 +179,9 @@ export function CustomerActivationWorkspace({
               <dd>
                 {subscription?.billing_interval === "annual"
                   ? "Anual"
-                  : "Mensal"}
+                  : subscription?.billing_interval === "semiannual"
+                    ? "Semestral"
+                    : "Mensal"}
               </dd>
             </div>
             <div>

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ANNUAL_MONTHS_CHARGED, BillingInterval, bundles, CATALOG_VERSION, EXTRA_FINANCIAL_MODEL_PROJECT_MONTHLY_MINOR, employeeTiers, formatAOA, subscriptionTotal, tierForEmployeeCount } from "../../../lib/commercial-catalog";
+import { billingIntervalMonths, BillingInterval, bundles, CATALOG_VERSION, EXTRA_FINANCIAL_MODEL_PROJECT_MONTHLY_MINOR, employeeTiers, formatAOA, subscriptionTotal, tierForEmployeeCount } from "../../../lib/commercial-catalog";
 import { PlatformLocalizedSurface } from "../../hr-localized-surface";
 import "../../auth.css";
 import "./catalog.css";
@@ -36,7 +36,7 @@ export default function Modulos(){
   <header className="catalog-top"><Link href="/" className="auth-brand"><b>EP</b><span>Enterprise Performance</span></Link><div><span>{email}</span><Link href="/entrar">Terminar sessão</Link></div></header>
   <section className="catalog-intro">
    <div><small>PASSO 1 DE 3 · CATÁLOGO {CATALOG_VERSION}</small><h1>{bundle.name}</h1><p>{bundle.description}</p></div>
-   <div className="billing-toggle"><button className={interval==="monthly"?"active":""} onClick={()=>{setInterval("monthly");setSaved(false)}}>Mensal</button><button className={interval==="annual"?"active":""} onClick={()=>{setInterval("annual");setSaved(false)}}>Anual <i>2 meses grátis</i></button></div>
+   <div className="billing-toggle"><button className={interval==="monthly"?"active":""} onClick={()=>{setInterval("monthly");setSaved(false)}}>Mensal</button><button className={interval==="semiannual"?"active":""} onClick={()=>{setInterval("semiannual");setSaved(false)}}>Semestral <i>10% de desconto</i></button><button className={interval==="annual"?"active":""} onClick={()=>{setInterval("annual");setSaved(false)}}>Anual <i>20% de desconto</i></button></div>
   </section>
   <section className="bundle-grid">
    <div className="bundle-card selected">
@@ -67,9 +67,9 @@ export default function Modulos(){
      <div><dt>Preço base</dt><dd>{formatAOA(tier.monthlyMinor)}/mês</dd></div>
      <div><dt>Projetos de Modelagem Financeira incluídos</dt><dd>{tier.includedFinancialModelProjects}</dd></div>
      {extraProjects>0?<div><dt>Projetos extra</dt><dd>{extraProjects} × {formatAOA(EXTRA_FINANCIAL_MODEL_PROJECT_MONTHLY_MINOR)}</dd></div>:null}
-     <div><dt>Periodicidade</dt><dd>{interval==="annual"?`${ANNUAL_MONTHS_CHARGED} mensalidades`:"Mensal"}</dd></div>
+     <div><dt>Periodicidade</dt><dd>{interval==="monthly"?"Mensal":`${billingIntervalMonths[interval]} meses · ${Math.round(total.discountPct*100)}% de desconto`}</dd></div>
     </dl>
-    <div className="order-total"><span>Total {interval==="annual"?"anual":"mensal"}</span><strong>{formatAOA(total.totalMinor)}</strong><small>Impostos aplicáveis calculados no checkout</small></div>
+    <div className="order-total"><span>Total {interval==="monthly"?"mensal":interval==="semiannual"?"semestral":"anual"}</span><strong>{formatAOA(total.totalMinor)}</strong><small>Impostos aplicáveis calculados no checkout</small></div>
     {error&&<p className="checkout-error">{error}</p>}
     {saved?<div className="draft-saved"><b>✓ Rascunho persistido</b><p>Referência {checkoutId.slice(0,8)}. O PayPay ainda está em preparação e não foi efetuada qualquer cobrança.</p></div>:<button onClick={continueCheckout} disabled={busy}>{busy?"A validar no servidor…":"Continuar para checkout →"}</button>}
     <p className="order-rule">Sem pagamento confirmado, não existe empresa, subscrição ativa ou acesso a módulos.</p>

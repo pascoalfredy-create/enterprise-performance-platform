@@ -476,3 +476,10 @@ test("employee pickers across HCM modules accept any non-inactive employee, not 
  assert.match(compact,/"SELECTidFROMemployeesWHEREid=\?ANDtenant_id=\?AND\(\?ISNULLORorganization_id=\?\)ANDstatus<>'Inativo'"/);
  assert.match(compact,/"SELECTid,employee_number,first_name,last_nameFROMemployeesWHEREtenant_id=\?AND\(\?ISNULLORorganization_id=\?\)ANDstatus<>'Inativo'/);
 });
+test("opening a new commerce account (production company sign-up) requires a corporate email, checked before the account row is ever inserted",()=>{
+ assert.match(source,/isCorporateEmail\(email\)/);
+ assert.match(source,/import\s*\{\s*isCorporateEmail\s*\}\s*from\s*"\.\.\/lib\/corporate-email"/);
+ const insertIdx=compact.indexOf('"INSERTINTOcommerce_accounts');
+ const checkIdx=compact.indexOf("!isCorporateEmail(email)");
+ assert.ok(checkIdx>=0&&insertIdx>checkIdx,"the corporate-email check must run before commerce_accounts is inserted");
+});
