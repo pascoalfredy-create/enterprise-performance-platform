@@ -1,6 +1,6 @@
 /* Approved workspace: module bar, contextual sidebar and a single work surface.
    Financial and HR engines, field definitions and API contracts are unchanged. */
-.ui-scale .site.workspace-approved{--work-green:#236454;--work-green-hover:#194f41;--work-soft:#e5efe8;--work-ink:#223a38;--work-muted:#687b70;--work-line:#e4eae7;--work-canvas:#fff;--ui-card-radius:5px;--ui-card-padding:18px;--ui-card-shadow:none;--azul:var(--work-green);--azul2:var(--work-green-hover);--verde:var(--work-green);color:var(--work-ink);background:var(--work-canvas);font-size:14px;line-height:1.5}
+.ui-scale .site.workspace-approved{--work-green:#236454;--work-green-hover:#194f41;--work-soft:#e5efe8;--work-ink:#223a38;--work-muted:#5c7064;--work-line:#e4eae7;--work-canvas:#fff;--ui-card-radius:5px;--ui-card-padding:18px;--ui-card-shadow:none;--azul:var(--work-green);--azul2:var(--work-green-hover);--verde:var(--work-green);color:var(--work-ink);background:var(--work-canvas);font-size:14px;line-height:1.5}
 .ui-scale .workspace-approved *{box-sizing:border-box}
 .ui-scale .workspace-approved [hidden]{display:none!important}
 .ui-scale .workspace-approved .topo{display:flex;height:auto;min-height:62px;gap:22px;padding:10px 22px;background:var(--work-canvas);border-bottom:1px solid var(--work-line);box-shadow:none;position:relative}
