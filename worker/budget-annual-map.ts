@@ -28,6 +28,124 @@ function fiscalYearPeriods(fiscalYear: number): string[] {
   return Array.from({ length: 12 }, (_, i) => `${fiscalYear}-${String(i + 1).padStart(2, "0")}`);
 }
 
+type SnapshotLineRow = {
+  id: string; // = the live financial_line_catalog.id, so assumption/monthly joins keep working
+  code: string;
+  name: string;
+  parent_code: string | null;
+  level: number;
+  display_order: number;
+  classification: string;
+  cash_flow_category: string;
+  sign_mode: string;
+  line_kind: string;
+  hidden: number;
+};
+
+// Approved-version rows don't carry a parent_id (the snapshot only knows
+// the parent's *code*, taken at approval time), so nesting is resolved here
+// by code instead — against this same frozen set, never the live catalog.
+function snapshotRowsToLineRows(rows: SnapshotLineRow[]): FinancialLineRow[] {
+  const idByCode = new Map(rows.map((row) => [row.code, row.id]));
+  return rows.map((row) => ({
+    id: row.id,
+    tenant_id: "",
+    code: row.code,
+    name: row.name,
+    classification: row.classification,
+    cash_flow_category: row.cash_flow_category,
+    sign_mode: row.sign_mode,
+    status: "Ativa",
+    parent_id: row.parent_code ? idByCode.get(row.parent_code) || null : null,
+    level: row.level,
+    display_order: row.display_order,
+    hidden: row.hidden,
+    line_kind: row.line_kind,
+    source_type: "Manual",
+    manual_adjustment_allowed: 1,
+    description: "",
+    formula_expression: null,
+    template_id: null,
+    created_by: "",
+    created_at: "",
+  }));
+}
+
+// Called once, at the moment a version is approved (see approveBudget in
+// worker/index.ts). Walks, in the *live* catalog, from every rubrica that
+// has a Budget entry in this version up through its ancestors, and freezes
+// each one's structural fields (name/hierarchy/classification/kind) into
+// budget_version_line_snapshots. A later rename, reclassify or reparent in
+// financial_line_catalog can then never change how this version's totals
+// group or add up — budgetAnnualMapSnapshot reads from this frozen set,
+// never the live catalog, once the version is Aprovado.
+export async function buildApprovalLineSnapshotStatements(
+  db: D1Database,
+  tenantId: string,
+  versionId: string,
+): Promise<D1PreparedStatement[]> {
+  const usedCodes = await db
+    .prepare(
+      "SELECT DISTINCT line_code FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=?",
+    )
+    .bind(tenantId, versionId)
+    .all<{ line_code: string }>();
+  if (!usedCodes.results.length) return [];
+  const allLines = await db
+    .prepare(
+      "SELECT id,code,name,parent_id,level,display_order,classification,cash_flow_category,sign_mode,line_kind,hidden FROM financial_line_catalog WHERE tenant_id=?",
+    )
+    .bind(tenantId)
+    .all<{
+      id: string;
+      code: string;
+      name: string;
+      parent_id: string | null;
+      level: number;
+      display_order: number;
+      classification: string;
+      cash_flow_category: string;
+      sign_mode: string;
+      line_kind: string;
+      hidden: number;
+    }>();
+  const byCode = new Map(allLines.results.map((line) => [line.code, line]));
+  const byId = new Map(allLines.results.map((line) => [line.id, line]));
+  const toSnapshot = new Map<string, (typeof allLines.results)[number]>();
+  for (const { line_code } of usedCodes.results) {
+    let current = byCode.get(line_code);
+    while (current && !toSnapshot.has(current.code)) {
+      toSnapshot.set(current.code, current);
+      current = current.parent_id ? byId.get(current.parent_id) : undefined;
+    }
+  }
+  const now = new Date().toISOString();
+  return Array.from(toSnapshot.values()).map((line) => {
+    const parent = line.parent_id ? byId.get(line.parent_id) : undefined;
+    return db
+      .prepare(
+        "INSERT OR IGNORE INTO budget_version_line_snapshots (id,tenant_id,version_id,line_id,code,name,parent_code,level,display_order,classification,cash_flow_category,sign_mode,line_kind,hidden,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      )
+      .bind(
+        uid(),
+        tenantId,
+        versionId,
+        line.id,
+        line.code,
+        line.name,
+        parent ? parent.code : null,
+        line.level,
+        line.display_order,
+        line.classification,
+        line.cash_flow_category,
+        line.sign_mode,
+        line.line_kind,
+        line.hidden,
+        now,
+      );
+  });
+}
+
 async function requireDraftVersion(db: D1Database, tenantId: string, versionId: string) {
   const version = await db
     .prepare("SELECT id,fiscal_year,status FROM budget_versions WHERE id=? AND tenant_id=?")
@@ -48,30 +166,67 @@ export async function budgetAnnualMapSnapshot(
   db: D1Database,
   tenantId: string,
   params: {
-    versionId: string;
+    versionId: string | null;
     organizationId: string | null;
     dimensionMemberId: string | null;
     currency: string;
   },
 ) {
+  const [organizations, members, versions] = await Promise.all([
+    db
+      .prepare("SELECT id,name,code,currency FROM organizations WHERE tenant_id=? AND status='Ativa' ORDER BY name")
+      .bind(tenantId)
+      .all(),
+    db
+      .prepare(
+        "SELECT m.id,m.name,m.code,d.name AS dimension_name FROM dimension_members m JOIN financial_dimensions d ON d.id=m.dimension_id WHERE m.tenant_id=? AND m.status='Ativo' ORDER BY d.name,m.code",
+      )
+      .bind(tenantId)
+      .all(),
+    db
+      .prepare("SELECT id,name,fiscal_year,status FROM budget_versions WHERE tenant_id=? ORDER BY fiscal_year DESC,created_at DESC")
+      .bind(tenantId)
+      .all<{ id: string; name: string; fiscal_year: number; status: string }>(),
+  ]);
+  // The client doesn't always know a versionId up front (e.g. on first
+  // load) — fall back to the tenant's most recent version so the grid has
+  // something to show without a separate round trip just to list versions.
+  const versionId = params.versionId || versions.results[0]?.id || null;
+  if (!versionId)
+    return {
+      version: null,
+      periods: [],
+      tree: [],
+      organizations: organizations.results,
+      members: members.results,
+      versions: versions.results,
+    };
   const version = await db
     .prepare("SELECT * FROM budget_versions WHERE id=? AND tenant_id=?")
-    .bind(params.versionId, tenantId)
+    .bind(versionId, tenantId)
     .first<{ id: string; name: string; fiscal_year: number; status: string }>();
   if (!version) return { error: "Versão orçamental não encontrada." };
   const periods = fiscalYearPeriods(version.fiscal_year);
-  const [lines, entries, assumptions, organizations, members, versions] = await Promise.all([
-    db
-      .prepare("SELECT * FROM financial_line_catalog WHERE tenant_id=? ORDER BY level,display_order,code")
-      .bind(tenantId)
-      .all<FinancialLineRow>(),
+  const isApproved = version.status === "Aprovado";
+  const [lines, entries, assumptions] = await Promise.all([
+    isApproved
+      ? db
+          .prepare(
+            "SELECT line_id AS id,code,name,parent_code,level,display_order,classification,cash_flow_category,sign_mode,line_kind,hidden FROM budget_version_line_snapshots WHERE tenant_id=? AND version_id=? ORDER BY level,display_order,code",
+          )
+          .bind(tenantId, versionId)
+          .all<SnapshotLineRow>()
+      : db
+          .prepare("SELECT * FROM financial_line_catalog WHERE tenant_id=? ORDER BY level,display_order,code")
+          .bind(tenantId)
+          .all<FinancialLineRow>(),
     db
       .prepare(
         "SELECT line_code,period,amount_minor,manual_override FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND currency=? AND (? IS NULL OR organization_id=?) AND (? IS NULL OR dimension_member_id=?) AND period BETWEEN ? AND ?",
       )
       .bind(
         tenantId,
-        params.versionId,
+        versionId,
         params.currency,
         params.organizationId,
         params.organizationId,
@@ -87,27 +242,13 @@ export async function budgetAnnualMapSnapshot(
       )
       .bind(
         tenantId,
-        params.versionId,
+        versionId,
         params.organizationId,
         params.organizationId,
         params.dimensionMemberId,
         params.dimensionMemberId,
       )
       .all<Record<string, unknown>>(),
-    db
-      .prepare("SELECT id,name,code,currency FROM organizations WHERE tenant_id=? AND status='Ativa' ORDER BY name")
-      .bind(tenantId)
-      .all(),
-    db
-      .prepare(
-        "SELECT m.id,m.name,m.code,d.name AS dimension_name FROM dimension_members m JOIN financial_dimensions d ON d.id=m.dimension_id WHERE m.tenant_id=? AND m.status='Ativo' ORDER BY d.name,m.code",
-      )
-      .bind(tenantId)
-      .all(),
-    db
-      .prepare("SELECT id,name,fiscal_year,status FROM budget_versions WHERE tenant_id=? ORDER BY fiscal_year DESC,created_at DESC")
-      .bind(tenantId)
-      .all(),
   ]);
   const entriesByLine = new Map<string, { period: string; amountMinor: number; manualOverride: boolean }[]>();
   for (const row of entries.results) {
@@ -121,11 +262,14 @@ export async function budgetAnnualMapSnapshot(
     list.push(row);
     assumptionsByLine.set(String(row.line_id), list);
   }
+  const lineRows: FinancialLineRow[] = isApproved
+    ? snapshotRowsToLineRows(lines.results as unknown as SnapshotLineRow[])
+    : (lines.results as FinancialLineRow[]);
   const rows: (FinancialLineRow & {
     monthly: { period: string; amountMinor: number; manualOverride: boolean }[];
     automatic: number[] | null;
     assumptions: Record<string, unknown>[];
-  })[] = lines.results.map((line) => {
+  })[] = lineRows.map((line) => {
     const monthlyByPeriod = new Map((entriesByLine.get(line.code) || []).map((m) => [m.period, m]));
     const monthly = periods.map(
       (period) => monthlyByPeriod.get(period) || { period, amountMinor: 0, manualOverride: false },

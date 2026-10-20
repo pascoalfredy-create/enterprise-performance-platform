@@ -42,6 +42,7 @@ import {
   createOrUpdateAssumption,
   deleteAssumption,
   recalculateLine,
+  buildApprovalLineSnapshotStatements,
 } from "./budget-annual-map";
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
@@ -3275,12 +3276,20 @@ async function performanceApi(
           { error: "A versão não está disponível para aprovação." },
           { status: 409 },
         );
-      const approval = await db
-        .prepare(
-          "UPDATE budget_versions SET status='Aprovado', approved_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'",
-        )
-        .bind(created, body.versionId, tenantId)
-        .run();
+      const snapshotStatements = await buildApprovalLineSnapshotStatements(
+        db,
+        tenantId,
+        body.versionId,
+      );
+      const batchResults = await db.batch([
+        ...snapshotStatements,
+        db
+          .prepare(
+            "UPDATE budget_versions SET status='Aprovado', approved_at=? WHERE id=? AND tenant_id=? AND status='Rascunho'",
+          )
+          .bind(created, body.versionId, tenantId),
+      ]);
+      const approval = batchResults[batchResults.length - 1];
       if (!Number(approval.meta.changes || 0))
         return Response.json(
           {
@@ -3338,14 +3347,8 @@ async function budgetAnnualMapApi(
   try {
     const url = new URL(request.url);
     if (request.method === "GET") {
-      const versionId = url.searchParams.get("versionId");
-      if (!versionId)
-        return Response.json(
-          { error: "Selecione uma versão orçamental." },
-          { status: 400 },
-        );
       const snapshot = await budgetAnnualMapSnapshot(db, tenantId, {
-        versionId,
+        versionId: url.searchParams.get("versionId"),
         organizationId: organizationId || url.searchParams.get("organizationId"),
         dimensionMemberId: url.searchParams.get("dimensionMemberId"),
         currency: (url.searchParams.get("currency") || "AOA").toUpperCase(),

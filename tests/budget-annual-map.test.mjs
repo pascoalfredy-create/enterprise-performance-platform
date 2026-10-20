@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import {DatabaseSync} from 'node:sqlite';import {registerHooks} from 'node:module';
 registerHooks({resolve(s,c,n){try{return n(s,c)}catch(e){if(e.code==='ERR_MODULE_NOT_FOUND'&&s.startsWith('.')&&!s.endsWith('.ts'))return n(s+'.ts',c);throw e}}});
-const {budgetAnnualMapSnapshot,batchSaveBudgetCells,createOrUpdateAssumption,deleteAssumption,recalculateLine}=await import('../worker/budget-annual-map.ts');
+const {budgetAnnualMapSnapshot,batchSaveBudgetCells,createOrUpdateAssumption,deleteAssumption,recalculateLine,buildApprovalLineSnapshotStatements}=await import('../worker/budget-annual-map.ts');
 
 class Statement{constructor(db,sql){this.db=db;this.sql=sql;this.values=[]}bind(...values){this.values=values;return this}run(){const r=this.db.prepare(this.sql).run(...this.values);return {success:true,meta:{changes:r.changes}}}all(){return {results:this.db.prepare(this.sql).all(...this.values)}}first(){return this.db.prepare(this.sql).get(...this.values)||null}}
 class D1{
@@ -151,5 +151,70 @@ test('recalculateLine with no enabled assumptions reports zero updates and touch
  const body = await result.json();
  assert.equal(body.updated,0);
  assert.equal(f.sqlite.prepare("SELECT amount_minor FROM performance_entries WHERE id='e1'").get().amount_minor,42);
+ f.sqlite.close();
+});
+
+test('approving a version freezes the catalog hierarchy: a later rename, reparent or hide of the live rubrica does not change the approved map', async () => {
+ const f=setup();
+ line(f.sqlite,'t1','grp','01',{name:'Grupo A',line_kind:'Agregação'});
+ line(f.sqlite,'t1','grp2','02',{name:'Grupo B',line_kind:'Agregação'});
+ line(f.sqlite,'t1','leaf','01.01',{name:'Leaf',parent_id:'grp',level:2});
+ version(f.sqlite,'t1','v1');
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','01.01','Leaf',NULL,1000,'Manual',0)");
+ const snapshotStatements = await buildApprovalLineSnapshotStatements(f.db,'t1','v1');
+ assert.ok(snapshotStatements.length>=2); // the leaf plus its ancestor group
+ await f.db.batch([...snapshotStatements, f.db.prepare("UPDATE budget_versions SET status='Aprovado',approved_at='now' WHERE id='v1'")]);
+ const before = await budgetAnnualMapSnapshot(f.db,'t1',{versionId:'v1',organizationId:'o1',dimensionMemberId:null,currency:'AOA'});
+ assert.equal(before.tree.length,1);
+ assert.equal(before.tree[0].code,'01');
+ assert.equal(before.tree[0].children[0].name,'Leaf');
+ assert.equal(before.tree[0].children[0].hidden,0);
+ // Now mutate the LIVE catalog after approval: rename, reparent to a different group, and hide.
+ f.sqlite.exec("UPDATE financial_line_catalog SET parent_id='grp2',name='Renamed Leaf',hidden=1 WHERE id='leaf'");
+ const after = await budgetAnnualMapSnapshot(f.db,'t1',{versionId:'v1',organizationId:'o1',dimensionMemberId:null,currency:'AOA'});
+ assert.equal(after.tree.length,1,'the approved map must still show a single root group, unaffected by the new live group');
+ assert.equal(after.tree[0].code,'01','the leaf must still roll up under its original group in the approved map');
+ assert.equal(after.tree[0].children[0].name,'Leaf','the approved map must keep the name it had at approval time');
+ assert.equal(after.tree[0].children[0].hidden,0,'the approved map must keep the visibility it had at approval time');
+ assert.equal(after.tree[0].children[0].monthly[0].amountMinor,1000);
+ f.sqlite.close();
+});
+
+test('a draft version keeps reflecting live catalog changes immediately (only approved versions freeze)', async () => {
+ const f=setup();
+ line(f.sqlite,'t1','grp','01',{name:'Grupo A',line_kind:'Agregação'});
+ line(f.sqlite,'t1','leaf','01.01',{name:'Leaf',parent_id:'grp',level:2});
+ version(f.sqlite,'t1','v1');
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','01.01','Leaf',NULL,1000,'Manual',0)");
+ f.sqlite.exec("UPDATE financial_line_catalog SET name='Renamed Leaf' WHERE id='leaf'");
+ const snap = await budgetAnnualMapSnapshot(f.db,'t1',{versionId:'v1',organizationId:'o1',dimensionMemberId:null,currency:'AOA'});
+ assert.equal(snap.tree[0].children[0].name,'Renamed Leaf');
+ f.sqlite.close();
+});
+
+test('the approval snapshot itself is immutable once written', async () => {
+ const f=setup();
+ line(f.sqlite,'t1','grp','01',{name:'Grupo A',line_kind:'Agregação'});
+ line(f.sqlite,'t1','leaf','01.01',{name:'Leaf',parent_id:'grp',level:2});
+ version(f.sqlite,'t1','v1');
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','01.01','Leaf',NULL,1000,'Manual',0)");
+ const snapshotStatements = await buildApprovalLineSnapshotStatements(f.db,'t1','v1');
+ await f.db.batch([...snapshotStatements, f.db.prepare("UPDATE budget_versions SET status='Aprovado',approved_at='now' WHERE id='v1'")]);
+ assert.throws(()=>f.sqlite.exec("UPDATE budget_version_line_snapshots SET name='Hacked' WHERE version_id='v1'"),/imutável/);
+ assert.throws(()=>f.sqlite.exec("DELETE FROM budget_version_line_snapshots WHERE version_id='v1'"),/imutável/);
+ f.sqlite.close();
+});
+
+test('snapshot auto-selects the most recent version when none is given, and returns an empty-but-valid response when the tenant has none yet', async () => {
+ const f=setup();
+ const empty = await budgetAnnualMapSnapshot(f.db,'t1',{versionId:null,organizationId:null,dimensionMemberId:null,currency:'AOA'});
+ assert.equal(empty.version,null);
+ assert.deepEqual(empty.tree,[]);
+ line(f.sqlite,'t1','leaf','L');
+ version(f.sqlite,'t1','v-old','Rascunho',2025);
+ version(f.sqlite,'t1','v-new','Rascunho',2026);
+ const snap = await budgetAnnualMapSnapshot(f.db,'t1',{versionId:null,organizationId:null,dimensionMemberId:null,currency:'AOA'});
+ assert.equal(snap.version.id,'v-new','must resolve to the most recent fiscal year when no versionId is supplied');
+ assert.equal(snap.versions.length,2);
  f.sqlite.close();
 });

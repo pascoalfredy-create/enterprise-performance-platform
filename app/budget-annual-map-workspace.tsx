@@ -31,6 +31,13 @@ type Snapshot = {
 
 const METHODS = ["Manual", "QuantidadePreco", "Crescimento", "Sazonalidade", "Contrato"] as const;
 const PERIODICITIES = ["Mensal", "Trimestral", "Anual", "Pontual"] as const;
+const METHOD_LABEL_KEY: Record<(typeof METHODS)[number], keyof typeof mapCopy> = {
+  Manual: "methodManual",
+  QuantidadePreco: "methodQuantityPrice",
+  Crescimento: "methodGrowth",
+  Sazonalidade: "methodSeasonality",
+  Contrato: "methodContract",
+};
 
 function formatAmount(minor: number) {
   return (minor / 100).toLocaleString("pt-AO", { maximumFractionDigits: 2 });
@@ -90,10 +97,10 @@ export function BudgetAnnualMapWorkspace() {
     [reload, setReload] = useState(0);
 
   useEffect(() => {
-    if (!versionId) return;
     let cancelled = false;
     setBusy(true);
-    const params = new URLSearchParams({ versionId, currency });
+    const params = new URLSearchParams({ currency });
+    if (versionId) params.set("versionId", versionId);
     if (organizationId) params.set("organizationId", organizationId);
     if (dimensionMemberId) params.set("dimensionMemberId", dimensionMemberId);
     apiFetch(`/api/v1/budget-annual-map?${params.toString()}`)
@@ -499,7 +506,7 @@ export function BudgetAnnualMapWorkspace() {
                 >
                   {METHODS.map((m) => (
                     <option key={m} value={m}>
-                      {t(("method" + m) as keyof typeof mapCopy)}
+                      {t(METHOD_LABEL_KEY[m])}
                     </option>
                   ))}
                 </select>
