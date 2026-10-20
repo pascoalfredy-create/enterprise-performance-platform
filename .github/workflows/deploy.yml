@@ -18,11 +18,15 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
 
       - run: npm ci
 
-      - run: npm run build
+      - name: Verify types
+        run: npm run typecheck
+
+      - name: Build and run all tests before production changes
+        run: npm test
 
       - name: Diagnose Cloudflare auth
         run: |

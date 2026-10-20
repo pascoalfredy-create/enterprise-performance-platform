@@ -1,9 +1,10 @@
+import {budgetOrganizationAccess,budgetResourceAccess} from './budget-authorization';
 import {employeePayrollFile} from './payroll-employee-file.ts';
 import { sendInvitationEmail, type InvitationEmailEnv, type InvitationDelivery } from "./invitation-email";
 import type {D1Database,D1PreparedStatement,R2Bucket} from "../worker-configuration";
 import {parseMoneyMinor} from "../lib/money";
 import { validatePayrollTreatment } from "../lib/payroll-engine";
-import { preparePayrollSheet, publicPayrollSheet, savePayrollMonthInput, PayrollSheetError } from "./payroll-sheet";
+import { preparePayrollSheet, publicPayrollSheet, savePayrollMonthInput, importPayrollMonthInputs, PayrollSheetError } from "./payroll-sheet";
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import {
   handleImageOptimization,
@@ -3361,6 +3362,7 @@ async function budgetAnnualMapApi(
     if (request.method === "GET") {
       const snapshot = await budgetAnnualMapSnapshot(db, tenantId, {
         versionId: url.searchParams.get("versionId"),
+        scopeOrganizationId: organizationId,
         organizationId: organizationId || url.searchParams.get("organizationId"),
         dimensionMemberId: url.searchParams.get("dimensionMemberId"),
         currency: (url.searchParams.get("currency") || "AOA").toUpperCase(),
@@ -3382,12 +3384,19 @@ async function budgetAnnualMapApi(
         { error: "Organização fora do âmbito autorizado." },
         { status: 403 },
       );
+    if (["batchSave","assumption","recalculate"].includes(String(body.type))) {
+      body.organizationId=body.organizationId||organizationId;
+      const deniedScope=await budgetOrganizationAccess(db,tenantId,organizationId,body.organizationId);
+      if(deniedScope)return deniedScope;
+    }
     if (body.type === "batchSave")
       return batchSaveBudgetCells(db, tenantId, actor, {
         versionId: String(body.versionId || ""),
         organizationId: String(body.organizationId || organizationId || ""),
         cells: Array.isArray(body.cells) ? body.cells : [],
       });
+    if (body.type === "assumption" && body.id) {const deniedScope=await budgetResourceAccess(db,tenantId,organizationId,"assumption",body.id);if(deniedScope)return deniedScope;}
+    if (body.type === "deleteAssumption") {const deniedScope=await budgetResourceAccess(db,tenantId,organizationId,"assumption",body.id);if(deniedScope)return deniedScope;}
     if (body.type === "assumption")
       return createOrUpdateAssumption(db, tenantId, actor, body);
     if (body.type === "deleteAssumption")
@@ -3425,11 +3434,13 @@ async function budgetIntegrationApi(
     const url = new URL(request.url);
     const actor = actorEmail(request) || "utilizador autenticado";
     if (request.method === "GET") {
+      if (url.searchParams.get("organizationId")) {const deniedScope=await budgetOrganizationAccess(db,tenantId,organizationId,url.searchParams.get("organizationId"));if(deniedScope)return deniedScope;}
       if (url.searchParams.get("action") === "origin") {
         return getCellOrigin(db, tenantId, {
           versionId: url.searchParams.get("versionId") || "",
           lineId: url.searchParams.get("lineId") || "",
-          organizationId: url.searchParams.get("organizationId") || organizationId || "",
+          organizationId: organizationId || url.searchParams.get("organizationId") || "",
+          currency: url.searchParams.get("currency")?.toUpperCase(),
           dimensionMemberId: url.searchParams.get("dimensionMemberId"),
           period: url.searchParams.get("period") || "",
         });
@@ -3441,6 +3452,16 @@ async function budgetIntegrationApi(
     const body = (await request.json()) as Record<string, unknown>;
     if (body.organizationId && organizationId && body.organizationId !== organizationId)
       return Response.json({ error: "Organização fora do âmbito autorizado." }, { status: 403 });
+    if (["setMappingStatus","checkForUpdates","confirmMovements","applyMapping"].includes(String(body.type))) {
+      const deniedScope=await budgetResourceAccess(db,tenantId,organizationId,"mapping",body.mappingId);
+      if(deniedScope)return deniedScope;
+    }
+    if (body.type === "createMapping" || body.type === "setAdjustment") {
+      body.organizationId=body.organizationId||organizationId;
+      const deniedScope=await budgetOrganizationAccess(db,tenantId,organizationId,body.organizationId);
+      if(deniedScope)return deniedScope;
+      if(body.supersedesMappingId){const deniedSource=await budgetResourceAccess(db,tenantId,organizationId,"mapping",body.supersedesMappingId);if(deniedSource)return deniedSource;}
+    }
     if (body.type === "createMapping") return createMapping(db, tenantId, actor, body);
     if (body.type === "setMappingStatus")
       return setMappingStatus(db, tenantId, String(body.mappingId || ""), body.status === "Inativo" ? "Inativo" : "Ativo");
@@ -4311,6 +4332,7 @@ export async function payrollApi(
       actor = actorEmail(request) || "utilizador autenticado";
     let summary = "",
       action = "CREATE";
+    if(body.type==="importPayrollMonthInputs")return Response.json(await importPayrollMonthInputs(db,tenantId,organizationId,actor,body));
     if(body.type==="savePayrollMonthInput"){
       await savePayrollMonthInput(db,tenantId,organizationId,actor,body);
       return Response.json({saved:true});

@@ -218,3 +218,21 @@ test('snapshot auto-selects the most recent version when none is given, and retu
  assert.equal(snap.versions.length,2);
  f.sqlite.close();
 });
+
+test('annual cells keep currencies independent when inserting, updating and aggregating',async()=>{
+ const f=setup();line(f.sqlite,'t1','leaf','L');version(f.sqlite,'t1','v1');
+ const save=(currency,amount)=>batchSaveBudgetCells(f.db,'t1','maker',{versionId:'v1',organizationId:'o1',cells:[{code:'L',lineName:'Leaf',dimensionMemberId:null,period:'2026-01',currency,amount}]});
+ for(const [c,n] of [['AOA','100'],['USD','200'],['USD','300']])assert.equal((await save(c,n)).status,200);
+ assert.deepEqual(f.sqlite.prepare("SELECT currency,amount_minor FROM performance_entries ORDER BY currency").all().map(r=>[r.currency,r.amount_minor]),[['AOA',10000],['USD',30000]]);
+ const snap=await budgetAnnualMapSnapshot(f.db,'t1',{versionId:'v1',organizationId:'o1',dimensionMemberId:null,currency:'USD'});assert.equal(snap.tree[0].monthly[0].amountMinor,30000);f.sqlite.close();
+});
+test('no-dimension recalculation never uses a departmental or different-currency assumption',async()=>{
+ const f=setup();line(f.sqlite,'t1','leaf','L');version(f.sqlite,'t1','v1');
+ f.sqlite.exec("INSERT INTO financial_dimensions (id,tenant_id,created_at,code,name,description,status) VALUES ('dim','t1','now','DEPT','Departamento','Departamentos de teste','Ativa'); INSERT INTO dimension_members VALUES ('dept','t1','now','dim','D','Dept',NULL,'Ativo')");
+ for(const [dim,currency,price] of [[null,'AOA',10000],['dept','AOA',30000],[null,'USD',70000]])assert.equal((await createOrUpdateAssumption(f.db,'t1','maker',{versionId:'v1',lineId:'leaf',organizationId:'o1',dimensionMemberId:dim,currency,method:'QuantidadePreco',params:{quantity:1,unitPriceMinor:price}})).status,200);
+ assert.equal((await recalculateLine(f.db,'t1',{versionId:'v1',lineId:'leaf',organizationId:'o1',dimensionMemberId:'dept',currency:'AOA'})).status,200);
+ assert.equal((await recalculateLine(f.db,'t1',{versionId:'v1',lineId:'leaf',organizationId:'o1',dimensionMemberId:null,currency:'AOA'})).status,200);
+ const jan=f.sqlite.prepare("SELECT dimension_member_id,amount_minor FROM performance_entries WHERE period='2026-01' ORDER BY amount_minor").all();assert.deepEqual(jan.map(r=>[r.dimension_member_id,r.amount_minor]),[[null,10000],['dept',30000]]);
+ const total=await budgetAnnualMapSnapshot(f.db,'t1',{versionId:'v1',organizationId:'o1',dimensionMemberId:null,currency:'AOA'});assert.equal(total.tree[0].monthly[0].amountMinor,40000);assert.equal(total.tree[0].automatic[0],40000);
+ const only=await budgetAnnualMapSnapshot(f.db,'t1',{versionId:'v1',organizationId:'o1',dimensionMemberId:'__NONE__',currency:'AOA'});assert.equal(only.tree[0].monthly[0].amountMinor,10000);f.sqlite.close();
+});

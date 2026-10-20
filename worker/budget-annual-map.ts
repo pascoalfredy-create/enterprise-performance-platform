@@ -170,12 +170,13 @@ export async function budgetAnnualMapSnapshot(
     organizationId: string | null;
     dimensionMemberId: string | null;
     currency: string;
+    scopeOrganizationId?: string | null;
   },
 ) {
   const [organizations, members, versions] = await Promise.all([
     db
-      .prepare("SELECT id,name,code,currency FROM organizations WHERE tenant_id=? AND status='Ativa' ORDER BY name")
-      .bind(tenantId)
+      .prepare("SELECT id,name,code,currency FROM organizations WHERE tenant_id=? AND status='Ativa' AND (? IS NULL OR id=?) ORDER BY name")
+      .bind(tenantId,params.scopeOrganizationId||null,params.scopeOrganizationId||null)
       .all(),
     db
       .prepare(
@@ -222,7 +223,7 @@ export async function budgetAnnualMapSnapshot(
           .all<FinancialLineRow>(),
     db
       .prepare(
-        "SELECT line_code,period,amount_minor,manual_override FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND currency=? AND (? IS NULL OR organization_id=?) AND (? IS NULL OR dimension_member_id=?) AND period BETWEEN ? AND ?",
+        "SELECT line_code,period,amount_minor,manual_override FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND currency=? AND (? IS NULL OR organization_id=?) AND ((?='__NONE__' AND dimension_member_id IS NULL) OR (?<>'__NONE__' AND dimension_member_id=?) OR ? IS NULL) AND period BETWEEN ? AND ?",
       )
       .bind(
         tenantId,
@@ -232,19 +233,24 @@ export async function budgetAnnualMapSnapshot(
         params.organizationId,
         params.dimensionMemberId,
         params.dimensionMemberId,
+        params.dimensionMemberId,
+        params.dimensionMemberId,
         periods[0],
         periods[11],
       )
       .all<{ line_code: string; period: string; amount_minor: number; manual_override: number }>(),
     db
       .prepare(
-        "SELECT * FROM budget_assumptions WHERE tenant_id=? AND version_id=? AND (? IS NULL OR organization_id=?) AND (? IS NULL OR dimension_member_id=?) ORDER BY precedence",
+        "SELECT * FROM budget_assumptions WHERE tenant_id=? AND version_id=? AND currency=? AND (? IS NULL OR organization_id=?) AND ((?='__NONE__' AND dimension_member_id IS NULL) OR (?<>'__NONE__' AND dimension_member_id=?) OR ? IS NULL) ORDER BY precedence",
       )
       .bind(
         tenantId,
         versionId,
+        params.currency,
         params.organizationId,
         params.organizationId,
+        params.dimensionMemberId,
+        params.dimensionMemberId,
         params.dimensionMemberId,
         params.dimensionMemberId,
       )
@@ -270,7 +276,8 @@ export async function budgetAnnualMapSnapshot(
     automatic: number[] | null;
     assumptions: Record<string, unknown>[];
   })[] = lineRows.map((line) => {
-    const monthlyByPeriod = new Map((entriesByLine.get(line.code) || []).map((m) => [m.period, m]));
+    const monthlyByPeriod = new Map<string,{period:string;amountMinor:number;manualOverride:boolean}>();
+    for(const m of entriesByLine.get(line.code)||[]){const old=monthlyByPeriod.get(m.period);const amountMinor=(old?.amountMinor||0)+m.amountMinor;if(!Number.isSafeInteger(amountMinor))throw new Error("Total orçamental fora do limite seguro.");monthlyByPeriod.set(m.period,{period:m.period,amountMinor,manualOverride:!!old?.manualOverride||m.manualOverride});}
     const monthly = periods.map(
       (period) => monthlyByPeriod.get(period) || { period, amountMinor: 0, manualOverride: false },
     );
@@ -283,7 +290,10 @@ export async function budgetAnnualMapSnapshot(
     }));
     let automatic: number[] | null = null;
     try {
-      automatic = composeMonthlyValues(periods, asAssumption);
+      // An aggregate view adds independently calculated company/dimension groups.
+      const groups=new Map<string,Assumption[]>();
+      for(let i=0;i<lineAssumptions.length;i++){const a=lineAssumptions[i],key=String(a.organization_id)+"|"+String(a.dimension_member_id||"");const g=groups.get(key)||[];g.push(asAssumption[i]);groups.set(key,g);}
+      for(const g of groups.values()){const computed=composeMonthlyValues(periods,g);if(computed){automatic??=periods.map(()=>0);computed.forEach((n,i)=>{automatic![i]+=n;if(!Number.isSafeInteger(automatic![i]))throw new Error("Total orçamental fora do limite seguro.");});}}
     } catch {
       automatic = null;
     }
@@ -322,27 +332,35 @@ export async function batchSaveBudgetCells(
   if (!(await db.prepare("SELECT id FROM organizations WHERE id=? AND tenant_id=?").bind(input.organizationId, tenantId).first()))
     return Response.json({ error: "Organização inválida." }, { status: 400 });
   if (!input.cells.length) return Response.json({ error: "Nenhuma célula para gravar." }, { status: 400 });
-  for (const cell of input.cells)
+  const seenCells=new Set<string>();
+  for (const cell of input.cells) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(cell.period) || !cell.code?.trim() || !cell.currency?.match(/^[A-Za-z]{3}$/))
       return Response.json({ error: "Célula orçamental inválida." }, { status: 400 });
+    if(!cell.period.startsWith(String(draft.version!.fiscal_year)+"-"))return Response.json({error:"Período fora do exercício orçamental."},{status:400});
+    const identity=cell.currency.toUpperCase()+"|"+cell.code.trim().toUpperCase()+"|"+cell.period+"|"+(cell.dimensionMemberId||"");
+    if(seenCells.has(identity))return Response.json({error:"Célula repetida no mesmo pedido."},{status:400});seenCells.add(identity);
+  }
   const existing = await db
     .prepare(
-      "SELECT id,line_code,period,dimension_member_id FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND organization_id=?",
+      "SELECT id,line_code,period,currency,dimension_member_id,integration_amount_minor FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND organization_id=?",
     )
     .bind(tenantId, input.versionId, input.organizationId)
-    .all<{ id: string; line_code: string; period: string; dimension_member_id: string | null }>();
+    .all<{ id: string; line_code: string; period: string; currency:string; dimension_member_id: string | null;integration_amount_minor:number|null }>();
   const existingByKey = new Map(
-    existing.results.map((row) => [`${row.line_code}|${row.period}|${row.dimension_member_id || ""}`, row.id]),
+    existing.results.map((row) => [`${row.currency}|${row.line_code}|${row.period}|${row.dimension_member_id || ""}`, row]),
   );
+  if(existingByKey.size!==existing.results.length)return Response.json({error:"Existem células duplicadas. Reveja os registos antes de editar."},{status:409});
   const now = new Date().toISOString();
   const statements: D1PreparedStatement[] = [];
   for (const cell of input.cells) {
     const code = cell.code.trim().toUpperCase(),
-      key = `${code}|${cell.period}|${cell.dimensionMemberId || ""}`,
+      key = `${cell.currency.toUpperCase()}|${code}|${cell.period}|${cell.dimensionMemberId || ""}`,
       amountMinor = parseMoneyMinor(cell.amount),
       manualOverride = cell.manualOverride ? 1 : 0,
-      existingId = existingByKey.get(key);
-    if (existingId)
+      existingRow = existingByKey.get(key),existingId=existingRow?.id;
+    if(existingId&&existingRow?.integration_amount_minor!==null){
+      statements.push(db.prepare("UPDATE performance_entries SET amount_minor=?,line_name=?,manual_override=1,manual_adjustment_minor=?,adjustment_mode='Substituir' WHERE id=? AND tenant_id=?").bind(amountMinor,cell.lineName.trim(),amountMinor,existingId,tenantId));
+    }else if (existingId)
       statements.push(
         db
           .prepare(
@@ -485,9 +503,9 @@ export async function recalculateLine(
   if (!line) return Response.json({ error: "Rubrica não encontrada." }, { status: 404 });
   const assumptionRows = await db
     .prepare(
-      "SELECT method,status,precedence,params FROM budget_assumptions WHERE tenant_id=? AND version_id=? AND line_id=? AND organization_id=? AND (? IS NULL OR dimension_member_id=?)",
+      "SELECT method,status,precedence,params FROM budget_assumptions WHERE tenant_id=? AND version_id=? AND line_id=? AND organization_id=? AND currency=? AND dimension_member_id IS ?",
     )
-    .bind(tenantId, input.versionId, input.lineId, input.organizationId, input.dimensionMemberId, input.dimensionMemberId)
+    .bind(tenantId, input.versionId, input.lineId, input.organizationId, input.currency.toUpperCase(), input.dimensionMemberId)
     .all<{ method: string; status: string; precedence: number; params: string }>();
   const periods = fiscalYearPeriods(version.fiscal_year);
   const assumptions: Assumption[] = assumptionRows.results.map((a) => ({
@@ -508,10 +526,11 @@ export async function recalculateLine(
   if (!computed) return Response.json({ updated: 0 });
   const existing = await db
     .prepare(
-      "SELECT id,period,manual_override FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND organization_id=? AND line_code=? AND currency=? AND (? IS NULL OR dimension_member_id=?)",
+      "SELECT id,period,manual_override,integration_amount_minor FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND organization_id=? AND line_code=? AND currency=? AND dimension_member_id IS ?",
     )
-    .bind(tenantId, input.versionId, input.organizationId, line.code, input.currency, input.dimensionMemberId, input.dimensionMemberId)
-    .all<{ id: string; period: string; manual_override: number }>();
+    .bind(tenantId, input.versionId, input.organizationId, line.code, input.currency.toUpperCase(), input.dimensionMemberId)
+    .all<{ id: string; period: string; manual_override: number;integration_amount_minor:number|null }>();
+  if(existing.results.some(r=>r.integration_amount_minor!==null))return Response.json({error:"A rubrica tem valores de integração. Utilize o ajuste da célula ou a integração de origem."},{status:409});
   const existingByPeriod = new Map(existing.results.map((row) => [row.period, row]));
   const now = new Date().toISOString();
   const statements: D1PreparedStatement[] = [];

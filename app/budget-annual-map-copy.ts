@@ -1,5 +1,8 @@
 type Five = [string, string, string, string, string];
 export const mapCopy: Record<string, Five> = {
+noDimension:["Sem dimensão","No dimension","Sin dimensión","Sans dimension","Без аналитики"],
+aggregateReadOnly:["Vista agregada: selecione Sem dimensão ou uma dimensão para editar valores e pressupostos.","Aggregate view: select No dimension or a dimension to edit amounts and assumptions.","Vista agregada: seleccione Sin dimensión o una dimensión para editar importes y supuestos.","Vue agrégée : choisissez Sans dimension ou une dimension pour modifier les montants et hypothèses.","Сводный вид: выберите «Без аналитики» или аналитику для изменения сумм и предпосылок."],
+missingHistoricalEvidence:["O detalhe histórico desta origem não foi preservado; os valores aprovados mantêm-se.","Historical source detail was not retained; approved amounts remain unchanged.","El detalle histórico no se conservó; los importes aprobados se mantienen.","Le détail historique n’a pas été conservé ; les montants approuvés sont maintenus.","Исторические сведения не сохранены; утверждённые суммы не изменены."],
   title: [
     "Mapa Orçamental Anual",
     "Annual Budget Map",
