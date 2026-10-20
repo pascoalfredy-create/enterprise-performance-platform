@@ -516,7 +516,7 @@ export async function setAdjustment(
     )
     .bind(tenantId, input.versionId, line.code, input.period, input.organizationId, input.dimensionMemberId,input.currency.toUpperCase())
     .first<{ id: string; amount_minor: number; integration_amount_minor: number | null }>();
-  if(!Number.isSafeInteger(input.manualAdjustmentMinor)||!/^\\d{4}-(0[1-9]|1[0-2])$/.test(input.period)||!input.period.startsWith(String(draft.version!.fiscal_year)+"-")||!/^[A-Z]{3}$/.test(input.currency))return Response.json({error:"Período, moeda ou ajuste inválido."},{status:400});
+  if(!Number.isSafeInteger(input.manualAdjustmentMinor)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.period)||!input.period.startsWith(String(draft.version!.fiscal_year)+"-")||!/^[A-Z]{3}$/.test(input.currency))return Response.json({error:"Período, moeda ou ajuste inválido."},{status:400});
   const adjMinor = input.manualAdjustmentMinor;
   const integrationAmount = existing?.integration_amount_minor ?? 0;
   const effective =
