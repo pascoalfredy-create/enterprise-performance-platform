@@ -220,11 +220,12 @@ const moduleCatalog: Array<{
 
 export default function Home() {
   const [modulo, setModulo] = useState("Visão geral"),
-    // Several domains can stay expanded at once (not an accordion) and the
-    // domain containing the current screen auto-opens (effect below) — so
-    // navigating from search, a card or a breadcrumb never leaves the
-    // sidebar showing a collapsed menu with no visible "you are here".
-    [openDomains, setOpenDomains] = useState<Record<string, boolean>>({}),
+    // One module dropdown open at a time (this is a horizontal module bar
+    // with a popover per item, not a vertical accordion — see
+    // navigation-refresh.css) — but the domain containing the current
+    // screen auto-opens (effect below) — so navigating from search, a
+    // card or a breadcrumb never leaves the bar on the wrong dropdown.
+    [openDomain, setOpenDomain] = useState(""),
     [mobileMenu,setMobileMenu] = useState(false),
     [inviteStatus, setInviteStatus] = useState(""),
     [sessionError, setSessionError] = useState(""),
@@ -291,13 +292,13 @@ export default function Home() {
     }
   }
   // Wherever modulo changes from — the search palette, a home card, a
-  // breadcrumb click — the sidebar reveals where the user now is instead
-  // of staying collapsed on whichever domain it last showed. It only adds
-  // to the open set, never closes a domain the user opened themselves.
+  // breadcrumb click — the module bar opens the dropdown for where the
+  // user now is, instead of staying on whichever one it last showed (or
+  // closed) while the active screen belongs to a different, closed one.
   useEffect(() => {
     const domain = moduleCatalog.find((d) => d.items.some((i) => i.target === modulo));
     if (!domain) return;
-    setOpenDomains((prev) => (prev[domain.code] ? prev : { ...prev, [domain.code]: true }));
+    setOpenDomain((prev) => (prev === domain.code ? prev : domain.code));
   }, [modulo]);
   useEffect(() => {
     apiFetch("/api/session")
@@ -547,7 +548,7 @@ export default function Home() {
                 ),
               )
               .map((domain) => {
-                const open = !!openDomains[domain.code];
+                const open = openDomain === domain.code;
                 return (
                   <section
                     key={domain.code}
@@ -557,7 +558,7 @@ export default function Home() {
                       className="domain-title"
                       aria-expanded={open}
                       aria-controls={"module-items-"+domain.code}
-                      onClick={() => setOpenDomains((prev) => ({ ...prev, [domain.code]: !open }))}
+                      onClick={() => setOpenDomain(open ? "" : domain.code)}
                     >
                       <i>{domain.icon}</i>
                       <span>{msg(moduleNameKey[domain.code])}</span>
