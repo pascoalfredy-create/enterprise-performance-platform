@@ -227,11 +227,8 @@ export default function Home() {
     [documentOpen,setDocumentOpen] = useState(false),
     [reportTarget,setReportTarget] = useState<string|null>(null),
     [studyOriginId,setStudyOriginId] = useState<string|undefined>(undefined),
-    // One module dropdown open at a time (this is a horizontal module bar
-    // with a popover per item, not a vertical accordion — see
-    // navigation-refresh.css) — but the domain containing the current
-    // screen auto-opens (effect below) — so navigating from search, a
-    // card or a breadcrumb never leaves the bar on the wrong dropdown.
+    // Retain the current workspace for shared targets, including reports.
+    // The sidebar follows navigation from search, cards and breadcrumbs.
     [openDomain, setOpenDomain] = useState(""),
     [mobileMenu,setMobileMenu] = useState(false),
     [inviteStatus, setInviteStatus] = useState(""),
@@ -278,7 +275,7 @@ export default function Home() {
     window.dispatchEvent(new CustomEvent("ep:locale", { detail: locale }));
   }, [locale]);
   const navRef = useRef<HTMLElement>(null);
-  useEffect(()=>{if(!mobileMenu)return;const previous=document.activeElement as HTMLElement|null,overflow=document.body.style.overflow,sidebar=document.getElementById('platform-sidebar');document.body.style.overflow='hidden';sidebar?.querySelector<HTMLButtonElement>('button')?.focus();const key=(event:KeyboardEvent)=>{if(event.key==='Escape')setMobileMenu(false);if(event.key==='Tab'){const buttons=sidebar?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');if(!buttons?.length)return;const first=buttons[0],last=buttons[buttons.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}};window.addEventListener('keydown',key);return()=>{document.body.style.overflow=overflow;window.removeEventListener('keydown',key);previous?.focus()}},[mobileMenu]);
+  useEffect(()=>{if(!mobileMenu)return;const previous=document.activeElement as HTMLElement|null,overflow=document.body.style.overflow,sidebar=document.getElementById('platform-sidebar');document.body.style.overflow='hidden';sidebar?.querySelector<HTMLButtonElement>('button')?.focus();const key=(event:KeyboardEvent)=>{if(event.key==='Escape')setMobileMenu(false);if(event.key==='Tab'){const controls=Array.from(sidebar?.querySelectorAll<HTMLElement>('button:not(:disabled),select:not(:disabled),input:not(:disabled),a[href],[tabindex="0"]')||[]).filter(el=>el.getClientRects().length>0);if(!controls.length)return;const first=controls[0],last=controls[controls.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}};window.addEventListener('keydown',key);return()=>{document.body.style.overflow=overflow;window.removeEventListener('keydown',key);previous?.focus()}},[mobileMenu]);
   const msg = (key: MessageKey) => message(locale, key);
   const nav = navigationMeta[locale];
   const moduleNameKey: Record<string, MessageKey> = {
@@ -424,7 +421,6 @@ export default function Home() {
           <b><img src="/brand-icon.png" alt="" /></b>
           <span>Enterprise Performance</span>
         </div>
-        <WorkspaceModuleBar domains={availableWorkspaces} active={activeWorkspace?.code||''} locale={locale} name={workspaceName} onDomain={selectWorkspace}/>
         <div className="acoes">
           <label className="locale-select" title="Idioma / Language">
             <span>◎</span>
@@ -514,7 +510,7 @@ export default function Home() {
         </button>
       </div>
       <div className="workspace-layout">
-        <button className={mobileMenu?"shell-backdrop visible":"shell-backdrop"} aria-label={msg("shell.subscribedModules")} onClick={()=>setMobileMenu(false)}/><aside id="platform-sidebar" role={mobileMenu?"dialog":undefined} aria-modal={mobileMenu||undefined} aria-label={workspaceText(locale,'menu')} className={mobileMenu?"module-sidebar menu-visible":"module-sidebar"}><button className="shell-menu-close" aria-label={automationCopy.closeMenu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} onClick={()=>setMobileMenu(false)}>×</button><WorkspaceSidebar domain={activeWorkspace} target={modulo} locale={locale} name={activeWorkspace?workspaceName(activeWorkspace.code):workspaceText(locale,'general')} catalog={moduleCatalog.filter(d=>(d.accessCodes||[d.code]).some(code=>sessao.modules.includes(code)))} onNavigate={target=>{setModulo(target);setMobileMenu(false)}} onReports={()=>{setModulo('Central de Relatórios');setMobileMenu(false)}} onHome={()=>{setModulo('Visão geral');setMobileMenu(false)}} onHelp={()=>setCommandMode('help')}/></aside>
+        <button className={mobileMenu?"shell-backdrop visible":"shell-backdrop"} aria-label={msg("shell.subscribedModules")} onClick={()=>setMobileMenu(false)}/><aside id="platform-sidebar" role={mobileMenu?"dialog":undefined} aria-modal={mobileMenu||undefined} aria-label={workspaceText(locale,'menu')} className={mobileMenu?"module-sidebar menu-visible":"module-sidebar"}><button className="shell-menu-close" aria-label={automationCopy.closeMenu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} onClick={()=>setMobileMenu(false)}>×</button><WorkspaceModuleBar domains={availableWorkspaces} active={activeWorkspace?.code||''} locale={locale} name={workspaceName} onDomain={selectWorkspace}/><WorkspaceSidebar domain={activeWorkspace} target={modulo} locale={locale} name={activeWorkspace?workspaceName(activeWorkspace.code):workspaceText(locale,'general')} catalog={moduleCatalog.filter(d=>(d.accessCodes||[d.code]).some(code=>sessao.modules.includes(code)))} onNavigate={target=>{setModulo(target);setMobileMenu(false)}} onReports={()=>{setModulo('Central de Relatórios');setMobileMenu(false)}} onHome={()=>{setModulo('Visão geral');setMobileMenu(false)}} onHelp={()=>setCommandMode('help')}/></aside>
         <main className="module-content"><div id="platform-report-root" hidden={!documentOpen}/><div className="workspace-source" hidden={documentOpen}>
           {reportTarget&&<div className="workspace-document-toolbar"><button type="button" onClick={()=>setModulo('Central de Relatórios')}>← {workspaceText(locale,'back')}</button><button type="button" onClick={()=>setModulo(reportTarget)}>{workspaceText(locale,'origin')} ↗</button></div>}
           {breadcrumb && modulo !== "Visão geral" && (

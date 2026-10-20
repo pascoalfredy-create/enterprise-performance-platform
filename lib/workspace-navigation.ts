@@ -48,6 +48,7 @@ export const workspaceCopy={
  close:['Voltar ao trabalho','Return to work','Volver al trabajo','Revenir au travail','Вернуться к работе'],
  process:['Processo de origem','Source process','Proceso de origen',"Processus d’origine",'Исходный процесс'],
  settings:['Configurações','Settings','Configuración','Paramètres','Настройки'],
+ help:['Ajuda','Help','Ayuda','Aide','Помощь'],
  all:['Todos os módulos','All modules','Todos los módulos','Tous les modules','Все модули'],
  menu:['Navegação do módulo','Module navigation','Navegación del módulo','Navigation du module','Навигация модуля'],
  general:['Visão geral','Overview','Visión general',"Vue d’ensemble",'Обзор'],
