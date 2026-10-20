@@ -63,6 +63,7 @@ import { PayrollMonthlySheet } from "./payroll-monthly-sheet";
 import { payrollSheetCopy } from "../lib/payroll-sheet-copy";
 import { payrollTreatments, validatePayrollTreatment } from "../lib/payroll-engine";
 import { PlatformLocalizedSurface } from "./hr-localized-surface";
+import { ReportsHubWorkspace, type ReportsHubGroup } from "./reports-hub-workspace";
 /* Test contract marker: legacy state "Em preparação" is now locale-driven. */
 
 type ModuleItem = {
@@ -219,7 +220,11 @@ const moduleCatalog: Array<{
 
 export default function Home() {
   const [modulo, setModulo] = useState("Visão geral"),
-    [openDomain, setOpenDomain] = useState(""),
+    // Several domains can stay expanded at once (not an accordion) and the
+    // domain containing the current screen auto-opens (effect below) — so
+    // navigating from search, a card or a breadcrumb never leaves the
+    // sidebar showing a collapsed menu with no visible "you are here".
+    [openDomains, setOpenDomains] = useState<Record<string, boolean>>({}),
     [mobileMenu,setMobileMenu] = useState(false),
     [inviteStatus, setInviteStatus] = useState(""),
     [sessionError, setSessionError] = useState(""),
@@ -285,6 +290,15 @@ export default function Home() {
       break;
     }
   }
+  // Wherever modulo changes from — the search palette, a home card, a
+  // breadcrumb click — the sidebar reveals where the user now is instead
+  // of staying collapsed on whichever domain it last showed. It only adds
+  // to the open set, never closes a domain the user opened themselves.
+  useEffect(() => {
+    const domain = moduleCatalog.find((d) => d.items.some((i) => i.target === modulo));
+    if (!domain) return;
+    setOpenDomains((prev) => (prev[domain.code] ? prev : { ...prev, [domain.code]: true }));
+  }, [modulo]);
   useEffect(() => {
     apiFetch("/api/session")
       .then(async (r) => ({ ok: r.ok, body: await r.json() }))
@@ -298,7 +312,6 @@ export default function Home() {
           localStorage.setItem("ep_active_tenant", body.tenantId);
           if (!body.onboarding?.complete && body.role === "Administrador") {
             setModulo("Administração");
-            setOpenDomain("CORE");
           } else if (body.organizationId)
             setModulo(
               body.modules.includes("FINANCE_FP&A")
@@ -378,6 +391,23 @@ export default function Home() {
         </div>
       </main>
     );
+  // Every "document: true" item, across every subscribed domain, flattened
+  // into one cross-module list — the same access-scoping the search palette
+  // already applies (entries prop below), reused rather than duplicated.
+  const reportsGroups: ReportsHubGroup[] = moduleCatalog
+    .filter((domain) =>
+      (domain.accessCodes || [domain.code]).some((code) => sessao.modules.includes(code)),
+    )
+    .map((domain) => ({
+      code: domain.code,
+      name: msg(moduleNameKey[domain.code]),
+      icon: domain.icon,
+      items: domain.items
+        .filter((item) => item.document && item.target)
+        .filter((item) => (item.requires ? sessao.modules.includes(item.requires) : true))
+        .map((item) => ({ label: moduleItemLabel(locale, item.label), target: item.target! })),
+    }))
+    .filter((group) => group.items.length > 0);
   return (
     <div className="site">
       <PlatformLocalizedSurface>
@@ -497,6 +527,18 @@ export default function Home() {
               <small>{msg("shell.executiveView")}</small>
             </span>
           </button>
+          <button
+            className={
+              modulo === "Central de Relatórios" ? "module-home active" : "module-home"
+            }
+            onClick={() => {setModulo("Central de Relatórios");setMobileMenu(false)}}
+          >
+            <i>▦</i>
+            <span>
+              <b>{msg("shell.reportsHub")}</b>
+              <small>{msg("shell.reportsHubSubtitle")}</small>
+            </span>
+          </button>
           <nav aria-label={nav.aria} ref={navRef}>
             {moduleCatalog
               .filter((domain) =>
@@ -505,7 +547,7 @@ export default function Home() {
                 ),
               )
               .map((domain) => {
-                const open = openDomain === domain.code;
+                const open = !!openDomains[domain.code];
                 return (
                   <section
                     key={domain.code}
@@ -515,7 +557,7 @@ export default function Home() {
                       className="domain-title"
                       aria-expanded={open}
                       aria-controls={"module-items-"+domain.code}
-                      onClick={() => setOpenDomain(open ? "" : domain.code)}
+                      onClick={() => setOpenDomains((prev) => ({ ...prev, [domain.code]: !open }))}
                     >
                       <i>{domain.icon}</i>
                       <span>{msg(moduleNameKey[domain.code])}</span>
@@ -576,10 +618,7 @@ export default function Home() {
           {!sessao.onboarding.complete && sessao.role === "Administrador" && (
             <TenantOnboarding
               state={sessao.onboarding}
-              onOpen={() => {
-                setModulo("Administração");
-                setOpenDomain("CORE");
-              }}
+              onOpen={() => setModulo("Administração")}
             />
           )}
           <DemoPortfolioLoader
@@ -594,7 +633,9 @@ export default function Home() {
           />
           <ModuleTransferToolbar key={modulo} module={moduleItemLabel(locale,modulo)} onNavigate={setModulo}/>
           <EngineReadiness onNavigate={setModulo} locale={locale} />
-          {modulo === "Ativação" ? (
+          {modulo === "Central de Relatórios" ? (
+            <ReportsHubWorkspace groups={reportsGroups} onNavigate={setModulo} />
+          ) : modulo === "Ativação" ? (
             <CustomerActivationWorkspace onNavigate={setModulo} />
           ) : ["Administração","Utilizadores","Employee Master"].includes(modulo) ? (
             <ConfiguracaoReal initialStep={modulo === "Utilizadores" ? 2 : modulo === "Employee Master" ? 3 : 1} autoOpenNewRecord={modulo === "Employee Master"} payrollEnabled={sessao.modules.includes("PAYROLL")} />

@@ -1,0 +1,50 @@
+type Five = [string, string, string, string, string];
+export const reportsHubCopy: Record<string, Five> = {
+  eyebrow: [
+    "TODOS OS MÓDULOS",
+    "ALL MODULES",
+    "TODOS LOS MÓDULOS",
+    "TOUS LES MODULES",
+    "ВСЕ МОДУЛИ",
+  ],
+  title: ["Relatórios", "Reports", "Informes", "Rapports", "Отчёты"],
+  subtitle: [
+    "Todos os relatórios e documentos de gestão da plataforma, de todos os módulos, num só lugar.",
+    "Every management report and document across the platform, from every module, in one place.",
+    "Todos los informes y documentos de gestión de la plataforma, de todos los módulos, en un solo lugar.",
+    "Tous les rapports et documents de gestion de la plateforme, de tous les modules, au même endroit.",
+    "Все управленческие отчёты и документы платформы, из всех модулей, в одном месте.",
+  ],
+  searchPlaceholder: [
+    "Pesquisar relatórios…",
+    "Search reports…",
+    "Buscar informes…",
+    "Rechercher des rapports…",
+    "Поиск отчётов…",
+  ],
+  all: ["Todos", "All", "Todos", "Tous", "Все"],
+  favourites: ["Favoritos", "Favourites", "Favoritos", "Favoris", "Избранное"],
+  pin: [
+    "Marcar como favorito",
+    "Mark as favourite",
+    "Marcar como favorito",
+    "Marquer comme favori",
+    "Отметить как избранное",
+  ],
+  unpin: [
+    "Remover dos favoritos",
+    "Remove from favourites",
+    "Quitar de favoritos",
+    "Retirer des favoris",
+    "Убрать из избранного",
+  ],
+  open: ["Abrir", "Open", "Abrir", "Ouvrir", "Открыть"],
+  empty: [
+    "Sem relatórios para esta pesquisa ou filtro.",
+    "No reports for this search or filter.",
+    "Sin informes para esta búsqueda o filtro.",
+    "Aucun rapport pour cette recherche ou ce filtre.",
+    "Нет отчётов по этому запросу или фильтру.",
+  ],
+  document: ["Documento", "Document", "Documento", "Document", "Документ"],
+};
