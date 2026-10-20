@@ -491,9 +491,22 @@ test("the universal line-catalog actions live inside setupApi, so they inherit t
  for(const type of ["financialLineCreate","financialLineRename","financialLineSetHidden","financialLineSetStatus","financialLineReorder","financialLineDuplicate","financialLineAdoptTemplate"])
   assert.match(setupBlock,new RegExp(`body\\.type === "${type}"`),`${type} should be handled inside setupApi`);
 });
-test("the budget annual map shares /api/performance's permission gate (performance:write/performance:read) instead of a new, separate one",()=>{
- assert.match(compact,/\["\/api\/performance","\/api\/budget-annual-map"\]\.includes\(apiPath\)\?write\?"performance:write":"performance:read"/);
+test("the budget annual map and the budget integration engine share /api/performance's permission gate (performance:write/performance:read) instead of a new, separate one",()=>{
+ assert.match(compact,/\["\/api\/performance","\/api\/budget-annual-map","\/api\/budget-integration"\]\.includes\(apiPath\)\?write\?"performance:write":"performance:read"/);
  assert.match(source,/apiPath === "\/api\/budget-annual-map"\)\s*\n\s*return budgetAnnualMapApi/);
+ assert.match(source,/apiPath === "\/api\/budget-integration"\)\s*\n\s*return budgetIntegrationApi/);
+});
+test("budget integration writes (applyMapping, setAdjustment) are gated to draft versions; mapping configuration itself is not, so approving a budget never blocks a mapping from evolving",()=>{
+ const src=fs.readFileSync(new URL("../worker/budget-integration.ts",import.meta.url),"utf8");
+ assert.match(src,/requireDraftVersion/);
+ for(const fn of ["applyMapping","setAdjustment"]){
+  const start=src.indexOf(`export async function ${fn}(`);
+  assert.ok(start>=0,`${fn} should exist`);
+  const body=src.slice(start,start+600);
+  assert.match(body,/requireDraftVersion/,`${fn} must gate on requireDraftVersion`);
+ }
+ const createMappingBody=src.slice(src.indexOf("export async function createMapping("),src.indexOf("export async function setMappingStatus("));
+ assert.doesNotMatch(createMappingBody,/requireDraftVersion/);
 });
 test("Mapa Anual writes (batch save, pressupostos) are refused once the budget version is approved — create, update and delete alike",()=>{
  const src=fs.readFileSync(new URL("../worker/budget-annual-map.ts",import.meta.url),"utf8");

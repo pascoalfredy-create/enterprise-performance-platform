@@ -44,6 +44,16 @@ import {
   recalculateLine,
   buildApprovalLineSnapshotStatements,
 } from "./budget-annual-map";
+import {
+  createMapping,
+  setMappingStatus,
+  listMappings,
+  checkForUpdates,
+  confirmMovements,
+  applyMapping,
+  setAdjustment,
+  getCellOrigin,
+} from "./budget-integration";
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
 import { controlPlaneApi, ensureFirstOperator } from "./control-plane";
@@ -3397,6 +3407,67 @@ async function budgetAnnualMapApi(
   }
 }
 
+// Fase 3.1 — Motor Comum de Integração Orçamental. Mapping configuration
+// (create/deactivate/list) shares setup:write, the same family as every
+// other catalog-adjacent action in setupApi. Everything that writes into
+// performance_entries (ingest, apply, adjustment) shares the exact
+// /api/performance write gate the Mapa Orçamental Anual already uses, so it
+// inherits the same role/segregation rules without a new permission.
+async function budgetIntegrationApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null,
+) {
+  try {
+    const url = new URL(request.url);
+    const actor = actorEmail(request) || "utilizador autenticado";
+    if (request.method === "GET") {
+      if (url.searchParams.get("action") === "origin") {
+        return getCellOrigin(db, tenantId, {
+          versionId: url.searchParams.get("versionId") || "",
+          lineId: url.searchParams.get("lineId") || "",
+          organizationId: url.searchParams.get("organizationId") || organizationId || "",
+          dimensionMemberId: url.searchParams.get("dimensionMemberId"),
+          period: url.searchParams.get("period") || "",
+        });
+      }
+      return listMappings(db, tenantId, organizationId || url.searchParams.get("organizationId"));
+    }
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as Record<string, unknown>;
+    if (body.organizationId && organizationId && body.organizationId !== organizationId)
+      return Response.json({ error: "Organização fora do âmbito autorizado." }, { status: 403 });
+    if (body.type === "createMapping") return createMapping(db, tenantId, actor, body);
+    if (body.type === "setMappingStatus")
+      return setMappingStatus(db, tenantId, String(body.mappingId || ""), body.status === "Inativo" ? "Inativo" : "Ativo");
+    if (body.type === "checkForUpdates")
+      return checkForUpdates(db, tenantId, String(body.mappingId || ""), Array.isArray(body.values) ? (body.values as never[]) : []);
+    if (body.type === "confirmMovements")
+      return confirmMovements(db, tenantId, String(body.mappingId || ""), body.period ? String(body.period) : null);
+    if (body.type === "applyMapping")
+      return applyMapping(db, tenantId, actor, { mappingId: String(body.mappingId || ""), versionId: String(body.versionId || "") });
+    if (body.type === "setAdjustment")
+      return setAdjustment(db, tenantId, actor, {
+        versionId: String(body.versionId || ""),
+        lineId: String(body.lineId || ""),
+        organizationId: String(body.organizationId || organizationId || ""),
+        dimensionMemberId: body.dimensionMemberId ? String(body.dimensionMemberId) : null,
+        currency: String(body.currency || "AOA").toUpperCase(),
+        period: String(body.period || ""),
+        mode: (["Substituir", "Adicionar", "Bloquear"].includes(String(body.mode)) ? body.mode : "Substituir") as
+          | "Substituir"
+          | "Adicionar"
+          | "Bloquear",
+        manualAdjustmentMinor: Number(body.manualAdjustmentMinor || 0),
+      });
+    return Response.json({ error: "Operação não suportada." }, { status: 400 });
+  } catch (error) {
+    return apiFailure(error, "Não foi possível processar a integração orçamental.");
+  }
+}
+
 async function scenariosApi(
   request: Request,
   db: D1Database,
@@ -6365,7 +6436,7 @@ const worker = {
                     ? write
                       ? "payroll:write"
                       : "payroll:read"
-                  : ["/api/performance", "/api/budget-annual-map"].includes(apiPath)
+                  : ["/api/performance", "/api/budget-annual-map", "/api/budget-integration"].includes(apiPath)
                     ? write
                       ? "performance:write"
                       : "performance:read"
@@ -6494,6 +6565,7 @@ const worker = {
             : [
                   "/api/performance",
                   "/api/budget-annual-map",
+                  "/api/budget-integration",
                   "/api/scenarios",
                   "/api/consolidation",
                   "/api/financial-models",
@@ -6612,6 +6684,8 @@ const worker = {
         return performanceApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/budget-annual-map")
         return budgetAnnualMapApi(request, env.DB, tenantId, organizationId);
+      if (apiPath === "/api/budget-integration")
+        return budgetIntegrationApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/scenarios")
         return scenariosApi(request, env.DB, security);
       if (apiPath === "/api/consolidation")

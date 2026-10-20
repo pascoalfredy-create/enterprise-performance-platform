@@ -31,7 +31,7 @@ test('snapshot nests the hierarchy, fills 12 months of Budget entries and keeps 
  line(f.sqlite,'t1','grp','01',{line_kind:'Agregação'});
  line(f.sqlite,'t1','leaf','01.01',{parent_id:'grp',level:2});
  version(f.sqlite,'t1','v1');
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-03','Budget','v1','AOA','01.01','Leaf',NULL,5000,'Manual',0)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-03','Budget','v1','AOA','01.01','Leaf',NULL,5000,'Manual',0,NULL,0,NULL,NULL)");
  line(f.sqlite,'t2','other','01',{});
  const snap = await budgetAnnualMapSnapshot(f.db,'t1',{versionId:'v1',organizationId:'o1',dimensionMemberId:null,currency:'AOA'});
  assert.equal(snap.tree.length,1);
@@ -127,7 +127,7 @@ test('recalculateLine never overwrites a cell the user protected with manual_ove
  const f=setup();
  line(f.sqlite,'t1','leaf','L');
  version(f.sqlite,'t1','v1');
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','L','L',NULL,999999,'Manual',1)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','L','L',NULL,999999,'Manual',1,NULL,0,NULL,NULL)");
  await createOrUpdateAssumption(f.db,'t1','maker@test',{
   versionId:'v1',lineId:'leaf',organizationId:'o1',currency:'AOA',method:'QuantidadePreco',precedence:0,
   params:{quantity:10,unitPriceMinor:100000},
@@ -146,7 +146,7 @@ test('recalculateLine with no enabled assumptions reports zero updates and touch
  const f=setup();
  line(f.sqlite,'t1','leaf','L');
  version(f.sqlite,'t1','v1');
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','L','L',NULL,42,'Manual',0)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','L','L',NULL,42,'Manual',0,NULL,0,NULL,NULL)");
  const result = await recalculateLine(f.db,'t1',{versionId:'v1',lineId:'leaf',organizationId:'o1',dimensionMemberId:null,currency:'AOA'});
  const body = await result.json();
  assert.equal(body.updated,0);
@@ -160,7 +160,7 @@ test('approving a version freezes the catalog hierarchy: a later rename, reparen
  line(f.sqlite,'t1','grp2','02',{name:'Grupo B',line_kind:'Agregação'});
  line(f.sqlite,'t1','leaf','01.01',{name:'Leaf',parent_id:'grp',level:2});
  version(f.sqlite,'t1','v1');
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','01.01','Leaf',NULL,1000,'Manual',0)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','01.01','Leaf',NULL,1000,'Manual',0,NULL,0,NULL,NULL)");
  const snapshotStatements = await buildApprovalLineSnapshotStatements(f.db,'t1','v1');
  assert.ok(snapshotStatements.length>=2); // the leaf plus its ancestor group
  await f.db.batch([...snapshotStatements, f.db.prepare("UPDATE budget_versions SET status='Aprovado',approved_at='now' WHERE id='v1'")]);
@@ -185,7 +185,7 @@ test('a draft version keeps reflecting live catalog changes immediately (only ap
  line(f.sqlite,'t1','grp','01',{name:'Grupo A',line_kind:'Agregação'});
  line(f.sqlite,'t1','leaf','01.01',{name:'Leaf',parent_id:'grp',level:2});
  version(f.sqlite,'t1','v1');
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','01.01','Leaf',NULL,1000,'Manual',0)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','01.01','Leaf',NULL,1000,'Manual',0,NULL,0,NULL,NULL)");
  f.sqlite.exec("UPDATE financial_line_catalog SET name='Renamed Leaf' WHERE id='leaf'");
  const snap = await budgetAnnualMapSnapshot(f.db,'t1',{versionId:'v1',organizationId:'o1',dimensionMemberId:null,currency:'AOA'});
  assert.equal(snap.tree[0].children[0].name,'Renamed Leaf');
@@ -197,7 +197,7 @@ test('the approval snapshot itself is immutable once written', async () => {
  line(f.sqlite,'t1','grp','01',{name:'Grupo A',line_kind:'Agregação'});
  line(f.sqlite,'t1','leaf','01.01',{name:'Leaf',parent_id:'grp',level:2});
  version(f.sqlite,'t1','v1');
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','01.01','Leaf',NULL,1000,'Manual',0)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Budget','v1','AOA','01.01','Leaf',NULL,1000,'Manual',0,NULL,0,NULL,NULL)");
  const snapshotStatements = await buildApprovalLineSnapshotStatements(f.db,'t1','v1');
  await f.db.batch([...snapshotStatements, f.db.prepare("UPDATE budget_versions SET status='Aprovado',approved_at='now' WHERE id='v1'")]);
  assert.throws(()=>f.sqlite.exec("UPDATE budget_version_line_snapshots SET name='Hacked' WHERE version_id='v1'"),/imutável/);

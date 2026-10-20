@@ -24,7 +24,7 @@ const OPERATIONAL_METHODS: AssumptionMethod[] = [
 ];
 const PERIODICITIES = ["Mensal", "Trimestral", "Anual", "Pontual"];
 
-function fiscalYearPeriods(fiscalYear: number): string[] {
+export function fiscalYearPeriods(fiscalYear: number): string[] {
   return Array.from({ length: 12 }, (_, i) => `${fiscalYear}-${String(i + 1).padStart(2, "0")}`);
 }
 
@@ -146,7 +146,7 @@ export async function buildApprovalLineSnapshotStatements(
   });
 }
 
-async function requireDraftVersion(db: D1Database, tenantId: string, versionId: string) {
+export async function requireDraftVersion(db: D1Database, tenantId: string, versionId: string) {
   const version = await db
     .prepare("SELECT id,fiscal_year,status FROM budget_versions WHERE id=? AND tenant_id=?")
     .bind(versionId, tenantId)

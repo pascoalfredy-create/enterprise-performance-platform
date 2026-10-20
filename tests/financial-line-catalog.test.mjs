@@ -37,7 +37,7 @@ test('a rubrica with movements or sub-rubricas cannot be physically deleted, but
  line(f.sqlite,'t1','a','A',{line_kind:'Agregação'});
  line(f.sqlite,'t1','b','B',{parent_id:'a',level:2});
  assert.throws(()=>f.sqlite.exec("DELETE FROM financial_line_catalog WHERE id='a'"),/sub-rubricas/);
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Actual',NULL,'AOA','B','B',NULL,1000,'Manual',0)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Actual',NULL,'AOA','B','B',NULL,1000,'Manual',0,NULL,0,NULL,NULL)");
  assert.throws(()=>f.sqlite.exec("DELETE FROM financial_line_catalog WHERE id='b'"),/movimentos/);
  f.sqlite.exec("UPDATE financial_line_catalog SET name='Renamed B' WHERE id='b'");
  assert.equal(f.sqlite.prepare("SELECT name FROM financial_line_catalog WHERE id='b'").get().name,'Renamed B');
@@ -105,8 +105,8 @@ test('catalogTotals sums each leaf once and rolls up through every ancestor with
  line(f.sqlite,'t1','cat','01.01',{name:'Categoria',parent_id:'grp',level:2,line_kind:'Agregação',display_order:1});
  line(f.sqlite,'t1','leaf1','01.01.01',{name:'Rubrica 1',parent_id:'cat',level:3,display_order:1});
  line(f.sqlite,'t1','leaf2','01.01.02',{name:'Rubrica 2',parent_id:'cat',level:3,display_order:2});
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Actual',NULL,'AOA','01.01.01','R1',NULL,1000,'Manual',0)");
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e2','t1','now','o1','2026-01','Actual',NULL,'AOA','01.01.02','R2',NULL,500,'Manual',0)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Actual',NULL,'AOA','01.01.01','R1',NULL,1000,'Manual',0,NULL,0,NULL,NULL)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e2','t1','now','o1','2026-01','Actual',NULL,'AOA','01.01.02','R2',NULL,500,'Manual',0,NULL,0,NULL,NULL)");
  const totals=await catalogTotals(f.db,'t1',{organizationId:'o1',period:'2026-01',currency:'AOA',scenario:'Actual'});
  const byCode=Object.fromEntries(totals.map(t=>[t.code,t]));
  assert.equal(byCode['01.01.01'].totalMinor,1000);
@@ -120,9 +120,9 @@ test('catalogTotals sums each leaf once and rolls up through every ancestor with
 test('catalogTotals respects organization, period and currency scope',async()=>{
  const f=setup();
  line(f.sqlite,'t1','leaf','L',{display_order:1});
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Actual',NULL,'AOA','L','L',NULL,100,'Manual',0)");
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e2','t1','now','o1','2026-02','Actual',NULL,'AOA','L','L',NULL,200,'Manual',0)");
- f.sqlite.exec("INSERT INTO performance_entries VALUES ('e3','t1','now','o1','2026-01','Actual',NULL,'USD','L','L',NULL,9999,'Manual',0)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e1','t1','now','o1','2026-01','Actual',NULL,'AOA','L','L',NULL,100,'Manual',0,NULL,0,NULL,NULL)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e2','t1','now','o1','2026-02','Actual',NULL,'AOA','L','L',NULL,200,'Manual',0,NULL,0,NULL,NULL)");
+ f.sqlite.exec("INSERT INTO performance_entries VALUES ('e3','t1','now','o1','2026-01','Actual',NULL,'USD','L','L',NULL,9999,'Manual',0,NULL,0,NULL,NULL)");
  const totals=await catalogTotals(f.db,'t1',{organizationId:'o1',period:'2026-01',currency:'AOA',scenario:'Actual'});
  assert.equal(totals.find(t=>t.code==='L').totalMinor,100);
  f.sqlite.close();
