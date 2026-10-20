@@ -125,6 +125,10 @@ export async function createMapping(db: D1Database, tenantId: string, actor: str
     }
   }
 
+  if(relationPolicy==="Substituicao"&&body.supersedesMappingId){
+    const prior=await db.prepare("SELECT * FROM financial_line_catalog_mappings WHERE id=? AND tenant_id=?").bind(String(body.supersedesMappingId),tenantId).first<MappingRow>();
+    if(!prior||prior.organization_id!==organizationId||prior.line_id!==lineId||prior.dimension_member_id!==dimensionMemberId||prior.currency!==currency||prior.financial_nature!==financialNature)return Response.json({error:"O mapeamento substituído deve pertencer à mesma célula e empresa."},{status:400});
+  }
   const id = uid(),
     now = new Date().toISOString();
   const statements: D1PreparedStatement[] = [];
@@ -359,24 +363,25 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
   const periods = fiscalYearPeriods(version.fiscal_year);
   const movements = await db
     .prepare(
-      "SELECT period,amount_minor FROM budget_integration_movements WHERE tenant_id=? AND mapping_id=? AND sync_state IN ('Atualizado','PendenteConfirmacao') AND dimension_member_id IS ? AND period BETWEEN ? AND ?",
+      "SELECT period,amount_minor,source_movement_reference,component_label,source_status,source_fingerprint,sync_state,pending_amount_minor FROM budget_integration_movements WHERE tenant_id=? AND mapping_id=? AND sync_state IN ('Atualizado','PendenteConfirmacao') AND dimension_member_id IS ? AND period BETWEEN ? AND ?",
     )
     .bind(tenantId, mapping.id, mapping.dimension_member_id, periods[0], periods[11])
-    .all<{ period: string; amount_minor: number }>();
+    .all<{ period: string; amount_minor: number;source_movement_reference:string;component_label:string;source_status:string;source_fingerprint:string;sync_state:string;pending_amount_minor:number|null }>();
   const sumByPeriod = new Map<string, { sum: number; count: number }>();
   for (const m of movements.results) {
     const row = sumByPeriod.get(m.period) || { sum: 0, count: 0 };
     row.sum += m.amount_minor;
+    if(!Number.isSafeInteger(row.sum))return Response.json({error:"Valor integrado fora do limite seguro."},{status:400});
     row.count += 1;
     sumByPeriod.set(m.period, row);
   }
 
   const existingEntries = await db
     .prepare(
-      "SELECT id,period,amount_minor,manual_adjustment_minor,adjustment_mode FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code=? AND organization_id=? AND currency=? AND dimension_member_id IS ?",
+      "SELECT id,period,amount_minor,integration_value_id,manual_adjustment_minor,adjustment_mode FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code=? AND organization_id=? AND currency=? AND dimension_member_id IS ?",
     )
     .bind(tenantId, input.versionId, line.code, mapping.organization_id, mapping.currency, mapping.dimension_member_id)
-    .all<{ id: string; period: string; amount_minor: number; manual_adjustment_minor: number; adjustment_mode: string | null }>();
+    .all<{ id: string; period: string; amount_minor: number; integration_value_id:string|null;manual_adjustment_minor: number; adjustment_mode: string | null }>();
   const entryByPeriod = new Map(existingEntries.results.map((row) => [row.period, row]));
 
   const existingValues = await db
@@ -387,6 +392,9 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
     .all<{ id: string; period: string }>();
   const valueIdByPeriod = new Map(existingValues.results.map((row) => [row.period, row.id]));
 
+  // Only contributions already APPLIED to this version count. A sync does
+  // not silently change peer contributions before their explicit application.
+  const peers=await db.prepare("SELECT v.* FROM budget_integration_values v JOIN financial_line_catalog_mappings m ON m.id=v.mapping_id AND m.tenant_id=v.tenant_id WHERE v.tenant_id=? AND v.version_id=? AND v.line_id=? AND v.organization_id=? AND v.currency=? AND v.dimension_member_id IS ? AND v.financial_nature=? AND v.mapping_id<>? AND m.status='Ativo' ORDER BY v.mapping_id").bind(tenantId,input.versionId,mapping.line_id,mapping.organization_id,mapping.currency,mapping.dimension_member_id,mapping.financial_nature,mapping.id).all<{mapping_id:string;period:string;integration_amount_minor:number;source_module:string;source_reference:string;movements_json:string|null;movement_count:number}>();
   const now = new Date().toISOString();
   const statements: D1PreparedStatement[] = [];
   let applied = 0,
@@ -400,7 +408,16 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
     }
     const mode = existing?.adjustment_mode || null;
     const manualAdj = existing?.manual_adjustment_minor || 0;
-    const effective = mode === "Substituir" ? manualAdj : mode === "Adicionar" ? agg.sum + manualAdj : agg.sum;
+    const peerRows=peers.results.filter(p=>p.period===period);
+    const integrationTotal=peerRows.reduce((n,p)=>n+Number(p.integration_amount_minor),agg.sum);
+    const effective = mode === "Substituir" ? manualAdj : mode === "Adicionar" ? integrationTotal + manualAdj : integrationTotal;
+    if(!Number.isSafeInteger(integrationTotal)||!Number.isSafeInteger(effective))return Response.json({error:"Valor integrado fora do limite seguro."},{status:400});
+    const ownMovements=movements.results.filter(m=>m.period===period);
+    const contributions=[...peerRows.map(p=>({mappingId:p.mapping_id,amountMinor:p.integration_amount_minor,sourceModule:p.source_module,sourceReference:p.source_reference,movementCount:p.movement_count,snapshotAvailable:p.movements_json!==null,movements:p.movements_json?JSON.parse(p.movements_json):[]})),{mappingId:mapping.id,amountMinor:agg.sum,sourceModule:mapping.source_module,sourceReference:mapping.source_reference,movementCount:agg.count,snapshotAvailable:true,movements:ownMovements}];
+    const cellSnapshot={sourceModule:[...new Set(contributions.map(c=>c.sourceModule))].join(" + "),sourceReference:contributions.map(c=>c.sourceReference).join(" + "),syncState:"Atualizado",appliedAt:now,movementCount:contributions.reduce((n,c)=>n+c.movementCount,0),snapshotAvailable:contributions.every(c=>c.snapshotAvailable),contributions,movements:contributions.flatMap(c=>c.movements.map((m:Record<string,unknown>)=>({...m,mappingId:c.mappingId})))};
+    // Refuse a concurrent cell edit rather than committing a partial aggregate.
+    statements.push(db.prepare("INSERT INTO budget_cell_write_checks(matches_revision) SELECT 0 WHERE "+(existing?"NOT EXISTS(SELECT 1 FROM performance_entries WHERE id=? AND tenant_id=? AND amount_minor=? AND integration_value_id IS ?)":"EXISTS(SELECT 1 FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code=? AND organization_id=? AND currency=? AND dimension_member_id IS ? AND period=?)")).bind(...(existing?[existing.id,tenantId,existing.amount_minor,existing.integration_value_id]:[tenantId,input.versionId,line.code,mapping.organization_id,mapping.currency,mapping.dimension_member_id,period])));
+
     const entryId = existing?.id || uid();
     // Reuse the SAME budget_integration_values row across repeated applies
     // for this (mapping,version,period) — a fresh id each time would leave
@@ -411,15 +428,15 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
       statements.push(
         db
           .prepare(
-            "UPDATE budget_integration_values SET integration_amount_minor=?,movement_count=?,applied_entry_id=?,sync_state='Atualizado',applied_by=?,applied_at=? WHERE id=? AND tenant_id=?",
+            "UPDATE budget_integration_values SET integration_amount_minor=?,movement_count=?,applied_entry_id=?,sync_state='Atualizado',applied_by=?,applied_at=?,movements_json=?,cell_snapshot_json=? WHERE id=? AND tenant_id=?",
           )
-          .bind(agg.sum, agg.count, entryId, actor, now, valueId, tenantId),
+          .bind(agg.sum, agg.count, entryId, actor, now, JSON.stringify(ownMovements),JSON.stringify(cellSnapshot),valueId, tenantId),
       );
     } else {
       statements.push(
         db
           .prepare(
-            "INSERT INTO budget_integration_values (id,tenant_id,mapping_id,version_id,organization_id,line_id,period,dimension_member_id,currency,financial_nature,integration_amount_minor,movement_count,source_module,source_reference,relation_policy,sync_policy,applied_entry_id,sync_state,applied_by,applied_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO budget_integration_values (id,tenant_id,mapping_id,version_id,organization_id,line_id,period,dimension_member_id,currency,financial_nature,integration_amount_minor,movement_count,source_module,source_reference,relation_policy,sync_policy,applied_entry_id,sync_state,applied_by,applied_at,movements_json,cell_snapshot_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
           )
           .bind(
             valueId,
@@ -442,6 +459,8 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
             "Atualizado",
             actor,
             now,
+            JSON.stringify(ownMovements),
+            JSON.stringify(cellSnapshot),
           ),
       );
     }
@@ -449,7 +468,7 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
       statements.push(
         db
           .prepare("UPDATE performance_entries SET amount_minor=?,integration_amount_minor=?,integration_value_id=? WHERE id=? AND tenant_id=?")
-          .bind(effective, agg.sum, valueId, existing.id, tenantId),
+          .bind(effective, integrationTotal, valueId, existing.id, tenantId),
       );
     } else {
       statements.push(
@@ -457,12 +476,12 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
           .prepare(
             "INSERT INTO performance_entries (id,tenant_id,organization_id,period,scenario,version_id,currency,line_code,line_name,dimension_member_id,amount_minor,source,created_at,manual_override,integration_amount_minor,manual_adjustment_minor,adjustment_mode,integration_value_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,0,NULL,?)",
           )
-          .bind(entryId, tenantId, mapping.organization_id, period, "Budget", input.versionId, mapping.currency, line.code, line.name, mapping.dimension_member_id, effective, `Integração ${mapping.source_module}`, now, agg.sum, valueId),
+          .bind(entryId, tenantId, mapping.organization_id, period, "Budget", input.versionId, mapping.currency, line.code, line.name, mapping.dimension_member_id, effective, `Integração ${mapping.source_module}`, now, integrationTotal, valueId),
       );
     }
     applied++;
   }
-  await db.batch(statements);
+  try{await db.batch(statements);}catch(error){if(String(error).includes("matches_revision"))return Response.json({error:"Uma célula foi alterada em paralelo. Atualize e volte a aplicar."},{status:409});throw error;}
   return Response.json({ applied, blocked, periods: periods.length });
 }
 
@@ -493,14 +512,16 @@ export async function setAdjustment(
 
   const existing = await db
     .prepare(
-      "SELECT id,amount_minor,integration_amount_minor FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code=? AND period=? AND organization_id=? AND dimension_member_id IS ?",
+      "SELECT id,amount_minor,integration_amount_minor FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code=? AND period=? AND organization_id=? AND dimension_member_id IS ? AND currency=?",
     )
-    .bind(tenantId, input.versionId, line.code, input.period, input.organizationId, input.dimensionMemberId)
+    .bind(tenantId, input.versionId, line.code, input.period, input.organizationId, input.dimensionMemberId,input.currency.toUpperCase())
     .first<{ id: string; amount_minor: number; integration_amount_minor: number | null }>();
-  const adjMinor = Math.trunc(Number(input.manualAdjustmentMinor) || 0);
+  if(!Number.isSafeInteger(input.manualAdjustmentMinor)||!/^\\d{4}-(0[1-9]|1[0-2])$/.test(input.period)||!input.period.startsWith(String(draft.version!.fiscal_year)+"-")||!/^[A-Z]{3}$/.test(input.currency))return Response.json({error:"Período, moeda ou ajuste inválido."},{status:400});
+  const adjMinor = input.manualAdjustmentMinor;
   const integrationAmount = existing?.integration_amount_minor ?? 0;
   const effective =
     input.mode === "Substituir" ? adjMinor : input.mode === "Adicionar" ? integrationAmount + adjMinor : existing?.amount_minor ?? 0;
+  if(!Number.isSafeInteger(effective))return Response.json({error:"Valor ajustado fora do limite seguro."},{status:400});
   const now = new Date().toISOString();
   if (existing) {
     await db
@@ -522,57 +543,19 @@ export async function setAdjustment(
 // source, the source plan's status at application time, and (for an
 // integration-managed cell) every movement that contributed to the sum.
 export async function getCellOrigin(
-  db: D1Database,
-  tenantId: string,
-  input: { versionId: string; lineId: string; organizationId: string; dimensionMemberId: string | null; period: string },
-) {
-  const line = await db.prepare("SELECT code FROM financial_line_catalog WHERE id=? AND tenant_id=?").bind(input.lineId, tenantId).first<{ code: string }>();
-  if (!line) return Response.json({ error: "Rubrica não encontrada." }, { status: 404 });
-  const entry = await db
-    .prepare(
-      "SELECT amount_minor,integration_amount_minor,manual_adjustment_minor,adjustment_mode,integration_value_id,source FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code=? AND period=? AND organization_id=? AND dimension_member_id IS ?",
-    )
-    .bind(tenantId, input.versionId, line.code, input.period, input.organizationId, input.dimensionMemberId)
-    .first<{
-      amount_minor: number;
-      integration_amount_minor: number | null;
-      manual_adjustment_minor: number;
-      adjustment_mode: string | null;
-      integration_value_id: string | null;
-      source: string;
-    }>();
-  if (!entry) return Response.json({ origin: null });
-  let integration: Record<string, unknown> | null = null;
-  if (entry.integration_value_id) {
-    const value = await db
-      .prepare("SELECT * FROM budget_integration_values WHERE id=? AND tenant_id=?")
-      .bind(entry.integration_value_id, tenantId)
-      .first<{ mapping_id: string; source_module: string; source_reference: string; sync_state: SyncState; applied_at: string; movement_count: number }>();
-    if (value) {
-      const movements = await db
-        .prepare(
-          "SELECT source_movement_reference,component_label,amount_minor,source_status,sync_state,pending_amount_minor FROM budget_integration_movements WHERE tenant_id=? AND mapping_id=? AND period=? AND dimension_member_id IS ? AND sync_state IN ('Atualizado','PendenteConfirmacao')",
-        )
-        .bind(tenantId, value.mapping_id, input.period, input.dimensionMemberId)
-        .all();
-      integration = {
-        sourceModule: value.source_module,
-        sourceReference: value.source_reference,
-        syncState: value.sync_state,
-        appliedAt: value.applied_at,
-        movementCount: value.movement_count,
-        movements: movements.results,
-      };
-    }
-  }
-  return Response.json({
-    origin: {
-      amountMinor: entry.amount_minor,
-      integrationAmountMinor: entry.integration_amount_minor,
-      manualAdjustmentMinor: entry.manual_adjustment_minor,
-      adjustmentMode: entry.adjustment_mode,
-      source: entry.source,
-      integration,
-    },
-  });
+ db:D1Database,tenantId:string,
+ input:{versionId:string;lineId:string;organizationId:string;dimensionMemberId:string|null;period:string;currency?:string},
+){
+ const line=await db.prepare("SELECT code FROM financial_line_catalog WHERE id=? AND tenant_id=?").bind(input.lineId,tenantId).first<{code:string}>();
+ if(!line)return Response.json({error:"Rubrica não encontrada."},{status:404});
+ const matches=await db.prepare("SELECT amount_minor,integration_amount_minor,manual_adjustment_minor,adjustment_mode,integration_value_id,source,currency FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code=? AND period=? AND organization_id=? AND dimension_member_id IS ? AND (? IS NULL OR currency=?)").bind(tenantId,input.versionId,line.code,input.period,input.organizationId,input.dimensionMemberId,input.currency||null,input.currency||null).all<{amount_minor:number;integration_amount_minor:number|null;manual_adjustment_minor:number;adjustment_mode:string|null;integration_value_id:string|null;source:string;currency:string}>();
+ if(matches.results.length>1)return Response.json({error:"Origem ambígua. Selecione uma moeda e uma célula única."},{status:409});
+ const entry=matches.results[0];if(!entry)return Response.json({origin:null});
+ let integration:Record<string,unknown>|null=null;
+ if(entry.integration_value_id){
+  const value=await db.prepare("SELECT source_module,source_reference,sync_state,applied_at,movement_count,cell_snapshot_json FROM budget_integration_values WHERE id=? AND tenant_id=?").bind(entry.integration_value_id,tenantId).first<{source_module:string;source_reference:string;sync_state:string;applied_at:string;movement_count:number;cell_snapshot_json:string|null}>();
+  // NULL means pre-migration evidence was never captured. Do not manufacture it.
+  if(value)integration=value.cell_snapshot_json?JSON.parse(value.cell_snapshot_json):{sourceModule:value.source_module,sourceReference:value.source_reference,syncState:value.sync_state,appliedAt:value.applied_at,movementCount:value.movement_count,snapshotAvailable:false,movements:[]};
+ }
+ return Response.json({origin:{amountMinor:entry.amount_minor,integrationAmountMinor:entry.integration_amount_minor,manualAdjustmentMinor:entry.manual_adjustment_minor,adjustmentMode:entry.adjustment_mode,source:entry.source,currency:entry.currency,integration}});
 }

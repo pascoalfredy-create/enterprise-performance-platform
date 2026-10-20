@@ -1,5 +1,12 @@
 const L=(s:string)=>s.split('|');
 export const payrollSheetCopy={
+importRejected:L("Importação rejeitada antes de gravar. Linha|Import rejected before saving. Row|Importación rechazada antes de guardar. Fila|Import refusé avant enregistrement. Ligne|Импорт отклонён до сохранения. Строка"),
+import_headers:L("Use um modelo atualizado com todas as colunas.|Use an updated template with every column.|Use una plantilla actualizada con todas las columnas.|Utilisez un modèle à jour avec toutes les colonnes.|Используйте актуальный шаблон со всеми столбцами."),
+import_employee:L("Número de colaborador desconhecido.|Unknown employee number.|Número de empleado desconocido.|Numéro de salarié inconnu.|Неизвестный номер сотрудника."),
+import_duplicate:L("Colaborador repetido no ficheiro.|Duplicate employee in file.|Empleado repetido en el archivo.|Salarié répété dans le fichier.|Сотрудник повторяется в файле."),
+import_period:L("O mês do ficheiro difere do mês selecionado.|File month differs from selected month.|El mes del archivo difiere del mes seleccionado.|Le mois du fichier diffère du mois sélectionné.|Месяц файла отличается от выбранного."),
+import_currency:L("A moeda do ficheiro difere da selecionada.|File currency differs from selected currency.|La moneda del archivo difiere de la seleccionada.|La devise du fichier diffère de celle sélectionnée.|Валюта файла отличается от выбранной."),
+import_value:L("Montante inválido; reveja os separadores.|Invalid amount; check separators.|Importe no válido; revise los separadores.|Montant invalide ; vérifiez les séparateurs.|Неверная сумма; проверьте разделители."),
  activate:L('Ativar rubrica|Activate component|Activar concepto|Activer la rubrique|Включить статью'),deactivate:L('Desativar rubrica|Deactivate component|Desactivar concepto|Désactiver la rubrique|Отключить статью'),reviewTreatment:L('Guardar tratamento|Save treatment|Guardar tratamiento|Enregistrer le traitement|Сохранить порядок расчёта'),
 
  file:L('Ficha do colaborador|Employee file|Ficha del empleado|Fiche du salarié|Карточка сотрудника'),

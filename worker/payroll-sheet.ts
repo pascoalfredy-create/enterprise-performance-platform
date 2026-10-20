@@ -34,7 +34,7 @@ export async function preparePayrollSheet(db:D1Database,tenantId:string,organiza
  const chosen=rows.filter(r=>r.included);return {period,currency,regime,run:null,rows,totals:monthlyTotals(rows),ready:chosen.length>0&&chosen.every(r=>r.issues.length===0&&r.calculation!==null),fingerprint:await fingerprint({tenantId,organizationId,period,currency,regime,profiles:profiles.results,rows})};
 }
 export function publicPayrollSheet(sheet:Awaited<ReturnType<typeof preparePayrollSheet>>):MonthlySheet{return {...sheet,rows:sheet.rows.map(({base,sourceComponents,loans,adjustments,...row})=>row)}}
-export async function savePayrollMonthInput(db:D1Database,tenantId:string,organizationId:string|null,actor:string,body:Record<string,string>){
+async function preparePayrollMonthInput(db:D1Database,tenantId:string,organizationId:string|null,actor:string,body:Record<string,string>){
  const period=typeof body.period==='string'?body.period:'',currency=typeof body.currency==='string'?body.currency.toUpperCase():'';payrollPeriod(period,currency,'Generic');
  if(typeof body.employeeId!=='string'||!body.employeeId.trim())throw new PayrollSheetError('Colaborador obrigatório.');
  if(!['true','false'].includes(body.included)||!/^\d+$/.test(body.expectedRevision||''))throw new PayrollSheetError('Confirme inclusão e revisão do registo mensal.');
@@ -43,5 +43,27 @@ export async function savePayrollMonthInput(db:D1Database,tenantId:string,organi
  let values:MonthlyValues;try{values=validateMonthlyValues(JSON.parse(body.values||'{}'));}catch(error){throw new PayrollSheetError(error instanceof Error?error.message:'Valores mensais inválidos.');}
  for(const id of Object.keys(values.overrides)){if(!await db.prepare("SELECT 1 FROM payroll_assignments a JOIN payroll_components c ON c.id=a.component_id AND c.tenant_id=a.tenant_id WHERE a.tenant_id=? AND a.employee_id=? AND a.component_id=? AND c.status='Ativo'").bind(tenantId,body.employeeId,id).first())throw new PayrollSheetError('Rubrica fora do colaborador ou inativa.',403);}
  const now=new Date().toISOString(),included=body.included==='true'?1:0,statement=revision===0?db.prepare("INSERT INTO payroll_month_inputs (tenant_id,employee_id,period,currency,included,values_json,revision,updated_by,updated_at) VALUES (?,?,?,?,?,?,1,?,?) ON CONFLICT(tenant_id,employee_id,period,currency) DO NOTHING").bind(tenantId,body.employeeId,period,currency,included,JSON.stringify(values),actor,now):db.prepare("UPDATE payroll_month_inputs SET included=?,values_json=?,revision=revision+1,updated_by=?,updated_at=? WHERE tenant_id=? AND employee_id=? AND period=? AND currency=? AND revision=?").bind(included,JSON.stringify(values),actor,now,tenantId,body.employeeId,period,currency,revision);
- const [result]=await db.batch([statement,db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) SELECT ?,?,?,?,?,?,?,? WHERE changes()=1").bind(crypto.randomUUID(),tenantId,now,'SAVE_MONTH_INPUT','payrollMonth',body.employeeId,actor,`Variáveis mensais ${period} ${currency}: revisão ${revision+1}`)]);if(!Number(result.meta.changes||0))throw new PayrollSheetError('O registo mensal foi alterado por outro utilizador. Atualize a folha.',409);
+ const audit=db.prepare("INSERT INTO audit_events (id,tenant_id,created_at,action,entity_type,entity_id,actor,summary) SELECT ?,?,?,?,?,?,?,? WHERE changes()=1").bind(crypto.randomUUID(),tenantId,now,'SAVE_MONTH_INPUT','payrollMonth',body.employeeId,actor,`Variáveis mensais ${period} ${currency}: revisão ${revision+1}`);
+ return {statement,audit,revision,period,currency,employeeId:body.employeeId};
+}
+export async function savePayrollMonthInput(db:D1Database,tenantId:string,organizationId:string|null,actor:string,body:Record<string,string>){
+ const p=await preparePayrollMonthInput(db,tenantId,organizationId,actor,body);
+ const [result]=await db.batch([p.statement,p.audit]);
+ if(!Number(result.meta.changes||0))throw new PayrollSheetError('O registo mensal foi alterado por outro utilizador. Atualize a folha.',409);
+}
+export async function importPayrollMonthInputs(db:D1Database,tenantId:string,organizationId:string|null,actor:string,body:Record<string,string>){
+ let rows:Record<string,string>[];
+ try{rows=JSON.parse(body.rows||'[]')}catch{throw new PayrollSheetError('Importação mensal inválida.');}
+ if(!Array.isArray(rows)||!rows.length||rows.length>200)throw new PayrollSheetError('Importe entre 1 e 200 colaboradores por lote.');
+ const seen=new Set<string>(),prepared=[];
+ for(const row of rows){
+  if(!row||typeof row!=='object'||typeof row.employeeId!=='string'||seen.has(row.employeeId))throw new PayrollSheetError('Colaborador inválido ou repetido na importação.');
+  seen.add(row.employeeId);
+  prepared.push(await preparePayrollMonthInput(db,tenantId,organizationId,actor,{...row,period:body.period,currency:body.currency}));
+ }
+ // D1 batch is transactional; revision checks execute inside that same transaction.
+ const checks=prepared.map(p=>db.prepare("INSERT INTO payroll_month_import_checks(matches_revision) SELECT 0 WHERE COALESCE((SELECT revision FROM payroll_month_inputs WHERE tenant_id=? AND employee_id=? AND period=? AND currency=?),0)<>?").bind(tenantId,p.employeeId,p.period,p.currency,p.revision));
+ try{await db.batch([...checks,...prepared.flatMap(p=>[p.statement,p.audit])]);}
+ catch(error){if(String(error).includes('matches_revision'))throw new PayrollSheetError('Um colaborador foi alterado em paralelo. Nenhuma linha da importação foi guardada. Atualize a folha.',409);throw error;}
+ return {saved:prepared.length};
 }

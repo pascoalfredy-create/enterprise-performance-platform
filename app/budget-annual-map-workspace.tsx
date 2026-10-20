@@ -159,6 +159,8 @@ export function BudgetAnnualMapWorkspace() {
 
   const flat = useMemo(() => (data ? flatten(data.tree) : []), [data]);
   const isApproved = data?.version?.status === "Aprovado";
+  const readOnlyCells=isApproved||!dimensionMemberId;
+  const writeDimension=dimensionMemberId==="__NONE__"?null:dimensionMemberId||null;
 
   function setEdit(node: LineRow, period: string, value: string) {
     const key = `${node.id}|${period}`,
@@ -169,7 +171,7 @@ export function BudgetAnnualMapWorkspace() {
   }
 
   async function saveChanges() {
-    if (!data || !organizationId) return;
+    if (!data || !organizationId || readOnlyCells) return;
     const cells: {
       code: string;
       lineName: string;
@@ -187,7 +189,7 @@ export function BudgetAnnualMapWorkspace() {
         cells.push({
           code: node.code,
           lineName: node.name,
-          dimensionMemberId: dimensionMemberId || null,
+          dimensionMemberId: writeDimension,
           period: monthly.period,
           currency,
           amount: edits.get(key)!,
@@ -218,7 +220,7 @@ export function BudgetAnnualMapWorkspace() {
   }
 
   async function submitAssumption() {
-    if (!selectedLineId || !organizationId) return;
+    if (!selectedLineId || !organizationId || readOnlyCells) return;
     setBusy(true);
     setError("");
     try {
@@ -230,7 +232,7 @@ export function BudgetAnnualMapWorkspace() {
           versionId,
           lineId: selectedLineId,
           organizationId,
-          dimensionMemberId: dimensionMemberId || undefined,
+          dimensionMemberId: writeDimension,
           currency,
           ...assumptionDraft,
         }),
@@ -419,19 +421,20 @@ export function BudgetAnnualMapWorkspace() {
   }
 
   async function viewCellOrigin(node: LineRow, period: string) {
-    if (!versionId || !organizationId) return;
-    const params = new URLSearchParams({ versionId, lineId: node.id, organizationId, period });
-    if (dimensionMemberId) params.set("dimensionMemberId", dimensionMemberId);
+    if (!versionId || !organizationId || !dimensionMemberId) return;
+    const params = new URLSearchParams({ versionId, lineId: node.id, organizationId, period, currency });
+    if (writeDimension) params.set("dimensionMemberId", writeDimension);
     const r = await apiFetch(`/api/v1/budget-integration?action=origin&${params.toString()}`);
     const j = await readApiJson<{ origin: Record<string, unknown> | null }>(r);
     setCellOrigin({ nodeId: node.id, period, data: j.origin });
   }
 
   async function recalc(lineId: string) {
-    if (!organizationId) return;
+    if (!organizationId || readOnlyCells) return;
     setBusy(true);
+    setError("");
     try {
-      await apiFetch("/api/v1/budget-annual-map", {
+      const response=await apiFetch("/api/v1/budget-annual-map", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -439,10 +442,12 @@ export function BudgetAnnualMapWorkspace() {
           versionId,
           lineId,
           organizationId,
-          dimensionMemberId: dimensionMemberId || undefined,
+          dimensionMemberId: writeDimension,
           currency,
         }),
       });
+      const result=await readApiJson<{error?:string}>(response);
+      if(!response.ok){setError(result.error||t("recalculate"));return;}
       setReload((n) => n + 1);
     } finally {
       setBusy(false);
@@ -467,7 +472,7 @@ export function BudgetAnnualMapWorkspace() {
   }
 
   async function confirmImport() {
-    if (!importRows || !data || !organizationId) return;
+    if (!importRows || !data || !organizationId || readOnlyCells) return;
     const cells = importRows
       .filter((row) => row[0]?.trim())
       .flatMap((row) => {
@@ -475,7 +480,7 @@ export function BudgetAnnualMapWorkspace() {
         return data.periods.map((period, i) => ({
           code,
           lineName: name || code,
-          dimensionMemberId: dimensionMemberId || null,
+          dimensionMemberId: writeDimension,
           period,
           currency,
           amount: monthsAndTotal[i] || "0",
@@ -522,7 +527,7 @@ export function BudgetAnnualMapWorkspace() {
               onChange={(e) => e.target.files?.[0] && handleImportFile(e.target.files[0])}
             />
           </label>
-          {edits.size > 0 && !isApproved ? (
+          {edits.size > 0 && !readOnlyCells ? (
             <button className="primario" onClick={saveChanges} disabled={busy}>
               {t("save")}
             </button>
@@ -554,6 +559,7 @@ export function BudgetAnnualMapWorkspace() {
           {t("dimension")}
           <select value={dimensionMemberId} onChange={(e) => { setDimensionMemberId(e.target.value); setEdits(new Map()); }}>
             <option value="">{t("allDimensions")}</option>
+            <option value="__NONE__">{t("noDimension")}</option>
             {(data?.members || []).map((m) => (
               <option key={m.id} value={m.id}>
                 {m.dimension_name} · {m.code} · {m.name}
@@ -563,11 +569,12 @@ export function BudgetAnnualMapWorkspace() {
         </label>
         <label>
           {t("currency")}
-          <input value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} maxLength={3} />
+          <input value={currency} onChange={(e) => {setCurrency(e.target.value.toUpperCase());setEdits(new Map());}} maxLength={3} />
         </label>
       </div>
       {error ? <p className="budget-map-error">{error}</p> : null}
       {notice ? <p className="budget-map-notice">{notice}</p> : null}
+      {!dimensionMemberId&&!isApproved?<p className="budget-map-approved">{t("aggregateReadOnly")}</p>:null}
       {isApproved ? <p className="budget-map-approved">{t("approvedNotice")}</p> : null}
       {edits.size > 0 && !isApproved ? <p className="budget-map-unsaved">{t("unsavedNotice")}</p> : null}
       {!versionId ? (
@@ -634,7 +641,7 @@ export function BudgetAnnualMapWorkspace() {
                       ) : (
                         <td key={monthly.period} className="budget-map-cell">
                           <input
-                            disabled={isApproved}
+                            disabled={readOnlyCells}
                             value={
                               edits.get(`${node.id}|${monthly.period}`) ??
                               formatAmount(displayedValue(node, i, edits))
@@ -687,18 +694,18 @@ export function BudgetAnnualMapWorkspace() {
             {selectedLine.assumptions.map((a) => (
               <li key={String(a.id)}>
                 <b>{String(a.method)}</b> · {String(a.status)} · {t("precedence")}: {String(a.precedence)}
-                {!isApproved ? (
+                {!readOnlyCells ? (
                   <button onClick={() => removeAssumption(String(a.id))}>{t("delete")}</button>
                 ) : null}
               </li>
             ))}
           </ul>
-          {!isApproved ? (
+          {!readOnlyCells ? (
             <button onClick={() => recalc(selectedLine.id)} disabled={busy}>
               {t("recalculate")}
             </button>
           ) : null}
-          {!isApproved ? (
+          {!readOnlyCells ? (
             <form
               className="budget-map-assumption-form"
               onSubmit={(e) => {
@@ -1058,6 +1065,7 @@ export function BudgetAnnualMapWorkspace() {
               <li>
                 {t("manualOverride")}: {formatAmount(Number(cellOrigin.data.manualAdjustmentMinor || 0))} ({String(cellOrigin.data.adjustmentMode || "—")})
               </li>
+              {cellOrigin.data.integration && (cellOrigin.data.integration as Record<string,unknown>).snapshotAvailable===false?<li>{t("missingHistoricalEvidence")}</li>:null}
               {cellOrigin.data.integration ? (
                 <li>
                   {String((cellOrigin.data.integration as Record<string, unknown>).sourceModule)} ·{" "}

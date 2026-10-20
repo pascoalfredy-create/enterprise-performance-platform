@@ -250,3 +250,49 @@ test('the decisive end-to-end cycle: approve freezes exactly what existed at app
  assert.equal(stillApproved.amount_minor, 765000 + 500000);
  f.sqlite.close();
 });
+
+test('Soma adds separately applied sources, is order independent, and applies a manual layer once',async()=>{
+ const f=setup();line(f.sqlite,'t1','l1','PAY');version(f.sqlite,'t1','v1');
+ const ids=[];
+ for(const [ref,amount] of [['a',10000],['b',20000]]){
+  const m=await(await createMapping(f.db,'t1','maker',{organizationId:'o1',lineId:'l1',currency:'AOA',sourceModule:'RH',sourceReference:ref,relationPolicy:'Soma'})).json();ids.push(m.id);
+  await checkForUpdates(f.db,'t1',m.id,[{...syntheticRhValues('t1','o1')[0],amountMinor:amount,sourceFingerprint:ref}]);
+  assert.equal((await applyMapping(f.db,'t1','maker',{mappingId:m.id,versionId:'v1'})).status,200);
+ }
+ const cell=()=>f.sqlite.prepare("SELECT amount_minor FROM performance_entries WHERE version_id='v1' AND period='2026-01'").get().amount_minor;
+ assert.equal(cell(),30000);
+ await setAdjustment(f.db,'t1','maker',{versionId:'v1',lineId:'l1',organizationId:'o1',dimensionMemberId:null,currency:'AOA',period:'2026-01',mode:'Adicionar',manualAdjustmentMinor:5000});
+ for(const mappingId of [ids[1],ids[0],ids[1]])assert.equal((await applyMapping(f.db,'t1','maker',{mappingId,versionId:'v1'})).status,200);
+ assert.equal(cell(),35000);
+ const origin=await(await getCellOrigin(f.db,'t1',{versionId:'v1',lineId:'l1',organizationId:'o1',dimensionMemberId:null,currency:'AOA',period:'2026-01'})).json();
+ assert.equal(origin.origin.integration.contributions.length,2);assert.equal(origin.origin.integration.movements.reduce((n,m)=>n+m.amount_minor,0),30000);
+ f.sqlite.close();
+});
+test('approved origin evidence stays identical after source movements change or disappear',async()=>{
+ const f=setup();line(f.sqlite,'t1','l1','PAY');version(f.sqlite,'t1','v1');
+ const m=await(await createMapping(f.db,'t1','maker',{organizationId:'o1',lineId:'l1',currency:'AOA',sourceModule:'RH',sourceReference:'a'})).json();
+ await checkForUpdates(f.db,'t1',m.id,syntheticRhValues('t1','o1'));await applyMapping(f.db,'t1','maker',{mappingId:m.id,versionId:'v1'});
+ const input={versionId:'v1',lineId:'l1',organizationId:'o1',dimensionMemberId:null,currency:'AOA',period:'2026-01'},before=await(await getCellOrigin(f.db,'t1',input)).json();
+ f.sqlite.exec("UPDATE budget_versions SET status='Aprovado',approved_at='now' WHERE id='v1'");
+ await checkForUpdates(f.db,'t1',m.id,syntheticRhValues('t1','o1',{salario:999999}));
+ assert.deepEqual(await(await getCellOrigin(f.db,'t1',input)).json(),before);
+ assert.throws(()=>f.sqlite.exec("UPDATE budget_integration_values SET cell_snapshot_json='{}' WHERE version_id='v1'"),/immutable/);f.sqlite.close();
+});
+test('legacy evidence is explicitly unavailable instead of reconstructed from live movements',async()=>{
+ const f=setup();line(f.sqlite,'t1','l1','PAY');version(f.sqlite,'t1','v1');
+ const m=await(await createMapping(f.db,'t1','maker',{organizationId:'o1',lineId:'l1',currency:'AOA',sourceModule:'RH',sourceReference:'a'})).json();
+ await checkForUpdates(f.db,'t1',m.id,syntheticRhValues('t1','o1'));await applyMapping(f.db,'t1','maker',{mappingId:m.id,versionId:'v1'});
+ f.sqlite.exec("UPDATE budget_integration_values SET movements_json=NULL,cell_snapshot_json=NULL");
+ const j=await(await getCellOrigin(f.db,'t1',{versionId:'v1',lineId:'l1',organizationId:'o1',dimensionMemberId:null,currency:'AOA',period:'2026-01'})).json();
+ assert.equal(j.origin.integration.snapshotAvailable,false);assert.deepEqual(j.origin.integration.movements,[]);f.sqlite.close();
+});
+test('manual integration adjustments are isolated by currency',async()=>{
+ const f=setup();line(f.sqlite,'t1','l1','PAY');version(f.sqlite,'t1','v1');
+ const input={versionId:'v1',lineId:'l1',organizationId:'o1',dimensionMemberId:null,period:'2026-01',mode:'Substituir',manualAdjustmentMinor:10000};
+ assert.equal((await setAdjustment(f.db,'t1','maker',{...input,currency:'AOA'})).status,200);
+ assert.equal((await setAdjustment(f.db,'t1','maker',{...input,currency:'USD',manualAdjustmentMinor:20000})).status,200);
+ const entries=f.sqlite.prepare("SELECT currency,amount_minor FROM performance_entries ORDER BY currency").all();
+ assert.deepEqual(entries.map(e=>[e.currency,e.amount_minor]),[['AOA',10000],['USD',20000]]);
+ assert.equal((await getCellOrigin(f.db,'t1',{versionId:'v1',lineId:'l1',organizationId:'o1',dimensionMemberId:null,period:'2026-01'})).status,409);
+ const usd=await(await getCellOrigin(f.db,'t1',{versionId:'v1',lineId:'l1',organizationId:'o1',dimensionMemberId:null,period:'2026-01',currency:'USD'})).json();assert.equal(usd.origin.amountMinor,20000);f.sqlite.close();
+});
