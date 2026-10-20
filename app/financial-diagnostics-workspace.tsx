@@ -174,8 +174,10 @@ const roles = [
 ];
 export function FinancialDiagnosticsWorkspace({
   initialView = "Diagnóstico",
+  initialStudyId,
 }: {
   initialView?: string;
+  initialStudyId?: string;
 } = {}) {
   const locale=usePlatformLocale(),copyIndex={pt:0,en:1,es:2,fr:3,ru:4}[locale],reportText=(key:keyof typeof reportCopy)=>reportCopy[key][copyIndex];
   const [studySummary,setStudySummary]=useState<StudySummary>(null);
@@ -443,7 +445,7 @@ export function FinancialDiagnosticsWorkspace({
           </aside>
         </div>
       ) : view === "Investimento" ? (
-        <div><FeasibilityWorkspace onSummary={setStudySummary}/><details><summary>Casos anteriores · fluxos manuais e aprovações</summary><div className="dg-grid">
+        <div><FeasibilityWorkspace initialStudyId={initialStudyId} onSummary={setStudySummary}/><details><summary>Casos anteriores · fluxos manuais e aprovações</summary><div className="dg-grid">
           <article className="cartao dg-investments">
             <div className="cab">
               <div>
