@@ -34,6 +34,7 @@ import {
   catalogTotals,
   duplicateLineValues,
   recomputeSubtreeLevels,
+  PERSONNEL_COST_LINE_CODES_SUBQUERY,
   type FinancialLineRow,
 } from "./financial-line-catalog";
 import {
@@ -54,6 +55,7 @@ import {
   setAdjustment,
   getCellOrigin,
 } from "./budget-integration";
+import { workforceIntegrationApi } from "./workforce-budget-integration";
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
 import { controlPlaneApi, ensureFirstOperator } from "./control-plane";
@@ -3468,6 +3470,22 @@ async function budgetIntegrationApi(
   }
 }
 
+async function workforceIntegrationRoute(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null,
+) {
+  const actor = actorEmail(request) || "utilizador autenticado";
+  if (request.method === "POST") {
+    const cloned = request.clone();
+    const body = (await cloned.json().catch(() => ({}))) as Record<string, unknown>;
+    if (body.organizationId && organizationId && body.organizationId !== organizationId)
+      return Response.json({ error: "Organização fora do âmbito autorizado." }, { status: 403 });
+  }
+  return workforceIntegrationApi(request, db, tenantId, organizationId, actor);
+}
+
 async function scenariosApi(
   request: Request,
   db: D1Database,
@@ -5002,7 +5020,7 @@ async function workforceSnapshot(
       .all(),
     db
       .prepare(
-        "SELECT COALESCE((SELECT SUM(total_minor) FROM workforce_cost_postings WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?),0) AS actual_minor,COALESCE((SELECT SUM(amount_minor) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? AND scenario='Budget' AND version_id=? AND line_code='WORKFORCE'),0) AS budget_minor",
+        `SELECT COALESCE((SELECT SUM(total_minor) FROM workforce_cost_postings WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=?),0) AS actual_minor,COALESCE((SELECT SUM(amount_minor) FROM performance_entries WHERE tenant_id=? AND (? IS NULL OR organization_id=?) AND period=? AND currency=? AND scenario='Budget' AND version_id=? AND line_code IN ${PERSONNEL_COST_LINE_CODES_SUBQUERY}),0) AS budget_minor`,
       )
       .bind(
         tenantId,
@@ -5016,6 +5034,10 @@ async function workforceSnapshot(
         period,
         currency,
         version,
+        tenantId,
+        tenantId,
+        organizationId,
+        organizationId,
       )
       .first(),
     organizationId
@@ -6436,7 +6458,7 @@ const worker = {
                     ? write
                       ? "payroll:write"
                       : "payroll:read"
-                  : ["/api/performance", "/api/budget-annual-map", "/api/budget-integration"].includes(apiPath)
+                  : ["/api/performance", "/api/budget-annual-map", "/api/budget-integration", "/api/workforce-integration"].includes(apiPath)
                     ? write
                       ? "performance:write"
                       : "performance:read"
@@ -6566,6 +6588,7 @@ const worker = {
                   "/api/performance",
                   "/api/budget-annual-map",
                   "/api/budget-integration",
+                  "/api/workforce-integration",
                   "/api/scenarios",
                   "/api/consolidation",
                   "/api/financial-models",
@@ -6686,6 +6709,8 @@ const worker = {
         return budgetAnnualMapApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/budget-integration")
         return budgetIntegrationApi(request, env.DB, tenantId, organizationId);
+      if (apiPath === "/api/workforce-integration")
+        return workforceIntegrationRoute(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/scenarios")
         return scenariosApi(request, env.DB, security);
       if (apiPath === "/api/consolidation")

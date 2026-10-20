@@ -27,6 +27,29 @@ export type FinancialLineRow = {
 
 export type CatalogTreeNode = FinancialLineRow & { children: CatalogTreeNode[] };
 
+// Fase 3.2 unificação: before the Universal Line Catalog existed, HR cost
+// dashboards (HR Manager Suite, Cockpit CFO, Analytics) compared Actual vs.
+// Budget personnel cost using the fixed literal line_code='WORKFORCE'. That
+// Actual side is still fed correctly by the payroll-run transfer (untouched
+// here); but nothing in real tenant use ever wrote a Budget-side
+// 'WORKFORCE' row, since the Mapa Orçamental Anual and the RH integration
+// both post to real Catálogo Universal rubricas instead. Rather than making
+// the RH adapter write to the legacy code too (which the user explicitly
+// ruled out, to avoid a second, competing definition of "custo de
+// pessoal"), this subquery expands the read side: it resolves to whichever
+// rubricas the tenant has actually configured as RH-integration targets
+// (financial_line_catalog_mappings, source_module='RH', status='Ativo'),
+// UNIONed with the legacy literal for historical/demo data that predates
+// catalog adoption. The two sets cannot double-count the same cell: a given
+// performance_entries row has exactly one line_code, and nothing (going
+// forward) writes Budget-scenario 'WORKFORCE' rows any more.
+//
+// 4 positional binds, in this order: tenantId, tenantId, scopeOrganizationId
+// (nullable), scopeOrganizationId (nullable, repeated for the IS NULL OR
+// pattern already used throughout this codebase).
+export const PERSONNEL_COST_LINE_CODES_SUBQUERY =
+  "(SELECT code FROM financial_line_catalog WHERE tenant_id=? AND id IN (SELECT line_id FROM financial_line_catalog_mappings WHERE tenant_id=? AND source_module='RH' AND status='Ativo' AND (? IS NULL OR organization_id=?)) UNION SELECT 'WORKFORCE')";
+
 // Nests the flat, tenant-scoped rows into a tree by parent_id. Rows whose
 // parent_id does not resolve within the given set (should not happen once
 // the hierarchy guard triggers are in place, but a defensive read-side

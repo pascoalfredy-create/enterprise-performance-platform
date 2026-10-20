@@ -28,6 +28,28 @@ type Snapshot = {
   members: { id: string; name: string; code: string; dimension_name: string }[];
   versions: { id: string; name: string; fiscal_year: number; status: string }[];
 };
+type RhPlanOption = { id: string; organization_id: string; name: string; currency: string; version_number: number; approved_at: string | null };
+type RhDepartmentRow = {
+  department_code: string | null;
+  line_count: number;
+  total_headcount: number;
+  total_cost_minor: number;
+  decision: string | null;
+  dimension_member_id: string | null;
+  dimension_member_name: string | null;
+};
+type RhUpdateInfo = {
+  hasUpdate: boolean;
+  currentVersion?: number;
+  latestVersion?: number;
+  latestPlanId?: string;
+  currentTotalMinor?: number;
+  latestTotalMinor?: number;
+};
+type RhPreview = {
+  byDimension: Record<string, Record<string, number>>;
+  pendingDepartments: { departmentCode: string; lineCount: number; totalCostMinor: number }[];
+};
 
 const METHODS = ["Manual", "QuantidadePreco", "Crescimento", "Sazonalidade", "Contrato"] as const;
 const PERIODICITIES = ["Mensal", "Trimestral", "Anual", "Pontual"] as const;
@@ -94,7 +116,18 @@ export function BudgetAnnualMapWorkspace() {
       periodicity: "Mensal",
     }),
     [importRows, setImportRows] = useState<string[][] | null>(null),
-    [reload, setReload] = useState(0);
+    [reload, setReload] = useState(0),
+    [rhPlans, setRhPlans] = useState<RhPlanOption[]>([]),
+    [rhPlanId, setRhPlanId] = useState(""),
+    [rhDepartments, setRhDepartments] = useState<RhDepartmentRow[]>([]),
+    [rhPreview, setRhPreview] = useState<RhPreview | null>(null),
+    [rhHasIntegration, setRhHasIntegration] = useState(false),
+    [rhUpdateInfo, setRhUpdateInfo] = useState<RhUpdateInfo | null>(null),
+    [rhSyncPolicy, setRhSyncPolicy] = useState("Manual"),
+    [rhRelationPolicy, setRhRelationPolicy] = useState("Exclusiva"),
+    [rhBusy, setRhBusy] = useState(false),
+    [rhMessage, setRhMessage] = useState(""),
+    [cellOrigin, setCellOrigin] = useState<{ nodeId: string; period: string; data: Record<string, unknown> | null } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -226,6 +259,172 @@ export function BudgetAnnualMapWorkspace() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // RH → Orçamento integration (Fase 3.2): the selected rubrica's own panel
+  // for choosing a plano de pessoal aprovado, resolving its departments
+  // against financial dimensions, and driving the Motor Comum de
+  // Integração (worker/workforce-budget-integration.ts) — sync, apply,
+  // and version-switch.
+  useEffect(() => {
+    setRhPlanId("");
+    setRhDepartments([]);
+    setRhPreview(null);
+    setRhMessage("");
+    if (!selectedLineId || !organizationId) {
+      setRhPlans([]);
+      setRhHasIntegration(false);
+      setRhUpdateInfo(null);
+      return;
+    }
+    let cancelled = false;
+    apiFetch(`/api/v1/workforce-integration?action=candidates&organizationId=${organizationId}`)
+      .then(readApiJson<{ plans: RhPlanOption[] }>)
+      .then((j) => {
+        if (!cancelled) setRhPlans(j.plans || []);
+      })
+      .catch(() => {
+        if (!cancelled) setRhPlans([]);
+      });
+    apiFetch(`/api/v1/workforce-integration?action=versionUpdate&organizationId=${organizationId}&lineId=${selectedLineId}`)
+      .then(async (r) => {
+        if (cancelled) return;
+        if (r.status === 404) {
+          setRhHasIntegration(false);
+          setRhUpdateInfo(null);
+          return;
+        }
+        setRhHasIntegration(true);
+        setRhUpdateInfo(await readApiJson<RhUpdateInfo>(r));
+      })
+      .catch(() => {
+        if (!cancelled) setRhUpdateInfo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedLineId, organizationId]);
+
+  function reloadRhPlanDetail(planId: string) {
+    if (!planId) return;
+    apiFetch(`/api/v1/workforce-integration?action=departments&planId=${planId}`)
+      .then(readApiJson<{ departments: RhDepartmentRow[] }>)
+      .then((j) => setRhDepartments(j.departments || []));
+    apiFetch(`/api/v1/workforce-integration?action=preview&planId=${planId}`)
+      .then(readApiJson<RhPreview>)
+      .then(setRhPreview)
+      .catch(() => setRhPreview(null));
+  }
+  useEffect(() => {
+    if (rhPlanId) reloadRhPlanDetail(rhPlanId);
+  }, [rhPlanId]);
+
+  async function recordRhDecision(departmentCode: string, decision: "Mapeado" | "SemDimensao", dimensionMemberId: string | null) {
+    setRhBusy(true);
+    try {
+      await apiFetch("/api/v1/workforce-integration", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "recordDepartmentDecision", departmentCode, decision, dimensionMemberId }),
+      });
+      reloadRhPlanDetail(rhPlanId);
+    } finally {
+      setRhBusy(false);
+    }
+  }
+
+  async function createRhIntegration() {
+    if (!rhPlanId || !selectedLineId || !organizationId) return;
+    setRhBusy(true);
+    setRhMessage("");
+    try {
+      const r = await apiFetch("/api/v1/workforce-integration", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: "createIntegration",
+          planId: rhPlanId,
+          lineId: selectedLineId,
+          organizationId,
+          syncPolicy: rhSyncPolicy,
+          relationPolicy: rhRelationPolicy,
+        }),
+      });
+      const j = await readApiJson<{ error?: string }>(r);
+      if (!r.ok) {
+        setRhMessage(j.error || t("rhError"));
+        return;
+      }
+      setRhHasIntegration(true);
+      setRhMessage(t("rhCreated"));
+    } finally {
+      setRhBusy(false);
+    }
+  }
+
+  async function syncRhIntegration() {
+    if (!selectedLineId || !organizationId) return;
+    setRhBusy(true);
+    setRhMessage("");
+    try {
+      const r = await apiFetch("/api/v1/workforce-integration", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "syncIntegration", organizationId, lineId: selectedLineId }),
+      });
+      const j = await readApiJson<{ error?: string }>(r);
+      setRhMessage(r.ok ? t("rhSynced") : j.error || t("rhError"));
+    } finally {
+      setRhBusy(false);
+    }
+  }
+
+  async function applyRhIntegration() {
+    if (!selectedLineId || !organizationId || !versionId) return;
+    setRhBusy(true);
+    setRhMessage("");
+    try {
+      const r = await apiFetch("/api/v1/workforce-integration", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "applyIntegration", organizationId, lineId: selectedLineId, versionId }),
+      });
+      const j = await readApiJson<{ error?: string }>(r);
+      if (!r.ok) {
+        setRhMessage(j.error || t("rhError"));
+        return;
+      }
+      setRhMessage(t("rhApplied"));
+      setReload((n) => n + 1);
+    } finally {
+      setRhBusy(false);
+    }
+  }
+
+  async function switchRhVersion() {
+    if (!selectedLineId || !organizationId || !rhUpdateInfo?.latestPlanId) return;
+    setRhBusy(true);
+    setRhMessage("");
+    try {
+      await apiFetch("/api/v1/workforce-integration", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "switchVersion", organizationId, lineId: selectedLineId, newPlanId: rhUpdateInfo.latestPlanId }),
+      });
+      setRhMessage(t("rhSwitched"));
+      setRhUpdateInfo(null);
+    } finally {
+      setRhBusy(false);
+    }
+  }
+
+  async function viewCellOrigin(node: LineRow, period: string) {
+    if (!versionId || !organizationId) return;
+    const params = new URLSearchParams({ versionId, lineId: node.id, organizationId, period });
+    if (dimensionMemberId) params.set("dimensionMemberId", dimensionMemberId);
+    const r = await apiFetch(`/api/v1/budget-integration?action=origin&${params.toString()}`);
+    const j = await readApiJson<{ origin: Record<string, unknown> | null }>(r);
+    setCellOrigin({ nodeId: node.id, period, data: j.origin });
   }
 
   async function recalc(lineId: string) {
@@ -433,7 +632,7 @@ export function BudgetAnnualMapWorkspace() {
                           {formatAmount(rollup(node, i, edits))}
                         </td>
                       ) : (
-                        <td key={monthly.period}>
+                        <td key={monthly.period} className="budget-map-cell">
                           <input
                             disabled={isApproved}
                             value={
@@ -445,6 +644,16 @@ export function BudgetAnnualMapWorkspace() {
                               node.automatic && !monthly.manualOverride ? "budget-map-automatic-cell" : ""
                             }
                           />
+                          {node.automatic ? (
+                            <button
+                              type="button"
+                              className="budget-map-origin-btn"
+                              title={t("rhOrigin")}
+                              onClick={() => viewCellOrigin(node, monthly.period)}
+                            >
+                              ⓘ
+                            </button>
+                          ) : null}
                         </td>
                       ),
                     )}
@@ -705,6 +914,160 @@ export function BudgetAnnualMapWorkspace() {
               </button>
             </form>
           ) : null}
+        </aside>
+      ) : null}
+      {selectedLine ? (
+        <aside className="budget-map-assumptions-panel budget-map-rh-panel">
+          <header>
+            <h3>{t("rhTitle")}</h3>
+          </header>
+          {rhUpdateInfo?.hasUpdate ? (
+            <p className="budget-map-rh-update">
+              {t("rhUpdateAvailable")} ({t("version")} {rhUpdateInfo.latestVersion}) —{" "}
+              {formatAmount(rhUpdateInfo.currentTotalMinor || 0)} → {formatAmount(rhUpdateInfo.latestTotalMinor || 0)}{" "}
+              <button onClick={switchRhVersion} disabled={rhBusy}>
+                {t("rhSwitchVersion")}
+              </button>
+            </p>
+          ) : null}
+          {rhMessage ? <p className="budget-map-notice">{rhMessage}</p> : null}
+          {!rhHasIntegration ? (
+            <>
+              <label>
+                {t("rhSelectPlan")}
+                <select value={rhPlanId} onChange={(e) => setRhPlanId(e.target.value)}>
+                  <option value="">{t("rhSelectPlaceholder")}</option>
+                  {rhPlans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · v{p.version_number} · {p.currency}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {rhPlanId ? (
+                <>
+                  <ul>
+                    {rhDepartments.map((d) => (
+                      <li key={d.department_code || "—"}>
+                        <span>
+                          {d.department_code || "—"} · {d.total_headcount} · {formatAmount(d.total_cost_minor)}
+                        </span>
+                        {d.decision === "Mapeado" ? (
+                          <b>{t("rhMapped")} · {d.dimension_member_name}</b>
+                        ) : d.decision === "SemDimensao" ? (
+                          <b>{t("rhNoDimension")}</b>
+                        ) : (
+                          <span className="budget-map-rh-decide">
+                            <b className="budget-map-rh-pending">{t("rhPending")}</b>
+                            <select
+                              onChange={(e) => {
+                                if (!d.department_code) return;
+                                if (e.target.value === "__none__") recordRhDecision(d.department_code, "SemDimensao", null);
+                                else if (e.target.value) recordRhDecision(d.department_code, "Mapeado", e.target.value);
+                              }}
+                              defaultValue=""
+                            >
+                              <option value="" disabled>
+                                {t("rhSelectPlaceholder")}
+                              </option>
+                              <option value="__none__">{t("rhMarkNoDimension")}</option>
+                              {(data?.members || []).map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.dimension_name} · {m.code} · {m.name}
+                                </option>
+                              ))}
+                            </select>
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {rhPreview ? (
+                    <p>
+                      {t("rhPreviewTitle")}:{" "}
+                      {Object.entries(rhPreview.byDimension)
+                        .map(([dim, byPeriod]) => `${dim}: ${formatAmount(Object.values(byPeriod).reduce((s, v) => s + v, 0))}`)
+                        .join(" · ")}
+                      {rhPreview.pendingDepartments.length ? (
+                        <> — {rhPreview.pendingDepartments.length} {t("rhPendingDepartments")}</>
+                      ) : null}
+                    </p>
+                  ) : null}
+                  <form
+                    className="budget-map-assumption-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      createRhIntegration();
+                    }}
+                  >
+                    <label>
+                      {t("rhSyncPolicy")}
+                      <select value={rhSyncPolicy} onChange={(e) => setRhSyncPolicy(e.target.value)}>
+                        <option value="Manual">{t("rhPolicyManual")}</option>
+                        <option value="ComConfirmacao">{t("rhPolicyComConfirmacao")}</option>
+                        <option value="Automatica">{t("rhPolicyAutomatica")}</option>
+                      </select>
+                    </label>
+                    <label>
+                      {t("rhRelationPolicy")}
+                      <select value={rhRelationPolicy} onChange={(e) => setRhRelationPolicy(e.target.value)}>
+                        <option value="Exclusiva">{t("rhPolicyExclusiva")}</option>
+                        <option value="Soma">{t("rhPolicySoma")}</option>
+                        <option value="Alternativa">{t("rhPolicyAlternativa")}</option>
+                      </select>
+                    </label>
+                    <button type="submit" disabled={rhBusy}>
+                      {t("rhCreate")}
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <p className="budget-map-empty">{t("rhNone")}</p>
+              )}
+            </>
+          ) : (
+            <div className="budget-map-actions">
+              <button onClick={syncRhIntegration} disabled={rhBusy}>
+                {t("rhSync")}
+              </button>
+              {!isApproved ? (
+                <button className="primario" onClick={applyRhIntegration} disabled={rhBusy}>
+                  {t("rhApply")}
+                </button>
+              ) : null}
+            </div>
+          )}
+        </aside>
+      ) : null}
+      {cellOrigin ? (
+        <aside className="budget-map-assumptions-panel budget-map-origin-panel">
+          <header>
+            <h3>
+              {t("rhOriginTitle")} · {cellOrigin.period}
+            </h3>
+            <button onClick={() => setCellOrigin(null)}>{t("rhClose")}</button>
+          </header>
+          {cellOrigin.data ? (
+            <ul>
+              <li>
+                {t("total")}: {formatAmount(Number(cellOrigin.data.amountMinor || 0))}
+              </li>
+              <li>
+                {t("automatic")}: {formatAmount(Number(cellOrigin.data.integrationAmountMinor || 0))}
+              </li>
+              <li>
+                {t("manualOverride")}: {formatAmount(Number(cellOrigin.data.manualAdjustmentMinor || 0))} ({String(cellOrigin.data.adjustmentMode || "—")})
+              </li>
+              {cellOrigin.data.integration ? (
+                <li>
+                  {String((cellOrigin.data.integration as Record<string, unknown>).sourceModule)} ·{" "}
+                  {String((cellOrigin.data.integration as Record<string, unknown>).syncState)}
+                </li>
+              ) : null}
+            </ul>
+          ) : (
+            <p className="budget-map-empty">{t("rhNone")}</p>
+          )}
         </aside>
       ) : null}
     </section>

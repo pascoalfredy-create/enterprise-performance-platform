@@ -1,5 +1,6 @@
 import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
+import { PERSONNEL_COST_LINE_CODES_SUBQUERY } from "./financial-line-catalog";
 type Security = {
   tenantId: string;
   organizationId: string | null;
@@ -195,9 +196,9 @@ export async function moduleHealthApi(
           .first<{ total: number }>(),
         db
           .prepare(
-            "SELECT COALESCE(SUM(amount_minor),0) total FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code='WORKFORCE' AND (? IS NULL OR organization_id=?) AND period=? AND currency=?",
+            `SELECT COALESCE(SUM(amount_minor),0) total FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code IN ${PERSONNEL_COST_LINE_CODES_SUBQUERY} AND (? IS NULL OR organization_id=?) AND period=? AND currency=?`,
           )
-          .bind(tenant, approvedBudget.id, scope, scope, period, currency)
+          .bind(tenant, approvedBudget.id, tenant, tenant, scope, scope, scope, scope, period, currency)
           .first<{ total: number }>(),
       ]);
       if (budget && budget.total > 0)
