@@ -1,10 +1,16 @@
 .pay-monthly{--pay-accent:var(--work-green,var(--nav-teal,#087e73));--pay-accent-dark:var(--work-green-hover,#0a6358);color:#193c34;min-width:0}
-.pay-month-head{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-end}
-.pay-month-head h1{font-size:24px;margin:7px 0}
+.pay-month-head{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center}
+.pay-month-head h1{font-size:26px;margin:0}
 .pay-monthly p{font-size:12px;line-height:1.6}
-.pay-month-head small{color:var(--pay-accent);font-weight:750;letter-spacing:.08em}
+.pay-month-intro{color:#647184;margin:4px 0 0}
 .pay-month-head-controls,.pay-month-actions,.pay-month-footer,.pay-month-report-actions,.pay-month-row-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.pay-month-head-controls{align-items:end}
+.pay-month-head-controls{align-items:center}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.pay-month-pill{display:flex!important;align-items:center;gap:7px;border:1px solid #d6e2db;border-radius:999px;padding:0 13px;height:38px;background:#fff;font-weight:400}
+.pay-month-pill>span:first-child{font-size:13px}
+.pay-month-pill input,.pay-month-pill select{border:0!important;padding:0!important;height:auto!important;background:transparent!important;font-weight:650}
+.pay-month-pill select{appearance:auto}
+.pay-month-pill-button{border-radius:999px!important;padding:0 16px!important;height:38px}
 .pay-monthly button{border:1px solid #cdded6;background:white;color:var(--pay-accent-dark);padding:9px 12px;border-radius:7px;font-size:12px;cursor:pointer}
 .pay-monthly button:disabled{opacity:.48;cursor:not-allowed}
 .pay-monthly button.primario{background:var(--pay-accent);color:white;border-color:var(--pay-accent);font-weight:700}
@@ -28,11 +34,24 @@
 .pay-month-head-controls>label:nth-child(2){max-width:90px}
 .pay-month-head-controls select{max-width:220px}
 .pay-month-actions{margin:14px 0}
-.pay-month-actions>input{flex:1;min-width:200px}
-.pay-month-actions select{max-width:200px}
-.pay-month-actions>span{flex:1;font-size:12px;color:#53685f;text-align:right}
-.pay-monthly .pay-month-confirm{display:flex;align-items:start;font-size:12px;line-height:1.6;font-weight:400;max-width:1000px;margin:14px 0}
-.pay-month-confirm input{margin:4px 6px 0 0}
+.pay-month-actions>input{flex:0 1 240px;min-width:160px;border-radius:999px}
+.pay-month-actions select{max-width:180px;border-radius:999px}
+.pay-month-actions>span:not(.pay-month-spacer){font-size:11px;color:#53685f}
+.pay-month-spacer{flex:1;min-width:8px}
+.pay-month-menu{position:relative}
+.pay-month-menu>summary{border:1px solid #cdded6;background:white;color:var(--pay-accent-dark);padding:9px 12px;border-radius:7px;font-size:12px;cursor:pointer;list-style:none}
+.pay-month-menu>summary::-webkit-details-marker{display:none}
+.pay-month-menu>div{position:absolute;top:calc(100% + 6px);right:0;z-index:10;display:flex;flex-direction:column;min-width:220px;padding:6px;background:#fff;border:1px solid #d6e2db;border-radius:8px;box-shadow:0 8px 20px rgba(23,32,51,.12)}
+.pay-month-menu>div>button{border:0;text-align:left;background:transparent;padding:9px 10px}
+.pay-month-menu>div>button:hover{background:#f3f7f5}
+.pay-month-hint-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:10px 0}
+.pay-month-hint{color:#8893a1;font-size:11px;margin:0}
+.pay-monthly .pay-month-confirm{display:flex;align-items:start;font-size:11px;line-height:1.5;font-weight:400;max-width:720px;margin:0;color:#647184}
+.pay-month-confirm input{margin:3px 6px 0 0}
+.pay-month-badge{display:inline-flex;align-items:center;padding:4px 11px;border-radius:999px;font-size:10px;font-weight:700}
+.pay-month-badge.ready{background:#e3f3ea;color:#1f7a4d}
+.pay-month-badge.issues{background:#fdf1dc;color:#9a6a0a}
+.pay-month-badge.excluded{background:#eef0f1;color:#647184}
 
 .pay-month-scroll{max-height:65vh;overflow:auto;background:white;border:1px solid var(--ui-card-border,#dde5ec);border-radius:var(--ui-card-radius,16px);box-shadow:var(--ui-card-shadow,0 8px 24px rgba(18,43,78,.07))}
 .pay-monthly table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
@@ -53,7 +72,6 @@
 .pay-month-avatar{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:999px;font-size:9px;font-weight:750;margin-bottom:5px;flex:none}
 .pay-monthly tfoot th,.pay-monthly tfoot td{background:#e3f0e8;font-weight:750}
 .pay-monthly .excluded{color:#758479;background:#f6f8f6}
-.pay-monthly .blocked td:last-child{color:#9e3d28;background:#fff4ef}
 .pay-month-caption{color:#62776c;margin:10px 2px}
 .pay-month-footer{justify-content:flex-end;margin:18px 0}
 .pay-month-error{padding:12px;background:#fff0e9;border:1px solid #edc7b5;border-radius:8px;color:#8a351e}
