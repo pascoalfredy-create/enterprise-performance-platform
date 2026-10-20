@@ -5,6 +5,7 @@ const labels:Record<string,Five>={
 "Ficha do colaborador":["Ficha do colaborador","Employee file","Ficha del empleado","Fiche du salarié","Карточка сотрудника"],
 "Automatização da análise":["Automatização da análise","Analysis automation","Automatización del análisis","Automatisation de l’analyse","Автоматизация анализа"],
 "Catálogo Universal de Rubricas":["Catálogo Universal de Rubricas","Universal Budget Catalog","Catálogo Universal de Rúbricas","Catalogue universel des rubriques","Универсальный каталог статей"],
+"Mapa Orçamental Anual":["Mapa Orçamental Anual","Annual Budget Map","Mapa Presupuestario Anual","Carte budgétaire annuelle","Годовая бюджетная карта"],
 "Automatização":["Automatização","Automation","Automatización","Automatisation","Автоматизация"],
 "Extratos bancários":["Extratos bancários","Bank statements","Extractos bancarios","Relevés bancaires","Банковские выписки"],
 "Ativação e subscrição":["Ativação e subscrição","Activation & subscription","Activación y suscripción","Activation et abonnement","Активация и подписка"],

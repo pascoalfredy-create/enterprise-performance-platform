@@ -36,6 +36,13 @@ import {
   recomputeSubtreeLevels,
   type FinancialLineRow,
 } from "./financial-line-catalog";
+import {
+  budgetAnnualMapSnapshot,
+  batchSaveBudgetCells,
+  createOrUpdateAssumption,
+  deleteAssumption,
+  recalculateLine,
+} from "./budget-annual-map";
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
 import { controlPlaneApi, ensureFirstOperator } from "./control-plane";
@@ -3322,6 +3329,70 @@ async function performanceApi(
     );
   }
 }
+async function budgetAnnualMapApi(
+  request: Request,
+  db: D1Database,
+  tenantId: string,
+  organizationId: string | null = null,
+) {
+  try {
+    const url = new URL(request.url);
+    if (request.method === "GET") {
+      const versionId = url.searchParams.get("versionId");
+      if (!versionId)
+        return Response.json(
+          { error: "Selecione uma versão orçamental." },
+          { status: 400 },
+        );
+      const snapshot = await budgetAnnualMapSnapshot(db, tenantId, {
+        versionId,
+        organizationId: organizationId || url.searchParams.get("organizationId"),
+        dimensionMemberId: url.searchParams.get("dimensionMemberId"),
+        currency: (url.searchParams.get("currency") || "AOA").toUpperCase(),
+      });
+      if ("error" in snapshot)
+        return Response.json(snapshot, { status: 404 });
+      return Response.json(snapshot);
+    }
+    if (request.method !== "POST")
+      return Response.json({ error: "Método não permitido." }, { status: 405 });
+    const body = (await request.json()) as Record<string, unknown>,
+      actor = actorEmail(request) || "utilizador autenticado";
+    if (
+      body.organizationId &&
+      organizationId &&
+      body.organizationId !== organizationId
+    )
+      return Response.json(
+        { error: "Organização fora do âmbito autorizado." },
+        { status: 403 },
+      );
+    if (body.type === "batchSave")
+      return batchSaveBudgetCells(db, tenantId, actor, {
+        versionId: String(body.versionId || ""),
+        organizationId: String(body.organizationId || organizationId || ""),
+        cells: Array.isArray(body.cells) ? body.cells : [],
+      });
+    if (body.type === "assumption")
+      return createOrUpdateAssumption(db, tenantId, actor, body);
+    if (body.type === "deleteAssumption")
+      return deleteAssumption(db, tenantId, String(body.id || ""));
+    if (body.type === "recalculate")
+      return recalculateLine(db, tenantId, {
+        versionId: String(body.versionId || ""),
+        lineId: String(body.lineId || ""),
+        organizationId: String(body.organizationId || organizationId || ""),
+        dimensionMemberId: body.dimensionMemberId ? String(body.dimensionMemberId) : null,
+        currency: String(body.currency || "AOA").toUpperCase(),
+      });
+    return Response.json({ error: "Operação não suportada." }, { status: 400 });
+  } catch (error) {
+    return apiFailure(
+      error,
+      "Não foi possível processar o mapa orçamental anual.",
+    );
+  }
+}
 
 async function scenariosApi(
   request: Request,
@@ -6291,7 +6362,7 @@ const worker = {
                     ? write
                       ? "payroll:write"
                       : "payroll:read"
-                  : apiPath === "/api/performance"
+                  : ["/api/performance", "/api/budget-annual-map"].includes(apiPath)
                     ? write
                       ? "performance:write"
                       : "performance:read"
@@ -6419,6 +6490,7 @@ const worker = {
             ? "PAYROLL"
             : [
                   "/api/performance",
+                  "/api/budget-annual-map",
                   "/api/scenarios",
                   "/api/consolidation",
                   "/api/financial-models",
@@ -6535,6 +6607,8 @@ const worker = {
         return payrollCountryPacksApi(request, env.DB, security);
       if (apiPath === "/api/performance")
         return performanceApi(request, env.DB, tenantId, organizationId);
+      if (apiPath === "/api/budget-annual-map")
+        return budgetAnnualMapApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/scenarios")
         return scenariosApi(request, env.DB, security);
       if (apiPath === "/api/consolidation")

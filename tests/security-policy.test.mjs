@@ -491,3 +491,13 @@ test("the universal line-catalog actions live inside setupApi, so they inherit t
  for(const type of ["financialLineCreate","financialLineRename","financialLineSetHidden","financialLineSetStatus","financialLineReorder","financialLineDuplicate","financialLineAdoptTemplate"])
   assert.match(setupBlock,new RegExp(`body\\.type === "${type}"`),`${type} should be handled inside setupApi`);
 });
+test("the budget annual map shares /api/performance's permission gate (performance:write/performance:read) instead of a new, separate one",()=>{
+ assert.match(compact,/\["\/api\/performance","\/api\/budget-annual-map"\]\.includes\(apiPath\)\?write\?"performance:write":"performance:read"/);
+ assert.match(source,/apiPath === "\/api\/budget-annual-map"\)\s*\n\s*return budgetAnnualMapApi/);
+});
+test("Mapa Anual writes (batch save, pressupostos) are refused once the budget version is approved — create, update and delete alike",()=>{
+ const src=fs.readFileSync(new URL("../worker/budget-annual-map.ts",import.meta.url),"utf8");
+ assert.match(src,/requireDraftVersion/);
+ const occurrences=(src.match(/requireDraftVersion\(/g)||[]).length;
+ assert.ok(occurrences>=4,"requireDraftVersion should gate batchSave, create/update, delete and recalculate");
+});

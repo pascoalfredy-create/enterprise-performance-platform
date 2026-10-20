@@ -12,6 +12,7 @@ import { ConsolidationWorkspace } from "./consolidation-workspace";
 import { FinancialModelsWorkspace } from "./financial-models-workspace";
 import { FinancialDataWorkspace } from "./financial-data-workspace";
 import { FinancialLineCatalogWorkspace } from "./financial-line-catalog-workspace";
+import { BudgetAnnualMapWorkspace } from "./budget-annual-map-workspace";
 import { FinancialDiagnosticsWorkspace } from "./financial-diagnostics-workspace";
 import { WorkforcePlansWorkspace } from "./workforce-plans-workspace";
 import { RecruitmentWorkspace } from "./recruitment-workspace";
@@ -105,6 +106,7 @@ const moduleCatalog: Array<{
     icon: "◫",
     items: [
       { label: "Cockpit do CFO", target: "Cockpit CFO" },
+      { label: "Mapa Orçamental Anual", target: "Mapa Orçamental Anual" },
       { label: "Demonstrações integradas", target: "Demonstrações" },
       { label: "Actual · Budget · Forecast", target: "Performance Financeira" },
       { label: "Variance Bridge", target: "Desvios Financeiros" },
@@ -606,6 +608,8 @@ export default function Home() {
             <FinancialDataWorkspace />
           ) : modulo === "Catálogo de Rubricas" ? (
             <FinancialLineCatalogWorkspace />
+          ) : modulo === "Mapa Orçamental Anual" ? (
+            <BudgetAnnualMapWorkspace />
           ) : modulo === "Cockpit CFO" ? (
             <FinanceSuite initialView="Cockpit CFO" onNavigate={setModulo} />
           ) : modulo === "Demonstrações" ? (
