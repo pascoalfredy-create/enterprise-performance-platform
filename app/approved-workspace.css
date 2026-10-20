@@ -1,6 +1,6 @@
 /* Approved workspace: module bar, contextual sidebar and a single work surface.
    Financial and HR engines, field definitions and API contracts are unchanged. */
-.ui-scale .site.workspace-approved{--work-green:#176349;--work-green-hover:#104b37;--work-soft:#e7f2eb;--work-ink:#17283c;--work-muted:#647184;--work-line:#dfe5e9;--work-canvas:#fff;--ui-card-radius:5px;--ui-card-padding:18px;--ui-card-shadow:none;--azul:var(--work-green);--azul2:var(--work-green-hover);--verde:var(--work-green);color:var(--work-ink);background:var(--work-canvas);font-size:14px;line-height:1.5}
+.ui-scale .site.workspace-approved{--work-green:#236454;--work-green-hover:#194f41;--work-soft:#e5efe8;--work-ink:#223a38;--work-muted:#5c7064;--work-line:#e4eae7;--work-canvas:#fff;--ui-card-radius:5px;--ui-card-padding:18px;--ui-card-shadow:none;--azul:var(--work-green);--azul2:var(--work-green-hover);--verde:var(--work-green);color:var(--work-ink);background:var(--work-canvas);font-size:14px;line-height:1.5}
 .ui-scale .workspace-approved *{box-sizing:border-box}
 .ui-scale .workspace-approved [hidden]{display:none!important}
 .ui-scale .workspace-approved .topo{display:flex;height:auto;min-height:62px;gap:22px;padding:10px 22px;background:var(--work-canvas);border-bottom:1px solid var(--work-line);box-shadow:none;position:relative}
@@ -8,7 +8,6 @@
 .ui-scale .workspace-approved .acoes{margin-left:auto;gap:9px}.ui-scale .workspace-approved .perfil{font-size:12px}.ui-scale .workspace-approved .perfil>span{display:none}
 .ui-scale .workspace-approved .pesquisa-global{width:36px;min-width:36px;justify-content:center}.ui-scale .workspace-approved .pesquisa-global span,.ui-scale .workspace-approved .pesquisa-global kbd{display:none}
 .ui-scale .workspace-approved .locale-select select{font-size:12px;max-width:85px}
-.workspace-modules{display:flex;align-items:center;gap:4px;min-width:0;flex-wrap:wrap}.workspace-modules button,.workspace-modules select{font:inherit;font-size:13px;color:var(--work-ink);background:transparent;border:0;border-bottom:3px solid transparent;border-radius:0;padding:12px 10px}.workspace-modules button[aria-current]{border-bottom-color:var(--work-green);font-weight:600}.workspace-modules select{max-width:200px}
 .ui-scale .workspace-approved .subnav{height:auto;min-height:40px;padding:5px 22px;background:#fafcfb;border-bottom:1px solid var(--work-line)}.ui-scale .workspace-approved .empresa>span{display:none}.ui-scale .workspace-approved .empresa label{display:flex;align-items:center;gap:15px}.ui-scale .workspace-approved .empresa small{font-size:11px}.ui-scale .workspace-approved .empresa select{font-size:12px;height:30px;background:transparent}
 .ui-scale .workspace-approved .workspace-layout{display:grid;grid-template-columns:225px minmax(0,1fr);max-width:none;align-items:start}
 .ui-scale .workspace-approved .module-sidebar{position:sticky;top:0;display:flex;flex-direction:column;gap:0;width:225px;min-height:calc(100vh - 110px);max-height:none;padding:25px 0 18px;background:#f8faf9;border:0;border-right:1px solid var(--work-line);border-radius:0;overflow:visible;box-shadow:none;z-index:15}
@@ -45,3 +44,47 @@
 .ui-scale .workspace-approved .workspace-study-identity{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;grid-column:1/-1}.ui-scale .workspace-approved .workspace-study-identity label{display:flex;flex-direction:column;gap:7px}.ui-scale .workspace-approved .feasibility-inputs{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.ui-scale .workspace-approved .pay-month-report{max-width:none;width:100%;box-shadow:none;border:0}.ui-scale .workspace-approved .pay-month-report-actions{display:flex;gap:10px;justify-content:flex-end;margin-bottom:18px}.ui-scale .workspace-approved .employee-payroll-file>article:first-of-type{background:transparent;border:0;padding-inline:0}.ui-scale .workspace-approved .employee-payroll-file>article:first-of-type dl{display:flex;flex-wrap:wrap;gap:15px 30px;margin-bottom:10px}.ui-scale .workspace-approved .employee-payroll-file .employee-file-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.ui-scale .workspace-approved .feasibility-workspace>header{align-items:center;gap:10px;flex-wrap:wrap}.ui-scale .workspace-approved .feasibility-workspace>header h2{flex-basis:100%}@media(max-width:600px){.ui-scale .workspace-approved .workspace-study-identity,.ui-scale .workspace-approved .feasibility-inputs,.ui-scale .workspace-approved .employee-payroll-file .employee-file-grid{grid-template-columns:1fr}}
 
 .ui-scale .workspace-approved .reports-hub-pin-filter{display:flex;align-items:center;gap:8px}.ui-scale .workspace-approved .reports-hub-filters select{padding:8px;background:#fff;border:1px solid var(--work-line)}.ui-scale .workspace-approved .reports-hub-list .pin,.ui-scale .workspace-approved .reports-hub-list .abrir{border:0;background:transparent;color:var(--work-green);padding:8px 10px}.ui-scale .workspace-approved .reports-hub-list .pin.ativo{background:var(--work-soft)}
+
+/* Simplified workspace from the approved complete prototype (20 Oct 2026).
+   Keep operational components and report origins mounted; never hide fields,
+   actions, calculations or validation messages to achieve a quieter layout. */
+.ui-scale .workspace-approved .topo{padding:17px 27px;min-height:68px}
+.ui-scale .workspace-approved .workspace-layout{grid-template-columns:215px minmax(0,1fr)}
+.ui-scale .workspace-approved .module-sidebar{width:215px;padding:26px 16px;background:#f7f9f7;max-height:100dvh;overflow-y:auto}
+.ui-scale .workspace-approved .module-content{padding:36px clamp(22px,3vw,40px) 65px}
+.ui-scale .workspace-approved .workspace-module-picker{display:grid;gap:9px;margin:0 0 25px;min-width:0}
+.ui-scale .workspace-approved .workspace-module-picker label{font-size:11px!important;color:var(--work-muted)}
+.ui-scale .workspace-approved .workspace-module-picker select{width:100%;max-width:100%;min-width:0;padding:10px 8px;background:#fff;color:var(--work-ink);border:1px solid #cbd7d0;border-radius:4px}
+.ui-scale .workspace-approved .module-sidebar>nav{gap:2px}
+.ui-scale .workspace-approved .workspace-nav-group{min-width:0;width:100%}
+.ui-scale .workspace-approved .workspace-nav-group>.workspace-group-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:46px;padding:11px 10px;text-align:left;white-space:normal;line-height:1.55;background:transparent;border:0;color:var(--work-ink);border-radius:4px}
+.ui-scale .workspace-approved .workspace-group-toggle>span:first-child{min-width:0;overflow-wrap:anywhere}
+.ui-scale .workspace-approved .workspace-group-toggle[data-current]{background:var(--work-soft);color:var(--work-green);font-weight:600}
+.ui-scale .workspace-approved .workspace-nav-chevron{flex:none;color:var(--work-muted);font-size:16px}
+.ui-scale .workspace-approved .workspace-group-items{display:grid;gap:2px;margin:3px 0 10px 10px;padding-left:10px;border-left:1px solid #cbd7d0}
+.ui-scale .workspace-approved .workspace-group-items button{width:100%;min-height:40px;padding:9px 8px;text-align:left;white-space:normal;overflow-wrap:anywhere;line-height:1.5;font-size:12px!important;border:0;border-radius:4px;background:transparent;color:var(--work-muted)}
+.ui-scale .workspace-approved .module-sidebar .workspace-group-items button[aria-current]{background:var(--work-soft);color:var(--work-green);font-weight:600;box-shadow:inset 2px 0 var(--work-green)}
+.ui-scale .workspace-approved .module-sidebar button:hover:not(:disabled){background:#eaf1ec;color:var(--work-green)}
+.ui-scale .workspace-approved .module-sidebar .workspace-side-footer{margin:55px 0 0;padding-top:17px;gap:4px}
+.ui-scale .workspace-approved .workspace-side-footer>button{min-height:40px;padding:10px;font-size:12px!important}
+.ui-scale .workspace-approved .workspace-side-footer>button[aria-current]{background:var(--work-soft);color:var(--work-green);font-weight:600}
+.ui-scale .workspace-approved :is(button,select,input,textarea,a):focus-visible{outline:2px solid var(--work-green);outline-offset:3px}
+.ui-scale .workspace-approved .workspace-area-picker{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:0 0 22px;padding:0 0 17px;border-bottom:1px solid var(--work-line)}
+.ui-scale .workspace-approved .workspace-area-picker label{font-size:12px!important;color:var(--work-muted)}
+.ui-scale .workspace-approved .workspace-area-picker select{width:auto;min-width:230px;max-width:100%;padding:9px 12px;border:1px solid var(--work-line);background:#fff;color:var(--work-ink)}
+.ui-scale .workspace-approved[data-report-open="true"] .workspace-layout{grid-template-columns:minmax(0,1fr)}
+.ui-scale .workspace-approved[data-report-open="true"] :is(.module-sidebar,.shell-menu-toggle,.shell-backdrop){display:none!important}
+.ui-scale .workspace-approved .workspace-document{width:100%;min-width:0}
+.ui-scale .workspace-approved .workspace-document-toolbar{padding-bottom:16px;margin-bottom:24px;border-bottom:1px solid var(--work-line)}
+.ui-scale .workspace-approved .workspace-document-toolbar button:hover{background:var(--work-soft)}
+.ui-scale .workspace-approved .employee-file-tabs-card:has(>.file-tabs:not([hidden])){display:grid;grid-template-columns:170px minmax(0,1fr);gap:30px;border:0;border-top:1px solid var(--work-line);padding:25px 0;background:transparent}
+.ui-scale .workspace-approved .employee-file-tabs-card>.file-tabs:not([hidden]){display:flex;flex-direction:column;align-items:stretch;gap:3px;padding:0;border:0}
+.ui-scale .workspace-approved .employee-file-tabs-card>.file-tabs>button{text-align:left;white-space:normal;line-height:1.5;border:0!important;border-radius:4px!important;padding:11px!important}
+.ui-scale .workspace-approved .employee-file-tabs-card>.file-tabs>button.active{background:var(--work-soft);color:var(--work-green)}
+.ui-scale .workspace-approved .employee-file-tabs-card>form{min-width:0}
+.ui-scale .workspace-approved .employee-file-tabs-card .employee-file-grid{border:0;padding:0;gap:22px;max-width:760px}
+.ui-scale .workspace-approved .employee-file-tabs-card .employee-file-grid label{min-width:0;line-height:1.5}
+.ui-scale .workspace-approved .employee-file-tabs-card :is(input:not([type=checkbox]):not([type=radio]),select){width:100%;min-width:0}
+.ui-scale .workspace-approved .employee-file-tabs-card form>footer{padding-top:25px}
+@media(max-width:1000px){.ui-scale .workspace-approved .employee-file-tabs-card:has(>.file-tabs:not([hidden])){grid-template-columns:1fr;gap:22px}.ui-scale .workspace-approved .employee-file-tabs-card>.file-tabs:not([hidden]){flex-direction:row;flex-wrap:wrap}.ui-scale .workspace-approved .employee-file-tabs-card>.file-tabs>button{flex:1 1 auto}}
+@media(max-width:760px){.ui-scale .workspace-approved .workspace-layout{display:block}.ui-scale .workspace-approved .topo{padding:14px 16px}.ui-scale .workspace-approved .module-sidebar{width:min(320px,90vw);min-height:100dvh;max-height:100dvh;padding:20px 16px}.ui-scale .workspace-approved .module-content{padding:26px 18px 48px}.ui-scale .workspace-approved .workspace-module-picker select{min-height:44px}.ui-scale .workspace-approved .workspace-area-picker{display:grid;gap:8px}.ui-scale .workspace-approved .workspace-area-picker select{width:100%;min-width:0}.ui-scale .workspace-approved .employee-file-tabs-card .employee-file-grid{grid-template-columns:1fr}.ui-scale .workspace-approved .module-sidebar .workspace-group-items button{min-height:44px}.ui-scale .workspace-approved .workspace-side-footer{margin-top:30px}}
