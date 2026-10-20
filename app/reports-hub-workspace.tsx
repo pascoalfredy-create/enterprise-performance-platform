@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { usePlatformLocale } from "./use-platform-locale";
+import {workspaceText} from '../lib/workspace-navigation';
 import { reportsHubCopy } from "./reports-hub-copy";
 import "./reports-hub.css";
 
@@ -34,6 +35,7 @@ export function ReportsHubWorkspace({
     t = (key: keyof typeof reportsHubCopy) => reportsHubCopy[key][index];
   const [query, setQuery] = useState(""),
     [activeFilter, setActiveFilter] = useState("Todos"),
+    [onlyPinned,setOnlyPinned]=useState(false),
     [pinned, setPinned] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -58,6 +60,7 @@ export function ReportsHubWorkspace({
         g.items.map((it) => ({
           key: `${g.code}::${it.label}`,
           group: g.name,
+          groupCode:g.code,
           groupIcon: g.icon,
           label: it.label,
           target: it.target,
@@ -68,10 +71,10 @@ export function ReportsHubWorkspace({
 
   const q = query.trim().toLocaleLowerCase(locale);
   const matches = (r: (typeof flat)[number]) =>
-    (activeFilter === "Todos" || r.group === activeFilter) &&
-    (q === "" || r.label.toLocaleLowerCase(locale).includes(q));
+    (activeFilter === "Todos" || r.groupCode === activeFilter) &&
+    (!onlyPinned||pinned[r.key]) &&
+    (q === "" || (r.label+' '+r.group).toLocaleLowerCase(locale).includes(q));
   const filtered = flat.filter(matches);
-  const favourites = flat.filter((r) => pinned[r.key]);
 
   const byGroup = new Map<string, { icon: string; rows: typeof filtered }>();
   for (const r of filtered) {
@@ -96,66 +99,15 @@ export function ReportsHubWorkspace({
           placeholder={t("searchPlaceholder")}
           aria-label={t("searchPlaceholder")}
         />
-        <div className="reports-hub-pills">
-          <button
-            className={activeFilter === "Todos" ? "ativo" : ""}
-            onClick={() => setActiveFilter("Todos")}
-          >
-            {t("all")}
-          </button>
-          {groups.map((g) => (
-            <button
-              key={g.code}
-              className={activeFilter === g.name ? "ativo" : ""}
-              onClick={() => setActiveFilter(g.name)}
-            >
-              <i>{g.icon}</i> {g.name}
-            </button>
-          ))}
-        </div>
+        <select aria-label={workspaceText(locale,'module')} value={activeFilter} onChange={e=>setActiveFilter(e.target.value)}><option value="Todos">{t('all')}</option>{groups.map(g=><option key={g.code} value={g.code}>{g.name}</option>)}</select><label className="reports-hub-pin-filter"><input type="checkbox" checked={onlyPinned} onChange={e=>setOnlyPinned(e.target.checked)}/>{t('favourites')}</label>
       </div>
-
-      {favourites.length > 0 && (
-        <div className="reports-hub-favourites">
-          <h2>★ {t("favourites")}</h2>
-          <div className="reports-hub-cards">
-            {favourites.map((r) => (
-              <article key={r.key}>
-                <i>{r.groupIcon}</i>
-                <span>
-                  <b>{r.label}</b>
-                  <small>{r.group}</small>
-                </span>
-                <button onClick={() => onNavigate(r.target)}>{t("open")} →</button>
-              </article>
-            ))}
-          </div>
-        </div>
-      )}
 
       {Array.from(byGroup.entries()).map(([groupName, { icon, rows }]) => (
         <div className="reports-hub-group" key={groupName}>
           <h2>
             <i>{icon}</i> {groupName}
           </h2>
-          <div className="reports-hub-list">
-            {rows.map((r) => (
-              <div className="reports-hub-row" key={r.key}>
-                <span>▧</span>
-                <b>{r.label}</b>
-                <button
-                  className={pinned[r.key] ? "pin ativo" : "pin"}
-                  aria-label={pinned[r.key] ? t("unpin") : t("pin")}
-                  onClick={() => togglePin(r.key)}
-                >
-                  ★
-                </button>
-                <button className="abrir" onClick={() => onNavigate(r.target)}>
-                  {t("open")} →
-                </button>
-              </div>
-            ))}
-          </div>
+          <div className="reports-hub-list table-scroll"><table><thead><tr><th>{workspaceText(locale,'filename')}</th><th>{workspaceText(locale,'area')}</th><th>{t('favourites')}</th><th>{workspaceText(locale,'open')}</th></tr></thead><tbody>{rows.map(r=><tr key={r.key}><td><b>{r.label}</b></td><td>{r.group}</td><td><button type="button" className={pinned[r.key]?'pin ativo':'pin'} aria-pressed={!!pinned[r.key]} aria-label={pinned[r.key]?t('unpin'):t('pin')} onClick={()=>togglePin(r.key)}>★</button></td><td><button type="button" className="abrir" onClick={()=>onNavigate(r.target)}>{t('open')} →</button></td></tr>)}</tbody></table></div>
         </div>
       ))}
 

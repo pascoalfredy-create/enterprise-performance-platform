@@ -1,4 +1,4 @@
-.pay-monthly{--pay-accent:var(--nav-teal,#087e73);--pay-accent-dark:#0a6358;color:#193c34;min-width:0}
+.pay-monthly{--pay-accent:var(--work-green,var(--nav-teal,#087e73));--pay-accent-dark:var(--work-green-hover,#0a6358);color:#193c34;min-width:0}
 .pay-month-head{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-end}
 .pay-month-head h1{font-size:24px;margin:7px 0}
 .pay-monthly p{font-size:12px;line-height:1.6}
@@ -50,7 +50,7 @@
 .pay-month-scroll small{display:block;font-size:10px;line-height:1.5;margin:4px 0;font-weight:400}
 .pay-month-row-actions{margin-top:5px}
 .pay-month-row-actions button{padding:4px 7px;font-size:10px}
-.pay-month-avatar{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:999px;font-size:9px;font-weight:750;margin-bottom:5px}
+.pay-month-avatar{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:999px;font-size:9px;font-weight:750;margin-bottom:5px;flex:none}
 .pay-monthly tfoot th,.pay-monthly tfoot td{background:#e3f0e8;font-weight:750}
 .pay-monthly .excluded{color:#758479;background:#f6f8f6}
 .pay-monthly .blocked td:last-child{color:#9e3d28;background:#fff4ef}
@@ -63,15 +63,15 @@
 .pay-month-panel h2{font-size:16px;margin:0}
 .pay-month-panel h3{font-size:13px;margin-top:22px}
 .pay-month-panel-hint{text-align:center;padding:26px 12px;color:#888780;background:white;border:1px dashed #dce7e1;border-radius:var(--ui-card-radius,16px);margin-top:16px}
-.pay-month-panel-note{display:flex;gap:7px;padding:11px 13px;background:#eef6f2;border-radius:9px;color:#3d5a4f;margin:16px 0 0}
+.pay-month-panel-note{display:flex;gap:7px;padding:11px 13px;background:#eef6f2;border-radius:4px;color:#3d5a4f;margin:16px 0 0}
 .pay-month-inputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .pay-month-inputs small{font-size:11px;color:#60766a;font-weight:400}
 .pay-month-panel form>footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
-.pay-month-panel fieldset{border:1px solid #d0dfd6;border-radius:10px;padding:14px;margin:14px 0}
+.pay-month-panel fieldset{border:1px solid #d0dfd6;border-radius:4px;padding:14px;margin:14px 0}
 .pay-month-panel textarea{width:100%;min-height:70px;padding:10px;border:1px solid #c8d8ce;border-radius:8px;color:#17372f;background:white}
 
 .pay-month-overlay{position:fixed;inset:0;background:#102e27aa;z-index:100;overflow:auto;padding:24px;display:grid;align-items:start;justify-items:center}
-.pay-month-dialog{width:min(1150px,100%);box-sizing:border-box;padding:22px;background:white;border-radius:13px;outline:none}
+.pay-month-dialog{width:min(1150px,100%);box-sizing:border-box;padding:22px;background:white;border-radius:5px;outline:none}
 .pay-month-dialog>header{display:flex;justify-content:space-between;align-items:start;gap:16px}
 .pay-month-dialog h2{font-size:20px}
 .pay-month-dialog .employee-payroll-file{margin-top:10px}

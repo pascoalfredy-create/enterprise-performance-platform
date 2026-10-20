@@ -1,4 +1,8 @@
 "use client";
+import {WorkspaceModuleBar,WorkspaceSidebar,WorkspaceAreaTabs} from './workspace-navigation';
+import {accessibleWorkspaces,workspaceForTarget,workspaceText} from '../lib/workspace-navigation';
+import {SavedStudyReports} from './saved-study-reports';
+import './approved-workspace.css';
 import {AnalysisAutomationWorkspace} from "./analysis-automation-workspace";
 import {automationCopy} from "./automation-copy";
 import {ModuleTransferToolbar} from './module-transfer-toolbar';
@@ -219,7 +223,10 @@ const moduleCatalog: Array<{
 ];
 
 export default function Home() {
-  const [modulo, setModulo] = useState("Visão geral"),
+  const [modulo, setCurrentModule] = useState("Visão geral"),
+    [documentOpen,setDocumentOpen] = useState(false),
+    [reportTarget,setReportTarget] = useState<string|null>(null),
+    [studyOriginId,setStudyOriginId] = useState<string|undefined>(undefined),
     // One module dropdown open at a time (this is a horizontal module bar
     // with a popover per item, not a vertical accordion — see
     // navigation-refresh.css) — but the domain containing the current
@@ -254,6 +261,9 @@ export default function Home() {
       };
       tenants: Array<{ id: string; name: string; role: string }>;
     } | null>(null);
+  const setModulo=useCallback((target:string)=>{setReportTarget(null);setStudyOriginId(undefined);setCurrentModule(target)},[]);
+  const openReportTarget=(target:string)=>{setReportTarget(target);setCurrentModule(target);setMobileMenu(false)};
+  useEffect(()=>{const handler=(e:Event)=>setDocumentOpen(!!(e as CustomEvent).detail?.open);window.addEventListener('ep:document',handler);return()=>window.removeEventListener('ep:document',handler)},[]);
   const openMonthly=useCallback(()=>setModulo("Processamentos"),[]);
   useEffect(() => {
     // localStorage is unavailable during SSR, so the persisted locale can only
@@ -280,6 +290,10 @@ export default function Home() {
     ANALYTICS_REPORTING: "module.analytics",
     INTEGRATIONS: "module.integrations",
   };
+  const availableWorkspaces=accessibleWorkspaces(moduleCatalog,sessao?.modules||[]);
+  const activeWorkspace=workspaceForTarget(availableWorkspaces,modulo,openDomain)||availableWorkspaces.find(d=>d.code===openDomain)||availableWorkspaces[0];
+  const workspaceName=(code:string)=>code==='WORKFLOW'?workspaceText(locale,'workflow'):msg(moduleNameKey[code]);
+  const selectWorkspace=(code:string)=>{const d=availableWorkspaces.find(d=>d.code===code);if(!d)return;setOpenDomain(code);setModulo(d.groups[0].targets[0]);setMobileMenu(false)};
   let breadcrumb: { domain: string; item: string } | null = null;
   for (const domain of moduleCatalog) {
     const item = domain.items.find((i) => i.target === modulo);
@@ -291,15 +305,7 @@ export default function Home() {
       break;
     }
   }
-  // Wherever modulo changes from — the search palette, a home card, a
-  // breadcrumb click — the module bar opens the dropdown for where the
-  // user now is, instead of staying on whichever one it last showed (or
-  // closed) while the active screen belongs to a different, closed one.
-  useEffect(() => {
-    const domain = moduleCatalog.find((d) => d.items.some((i) => i.target === modulo));
-    if (!domain) return;
-    setOpenDomain((prev) => (prev === domain.code ? prev : domain.code));
-  }, [modulo]);
+  useEffect(()=>{if(!sessao)return;const d=workspaceForTarget(accessibleWorkspaces(moduleCatalog,sessao.modules),modulo,openDomain);if(d)setOpenDomain(d.code)},[modulo,sessao?.modules]);
   useEffect(() => {
     apiFetch("/api/session")
       .then(async (r) => ({ ok: r.ok, body: await r.json() }))
@@ -410,7 +416,7 @@ export default function Home() {
     }))
     .filter((group) => group.items.length > 0);
   return (
-    <div className="site">
+    <div className="site workspace-approved" data-workspace-target={modulo} data-report-open={documentOpen||!!reportTarget}>
       <PlatformLocalizedSurface>
       {inviteStatus && <div className="invite-feedback">{inviteStatus}</div>}
       <header className="topo"><button className="shell-menu-toggle" aria-label={msg("shell.subscribedModules")} aria-expanded={mobileMenu} aria-controls="platform-sidebar" onClick={()=>setMobileMenu(!mobileMenu)}>☰</button>
@@ -418,10 +424,7 @@ export default function Home() {
           <b><img src="/brand-icon.png" alt="" /></b>
           <span>Enterprise Performance</span>
         </div>
-        <div className="product-context">
-          <small>{msg("shell.workspace")}</small>
-          <b>{modulo === "Investimento" ? moduleItemLabel(locale,"Modelagem Financeira") : modulo}</b>
-        </div>
+        <WorkspaceModuleBar domains={availableWorkspaces} active={activeWorkspace?.code||''} locale={locale} name={workspaceName} onDomain={selectWorkspace}/>
         <div className="acoes">
           <label className="locale-select" title="Idioma / Language">
             <span>◎</span>
@@ -511,100 +514,9 @@ export default function Home() {
         </button>
       </div>
       <div className="workspace-layout">
-        <button className={mobileMenu?"shell-backdrop visible":"shell-backdrop"} aria-label={msg("shell.subscribedModules")} onClick={()=>setMobileMenu(false)}/><aside id="platform-sidebar" role={mobileMenu?"dialog":undefined} aria-modal={mobileMenu||undefined} aria-label={automationCopy.menu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} className={mobileMenu?"module-sidebar menu-visible":"module-sidebar"}><div className="sidebar-brand"><b><img src="/brand-icon.png" alt="" /></b><span>Enterprise Performance<small>{automationCopy.brand[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]}</small></span></div><button className="shell-menu-close" aria-label={automationCopy.closeMenu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} onClick={()=>setMobileMenu(false)}>×</button>
-          <header>
-            <small>{msg("shell.subscribedModules")}</small>
-            <span>{sessao.modules.length} {msg("shell.active")}</span>
-          </header>
-          <button
-            className={
-              modulo === "Visão geral" ? "module-home active" : "module-home"
-            }
-            onClick={() => {setModulo("Visão geral");setMobileMenu(false)}}
-          >
-            <i>⌂</i>
-            <span>
-              <b>{msg("shell.home")}</b>
-              <small>{msg("shell.executiveView")}</small>
-            </span>
-          </button>
-          <button
-            className={
-              modulo === "Central de Relatórios" ? "module-home active" : "module-home"
-            }
-            onClick={() => {setModulo("Central de Relatórios");setMobileMenu(false)}}
-          >
-            <i>▦</i>
-            <span>
-              <b>{msg("shell.reportsHub")}</b>
-              <small>{msg("shell.reportsHubSubtitle")}</small>
-            </span>
-          </button>
-          <nav aria-label={nav.aria} ref={navRef}>
-            {moduleCatalog
-              .filter((domain) =>
-                (domain.accessCodes || [domain.code]).some((code) =>
-                  sessao.modules.includes(code),
-                ),
-              )
-              .map((domain) => {
-                const open = openDomain === domain.code;
-                return (
-                  <section
-                    key={domain.code}
-                    className={open ? "domain open" : "domain"}
-                  >
-                    <button
-                      className="domain-title"
-                      aria-expanded={open}
-                      aria-controls={"module-items-"+domain.code}
-                      onClick={() => setOpenDomain(open ? "" : domain.code)}
-                    >
-                      <i>{domain.icon}</i>
-                      <span>{msg(moduleNameKey[domain.code])}</span>
-                      <em>{open ? "−" : "+"}</em>
-                    </button>
-                    {open && (
-                      <div id={"module-items-"+domain.code} className="domain-items">
-                        {domain.items
-                          .filter((item) =>
-                            item.requires
-                              ? sessao.modules.includes(item.requires)
-                              : true,
-                          )
-                          .map((item) => (
-                          <button
-                            key={item.label}
-                            disabled={item.future}
-                            className={item.target === modulo ? "active" : ""}
-                            onClick={() => {
-                              if (!item.target) return;
-                              setModulo(item.target);
-                              setMobileMenu(false);
-                            }}
-                          >
-                            <span>
-                              {item.document ? "▧" : "·"} {item.target==="Automatização"?automationCopy.title[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]:moduleItemLabel(locale,item.label)}
-                            </span>
-                            {item.future ? (
-                              <em>{nav.future}</em>
-                            ) : item.document ? (
-                              <em>{nav.document}</em>
-                            ) : null}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
-          </nav>
-          <footer>
-            <b>{nav.catalogue}</b>
-            <p>{nav.catalogueHelp}</p>
-          </footer>
-        </aside>
-        <main className="module-content">
+        <button className={mobileMenu?"shell-backdrop visible":"shell-backdrop"} aria-label={msg("shell.subscribedModules")} onClick={()=>setMobileMenu(false)}/><aside id="platform-sidebar" role={mobileMenu?"dialog":undefined} aria-modal={mobileMenu||undefined} aria-label={workspaceText(locale,'menu')} className={mobileMenu?"module-sidebar menu-visible":"module-sidebar"}><button className="shell-menu-close" aria-label={automationCopy.closeMenu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} onClick={()=>setMobileMenu(false)}>×</button><WorkspaceSidebar domain={activeWorkspace} target={modulo} locale={locale} name={activeWorkspace?workspaceName(activeWorkspace.code):workspaceText(locale,'general')} catalog={moduleCatalog.filter(d=>(d.accessCodes||[d.code]).some(code=>sessao.modules.includes(code)))} onNavigate={target=>{setModulo(target);setMobileMenu(false)}} onReports={()=>{setModulo('Central de Relatórios');setMobileMenu(false)}} onHome={()=>{setModulo('Visão geral');setMobileMenu(false)}} onHelp={()=>setCommandMode('help')}/></aside>
+        <main className="module-content"><div id="platform-report-root" hidden={!documentOpen}/><div className="workspace-source" hidden={documentOpen}>
+          {reportTarget&&<div className="workspace-document-toolbar"><button type="button" onClick={()=>setModulo('Central de Relatórios')}>← {workspaceText(locale,'back')}</button><button type="button" onClick={()=>setModulo(reportTarget)}>{workspaceText(locale,'origin')} ↗</button></div>}
           {breadcrumb && modulo !== "Visão geral" && (
             <nav className="module-breadcrumb" aria-label={nav.breadcrumbAria}>
               <button onClick={() => setModulo("Visão geral")}>
@@ -622,7 +534,7 @@ export default function Home() {
               onOpen={() => setModulo("Administração")}
             />
           )}
-          <DemoPortfolioLoader
+          <details className="workspace-support"><summary>{workspaceText(locale,'demo')}</summary><DemoPortfolioLoader
             eligible={
               sessao.role === "Administrador" &&
               (sessao.tenantId === "demo-tenant" ||
@@ -632,10 +544,10 @@ export default function Home() {
                 sessao.tenantName.toLowerCase().includes("calculo sutil"))
             }
           />
-          <ModuleTransferToolbar key={modulo} module={moduleItemLabel(locale,modulo)} onNavigate={setModulo}/>
-          <EngineReadiness onNavigate={setModulo} locale={locale} />
+          </details>
+          {!reportTarget&&<><WorkspaceAreaTabs domain={activeWorkspace} target={modulo} locale={locale} onNavigate={setModulo} catalog={moduleCatalog}/><details className="workspace-support"><summary>{workspaceText(locale,'support')}</summary><ModuleTransferToolbar key={modulo} module={moduleItemLabel(locale,modulo)} onNavigate={setModulo}/><EngineReadiness onNavigate={setModulo} locale={locale}/></details></>}
           {modulo === "Central de Relatórios" ? (
-            <ReportsHubWorkspace groups={reportsGroups} onNavigate={setModulo} />
+            <ReportsHubWorkspace groups={reportsGroups} onNavigate={openReportTarget} />
           ) : modulo === "Ativação" ? (
             <CustomerActivationWorkspace onNavigate={setModulo} />
           ) : ["Administração","Utilizadores","Employee Master"].includes(modulo) ? (
@@ -673,7 +585,7 @@ export default function Home() {
           ) : modulo === "Diagnóstico" ? (
             <FinancialDiagnosticsWorkspace />
           ) : modulo === "Investimento" ? (
-            <FinancialDiagnosticsWorkspace initialView="Investimento" />
+            reportTarget?<SavedStudyReports onOrigin={id=>{setStudyOriginId(id);setReportTarget(null);setCurrentModule("Investimento")}}/>:<FinancialDiagnosticsWorkspace initialView="Investimento" initialStudyId={studyOriginId} />
           ) : modulo === "Modelação" ? (
             <FinancialModelsWorkspace />
           ) : modulo === "Cash-flow" ? (
@@ -700,7 +612,7 @@ export default function Home() {
             <SalaryNetSimulator />
           ) : ["Operações","Histórico salarial","Recibos salariais","Pagamentos salariais"].includes(modulo) ? (
             <>
-              <PayrollCountryControls />
+              <details className="workspace-support"><summary>{workspaceText(locale,'settings')}</summary><PayrollCountryControls /></details>
               <PayrollFoundation onMonthly={openMonthly} initialView={modulo === "Histórico salarial" ? "Processamentos" : modulo === "Recibos salariais" ? "Recibos" : modulo === "Pagamentos salariais" ? "Pagamentos" : "Perfis salariais"} />
             </>
           ) : modulo === "Empréstimos" ? (
@@ -745,7 +657,7 @@ export default function Home() {
           ) : (
             <ModuleUnavailable />
           )}
-        </main>
+        </div></main>
       </div>
       <NotificationsCenter
         open={notificationsOpen}
