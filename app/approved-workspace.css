@@ -24,7 +24,7 @@
 .workspace-icon{flex:none;vertical-align:middle}
 .ui-scale .workspace-approved .module-sidebar :is(button,summary)[aria-current]{background:var(--work-green);color:#fff;font-weight:600}
 .ui-scale .workspace-approved .module-sidebar :is(button,summary):hover:not([aria-current]){background:#e8efeb;color:#0a523b}
-.ui-scale .workspace-approved .module-sidebar>.workspace-side-footer{display:flex;flex-direction:column;margin: auto 9px 0;padding-top:14px;border-top:1px solid var(--work-line)}
+.ui-scale .workspace-approved .module-sidebar>.workspace-side-footer{display:flex;flex-direction:column;margin:auto 9px 0;padding:14px 0 0;border:0;border-top:1px solid var(--work-line);border-radius:0;background:transparent;color:var(--work-ink)}
 .ui-scale .workspace-approved .workspace-side-footer>button{font-size:12px;gap:14px;padding:12px 12px;min-height:46px}
 .ui-scale .workspace-approved .module-content{min-width:0;width:100%;max-width:none;min-height:calc(100dvh - 58px);padding:21px 25px 32px;margin:0;background:#fff}
 .workspace-source,.workspace-document{min-width:0;width:100%}.workspace-document{outline-offset:4px}

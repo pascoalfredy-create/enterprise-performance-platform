@@ -51,3 +51,9 @@ A versão Cloudflare `48365bef` abriu no navegador e o início de sessão foi co
 A comparação revelou três problemas visuais: regras da antiga shell escondiam a marca e deslocavam o cabeçalho; a lista de operações duplicava a navegação acima da folha; nomes e justificações de estado alargavam as linhas. Esta revisão isola a shell antiga, mantém as operações em grupos nativos expansíveis na barra lateral e permite abrir os detalhes dos estados na própria célula. O editor continua a usar o mesmo formulário e todos os campos. O mapa passa a abrir no topo e a repor a posição de trabalho ao fechar.
 
 O navegador restringiu a continuação após a entrega nativa de credenciais. Não foi possível testar o download no navegador nem obter capturas posteriores a estas correções. A comparação visual final e a verificação manual de Excel/PDF continuam pendentes; as verificações DOM e API isolada não são apresentadas como equivalentes.
+
+## Capturas fornecidas pelo utilizador — 21 de outubro
+
+Foram inspecionadas três capturas: ficha do colaborador, formulário de cadastro e parte inferior da folha mensal com o editor contextual. A captura da folha confirma a separação das colunas, os estados compactos e o acesso às rubricas adicionais. Não inclui o cabeçalho ou o mapa financeiro, pelo que não permite concluir a comparação desses elementos.
+
+As capturas revelaram que o rodapé da navegação ainda herdava o fundo azul e o arredondamento de `module-nav.css`, tornando as letras escuras pouco legíveis. A regra existente do rodapé aprovado passa a definir explicitamente fundo transparente, cor, borda e espaçamento; não foram acrescentados `!important` nem alteradas ações ou permissões. A ficha e o cadastro continuam a precisar da aplicação posterior dos componentes validados, conforme o âmbito sequencial desta entrega.
