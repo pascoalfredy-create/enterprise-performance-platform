@@ -1,5 +1,11 @@
 const L=(s:string)=>s.split('|');
 export const payrollSheetCopy={
+ allUnits:L('Todas as unidades|All units|Todas las unidades|Toutes les unités|Все подразделения'),
+ advancedVariables:L('Outras rubricas, quantidades, taxas e observações|Other components, quantities, rates and notes|Otros conceptos, cantidades, tarifas y notas|Autres rubriques, quantités, tarifs et notes|Прочие статьи, количества, ставки и примечания'),
+ unitsEvidence:L('Calculado pelas quantidades e taxas abaixo.|Calculated from quantities and rates below.|Calculado con las cantidades y tarifas inferiores.|Calculé selon les quantités et tarifs ci-dessous.|Рассчитано по количествам и ставкам ниже.'),
+ scheduledLoans:L('Prestações programadas — geridas em Empréstimos|Scheduled installments — managed in Loans|Cuotas programadas — gestionadas en Préstamos|Échéances programmées — gérées dans Prêts|Плановые платежи — раздел Займы'),
+ approveRun:L('Aprovar processamento|Approve payroll|Aprobar nómina|Approuver la paie|Утвердить расчёт'),
+ closeRun:L('Fechar processamento|Close payroll|Cerrar nómina|Clôturer la paie|Закрыть расчёт'),
 importRejected:L("Importação rejeitada antes de gravar. Linha|Import rejected before saving. Row|Importación rechazada antes de guardar. Fila|Import refusé avant enregistrement. Ligne|Импорт отклонён до сохранения. Строка"),
 import_headers:L("Use um modelo atualizado com todas as colunas.|Use an updated template with every column.|Use una plantilla actualizada con todas las columnas.|Utilisez un modèle à jour avec toutes les colonnes.|Используйте актуальный шаблон со всеми столбцами."),
 import_employee:L("Número de colaborador desconhecido.|Unknown employee number.|Número de empleado desconocido.|Numéro de salarié inconnu.|Неизвестный номер сотрудника."),

@@ -1,6 +1,11 @@
 import type {PlatformLocale} from './platform-i18n';
 type Five=readonly [string,string,string,string,string];
 export const workspaceCopy={
+ horizon:['Horizonte','Horizon','Horizonte','Horizon','Горизонт'],
+ values:['Valores','Values','Valores','Valeurs','Значения'],
+ thousands:['Milhares','Thousands','Miles','Milliers','Тысячи'],
+ pdf:['PDF','PDF','PDF','PDF','PDF'],
+ printOnly:['Imprimir','Print','Imprimir','Imprimer','Печать'],
  analysis:['Análise financeira','Financial analysis','Análisis financiero','Analyse financière','Финансовый анализ'],
  budget:['Planeamento e orçamento','Planning and budgeting','Planificación y presupuesto','Planification et budget','Планирование и бюджет'],
  model:['Modelagem financeira','Financial modeling','Modelización financiera','Modélisation financière','Финансовое моделирование'],

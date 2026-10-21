@@ -42,7 +42,7 @@ test("portal navigation is driven by entitlements", () => {
     assert.match(page, new RegExp(code));
   assert.match(page, /sessao\.modules\.includes/);
 });
-test("the whole platform inherits only the 10 12 14 enterprise UI scale", () => {
+test("legacy typography stays outside the approved workspace", () => {
   assert.match(layout, /ui-typography\.css/);
   assert.match(layout, /ui-scale/);
   for (const size of ["10px", "12px", "14px"])
@@ -57,7 +57,9 @@ test("the whole platform inherits only the 10 12 14 enterprise UI scale", () => 
     "30px",
   ])
     assert.doesNotMatch(typography, new RegExp(`:${forbidden}`));
-  assert.match(typography, /ui-scale\.ui-scale\.ui-scale/);
+  assert.match(typography, /ui-scale:not\(:has\(\.workspace-approved\)\)/);
+  const approved = fs.readFileSync(new URL("../app/approved-workspace.css", import.meta.url), "utf8");
+  assert.match(approved, /font:14px/);
 });
 test("enterprise cards share one responsive geometry system", () => {
   assert.match(layout, /enterprise-layout\.css/);
@@ -422,7 +424,7 @@ test("enterprise shell exposes search profile help and legal trust surfaces", ()
 });
 test("redundant top shortcuts bar is gone, help and command palette remain", () => {
   assert.doesNotMatch(page, /className="atalhos"/);
-  assert.match(page, /setCommandMode\("help"\)/);
+  assert.match(page, /setCommandMode\(['"]help['"]\)/);
   assert.match(page, /ctrlKey\s*\|\|\s*e\.metaKey/);
 });
 test("RH presents Payroll as a governed submodule", () => {

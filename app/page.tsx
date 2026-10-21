@@ -288,7 +288,8 @@ export default function Home() {
     INTEGRATIONS: "module.integrations",
   };
   const availableWorkspaces=accessibleWorkspaces(moduleCatalog,sessao?.modules||[]);
-  const activeWorkspace=workspaceForTarget(availableWorkspaces,modulo,openDomain)||availableWorkspaces.find(d=>d.code===openDomain)||availableWorkspaces[0];
+  const sourceWorkspace=workspaceForTarget(availableWorkspaces,modulo,openDomain)||availableWorkspaces.find(d=>d.code===openDomain)||availableWorkspaces[0];
+  const activeWorkspace=(documentOpen||reportTarget)?availableWorkspaces.find(d=>d.code==='ANALYTICS_REPORTING')||sourceWorkspace:sourceWorkspace;
   const workspaceName=(code:string)=>code==='WORKFLOW'?workspaceText(locale,'workflow'):msg(moduleNameKey[code]);
   const selectWorkspace=(code:string)=>{const d=availableWorkspaces.find(d=>d.code===code);if(!d)return;setOpenDomain(code);setModulo(d.groups[0].targets[0]);setMobileMenu(false)};
   let breadcrumb: { domain: string; item: string } | null = null;
@@ -421,7 +422,37 @@ export default function Home() {
           <b><img src="/brand-icon.png" alt="" /></b>
           <span>Enterprise Performance</span>
         </div>
+        <WorkspaceModuleBar domains={availableWorkspaces} active={activeWorkspace?.code||''} locale={locale} name={workspaceName} onDomain={selectWorkspace}/>
         <div className="acoes">
+        <div className="empresa">
+          <span>
+            {(sessao.tenantName || "EP")
+              .split(" ")
+              .map((x) => x[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()}
+          </span>
+          <label>
+            <small>
+              {sessao.organizationName
+                ? `Âmbito · ${sessao.organizationName}`
+                : "Empresa atual · Todo o tenant"}
+            </small>
+            <select
+              aria-label="Empresa atual"
+              value={sessao.tenantId}
+              onChange={(e) => mudarTenant(e.target.value)}
+            >
+              {sessao.tenants.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} · {t.role}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
           <label className="locale-select" title="Idioma / Language">
             <span>◎</span>
             <select
@@ -476,41 +507,8 @@ export default function Home() {
           </button>
         </div>
       </header>
-      <div className="subnav">
-        <div className="empresa">
-          <span>
-            {(sessao.tenantName || "EP")
-              .split(" ")
-              .map((x) => x[0])
-              .join("")
-              .slice(0, 2)
-              .toUpperCase()}
-          </span>
-          <label>
-            <small>
-              {sessao.organizationName
-                ? `Âmbito · ${sessao.organizationName}`
-                : "Empresa atual · Todo o tenant"}
-            </small>
-            <select
-              aria-label="Empresa atual"
-              value={sessao.tenantId}
-              onChange={(e) => mudarTenant(e.target.value)}
-            >
-              {sessao.tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} · {t.role}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <button className="ajuda" onClick={() => setCommandMode("help")}>
-          ? {msg("shell.help")}
-        </button>
-      </div>
       <div className="workspace-layout">
-        <button className={mobileMenu?"shell-backdrop visible":"shell-backdrop"} aria-label={msg("shell.subscribedModules")} onClick={()=>setMobileMenu(false)}/><aside id="platform-sidebar" role={mobileMenu?"dialog":undefined} aria-modal={mobileMenu||undefined} aria-label={workspaceText(locale,'menu')} className={mobileMenu?"module-sidebar menu-visible":"module-sidebar"}><button className="shell-menu-close" aria-label={automationCopy.closeMenu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} onClick={()=>setMobileMenu(false)}>×</button><WorkspaceModuleBar domains={availableWorkspaces} active={activeWorkspace?.code||''} locale={locale} name={workspaceName} onDomain={selectWorkspace}/><WorkspaceSidebar domain={activeWorkspace} target={modulo} locale={locale} name={activeWorkspace?workspaceName(activeWorkspace.code):workspaceText(locale,'general')} catalog={moduleCatalog.filter(d=>(d.accessCodes||[d.code]).some(code=>sessao.modules.includes(code)))} onNavigate={target=>{setModulo(target);setMobileMenu(false)}} onReports={()=>{setModulo('Central de Relatórios');setMobileMenu(false)}} onHome={()=>{setModulo('Visão geral');setMobileMenu(false)}} onHelp={()=>setCommandMode('help')}/></aside>
+        <button className={mobileMenu?"shell-backdrop visible":"shell-backdrop"} aria-label={msg("shell.subscribedModules")} onClick={()=>setMobileMenu(false)}/><aside id="platform-sidebar" role={mobileMenu?"dialog":undefined} aria-modal={mobileMenu||undefined} aria-label={workspaceText(locale,'menu')} className={mobileMenu?"module-sidebar menu-visible":"module-sidebar"}><button className="shell-menu-close" aria-label={automationCopy.closeMenu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} onClick={()=>setMobileMenu(false)}>×</button><WorkspaceSidebar domain={activeWorkspace} target={documentOpen||reportTarget?'Relatórios':modulo} locale={locale} name={activeWorkspace?workspaceName(activeWorkspace.code):workspaceText(locale,'general')} catalog={moduleCatalog.filter(d=>(d.accessCodes||[d.code]).some(code=>sessao.modules.includes(code)))} onNavigate={target=>{setModulo(target);setMobileMenu(false)}} onReports={()=>{setModulo('Central de Relatórios');setMobileMenu(false)}} onHome={()=>{setModulo('Visão geral');setMobileMenu(false)}} onHelp={()=>setCommandMode('help')}/></aside>
         <main className="module-content"><div id="platform-report-root" hidden={!documentOpen}/><div className="workspace-source" hidden={documentOpen}>
           {reportTarget&&<div className="workspace-document-toolbar"><button type="button" onClick={()=>setModulo('Central de Relatórios')}>← {workspaceText(locale,'back')}</button><button type="button" onClick={()=>setModulo(reportTarget)}>{workspaceText(locale,'origin')} ↗</button></div>}
           {breadcrumb && modulo !== "Visão geral" && (

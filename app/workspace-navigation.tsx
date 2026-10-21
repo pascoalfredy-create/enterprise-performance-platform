@@ -1,32 +1,31 @@
 "use client";
-import {useEffect,useId,useState} from 'react';
 import type {PlatformLocale} from '../lib/platform-i18n';
-import {workspaceText,type WorkspaceDomain,type NavigationCatalog,type WorkspaceGroup} from '../lib/workspace-navigation';
+import {workspaceText,type WorkspaceDomain,type NavigationCatalog} from '../lib/workspace-navigation';
 import {moduleItemLabel} from '../lib/module-navigation-i18n';
 type Props={domains:WorkspaceDomain[];active:string;locale:PlatformLocale;name:(code:string)=>string;onDomain:(code:string)=>void};
 export function WorkspaceModuleBar({domains,active,locale,name,onDomain}:Props){
- const id=useId();
- return <div className="workspace-module-picker"><label htmlFor={id}>{workspaceText(locale,'main')}</label><select id={id} value={active} onChange={e=>onDomain(e.target.value)}>{domains.map(d=><option key={d.code} value={d.code}>{name(d.code)}</option>)}</select></div>;
+ const main=['FINANCE_FP&A','HCM','PERFORMANCE_MANAGEMENT','ANALYTICS_REPORTING'];
+ if(active==='WORKFORCE_PLANNING')main.splice(2,0,'WORKFORCE_PLANNING');
+ const others=domains.filter(d=>!main.includes(d.code));
+ return <nav className="workspace-modules" aria-label={workspaceText(locale,'module')}>
+ {domains.filter(d=>main.includes(d.code)).map(d=><button key={d.code} type="button" aria-current={d.code===active?'page':undefined} onClick={()=>onDomain(d.code)}>{name(d.code)}</button>)}
+ {Boolean(others.length)&&<select aria-label={workspaceText(locale,'more')} value={others.some(d=>d.code===active)?active:''} onChange={e=>{if(e.target.value)onDomain(e.target.value)}}><option value="">{workspaceText(locale,'more')}</option>{others.map(d=><option key={d.code} value={d.code}>{name(d.code)}</option>)}</select>}
+ </nav>;
 }
 export function WorkspaceSidebar({domain,target,locale,name,onNavigate,onHome,onReports,onHelp,catalog}:{domain?:WorkspaceDomain;target:string;locale:PlatformLocale;name:string;onNavigate:(target:string)=>void;onHome:()=>void;onReports:()=>void;onHelp:()=>void;catalog:NavigationCatalog}){
- const id=useId(),activeGroup=domain?.groups.find(g=>g.targets.includes(target))?.id||'';
- const [expanded,setExpanded]=useState<string>(activeGroup);
- useEffect(()=>{setExpanded(activeGroup)},[domain?.code,activeGroup]);
- const label=(target:string)=>moduleItemLabel(locale,catalog.flatMap(d=>d.items).find(i=>i.target===target)?.label||target);
- const group=(g:WorkspaceGroup)=>{
-  const open=expanded===g.id,selected=g.targets.includes(target),panel=id+'-'+g.id;
-  return <div key={g.id} className="workspace-nav-group">
-   <button type="button" className="workspace-group-toggle" aria-expanded={open} aria-controls={panel} data-current={selected||undefined} onClick={()=>setExpanded(open?'':g.id)}><span>{workspaceText(locale,g.id)}</span><span className="workspace-nav-chevron" aria-hidden="true">{open?'−':'+'}</span></button>
-   <div id={panel} className="workspace-group-items" hidden={!open}>{g.targets.map(t=><button type="button" key={t} aria-current={t===target?'page':undefined} onClick={()=>onNavigate(t)}>{label(t)}</button>)}</div>
-  </div>;
- };
- return <><nav aria-label={name||workspaceText(locale,'menu')}>
-  {(domain?.groups||[]).filter(g=>!g.support).map(group)}
-  {!domain&&catalog.map(d=><button type="button" key={d.code} onClick={()=>{const t=d.items.find(i=>i.target&&!i.document);if(t?.target)onNavigate(t.target)}}>{d.code}</button>)}
- </nav><footer className="workspace-side-footer"><button type="button" aria-current={target==='Central de Relatórios'?'page':undefined} onClick={onReports}>{workspaceText(locale,'reports')}</button>{(domain?.groups||[]).filter(g=>g.support).map(group)}<button type="button" onClick={onHome}>{workspaceText(locale,'general')}</button><button type="button" aria-label={workspaceText(locale,'help')} onClick={onHelp}>{workspaceText(locale,'help')}</button></footer></>;
+ const groups=domain?.groups||[];
+ return <><header className="workspace-side-heading">{name}</header><nav aria-label={workspaceText(locale,'menu')}>
+ {groups.filter(g=>!g.support&&g.id!=='reports').map(g=><button type="button" key={g.id} aria-current={g.targets.includes(target)?'page':undefined} onClick={()=>onNavigate(g.targets[0])}><WorkspaceIcon name={g.id}/><span>{workspaceText(locale,g.id)}</span></button>)}
+ {!domain&&catalog.map(d=><button key={d.code} onClick={()=>{const t=d.items.find(i=>i.target&&!i.document);if(t?.target)onNavigate(t.target)}}>{d.code}</button>)}
+ </nav><footer className="workspace-side-footer"><button type="button" aria-current={target==='Central de Relatórios'||groups.some(g=>g.id==='reports'&&g.targets.includes(target))?'page':undefined} onClick={onReports}><WorkspaceIcon name="reports"/>{workspaceText(locale,'reports')}</button>{groups.filter(g=>g.support).map(g=><button type="button" key={g.id} aria-current={g.targets.includes(target)?'page':undefined} onClick={()=>onNavigate(g.targets[0])}><WorkspaceIcon name="settings"/>{workspaceText(locale,g.id)}</button>)}<button onClick={onHome}>{workspaceText(locale,'general')}</button><button type="button" onClick={onHelp}><WorkspaceIcon name="help"/>{workspaceText(locale,'help')}</button></footer></>;
 }
 export function WorkspaceAreaTabs({domain,target,locale,onNavigate,catalog}:{domain?:WorkspaceDomain;target:string;locale:PlatformLocale;onNavigate:(t:string)=>void;catalog:NavigationCatalog}){
- const group=domain?.groups.find(g=>g.targets.includes(target)),id=useId();
+ const group=domain?.groups.find(g=>g.targets.includes(target));
  if(!group||group.targets.length<2)return null;
- return <div className="workspace-area-picker"><label htmlFor={id}>{workspaceText(locale,group.id)}</label><select id={id} value={target} onChange={e=>onNavigate(e.target.value)}>{group.targets.map(t=>{const item=catalog.flatMap(d=>d.items).find(i=>i.target===t);return <option key={t} value={t}>{moduleItemLabel(locale,item?.label||t)}</option>})}</select></div>;
+ return <nav className="workspace-area-tabs" aria-label={workspaceText(locale,group.id)}>{group.targets.map(t=>{const item=catalog.flatMap(d=>d.items).find(i=>i.target===t);return <button type="button" key={t} aria-current={t===target?'page':undefined} onClick={()=>onNavigate(t)}>{moduleItemLabel(locale,item?.label||t)}</button>})}</nav>;
+}
+
+export function WorkspaceIcon({name}:{name:string}){
+ const paths:Record<string,string>={organization:'M4 22V4h12v18m0-13h5v13M8 8h4m-4 4h4m-4 4h4m-4 4h4',overview:'M3 10 12 3l9 7v11h-6v-7H9v7H3Z',analysis:'M4 21V13h4v8m4 0V8h4v13m4 0V3h-4',budget:'M4 5h16v16H4zM4 10h16M8 2v6m8-6v6',model:'M4 21V12h4v9m4 0V8h4v13m4 0V3h-4',liquidity:'m8 15-2 2a4 4 0 0 1-5-5l5-5a4 4 0 0 1 6 0m4 2 2-2a4 4 0 0 1 5 5l-5 5a4 4 0 0 1-6 0m-3-5 6-6',consolidation:'m12 2 10 6-10 6L2 8Zm-10 10 10 6 10-6M2 16l10 6 10-6',people:'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M2 22v-3a7 7 0 0 1 14 0v3m1-18a4 4 0 0 1 0 8m2 3a5 5 0 0 1 3 5v2',time:'M4 5h16v16H4zM4 10h16M8 2v6m8-6v6M8 14h2m4 0h2m-8 4h2',payroll:'M21 6c0 3-18 3-18 0s18-3 18 0Zm0 0v12c0 3-18 3-18 0V6m0 6c0 3 18 3 18 0',talent:'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M2 22v-3a7 7 0 0 1 14 0v3m3-12v8m-4-4h8',reports:'M5 2h10l5 5v15H5zM14 2v6h6M8 12h8m-8 4h8',settings:'m10 3 1-2h2l1 2 3 1 2-1 2 3-1 2v3l1 2-2 3-2-1-3 1-1 2h-2l-1-2-3-1-2 1-2-3 1-2V8L3 6l2-3 2 1Zm2 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8',help:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18m-3 6c0-4 7-4 6 0-1 2-3 1-3 5m0 3v1',goals:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18m0 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8',reviews:'M4 4h16v17H4zM8 8h8m-8 4h8m-8 4h4',monitoring:'m2 19 6-10 5 4L22 4',sources:'M4 6h16v15H4zM8 3v6m8-6v6M8 13h8'};
+ return <svg className="workspace-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]||paths.reports}/></svg>;
 }

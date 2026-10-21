@@ -1,103 +1,27 @@
-.pay-monthly{--pay-accent:var(--work-green,var(--nav-teal,#087e73));--pay-accent-dark:var(--work-green-hover,#0a6358);color:#193c34;min-width:0}
-.pay-month-head{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center}
-.pay-month-head h1{font-size:26px;margin:0}
-.pay-monthly p{font-size:12px;line-height:1.6}
-.pay-month-intro{color:#647184;margin:4px 0 0}
-.pay-month-head-controls,.pay-month-actions,.pay-month-footer,.pay-month-report-actions,.pay-month-row-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.pay-month-head-controls{align-items:center}
+.pay-monthly{--pay-accent:var(--work-green,#116749);--pay-accent-dark:var(--work-green-hover,#09573d);color:var(--work-ink,#101e39);min-width:0}
+.pay-month-head{display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-bottom:20px}.pay-month-head h1{margin:0;font-size:28px}.pay-monthly p{font-size:12px;line-height:1.55}
+.pay-month-head-controls{display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap}.pay-month-head-controls>button{margin-left:auto;order:4}.pay-month-head-controls>.pay-month-pill:nth-child(2){order:3}.pay-month-head-controls>.pay-month-scope{order:2}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.pay-month-pill{display:flex!important;align-items:center;gap:7px;border:1px solid #d6e2db;border-radius:999px;padding:0 13px;height:38px;background:#fff;font-weight:400}
-.pay-month-pill>span:first-child{font-size:13px}
-.pay-month-pill input,.pay-month-pill select{border:0!important;padding:0!important;height:auto!important;background:transparent!important;font-weight:650}
-.pay-month-pill select{appearance:auto}
-.pay-month-pill-button{border-radius:999px!important;padding:0 16px!important;height:38px}
-.pay-monthly button{border:1px solid #cdded6;background:white;color:var(--pay-accent-dark);padding:9px 12px;border-radius:7px;font-size:12px;cursor:pointer}
-.pay-monthly button:disabled{opacity:.48;cursor:not-allowed}
-.pay-monthly button.primario{background:var(--pay-accent);color:white;border-color:var(--pay-accent);font-weight:700}
-.pay-monthly button.secundario{border-color:#bfe0da;color:var(--pay-accent)}
-
-.pay-month-stepper{display:flex;list-style:none;margin:18px 0;padding:0}
-.pay-month-stepper li{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;padding-top:9px}
-.pay-month-stepper li:before{content:'';position:absolute;top:13px;left:0;right:0;height:2px;background:#dce7e1;z-index:0}
-.pay-month-stepper li:first-child:before{left:50%}
-.pay-month-stepper li:last-child:before{right:50%}
-.pay-month-stepper li.done:before{background:var(--pay-accent)}
-.pay-month-stepper li.current:before{background:linear-gradient(to right,var(--pay-accent) 50%,#dce7e1 50%)}
-.pay-month-stepper i{position:relative;z-index:1;width:26px;height:26px;border-radius:999px;display:grid;place-items:center;background:#fff;border:2px solid #d7e3dc;color:#62776c;font-style:normal;font-weight:750;font-size:11px}
-.pay-month-stepper li.done i{background:var(--pay-accent);border-color:var(--pay-accent);color:#fff}
-.pay-month-stepper li.current i{border-color:var(--pay-accent);color:var(--pay-accent)}
-.pay-month-stepper span{font-size:11px;color:#6d7788;text-align:center}
-.pay-month-stepper li.current span{font-weight:750;color:#173455}
-
-.pay-monthly label{font-size:12px;font-weight:600;display:grid;gap:7px}
-.pay-monthly input:not([type=checkbox]),.pay-monthly select{padding:9px 11px;border:1px solid #ccdbd4;border-radius:7px;background:white;color:#183f32;font-size:13px;min-width:0}
-.pay-month-head-controls>label:nth-child(2){max-width:90px}
-.pay-month-head-controls select{max-width:220px}
-.pay-month-actions{margin:14px 0}
-.pay-month-actions>input{flex:0 1 240px;min-width:160px;border-radius:999px}
-.pay-month-actions select{max-width:180px;border-radius:999px}
-.pay-month-actions>span:not(.pay-month-spacer){font-size:11px;color:#53685f}
-.pay-month-spacer{flex:1;min-width:8px}
-.pay-month-menu{position:relative}
-.pay-month-menu>summary{border:1px solid #cdded6;background:white;color:var(--pay-accent-dark);padding:9px 12px;border-radius:7px;font-size:12px;cursor:pointer;list-style:none}
-.pay-month-menu>summary::-webkit-details-marker{display:none}
-.pay-month-menu>div{position:absolute;top:calc(100% + 6px);right:0;z-index:10;display:flex;flex-direction:column;min-width:220px;padding:6px;background:#fff;border:1px solid #d6e2db;border-radius:8px;box-shadow:0 8px 20px rgba(23,32,51,.12)}
-.pay-month-menu>div>button{border:0;text-align:left;background:transparent;padding:9px 10px}
-.pay-month-menu>div>button:hover{background:#f3f7f5}
-.pay-month-hint-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:10px 0}
-.pay-month-hint{color:#8893a1;font-size:11px;margin:0}
-.pay-monthly .pay-month-confirm{display:flex;align-items:start;font-size:11px;line-height:1.5;font-weight:400;max-width:720px;margin:0;color:#647184}
-.pay-month-confirm input{margin:3px 6px 0 0}
-.pay-month-badge{display:inline-flex;align-items:center;padding:4px 11px;border-radius:999px;font-size:10px;font-weight:700}
-.pay-month-badge.ready{background:#e3f3ea;color:#1f7a4d}
-.pay-month-badge.issues{background:#fdf1dc;color:#9a6a0a}
-.pay-month-badge.excluded{background:#eef0f1;color:#647184}
-
-.pay-month-scroll{max-height:65vh;overflow:auto;background:white;border:1px solid var(--ui-card-border,#dde5ec);border-radius:var(--ui-card-radius,16px);box-shadow:var(--ui-card-shadow,0 8px 24px rgba(18,43,78,.07))}
-.pay-monthly table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
-.pay-month-scroll table{min-width:1500px}
-.pay-monthly th,.pay-monthly td{padding:11px 10px;border-bottom:1px solid #e2ebe6;text-align:right;font-variant-numeric:tabular-nums;vertical-align:top}
-.pay-monthly thead th{background:var(--pay-accent);color:white;font-weight:650;white-space:normal}
-.pay-month-scroll thead th{position:sticky;top:0;z-index:3}
-.pay-month-scroll tbody tr{cursor:pointer}
-.pay-month-scroll tbody tr:hover{background:#f6faf8}
-.pay-month-scroll tbody tr.selected{background:#e1f5ee}
-.pay-month-scroll tbody tr.selected th,.pay-month-scroll tbody tr.selected td{box-shadow:inset 3px 0 0 var(--pay-accent)}
-.pay-month-scroll tbody th{position:sticky;left:0;background:#f8fbf9;text-align:left;min-width:230px;max-width:300px;z-index:2}
-.pay-month-scroll tbody tr.selected th{background:#e1f5ee}
-.pay-month-scroll tbody th b,.pay-month-scroll tbody th small{display:block}
-.pay-month-scroll small{display:block;font-size:10px;line-height:1.5;margin:4px 0;font-weight:400}
-.pay-month-row-actions{margin-top:5px}
-.pay-month-row-actions button{padding:4px 7px;font-size:10px}
-.pay-month-avatar{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:999px;font-size:9px;font-weight:750;margin-bottom:5px;flex:none}
-.pay-monthly tfoot th,.pay-monthly tfoot td{background:#e3f0e8;font-weight:750}
-.pay-monthly .excluded{color:#758479;background:#f6f8f6}
-.pay-month-caption{color:#62776c;margin:10px 2px}
-.pay-month-footer{justify-content:flex-end;margin:18px 0}
-.pay-month-error{padding:12px;background:#fff0e9;border:1px solid #edc7b5;border-radius:8px;color:#8a351e}
-.pay-month-notice{padding:12px;background:#e7f5ed;color:#1b6044;border-radius:8px}
-
-.pay-month-panel{margin-top:16px}
-.pay-month-panel h2{font-size:16px;margin:0}
-.pay-month-panel h3{font-size:13px;margin-top:22px}
-.pay-month-panel-hint{text-align:center;padding:26px 12px;color:#888780;background:white;border:1px dashed #dce7e1;border-radius:var(--ui-card-radius,16px);margin-top:16px}
-.pay-month-panel-note{display:flex;gap:7px;padding:11px 13px;background:#eef6f2;border-radius:4px;color:#3d5a4f;margin:16px 0 0}
-.pay-month-inputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.pay-month-inputs small{font-size:11px;color:#60766a;font-weight:400}
-.pay-month-panel form>footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
-.pay-month-panel fieldset{border:1px solid #d0dfd6;border-radius:4px;padding:14px;margin:14px 0}
-.pay-month-panel textarea{width:100%;min-height:70px;padding:10px;border:1px solid #c8d8ce;border-radius:8px;color:#17372f;background:white}
-
-.pay-month-overlay{position:fixed;inset:0;background:#102e27aa;z-index:100;overflow:auto;padding:24px;display:grid;align-items:start;justify-items:center}
-.pay-month-dialog{width:min(1150px,100%);box-sizing:border-box;padding:22px;background:white;border-radius:5px;outline:none}
-.pay-month-dialog>header{display:flex;justify-content:space-between;align-items:start;gap:16px}
-.pay-month-dialog h2{font-size:20px}
-.pay-month-dialog .employee-payroll-file{margin-top:10px}
-.pay-month-report>div{overflow:auto}
-.pay-month-report table{min-width:1500px}
-.pay-month-report table th:nth-child(2){text-align:left}
-.pay-month-report-actions{justify-content:end}
-.pay-monthly :is(button,input,select):focus-visible{outline:3px solid #45a98b;outline-offset:2px}
-@media(max-width:900px){.pay-month-dialog{padding:16px}.pay-month-head h1{font-size:21px}.pay-month-stepper span{display:none}}
-@media(max-width:550px){.pay-month-head-controls>label{width:100%}.pay-month-inputs{grid-template-columns:1fr}.pay-month-overlay{padding:10px}}
+.pay-monthly :is(button,input,select,textarea){font:inherit;font-size:13px;border:1px solid #d3dce6;border-radius:3px;background:#fff;color:inherit;padding:10px 12px;min-width:0}
+.pay-monthly button{cursor:pointer}.pay-monthly button:disabled{opacity:.48;cursor:not-allowed}.pay-monthly button.primario{background:var(--pay-accent);color:#fff;border-color:var(--pay-accent);font-weight:600}
+.pay-monthly .pay-month-pill{display:flex;align-items:center;gap:7px;padding:0 10px;min-height:40px;border:1px solid #d3dce6;border-radius:3px;background:#fff;font-weight:400}
+.pay-monthly .pay-month-pill :is(input,select){border:0;padding:8px 0;min-height:0;background:transparent;font-weight:400}.pay-month-head-controls input[type=month]{width:140px}.pay-month-head-controls input:not([type=month]){width:46px}
+.pay-month-scope{display:flex;align-items:center;gap:9px;border:1px solid #d3dce6;padding:10px 12px;max-width:240px;font-size:13px}.pay-month-pill-button{color:#175eb7}
+.pay-month-stepper{display:flex;list-style:none;margin:8px 0 22px;padding:0 0 10px;border-bottom:4px solid #eef0f3;counter-reset:step}
+.pay-month-stepper li{position:relative;flex:1;display:flex;align-items:center;gap:14px;padding:0 12px 4px;min-width:0}.pay-month-stepper li:after{content:'';height:2px;background:#dde4e9;flex:1;margin:0 8px}.pay-month-stepper li:last-child:after{display:none}.pay-month-stepper li.current:before,.pay-month-stepper li.done:before{content:'';position:absolute;bottom:-14px;left:0;right:0;height:4px;background:var(--pay-accent)}
+.pay-month-stepper i{display:grid;place-items:center;flex:none;width:36px;height:36px;border:1px solid #ced7df;border-radius:50%;font-size:17px;font-style:normal;background:#eef1f4}.pay-month-stepper .current i,.pay-month-stepper .done i{background:var(--pay-accent);border-color:var(--pay-accent);color:white}.pay-month-stepper span{font-size:13px;white-space:normal}.pay-month-stepper .current span{font-weight:600;color:var(--pay-accent-dark)}
+.pay-month-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 16px}.pay-month-actions>input{flex:0 1 300px}.pay-month-actions>select{max-width:230px}.pay-month-actions>span:not(.pay-month-spacer){font-size:12px;color:#536480}.pay-month-spacer{flex:1;min-width:0}
+.pay-month-menu{position:relative}.pay-month-menu>summary{display:flex;align-items:center;min-height:39px;padding:9px 12px;list-style:none;border:1px solid #d3dce6;border-radius:3px;cursor:pointer;font-size:13px}.pay-month-menu>summary:before{content:'•••';margin-right:8px}.pay-month-menu>summary::-webkit-details-marker{display:none}.pay-month-menu>div{position:absolute;top:calc(100% + 6px);right:0;width:300px;max-width:85vw;padding:8px;border:1px solid #d3dce6;background:white;box-shadow:0 6px 16px #102a3920;z-index:12;display:grid;gap:4px}.pay-month-menu>div>button{border:0;text-align:left}.pay-month-menu>div>button:hover{background:#edf5f0}.pay-month-menu p{margin:7px;color:#536480}.pay-month-menu .pay-month-pill{margin:6px 0;max-width:100%}.pay-month-menu select{width:100%;max-width:240px}
+.pay-month-hint-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:8px 0 12px}.pay-month-hint{color:#536480;font-size:11px;margin:0}.pay-monthly .pay-month-confirm{display:flex;align-items:start;gap:7px;max-width:750px;font-size:11px;font-weight:400;line-height:1.5}.pay-month-confirm input{margin-top:2px}
+.pay-month-scroll{overflow:auto;background:white;border:1px solid var(--work-line,#dde4ec);border-radius:3px;max-height:65vh}
+.pay-month-scroll table{width:100%;min-width:900px;table-layout:auto;border-collapse:collapse;white-space:nowrap;font-size:13px;font-variant-numeric:tabular-nums}.pay-monthly :is(th,td){padding:12px 10px;border-bottom:1px solid #e0e7ed;text-align:right;vertical-align:middle}.pay-month-scroll :is(th,td)+:is(th,td){border-left:1px solid #e5e9ef}.pay-month-scroll thead th{color:#101e39;background:#f3f5f7;font-size:12px;font-weight:600;text-align:center}.pay-month-scroll thead tr:nth-child(2) th{font-weight:400;padding:8px}
+.pay-month-scroll tbody th{text-align:left;background:transparent;min-width:195px;max-width:260px;font-weight:400}.pay-month-scroll tbody th small{display:block;font-size:11px;margin-top:3px;color:#536480}.pay-month-scroll tbody tr{cursor:pointer}.pay-month-scroll tbody tr:hover{background:#f1f7f3}.pay-month-scroll tbody tr.selected{background:#e6f3eb}.pay-month-scroll tr.selected>td:first-child{box-shadow:inset 3px 0 var(--pay-accent)}
+.pay-monthly .pay-month-person{border:0;background:transparent;font-weight:600;padding:0;color:#101e39;text-align:left;font-size:13px}.pay-month-avatar{display:grid;place-items:center;float:left;width:36px;height:36px;border-radius:50%;margin-right:12px;font-size:12px;font-weight:400;background:#e2e9ec;color:#29455b}.pay-month-scroll tbody td:last-child{white-space:normal;min-width:100px}.pay-month-scroll tbody td:last-child small{display:block;line-height:1.5;font-size:11px;margin:5px 0;color:#9d3421}
+.pay-monthly tfoot :is(th,td){background:#f3f5f7;font-weight:600}.pay-month-badge{display:inline-flex;align-items:center;gap:7px;border-radius:20px;padding:5px 12px;white-space:nowrap;font-size:12px}.pay-month-badge:before{content:'✓';display:grid;place-items:center;border-radius:50%;width:15px;height:15px;color:white;background:#16704c;font-size:11px}.pay-month-badge.ready{background:#d6f1df;color:#15452f}.pay-month-badge.issues{background:#fff0bd;color:#854609}.pay-month-badge.issues:before{content:'!';background:#a76107}.pay-month-badge.excluded{background:#edf0f3;color:#536480}.pay-month-badge.excluded:before{content:'−';background:#738194}.pay-month-scroll .excluded{color:#748293;background:#fafbfc}
+.pay-month-caption{color:#536480;margin:10px 0 24px}.pay-month-error{padding:12px;background:#fff0eb;border:1px solid #eac2b3;border-radius:3px;color:#8e321f}.pay-month-notice{padding:10px;background:#e7f5ed;color:#195d40;border-radius:3px}
+.ui-scale .workspace-approved .pay-month-panel{margin-top:22px;padding:17px 16px;border:1px solid #dce4ed;border-radius:3px;background:white;box-shadow:none}.pay-month-panel>header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}.pay-month-panel h2{margin:0;font-size:18px}.pay-month-panel nav{display:flex;gap:10px}.pay-month-panel nav button{padding:3px;border:0;background:transparent;color:#145fc1;font-size:12px}
+.pay-month-quick-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:14px;align-items:start}.pay-monthly label{display:grid;gap:7px;font-size:12px;font-weight:400}.pay-month-quick-fields button{margin-top:24px}.pay-month-quick-fields input{width:100%}.pay-monthly label small{font-size:11px;line-height:1.4;color:#536480}.pay-month-inputs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.pay-month-inputs input{width:100%}.pay-month-advanced{margin-top:16px;border-top:1px solid #e3e8ed;padding-top:12px}.pay-month-advanced>summary{font-size:12px;cursor:pointer;color:#225f86}.pay-month-panel h3{font-size:14px}.pay-month-panel fieldset{border:1px solid #d3dce6;border-radius:3px;padding:14px;margin:14px 0}.pay-month-panel textarea{width:100%;min-height:70px}.pay-month-panel-note{color:#536480;font-size:11px}.pay-month-panel-hint{color:#536480;font-size:12px;padding:10px 0}.pay-month-footer{display:flex;justify-content:end;gap:10px;flex-wrap:wrap;margin-top:16px}
+.pay-month-overlay{position:fixed;inset:0;background:#102e2777;z-index:160;overflow:auto;padding:24px;display:grid;align-items:start;justify-items:center}.pay-month-dialog{width:min(1150px,100%);padding:22px;background:white;border-radius:4px;outline:none}.pay-month-dialog>header{display:flex;justify-content:space-between;align-items:start;gap:16px}.pay-month-dialog h2{font-size:20px}.pay-month-dialog .employee-payroll-file{margin-top:10px}.pay-month-report>div{overflow:auto}.pay-month-report table{min-width:1500px}.pay-month-report table th:nth-child(2){text-align:left}.pay-month-report-actions{display:flex;justify-content:end;gap:10px}
+@media(max-width:1100px){.pay-month-quick-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.pay-month-quick-fields>button{margin-top:0}.pay-month-head-controls{flex-basis:100%}.pay-month-head-controls>button{margin-left:auto}.pay-month-inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.pay-month-stepper{gap:5px}.pay-month-stepper li{flex-direction:column;align-items:center;padding:0 3px 8px;gap:7px}.pay-month-stepper li:after{display:none}.pay-month-stepper span{text-align:center;font-size:11px}.pay-month-stepper i{width:30px;height:30px;font-size:14px}.pay-month-quick-fields,.pay-month-inputs{grid-template-columns:1fr}.pay-month-head-controls{gap:7px}.pay-month-scope{max-width:100%}.pay-month-head-controls>button{margin:0}.pay-month-overlay{padding:10px}.pay-month-dialog{padding:15px}.pay-month-actions>input{flex-basis:100%}.pay-month-spacer{display:none}.pay-month-panel>header nav{width:100%}}
 @media print{.pay-month-report table{min-width:0;width:100%;font-size:8pt}.pay-month-report th,.pay-month-report td{padding:4px 3px;white-space:normal}.pay-month-report th{position:static}.pay-month-report h2{font-size:16pt}.pay-month-report p{font-size:9pt}.pay-month-report>div{overflow:visible}}
