@@ -37,14 +37,14 @@ A folha mensal de salários mantém a reconstrução das imagens anteriores: qua
 
 ## Limites de correspondência com as imagens
 
-A geometria não autoriza preencher dados ausentes ou acrescentar controlos fictícios. A implementação usa o que as APIs fornecem: o estudo atual tem pressupostos agregados, não um cadastro de produtos/serviços; as permissões são atribuídas por perfil, não por uma matriz avulsa de checkboxes; as aprovações da caixa de tarefas executam-se nos respetivos processos; o detalhe das metas é agora lido das evidências imutáveis da avaliação; antes da submissão do gestor, os valores atuais são identificados como tal. Os widgets das imagens que dependem dessas fontes não foram simulados.
+A geometria não autoriza preencher dados ausentes ou acrescentar controlos fictícios. A implementação usa o que as APIs fornecem: o estudo usa os pressupostos globais existentes ou uma decomposição opcional em produtos/serviços, com totais ponderados consistentes; as permissões são atribuídas por perfil, não por uma matriz avulsa de checkboxes; as aprovações da caixa de tarefas executam-se nos respetivos processos; o detalhe das metas é agora lido das evidências imutáveis da avaliação; antes da submissão do gestor, os valores atuais são identificados como tal. Os widgets das imagens que dependem dessas fontes não foram simulados.
 
 Estes pontos devem ser distinguidos da validação do layout. Não há declaração de reprodução integral de todos os controlos presentes nas imagens.
 
 ## Verificações
 
 - Tipagem e build verificado.
-- Suite de 561 testes; os testes estáticos que exigiam slogans antigos foram atualizados para os novos títulos localizados, mantendo as verificações de APIs e comandos.
+- Suite de 565 testes; os testes estáticos que exigiam slogans antigos foram atualizados para os novos títulos localizados, mantendo as verificações de APIs e comandos.
 - Auditoria dos cinco idiomas: as seis ocorrências preexistentes, sem regressões.
 - Componentes React reais em JSDOM: todos os campos da ficha e valores mantidos entre seis separadores; nenhum POST por mudar de separador.
 - Estudo: cinco secções reais, resultados inalterados ao navegar, payload de gravação com a revisão original e bloqueios de leitura preservados.
@@ -73,3 +73,13 @@ O ecrã usa agora Avaliações/Feedback/Desenvolvimento/Calibração e Resultado
 A API de leitura passa a incluir o fim real do ciclo, a função/número/departamento apenas quando existe ligação explícita ao colaborador, comentários já existentes e objetivos com valores capturados. Sem fotografia, usam-se iniciais reais; sem função associada, apresenta-se um traço. O fim do ciclo é identificado como tal, sem inventar um prazo específico da avaliação. Não foram adicionadas migrações nem alteradas fórmulas de pontuação ou permissões.
 
 Dois testes de integração com todas as migrações SQLite verificam o isolamento por tenant/organização, leitura sem mutações, decisões exclusivas dos atores, pontuação original e preservação dos valores capturados após novos check-ins/cancelamento da meta. O teste DOM adicional verifica os dois níveis de separadores, contexto do colaborador, objetivos/comentários, filtros, rascunho sem POST, restauro, submissão para a avaliação correta e remoção do rascunho após sucesso. A comparação visual da nova versão no navegador permanece pendente.
+
+## Refinamento de modelagem — comparação de 21 de outubro
+
+Comparadas a referência `155552(1)` e a captura real `171736`: foi removida a barra exterior Diagnóstico/Modelagem/Metodologia na rota do estudo (o diagnóstico continua acessível nas opções). O cabeçalho apresenta Guardar, Mapas do estudo e opções adicionais; o painel de Atividade mostra os seis parâmetros principais, a tabela de produtos/serviços e Seguinte: investimento. Identificação, organização, base mensal/anual, custos fixos e crescimentos adicionais permanecem nos pressupostos recolhidos; importação e todos os documentos anteriores continuam nas opções. O CSS deste componente passou para `study-workspace.css`, removendo as regras anteriores equivalentes do stylesheet comum.
+
+Os estudos existentes conservam os seus pressupostos e resultados. A linha agregada existente é identificada como tal, sem inventar um nome de produto. Editar/adicionar linhas é uma ação explícita: passa a guardar a decomposição em `assumptions_json`, sem nova tabela ou migração. Volume total = soma das quantidades; preço e custo unitários = médias ponderadas pelas quantidades. O motor financeiro continua a consumir os mesmos três drivers, incluindo o arredondamento mensal já existente no modelo integrado. Durante uma edição não aplicada, guardar/abrir mapas/trocar de secção ficam bloqueados para não perder contexto.
+
+A primeira folha do Excel contém a decomposição editável e fórmulas protegidas para os totais globais. A reimportação recupera descrições/identificadores e recalcula os totais pelas linhas, mesmo quando as caches das fórmulas do ficheiro ainda não foram atualizadas. O PDF inclui os pressupostos das linhas. O backend valida a forma das linhas e a consistência dos totais, preservando revisão, âmbito e permissões anteriores.
+
+Três testes específicos verificam equivalência com os motores estabelecidos (anual/mensal/integrado/cenários), rejeição de linhas inválidas ou totais divergentes e Excel com fórmulas + reimportação. Um teste de integração verifica gravação/revisão/permissões/âmbito. O teste DOM verifica seis controlos principais, cinco secções, edição/aplicação de linha, valores ponderados no payload, preservação dos custos fixos e parâmetros financeiros, bloqueios de contexto e consulta. A aparência da nova versão ainda precisa de comparação no navegador; estes testes não certificam reprodução visual integral.

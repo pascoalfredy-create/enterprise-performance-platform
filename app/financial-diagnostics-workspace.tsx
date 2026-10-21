@@ -329,7 +329,7 @@ export function FinancialDiagnosticsWorkspace({
           <small>Payback {item?.payback_period ?? "—"} período(s)</small>
         </article>
       </section>}
-      <nav className="dg-tabs">
+      {view!=="Investimento"&&<nav className="dg-tabs">
         {["Diagnóstico", "Investimento", "Metodologia"].map((x) => (
           <button
             key={x}
@@ -339,7 +339,7 @@ export function FinancialDiagnosticsWorkspace({
             {x === "Investimento" ? "Modelagem Financeira" : x}
           </button>
         ))}
-      </nav>
+      </nav>}
       {view === "Diagnóstico" ? (
         <div className="dg-grid">
           <article className="cartao dg-results">
@@ -445,7 +445,7 @@ export function FinancialDiagnosticsWorkspace({
           </aside>
         </div>
       ) : view === "Investimento" ? (
-        <div><FeasibilityWorkspace initialStudyId={initialStudyId} onSummary={setStudySummary}/><details><summary>Casos anteriores · fluxos manuais e aprovações</summary><div className="dg-grid">
+        <div><FeasibilityWorkspace onDiagnostics={()=>setView("Diagnóstico")} initialStudyId={initialStudyId} onSummary={setStudySummary}/><details><summary>Casos anteriores · fluxos manuais e aprovações</summary><div className="dg-grid">
           <article className="cartao dg-investments">
             <div className="cab">
               <div>
