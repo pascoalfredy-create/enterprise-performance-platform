@@ -55,7 +55,8 @@ test('deep links mark the matching group and operation without adding a second n
 test('analytics report targets remain accessible alongside the cross-module centre',()=>{
  const d=domains.find(d=>d.code==='ANALYTICS_REPORTING'),html=sidebar('ANALYTICS_REPORTING','Relatórios');
  assert(html.includes('Management Reports'));
- assert(html.includes('Catálogo de relatórios'));
+ assert(html.includes('Modelos e versões'));
+ assert(html.indexOf('Mapas e relatórios')<html.indexOf('workspace-side-footer'),'Analytics reports stay in the main menu');
  assert(html.includes('Mapas e relatórios'));
  assert(html.includes('aria-current="page"><svg class="workspace-icon"'), 'Reports stays selected in the sidebar');
 });

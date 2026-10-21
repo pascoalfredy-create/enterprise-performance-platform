@@ -142,13 +142,13 @@ test("absence management is a functional governed HCM workspace", () => {
 });
 test("workflow is a real cross-engine decision inbox", () => {
   assert.match(page, /WorkflowInbox/);
-  assert.match(page, /Decisões pendentes num único lugar/);
+  assert.match(page, /w\('inboxTitle'\)/);
   assert.match(page, /Abrir origem/);
   assert.doesNotMatch(page, /label:"Tarefas e aprovações",future:true/);
 });
 test("performance action plans are operational and evidence governed", () => {
   assert.match(page, /ActionPlans/);
-  assert.match(page, /Transformar explicação em responsabilidade/);
+  assert.match(page, /w\('actionPlans'\)/);
   assert.match(page, /completion_evidence/);
   assert.doesNotMatch(page, /label:"Planos de ação",future:true/);
 });
@@ -160,13 +160,13 @@ test("forecast and scenarios are a functional FP&A workspace", () => {
 });
 test("performance goals are measurable and check-in governed", () => {
   assert.match(page, /GoalsWorkspace/);
-  assert.match(page, /Objetivos mensuráveis, progresso verificável/);
+  assert.match(page, /w\('goals'\)/);
   assert.match(page, /goalCheckin/);
   assert.doesNotMatch(page, /label:"Objetivos",future:true/);
 });
 test("performance reviews expose governed evaluation and development", () => {
   assert.match(page, /ReviewsWorkspace/);
-  assert.match(page, /Avaliar com evidência, calibrar com independência/);
+  assert.match(page, /w\('teamReviews'\)/);
   assert.match(page, /60% objetivos · 40% competências/);
   assert.doesNotMatch(page, /label:"Avaliações",future:true/);
 });
@@ -277,7 +277,7 @@ test("headcount planning is operational and no longer future", () => {
   );
   assert.match(page, /WorkforcePlansWorkspace/);
   assert.doesNotMatch(page, /label:"Headcount plan",future:true/);
-  assert.match(workspace, /Pessoas certas, custo previsto, decisão governada/);
+  assert.match(workspace, /workspace-record-table/);
   assert.match(workspace, /submitPlan/);
   assert.match(workspace, /approvePlan/);
 });
@@ -341,7 +341,7 @@ test("integration hub orchestrates governed sources mappings and runs", () => {
     );
   assert.match(page, /IntegrationsWorkspace/);
   assert.doesNotMatch(page, /label:"Fontes de dados",future:true/);
-  assert.match(workspace, /Dados conectados, validação antes da verdade/);
+  assert.match(workspace, /w\('monitoringTitle'\)/);
   assert.match(api, /idempotencyKey/);
   assert.match(api, /validateRun/);
   assert.match(api, /decideRun/);

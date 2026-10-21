@@ -6,14 +6,15 @@ type Props={domains:WorkspaceDomain[];active:string;locale:PlatformLocale;name:(
 export function WorkspaceModuleBar({domains,active,locale,name,onDomain}:Props){
  const main=['FINANCE_FP&A','HCM','PERFORMANCE_MANAGEMENT','ANALYTICS_REPORTING'];
  if(active==='WORKFORCE_PLANNING')main.splice(2,0,'WORKFORCE_PLANNING');
+ const topLabels:Record<string,Parameters<typeof workspaceText>[1]>={'FINANCE_FP&A':'moduleFinance',HCM:'modulePeople',PERFORMANCE_MANAGEMENT:'modulePerformance',ANALYTICS_REPORTING:'moduleAnalysis',WORKFORCE_PLANNING:'workforce'};
  const others=domains.filter(d=>!main.includes(d.code));
  return <nav className="workspace-modules" aria-label={workspaceText(locale,'module')}>
- {domains.filter(d=>main.includes(d.code)).map(d=><button key={d.code} type="button" aria-current={d.code===active?'page':undefined} onClick={()=>onDomain(d.code)}>{name(d.code)}</button>)}
- {Boolean(others.length)&&<select aria-label={workspaceText(locale,'more')} value={others.some(d=>d.code===active)?active:''} onChange={e=>{if(e.target.value)onDomain(e.target.value)}}><option value="">{workspaceText(locale,'more')}</option>{others.map(d=><option key={d.code} value={d.code}>{name(d.code)}</option>)}</select>}
+ {domains.filter(d=>main.includes(d.code)).map(d=><button key={d.code} type="button" aria-current={d.code===active?'page':undefined} title={name(d.code)} onClick={()=>onDomain(d.code)}>{workspaceText(locale,topLabels[d.code])}</button>)}
+ {Boolean(others.length)&&<select aria-label={workspaceText(locale,'more')} value={others.some(d=>d.code===active)?active:''} onChange={e=>{if(e.target.value)onDomain(e.target.value)}}><option value="">{workspaceText(locale,'moreShort')}</option>{others.map(d=><option key={d.code} value={d.code}>{name(d.code)}</option>)}</select>}
  </nav>;
 }
 export function WorkspaceSidebar({domain,target,locale,name,onNavigate,onHome,onReports,onHelp,catalog}:{domain?:WorkspaceDomain;target:string;locale:PlatformLocale;name:string;onNavigate:(target:string)=>void;onHome:()=>void;onReports:()=>void;onHelp:()=>void;catalog:NavigationCatalog}){
- const groups=domain?.groups||[];
+ const groups=domain?.groups||[],reportsInMain=domain?.code==='ANALYTICS_REPORTING',canSettings=catalog.some(area=>area.items.some(item=>item.target==='Administração'));
  const operationLabel=(target:string)=>{const item=catalog.flatMap(d=>d.items).find(i=>i.target===target);return moduleItemLabel(locale,item?.label||target)};
  function groupItem(group:WorkspaceDomain['groups'][number]){
   const selected=group.targets.includes(target)||(group.id==='reports'&&target==='Central de Relatórios');
@@ -24,10 +25,10 @@ export function WorkspaceSidebar({domain,target,locale,name,onNavigate,onHome,on
    {group.targets.map(operation=><button type="button" key={operation} aria-current={operation===target?'page':undefined} onClick={event=>{onNavigate(operation);event.currentTarget.closest('details')?.removeAttribute('open')}}>{operationLabel(operation)}</button>)}
   </nav></details>;
  }
- return <><header className="workspace-side-heading">{name}</header><nav aria-label={workspaceText(locale,'menu')}>
- {groups.filter(g=>!g.support&&g.id!=='reports').map(groupItem)}
+ return <><header className="workspace-side-heading">{domain?.code==='HCM'?workspaceText(locale,'modulePeople'):domain?.code==='FINANCE_FP&A'?workspaceText(locale,'moduleFinance'):name}</header><nav aria-label={workspaceText(locale,'menu')}>
+ {groups.filter(g=>!g.support&&(g.id!=='reports'||reportsInMain)).map(groupItem)}
  {!domain&&catalog.map(d=><button key={d.code} onClick={()=>{const t=d.items.find(i=>i.target&&!i.document);if(t?.target)onNavigate(t.target)}}>{d.code}</button>)}
- </nav><footer className="workspace-side-footer">{groups.some(g=>g.id==='reports')?groups.filter(g=>g.id==='reports').map(groupItem):<button type="button" aria-current={target==='Central de Relatórios'||target==='Relatórios'?'page':undefined} onClick={onReports}><WorkspaceIcon name="reports"/>{workspaceText(locale,'reports')}</button>}{groups.filter(g=>g.support).map(groupItem)}<button type="button" onClick={onHome}>{workspaceText(locale,'general')}</button><button type="button" onClick={onHelp}><WorkspaceIcon name="help"/>{workspaceText(locale,'help')}</button></footer></>;
+ </nav><footer className="workspace-side-footer">{!reportsInMain&&(groups.some(g=>g.id==='reports')?groups.filter(g=>g.id==='reports').map(groupItem):<button type="button" aria-current={target==='Central de Relatórios'||target==='Relatórios'?'page':undefined} onClick={onReports}><WorkspaceIcon name="reports"/>{workspaceText(locale,'reports')}</button>)}{groups.filter(g=>g.support).map(groupItem)}{canSettings&&!groups.some(group=>group.support&&group.targets.includes('Administração'))&&<button type="button" onClick={()=>onNavigate('Administração')}><WorkspaceIcon name="settings"/>{workspaceText(locale,'settings')}</button>}<button type="button" onClick={onHelp}><WorkspaceIcon name="help"/>{workspaceText(locale,'help')}</button></footer></>;
 }
 
 export function WorkspaceIcon({name}:{name:string}){

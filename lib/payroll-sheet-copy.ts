@@ -1,5 +1,10 @@
 const L=(s:string)=>s.split('|');
 export const payrollSheetCopy={
+ filePay:L('Remuneração|Compensation|Remuneración|Rémunération|Оплата труда'),
+ fileVariables:L('Variáveis mensais|Monthly variables|Variables mensuales|Variables mensuelles|Месячные переменные'),
+ fileHistory:L('Histórico|History|Historial|Historique|История'),
+ fileContext:L('Dados do colaborador|Employee details|Datos del empleado|Données du salarié|Данные сотрудника'),
+
  previewInfo:L('Sobre os valores previstos|About expected amounts|Sobre los importes previstos|À propos des montants prévisionnels|О предварительных суммах'),
  worksheetTitle:L('Folha mensal|Monthly payroll|Nómina mensual|Paie mensuelle|Месячная ведомость'),
  sheetDeductions:L('Descontos do mês|Monthly deductions|Descuentos del mes|Retenues du mois|Удержания месяца'),
