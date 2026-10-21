@@ -37,3 +37,9 @@ Ainda são obrigatórios antes de publicar:
 5. Só então aprovar os componentes visuais, propagá-los aos restantes módulos e autorizar a publicação.
 
 Não existe declaração de fidelidade visual baseada apenas nos testes automatizados. Este PR deve permanecer em rascunho enquanto os critérios pendentes não forem cumpridos.
+
+## Pré-visualização do PR #40
+
+O workflow de verificação deste PR prepara uma configuração do build e executa exclusivamente `wrangler versions upload`, depois dos testes. Não executa migrações nem `wrangler deploy`/`versions deploy`. O script verifica a identidade do PR e os bindings esperados, consulta a implantação ativa antes e depois e falha se houver alteração na distribuição de tráfego. A ligação devolvida pela Cloudflare fica no resumo da execução do GitHub Actions.
+
+Esta ligação de versão partilha os recursos e permissões configurados no Worker. Não é uma base de dados de teste isolada. As verificações de gravação descritas acima continuam a referir-se à SQLite local isolada. Uma eventual validação funcional no navegador deve usar apenas dados de teste autorizados.
