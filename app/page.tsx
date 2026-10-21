@@ -1,5 +1,5 @@
 "use client";
-import {WorkspaceModuleBar,WorkspaceSidebar,WorkspaceAreaTabs} from './workspace-navigation';
+import {WorkspaceModuleBar,WorkspaceSidebar} from './workspace-navigation';
 import {accessibleWorkspaces,workspaceForTarget,workspaceText} from '../lib/workspace-navigation';
 import {SavedStudyReports} from './saved-study-reports';
 import './approved-workspace.css';
@@ -528,18 +528,6 @@ export default function Home() {
               onOpen={() => setModulo("Administração")}
             />
           )}
-          <details className="workspace-support"><summary>{workspaceText(locale,'demo')}</summary><DemoPortfolioLoader
-            eligible={
-              sessao.role === "Administrador" &&
-              (sessao.tenantId === "demo-tenant" ||
-                sessao.tenantName
-                  .toLocaleLowerCase("pt")
-                  .includes("cálculo sutil") ||
-                sessao.tenantName.toLowerCase().includes("calculo sutil"))
-            }
-          />
-          </details>
-          {!reportTarget&&<><WorkspaceAreaTabs domain={activeWorkspace} target={modulo} locale={locale} onNavigate={setModulo} catalog={moduleCatalog}/><details className="workspace-support"><summary>{workspaceText(locale,'support')}</summary><ModuleTransferToolbar key={modulo} module={moduleItemLabel(locale,modulo)} onNavigate={setModulo}/><EngineReadiness onNavigate={setModulo} locale={locale}/></details></>}
           {modulo === "Central de Relatórios" ? (
             <ReportsHubWorkspace groups={reportsGroups} onNavigate={openReportTarget} />
           ) : modulo === "Ativação" ? (
@@ -651,6 +639,19 @@ export default function Home() {
           ) : (
             <ModuleUnavailable />
           )}
+          {!reportTarget&&<details className="workspace-support"><summary>{workspaceText(locale,'support')}</summary><ModuleTransferToolbar key={modulo} module={moduleItemLabel(locale,modulo)} onNavigate={setModulo}/><EngineReadiness onNavigate={setModulo} locale={locale}/>
+          <details className="workspace-support"><summary>{workspaceText(locale,'demo')}</summary><DemoPortfolioLoader
+            eligible={
+              sessao.role === "Administrador" &&
+              (sessao.tenantId === "demo-tenant" ||
+                sessao.tenantName
+                  .toLocaleLowerCase("pt")
+                  .includes("cálculo sutil") ||
+                sessao.tenantName.toLowerCase().includes("calculo sutil"))
+            }
+          />
+          </details>
+          </details>}
         </div></main>
       </div>
       <NotificationsCenter

@@ -43,3 +43,11 @@ Não existe declaração de fidelidade visual baseada apenas nos testes automati
 O workflow de verificação deste PR prepara uma configuração do build e executa exclusivamente `wrangler versions upload`, depois dos testes. Não executa migrações nem `wrangler deploy`/`versions deploy`. O script verifica a identidade do PR e os bindings esperados, consulta a implantação ativa antes e depois e falha se houver alteração na distribuição de tráfego. A ligação devolvida pela Cloudflare fica no resumo da execução do GitHub Actions.
 
 Esta ligação de versão partilha os recursos e permissões configurados no Worker. Não é uma base de dados de teste isolada. As verificações de gravação descritas acima continuam a referir-se à SQLite local isolada. Uma eventual validação funcional no navegador deve usar apenas dados de teste autorizados.
+
+## Primeira comparação num navegador autenticado
+
+A versão Cloudflare `48365bef` abriu no navegador e o início de sessão foi confirmado pela presença da empresa e dos módulos autorizados. Foram capturadas a folha mensal e uma DRE projetada real. Na Unidade Demonstração foi criado e guardado o estudo sintético `Validação visual PR 40` (revisão 1), e a abertura das demonstrações foi confirmada com os resultados calculados dos pressupostos de teste.
+
+A comparação revelou três problemas visuais: regras da antiga shell escondiam a marca e deslocavam o cabeçalho; a lista de operações duplicava a navegação acima da folha; nomes e justificações de estado alargavam as linhas. Esta revisão isola a shell antiga, mantém as operações em grupos nativos expansíveis na barra lateral e permite abrir os detalhes dos estados na própria célula. O editor continua a usar o mesmo formulário e todos os campos. O mapa passa a abrir no topo e a repor a posição de trabalho ao fechar.
+
+O navegador restringiu a continuação após a entrega nativa de credenciais. Não foi possível testar o download no navegador nem obter capturas posteriores a estas correções. A comparação visual final e a verificação manual de Excel/PDF continuam pendentes; as verificações DOM e API isolada não são apresentadas como equivalentes.

@@ -14,15 +14,20 @@ export function WorkspaceModuleBar({domains,active,locale,name,onDomain}:Props){
 }
 export function WorkspaceSidebar({domain,target,locale,name,onNavigate,onHome,onReports,onHelp,catalog}:{domain?:WorkspaceDomain;target:string;locale:PlatformLocale;name:string;onNavigate:(target:string)=>void;onHome:()=>void;onReports:()=>void;onHelp:()=>void;catalog:NavigationCatalog}){
  const groups=domain?.groups||[];
+ const operationLabel=(target:string)=>{const item=catalog.flatMap(d=>d.items).find(i=>i.target===target);return moduleItemLabel(locale,item?.label||target)};
+ function groupItem(group:WorkspaceDomain['groups'][number]){
+  const selected=group.targets.includes(target)||(group.id==='reports'&&target==='Central de Relatórios');
+  const icon=group.support?'settings':group.id;
+  if(group.targets.length===1&&group.id!=='reports')return <button type="button" key={group.id} aria-current={selected?'page':undefined} onClick={()=>onNavigate(group.targets[0])}><WorkspaceIcon name={icon}/><span>{workspaceText(locale,group.id)}</span></button>;
+  return <details key={group.id} className="workspace-group"><summary aria-current={selected?'page':undefined}><WorkspaceIcon name={icon}/><span>{workspaceText(locale,group.id)}</span></summary><nav aria-label={workspaceText(locale,group.id)}>
+   {group.id==='reports'&&<button type="button" onClick={event=>{onReports();event.currentTarget.closest('details')?.removeAttribute('open')}}>{workspaceText(locale,'reports')}</button>}
+   {group.targets.map(operation=><button type="button" key={operation} aria-current={operation===target?'page':undefined} onClick={event=>{onNavigate(operation);event.currentTarget.closest('details')?.removeAttribute('open')}}>{operationLabel(operation)}</button>)}
+  </nav></details>;
+ }
  return <><header className="workspace-side-heading">{name}</header><nav aria-label={workspaceText(locale,'menu')}>
- {groups.filter(g=>!g.support&&g.id!=='reports').map(g=><button type="button" key={g.id} aria-current={g.targets.includes(target)?'page':undefined} onClick={()=>onNavigate(g.targets[0])}><WorkspaceIcon name={g.id}/><span>{workspaceText(locale,g.id)}</span></button>)}
+ {groups.filter(g=>!g.support&&g.id!=='reports').map(groupItem)}
  {!domain&&catalog.map(d=><button key={d.code} onClick={()=>{const t=d.items.find(i=>i.target&&!i.document);if(t?.target)onNavigate(t.target)}}>{d.code}</button>)}
- </nav><footer className="workspace-side-footer"><button type="button" aria-current={target==='Central de Relatórios'||groups.some(g=>g.id==='reports'&&g.targets.includes(target))?'page':undefined} onClick={onReports}><WorkspaceIcon name="reports"/>{workspaceText(locale,'reports')}</button>{groups.filter(g=>g.support).map(g=><button type="button" key={g.id} aria-current={g.targets.includes(target)?'page':undefined} onClick={()=>onNavigate(g.targets[0])}><WorkspaceIcon name="settings"/>{workspaceText(locale,g.id)}</button>)}<button onClick={onHome}>{workspaceText(locale,'general')}</button><button type="button" onClick={onHelp}><WorkspaceIcon name="help"/>{workspaceText(locale,'help')}</button></footer></>;
-}
-export function WorkspaceAreaTabs({domain,target,locale,onNavigate,catalog}:{domain?:WorkspaceDomain;target:string;locale:PlatformLocale;onNavigate:(t:string)=>void;catalog:NavigationCatalog}){
- const group=domain?.groups.find(g=>g.targets.includes(target));
- if(!group||group.targets.length<2)return null;
- return <nav className="workspace-area-tabs" aria-label={workspaceText(locale,group.id)}>{group.targets.map(t=>{const item=catalog.flatMap(d=>d.items).find(i=>i.target===t);return <button type="button" key={t} aria-current={t===target?'page':undefined} onClick={()=>onNavigate(t)}>{moduleItemLabel(locale,item?.label||t)}</button>})}</nav>;
+ </nav><footer className="workspace-side-footer">{groups.some(g=>g.id==='reports')?groups.filter(g=>g.id==='reports').map(groupItem):<button type="button" aria-current={target==='Central de Relatórios'||target==='Relatórios'?'page':undefined} onClick={onReports}><WorkspaceIcon name="reports"/>{workspaceText(locale,'reports')}</button>}{groups.filter(g=>g.support).map(groupItem)}<button type="button" onClick={onHome}>{workspaceText(locale,'general')}</button><button type="button" onClick={onHelp}><WorkspaceIcon name="help"/>{workspaceText(locale,'help')}</button></footer></>;
 }
 
 export function WorkspaceIcon({name}:{name:string}){

@@ -14,7 +14,7 @@ const source=fs.readFileSync(new URL('../app/workspace-navigation.tsx',import.me
 const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText;
 const module={exports:{}};
 vm.runInNewContext(compiled,{exports:module.exports,module,require:specifier=>specifier==='../lib/workspace-navigation'?navigation:specifier==='../lib/module-navigation-i18n'?labels:require(specifier)});
-const {WorkspaceModuleBar,WorkspaceSidebar,WorkspaceAreaTabs}=module.exports;
+const {WorkspaceModuleBar,WorkspaceSidebar}=module.exports;
 const page=fs.readFileSync(new URL('../app/page.tsx',import.meta.url),'utf8');
 const catalog=vm.runInNewContext('('+page.match(/const moduleCatalog:[\s\S]*?= (\[[\s\S]*?\n\]);/)[1]+')');
 const modules=['CORE','FINANCE_FP&A','HCM','PAYROLL','WORKFORCE_PLANNING','PERFORMANCE_MANAGEMENT','ANALYTICS_REPORTING','WORKFLOW','INTEGRATIONS'];
@@ -33,9 +33,9 @@ test('module bar shows main areas above the workspace and keeps all others in Mo
  assert(!html.includes('workspace-module-picker'));
 });
 
-test('every original operation stays reachable through its group and contextual tabs',()=>{
+test('every original operation stays reachable inside its expandable sidebar group',()=>{
  for(const d of domains)for(const g of d.groups){
-  const html=sidebar(d.code,g.targets[0])+render(WorkspaceAreaTabs,{domain:d,target:g.targets[0],locale:'pt',catalog,onNavigate:noop});
+  const html=sidebar(d.code,g.targets[0]);
   assert(html.includes(navigation.workspaceText('pt',g.id)),d.code+': '+g.id);
   if(g.targets.length>1)for(const target of g.targets){
    const label=labels.moduleItemLabel('pt',catalog.flatMap(d=>d.items).find(i=>i.target===target)?.label||target);
@@ -45,7 +45,7 @@ test('every original operation stays reachable through its group and contextual 
 });
 
 test('deep links mark the matching group and operation without adding a second navigation tree',()=>{
- const d=domains.find(d=>d.code==='HCM'),html=sidebar('HCM','Empréstimos')+render(WorkspaceAreaTabs,{domain:d,target:'Empréstimos',locale:'pt',catalog,onNavigate:noop});
+ const d=domains.find(d=>d.code==='HCM'),html=sidebar('HCM','Empréstimos');
  assert(html.includes('Remunerações e processamento'));
  assert(html.includes('aria-current="page">Empréstimos e adiantamentos</button>'));
  assert(!html.includes('workspace-group-items'));
@@ -53,18 +53,20 @@ test('deep links mark the matching group and operation without adding a second n
 });
 
 test('analytics report targets remain accessible alongside the cross-module centre',()=>{
- const d=domains.find(d=>d.code==='ANALYTICS_REPORTING'),html=sidebar('ANALYTICS_REPORTING','Relatórios')+render(WorkspaceAreaTabs,{domain:d,target:'Relatórios',locale:'pt',catalog,onNavigate:noop});
+ const d=domains.find(d=>d.code==='ANALYTICS_REPORTING'),html=sidebar('ANALYTICS_REPORTING','Relatórios');
  assert(html.includes('Management Reports'));
  assert(html.includes('Catálogo de relatórios'));
  assert(html.includes('Mapas e relatórios'));
  assert(html.includes('aria-current="page"><svg class="workspace-icon"'), 'Reports stays selected in the sidebar');
 });
 
-test('contextual tabs retain all supported operations and selected target',()=>{
- const d=domains.find(d=>d.code==='FINANCE_FP&A');
- const html=render(WorkspaceAreaTabs,{domain:d,target:'Investimento',locale:'pt',catalog,onNavigate:noop});
+test('operation lists are natively collapsible and do not duplicate navigation above the canvas',()=>{
+ const html=sidebar('FINANCE_FP&A','Investimento');
+ assert(html.includes('<details class="workspace-group">'));
  assert(html.includes('aria-current="page">Modelagem Financeira</button>'));
  assert(html.includes('Drivers e plano de negócios'));
+ assert(!html.includes('<details open'));
+ assert(!page.includes('WorkspaceAreaTabs'));
 });
 
 test('unsubscribed payroll actions are absent from the rendered HR sidebar',()=>{
