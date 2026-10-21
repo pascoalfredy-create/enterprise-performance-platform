@@ -6417,61 +6417,29 @@ function IntegrityCenter({
   );
 }
 
+type ReviewGoal = {review_id:string;goal_id:string;title:string;metric_name:string;unit:string;scale:number;direction:string;start_scaled:number;target_scaled:number;value_scaled:number;weight_bps:number;progress_bps:number|null;captured_at:string|null};
 type Review = {
-  id: string;
-  cycle_id: string;
-  cycle_name: string;
-  organization_id: string;
-  organization_name: string;
-  subject_email: string;
-  subject_name: string;
-  reviewer_email: string;
-  reviewer_name: string;
-  status: string;
-  goal_score_bps?: number;
-  manager_competency_bps?: number;
-  calibrated_competency_bps?: number;
-  final_score_bps?: number;
-  snapshot_count: number;
+ id:string;cycle_id:string;cycle_name:string;cycle_end_date?:string;organization_id:string;organization_name:string;subject_email:string;subject_name:string;reviewer_email:string;reviewer_name:string;status:string;
+ subject_number?:string;subject_job_title?:string;department_name?:string;
+ self_competency_bps?:number;self_comment?:string;manager_comment?:string;calibration_reason?:string;
+ goal_score_bps?:number;manager_competency_bps?:number;calibrated_competency_bps?:number;final_score_bps?:number;snapshot_count:number;
 };
 type ReviewData = {
-  reviews: Review[];
-  cycles: Array<{ id: string; name: string; status: string }>;
-  people: Array<{
-    name: string;
-    email: string;
-    role: string;
-    organization_id?: string;
-  }>;
-  organizations: Array<{ id: string; code: string; name: string }>;
-  development: Array<{
-    id: string;
-    review_id: string;
-    title: string;
-    description?: string;
-    owner_email: string;
-    due_date: string;
-    status: string;
-    completion_evidence?: string;
-  }>;
-  audit: AuditEvent[];
+ reviews:Review[];goals?:ReviewGoal[];cycles:Array<{id:string;name:string;status:string;end_date?:string}>;
+ people:Array<{name:string;email:string;role:string;organization_id?:string}>;
+ organizations:Array<{id:string;code:string;name:string}>;
+ development:Array<{id:string;review_id:string;title:string;description?:string;owner_email:string;due_date:string;status:string;completion_evidence?:string}>;
+ audit:AuditEvent[];
 };
-const emptyReviews: ReviewData = {
-  reviews: [],
-  cycles: [],
-  people: [],
-  organizations: [],
-  development: [],
-  audit: [],
-};
-function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
-  const screenLocale=usePlatformLocale(),w=(key:Parameters<typeof workspaceText>[1])=>workspaceText(screenLocale,key);
-  const [selectedReview,setSelectedReview]=useState(''),[cycleFilter,setCycleFilter]=useState(''),[stateFilter,setStateFilter]=useState('');
-  const [data, setData] = useState<ReviewData>(emptyReviews),
-    [modal, setModal] = useState(""),
-    [selected, setSelected] = useState(""),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+const emptyReviews:ReviewData={reviews:[],cycles:[],people:[],organizations:[],development:[],audit:[],goals:[]};
+function ReviewsWorkspace({actor,role}:{actor:string;role:string}){
+ const screenLocale=usePlatformLocale(),w=(key:Parameters<typeof workspaceText>[1])=>workspaceText(screenLocale,key);
+ const [selectedReview,setSelectedReview]=useState(''),[cycleFilter,setCycleFilter]=useState(''),[departmentFilter,setDepartmentFilter]=useState(''),[stateFilter,setStateFilter]=useState('');
+ const [reviewTab,setReviewTab]=useState('reviews'),[detailTab,setDetailTab]=useState('results');
+ const [data,setData]=useState<ReviewData>(emptyReviews),[modal,setModal]=useState(''),[selected,setSelected]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [draft,setDraft]=useState<Record<string,string>>({}),[draftNotice,setDraftNotice]=useState('');
+ const reviewFormRef=useRef<HTMLFormElement>(null),draftKey=(kind:string,id:string)=>'ep-review-draft:'+actor.toLowerCase()+':'+id+':'+kind;
+ function saveDraft(){try{const fields=Object.fromEntries(new FormData(reviewFormRef.current!).entries());sessionStorage.setItem(draftKey(modal,selected),JSON.stringify(fields));setDraftNotice(w('reviewDraftSaved'))}catch{setDraftNotice(w('reviewDraftError'))}}
   const load = () =>
     apiFetch("/api/v1/reviews")
       .then(async (r) => {
@@ -6498,6 +6466,8 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
       return;
     }
     setData(b);
+    try{sessionStorage.removeItem(draftKey(modal,selected))}catch{}
+    setDraftNotice('');
     setModal("");
     setSelected("");
   }
@@ -6513,111 +6483,22 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
       >),
     });
   }
-  const pending = data.reviews.filter(
-      (x) => x.status !== "Finalizada" && x.status !== "Cancelada",
-    ),
-    finalized = data.reviews.filter((x) => x.status === "Finalizada"),
-    avg = finalized.length
-      ? Math.round(
-          finalized.reduce((n, x) => n + Number(x.final_score_bps || 0), 0) /
-            finalized.length /
-            100,
-        )
-      : 0,
-    open = (kind: string, id = "") => {
-      setError("");
-      setSelected(id);
-      setModal(kind);
-    },
-    canCalibrate = ["Administrador", "Recursos Humanos"].includes(role);
-  const visibleReviews=data.reviews.filter(review=>(!cycleFilter||review.cycle_id===cycleFilter)&&(!stateFilter||review.status===stateFilter)),currentReview=visibleReviews.find(review=>review.id===selectedReview)||visibleReviews[0];
-  return (<section className="reviews workspace-table-screen"><header className="workspace-screen-heading"><h1>{w('teamReviews')}</h1><div className="workspace-record-actions"><label>{w('cycle')}<select disabled={Boolean(modal)} value={cycleFilter} onChange={event=>setCycleFilter(event.target.value)}><option value="">{w('all')}</option>{data.cycles.map(cycle=><option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}</select></label><label>{w('status')}<select disabled={Boolean(modal)} value={stateFilter} onChange={event=>setStateFilter(event.target.value)}><option value="">{w('all')}</option>{[...new Set(data.reviews.map(review=>review.status))].map(status=><option key={status}>{status}</option>)}</select></label><button className="primario" disabled={Boolean(modal)||busy} onClick={()=>open('createReview')}>＋ Nova avaliação</button></div></header>
-   <div className="workspace-record-table"><table><thead><tr><th>{payrollSheetCopy.employee[{pt:0,en:1,es:2,fr:3,ru:4}[screenLocale]]}</th><th>{w('cycle')}</th><th>{w('reviewer')}</th><th>{w('reviewGoals')}</th><th>{w('status')}</th></tr></thead><tbody>{visibleReviews.map(review=><tr key={review.id} className={currentReview===review?'selected':''} onClick={()=>{if(!modal)setSelectedReview(review.id)}}><td><button type="button" className="workspace-row-select" disabled={Boolean(modal)} onClick={()=>{if(!modal)setSelectedReview(review.id)}}>{review.subject_name}</button><small>{review.organization_name}</small></td><td>{review.cycle_name}</td><td>{review.reviewer_name}</td><td>{review.snapshot_count||0}</td><td><span className={'workspace-status '+(review.status==='Finalizada'?'good':'pending')}>{review.status}</span></td></tr>)}</tbody></table></div>
-   {!visibleReviews.length&&<Vazio texto="Crie a primeira avaliação a partir de um ciclo ativo com objetivos."/>}
-   {currentReview&&<section className="workspace-detail"><header><div><h2>{currentReview.subject_name} · {w('evaluation')}</h2><p>{currentReview.reviewer_name} · {currentReview.cycle_name}</p></div>                <nav>
-                  {currentReview.status === "Aguardando autoavaliação" &&
-                    currentReview.subject_email.toLowerCase() === actor.toLowerCase() && (
-                      <button onClick={() => open("selfReview", currentReview.id)}>
-                        Autoavaliar
-                      </button>
-                    )}
-                  {currentReview.status === "Aguardando gestor" &&
-                    currentReview.reviewer_email.toLowerCase() === actor.toLowerCase() && (
-                      <button onClick={() => open("managerReview", currentReview.id)}>
-                        Avaliar
-                      </button>
-                    )}
-                  {currentReview.status === "Calibração" &&
-                    canCalibrate &&
-                    ![currentReview.subject_email, currentReview.reviewer_email]
-                      .map((x) => x.toLowerCase())
-                      .includes(actor.toLowerCase()) && (
-                      <button onClick={() => open("calibrate", currentReview.id)}>
-                        Calibrar
-                      </button>
-                    )}
-                  {currentReview.status === "Finalizada" && (
-                    <button onClick={() => open("createDevelopment", currentReview.id)}>
-                      ＋ Desenvolvimento
-                    </button>
-                  )}
-                </nav></header><div className="workspace-record-table"><table><thead><tr><th>{w('evaluation')}</th><th>{w('score')}</th></tr></thead><tbody>{[[w('reviewGoals'),currentReview.goal_score_bps],[w('skills'),currentReview.manager_competency_bps],[w('evaluation'),currentReview.calibrated_competency_bps],[w('results'),currentReview.final_score_bps]].map(([label,value])=><tr key={String(label)}><th>{label}</th><td>{typeof value==='number'?(value/100).toFixed(0)+'%':'—'}</td></tr>)}</tbody></table></div></section>}
-   <details className="workspace-secondary-information"><summary>{w('info')}</summary><section className="review-kpis">
-        <article>
-          <span>Em curso</span>
-          <strong>{pending.length}</strong>
-          <small>Autoavaliação, gestor ou calibração</small>
-        </article>
-        <article>
-          <span>Finalizadas</span>
-          <strong>{finalized.length}</strong>
-          <small>Decisão protegida</small>
-        </article>
-        <article>
-          <span>Nota média</span>
-          <strong>{avg}%</strong>
-          <small>60% objetivos · 40% competências</small>
-        </article>
-        <article>
-          <span>Desenvolvimento</span>
-          <strong>
-            {data.development.filter((x) => x.status === "Aberta").length}
-          </strong>
-          <small>Ações abertas</small>
-        </article>
-      </section><aside className="cartao review-governance">
-          <span>MODELO DE PONTUAÇÃO</span>
-          <h2>Decisão reproduzível</h2>
-          <div>
-            <i>60</i>
-            <span>
-              <b>Objetivos</b>
-              <small>Progresso ponderado por peso</small>
-            </span>
-            <em>%</em>
-          </div>
-          <div>
-            <i>40</i>
-            <span>
-              <b>Competências</b>
-              <small>Escala calibrada de 1 a 5</small>
-            </span>
-            <em>%</em>
-          </div>
-          <footer>
-            <b>Segregação ativa</b>
-            <p>
-              Colaborador, gestor e calibrador têm responsabilidades separadas.
-              Os snapshots das metas são imutáveis.
-            </p>
-          </footer>
-        </aside></details>
-      <section className="workspace-detail"><header><h2>{w('development')}</h2></header><div className="workspace-record-table"><table><thead><tr><th>{w('goals')}</th><th>{w('owner')}</th><th>{w('deadline')}</th><th>{w('status')}</th><th>{w('open')}</th></tr></thead><tbody>{data.development.filter(item=>!currentReview||item.review_id===currentReview.id).map(item=><tr key={item.id}><td><details><summary>{item.title}</summary>{item.description&&<p>{item.description}</p>}{item.completion_evidence&&<p>{item.completion_evidence}</p>}</details></td><td>{data.people.find(person=>person.email===item.owner_email)?.name||item.owner_email}</td><td>{item.due_date}</td><td>{item.status}</td><td>{item.status==='Aberta'&&<button onClick={()=>open('completeDevelopment',item.id)}>Concluir</button>}</td></tr>)}</tbody></table></div></section>
-      {error && !modal && <p className="erro-global">{error}</p>}
-      {modal && (
+
+ const pending=data.reviews.filter(x=>!['Finalizada','Cancelada'].includes(x.status)),finalized=data.reviews.filter(x=>x.status==='Finalizada'),avg=finalized.length?Math.round(finalized.reduce((n,x)=>n+Number(x.final_score_bps||0),0)/finalized.length/100):0;
+ const canCalibrate=['Administrador','Recursos Humanos'].includes(role),reviewEditing=['selfReview','managerReview','calibrate'].includes(modal);
+ function open(kind:string,id=''){
+  setError('');setDraftNotice('');setSelected(id);setModal(kind);setDraft({});
+  if(['selfReview','managerReview','calibrate'].includes(kind)){setDetailTab(kind==='calibrate'?'skills':'results');try{const saved=JSON.parse(sessionStorage.getItem(draftKey(kind,id))||'{}');setDraft(Object.fromEntries(['rating','comment','reason'].filter(key=>typeof saved[key]==='string').map(key=>[key,saved[key]])))}catch{}}
+ }
+ const visibleReviews=data.reviews.filter(review=>(!cycleFilter||review.cycle_id===cycleFilter)&&(!departmentFilter||review.department_name===departmentFilter)&&(!stateFilter||(stateFilter==='inProgress'?!['Finalizada','Cancelada'].includes(review.status):review.status===stateFilter))&&(reviewTab!=='calibration'||review.status==='Calibração'));
+ const currentReview=visibleReviews.find(review=>review.id===selectedReview)||visibleReviews[0],currentGoals=(data.goals||[]).filter(goal=>goal.review_id===currentReview?.id);
+ const initials=(name:string)=>name.trim().split(/\s+/).map(word=>word[0]).slice(0,2).join('').toUpperCase();
+ const number=(value:number)=>new Intl.NumberFormat(screenLocale,{maximumFractionDigits:2}).format(value),score=(value:number|undefined)=>typeof value==='number'?number(value/100)+'%':'—';
+ function developmentTable(reviewId?:string){const items=data.development.filter(item=>reviewId?item.review_id===reviewId:visibleReviews.some(review=>review.id===item.review_id));return <><div className="workspace-record-table review-development-table"><table><thead><tr><th>{w('goals')}</th><th>{w('owner')}</th><th>{w('deadline')}</th><th>{w('status')}</th><th>{w('open')}</th></tr></thead><tbody>{items.map(item=><tr key={item.id}><td><details><summary>{item.title}</summary>{item.description&&<p>{item.description}</p>}{item.completion_evidence&&<p>{item.completion_evidence}</p>}</details></td><td>{data.people.find(person=>person.email===item.owner_email)?.name||item.owner_email}</td><td>{item.due_date}</td><td>{item.status}</td><td>{item.status==='Aberta'&&<button disabled={Boolean(modal)} onClick={()=>open('completeDevelopment',item.id)}>Concluir</button>}</td></tr>)}</tbody></table></div>{!items.length&&<p className="review-empty">{w('reviewEmptyDevelopment')}</p>}</>}
+const form = modal ? (
         <div className={["selfReview","managerReview","calibrate"].includes(modal)?"workspace-detail review-inline-form":"modal-inline"}>
-          <form onSubmit={submit}>
-            <header>
+          <form key={modal+selected} ref={reviewFormRef} onSubmit={submit}>
+            {!reviewEditing&&<header>
               <div>
                 <small>PERFORMANCE REVIEWS</small>
                 <h2>
@@ -6637,14 +6518,14 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
               <button type="button" onClick={() => setModal("")}>
                 ×
               </button>
-            </header>
+            </header>}
             {modal === "createReview" ? (
               <>
                 <label>
                   Ciclo ativo
                   <select name="cycleId" required>
                     <option value="">Selecionar</option>
-                    {data.cycles.map((c) => (
+                    {data.cycles.filter(c=>c.status==='Ativo').map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
@@ -6725,7 +6606,7 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
               <>
                 <label>
                   Classificação de competências
-                  <select name="rating" required>
+                  <select name="rating" required defaultValue={draft.rating||''}>
                     <option value="">Selecionar</option>
                     {[1, 2, 3, 4, 5].map((n) => (
                       <option key={n} value={n}>
@@ -6746,25 +6627,27 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
                 {modal === "calibrate" ? (
                   <label>
                     Fundamentação da calibração
-                    <textarea name="reason" minLength={10} rows={4} required />
+                    <textarea name="reason" minLength={10} rows={4} required defaultValue={draft.reason||''} />
                   </label>
                 ) : (
                   <label>
-                    Comentário
-                    <textarea name="comment" minLength={3} rows={4} required />
+                    {modal==='managerReview'?w('reviewManagerComment'):w('reviewComments')}
+                    <textarea name="comment" minLength={3} rows={3} required defaultValue={draft.comment||''} />
                   </label>
                 )}
-                <aside className="review-note">
-                  <b>Cálculo protegido</b>
+                <details className="review-note">
+                  <summary>Cálculo protegido</summary>
                   <p>
                     A classificação não altera os 60% derivados dos snapshots
                     objetivos.
                   </p>
-                </aside>
+                </details>
               </>
             )}
             {error && <p className="erro-form">{error}</p>}
+            {draftNotice&&<p role="status" className="review-draft-notice">{draftNotice}</p>}
             <footer>
+              {reviewEditing&&<button type="button" className="secundario" disabled={busy} onClick={saveDraft}>{w('reviewDraft')}</button>}
               <button
                 type="button"
                 className="secundario"
@@ -6773,14 +6656,95 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
                 Cancelar
               </button>
               <button className="primario" disabled={busy}>
-                {busy ? "A guardar…" : "Confirmar"}
+                {busy ? "A guardar…" : reviewEditing?w('reviewSubmit'):"Confirmar"}
               </button>
             </footer>
           </form>
         </div>
-      )}
-    </section>
-  );
+      ) : null;
+ return <section className="reviews workspace-table-screen review-approved">
+  <header className="workspace-screen-heading"><h1>{w('teamReviews')}</h1><div className="workspace-record-actions review-filters">
+   <label>{w('cycle')}<select aria-label={w('cycle')} disabled={Boolean(modal)} value={cycleFilter} onChange={event=>setCycleFilter(event.target.value)}><option value="">{w('all')}</option>{data.cycles.map(cycle=><option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}</select></label>
+   <label>{w('department')}<select aria-label={w('department')} disabled={Boolean(modal)} value={departmentFilter} onChange={event=>setDepartmentFilter(event.target.value)}><option value="">{w('reviewAllDepartments')}</option>{[...new Set(data.reviews.flatMap(review=>review.department_name?[review.department_name]:[]))].map(department=><option key={department}>{department}</option>)}</select></label>
+   <label>{w('status')}<select aria-label={w('status')} disabled={Boolean(modal)} value={stateFilter} onChange={event=>setStateFilter(event.target.value)}><option value="">{w('all')}</option><option value="inProgress">{w('reviewInProgress')}</option>{[...new Set(data.reviews.map(review=>review.status))].map(status=><option key={status}>{status}</option>)}</select></label>
+   <button className="primario" disabled={Boolean(modal)||busy} onClick={()=>open('createReview')}>＋ {w('reviewStart')}</button>
+  </div></header>
+  <nav className="workspace-flat-tabs review-primary-tabs" aria-label={w('reviewList')}>{[['reviews','reviewList'],['feedback','reviewFeedback'],['development','reviewDevelopment'],['calibration','reviewCalibration']].map(([tab,key])=><button type="button" key={tab} aria-current={reviewTab===tab?'page':undefined} disabled={Boolean(modal)} onClick={()=>{setReviewTab(tab);setDetailTab(tab==='feedback'?'comments':tab==='calibration'?'skills':'results')}}>{w(key as Parameters<typeof workspaceText>[1])}</button>)}</nav>
+  {reviewTab==='development'?<section className="review-development-overview">{developmentTable()}</section>:<>
+   <div className="workspace-record-table review-team-table"><table><thead><tr><th>{payrollSheetCopy.employee[{pt:0,en:1,es:2,fr:3,ru:4}[screenLocale]]}</th><th>{w('reviewJob')}</th><th>{w('reviewer')}</th><th>{w('reviewGoals')}</th><th>{w('status')}</th><th title={w('reviewCycleEnd')}>{w('deadline')}</th><th><span className="sr-only">{w('details')}</span></th></tr></thead><tbody>{visibleReviews.map(review=><tr key={review.id} className={currentReview===review?'selected':''} onClick={()=>{if(!modal){setSelectedReview(review.id);setDraftNotice('')}}}>
+    <td><button type="button" className="workspace-row-select review-person" disabled={Boolean(modal)} onClick={()=>{if(!modal)setSelectedReview(review.id)}}><span className="review-avatar" aria-hidden="true">{initials(review.subject_name)}</span><span>{review.subject_name}<small>{review.subject_number||review.subject_email}</small></span></button></td>
+    <td>{review.subject_job_title||'—'}</td><td><span className="review-person"><span className="review-avatar" aria-hidden="true">{initials(review.reviewer_name)}</span><span>{review.reviewer_name}</span></span></td><td className="review-goal-count">{(data.goals||[]).filter(goal=>goal.review_id===review.id).length||review.snapshot_count||0}</td><td><span className={'workspace-status '+(review.status==='Finalizada'?'good':review.status==='Aguardando autoavaliação'?'draft':'pending')}>{review.status}</span></td><td title={w('reviewCycleEnd')}>{review.cycle_end_date?new Date(review.cycle_end_date+'T12:00:00Z').toLocaleDateString(screenLocale,{day:'2-digit',month:'short',year:'numeric'}):'—'}</td><td><button type="button" className="review-row-more" disabled={Boolean(modal)} aria-label={w('details')+' · '+review.subject_name} onClick={()=>{setSelectedReview(review.id);setDetailTab('comments')}}>···</button></td>
+   </tr>)}</tbody></table></div>
+   {!visibleReviews.length&&<Vazio texto="Crie a primeira avaliação a partir de um ciclo ativo com objetivos."/>}
+   {currentReview&&<section className="workspace-detail review-selected-detail"><header><div><h2>{currentReview.subject_name} · {modal==='managerReview'?w('reviewManager'):modal==='selfReview'?w('reviewSelf'):modal==='calibrate'?w('reviewCalibration'):w('evaluation')}</h2><p>{currentReview.cycle_name} · {currentReview.organization_name}</p></div><nav>
+    {currentReview.status==='Aguardando autoavaliação'&&currentReview.subject_email.toLowerCase()===actor.toLowerCase()&&<button disabled={Boolean(modal)} onClick={()=>open('selfReview',currentReview.id)}>Autoavaliar</button>}
+    {currentReview.status==='Aguardando gestor'&&currentReview.reviewer_email.toLowerCase()===actor.toLowerCase()&&<button disabled={Boolean(modal)} onClick={()=>open('managerReview',currentReview.id)}>Avaliar</button>}
+    {currentReview.status==='Calibração'&&canCalibrate&&![currentReview.subject_email,currentReview.reviewer_email].map(email=>email.toLowerCase()).includes(actor.toLowerCase())&&<button disabled={Boolean(modal)} onClick={()=>open('calibrate',currentReview.id)}>Calibrar</button>}
+    {currentReview.status==='Finalizada'&&<button disabled={Boolean(modal)} onClick={()=>open('createDevelopment',currentReview.id)}>＋ Desenvolvimento</button>}
+   </nav></header>
+   <nav className="workspace-flat-tabs review-detail-tabs" aria-label={w('details')}>{[['results','reviewResults'],['skills','skills'],['comments','reviewComments'],['development','development']].map(([tab,key])=><button type="button" key={tab} disabled={Boolean(modal)} aria-current={detailTab===tab?'page':undefined} onClick={()=>setDetailTab(tab)}>{w(key as Parameters<typeof workspaceText>[1])}</button>)}</nav>
+   {detailTab==='results'&&<><div className="workspace-record-table review-goals-table"><table><thead><tr><th>{w('reviewGoals')}</th><th>{w('score')}</th><th>{w('target')}</th><th>{w('reviewAppraisal')}</th></tr></thead><tbody>{currentGoals.map(goal=>{const met=goal.direction==='Reduzir'?goal.value_scaled<=goal.target_scaled:goal.value_scaled>=goal.target_scaled;return <tr key={goal.goal_id}><th scope="row">{goal.title}<small>{goal.metric_name}</small></th><td>{number(goal.value_scaled/goal.scale)} {goal.unit}</td><td>{number(goal.target_scaled/goal.scale)} {goal.unit}</td><td><span className={'workspace-status '+(met?'good':'pending')}>{met?(goal.value_scaled===goal.target_scaled?w('reviewMet'):w('reviewExceeded')):w('reviewImprove')}</span></td></tr>})}</tbody></table></div>{!currentGoals.length&&<p className="review-empty">{w('reviewNoGoals')}</p>}{currentGoals.some(goal=>!goal.captured_at)&&<p className="review-source-note">{w('reviewLiveGoals')}</p>}
+    {!reviewEditing&&<section className="review-submitted-comment"><h3>{w('reviewManagerComment')}</h3><p>{currentReview.manager_comment||w('reviewNoComment')}</p></section>}
+   </>}
+   {detailTab==='skills'&&<div className="workspace-record-table review-scores-table"><table><thead><tr><th>{w('evaluation')}</th><th>{w('score')}</th></tr></thead><tbody>{[[w('reviewSelf'),currentReview.self_competency_bps],[w('reviewManager'),currentReview.manager_competency_bps],[w('reviewCalibrated'),currentReview.calibrated_competency_bps],[w('reviewGoals'),currentReview.goal_score_bps],[w('reviewResults'),currentReview.final_score_bps]].map(([label,value])=><tr key={String(label)}><th scope="row">{label}</th><td>{score(typeof value==='number'?value:undefined)}</td></tr>)}</tbody></table></div>}
+   {detailTab==='comments'&&<div className="review-comments">{[[w('reviewSelf'),currentReview.self_comment],[w('reviewManager'),currentReview.manager_comment],[w('reviewCalibration'),currentReview.calibration_reason]].map(([label,value])=><section key={label}><h3>{label}</h3><p>{value||w('reviewNoComment')}</p></section>)}</div>}
+   {detailTab==='development'&&developmentTable(currentReview.id)}
+   {reviewEditing&&form}
+   </section>}
+  </>}
+  <details className="workspace-secondary-information"><summary>{w('info')}</summary><section className="review-kpis">
+        <article>
+          <span>Em curso</span>
+          <strong>{pending.length}</strong>
+          <small>Autoavaliação, gestor ou calibração</small>
+        </article>
+        <article>
+          <span>Finalizadas</span>
+          <strong>{finalized.length}</strong>
+          <small>Decisão protegida</small>
+        </article>
+        <article>
+          <span>Nota média</span>
+          <strong>{avg}%</strong>
+          <small>60% objetivos · 40% competências</small>
+        </article>
+        <article>
+          <span>Desenvolvimento</span>
+          <strong>
+            {data.development.filter((x) => x.status === "Aberta").length}
+          </strong>
+          <small>Ações abertas</small>
+        </article>
+      </section><aside className="cartao review-governance">
+          <span>MODELO DE PONTUAÇÃO</span>
+          <h2>Decisão reproduzível</h2>
+          <div>
+            <i>60</i>
+            <span>
+              <b>Objetivos</b>
+              <small>Progresso ponderado por peso</small>
+            </span>
+            <em>%</em>
+          </div>
+          <div>
+            <i>40</i>
+            <span>
+              <b>Competências</b>
+              <small>Escala calibrada de 1 a 5</small>
+            </span>
+            <em>%</em>
+          </div>
+          <footer>
+            <b>Segregação ativa</b>
+            <p>
+              Colaborador, gestor e calibrador têm responsabilidades separadas.
+              Os snapshots das metas são imutáveis.
+            </p>
+          </footer>
+        </aside></details>
+  {error&&!modal&&<p className="erro-global">{error}</p>}
+  {!reviewEditing&&form}
+ </section>;
 }
 
 type OpenApiSpec = {

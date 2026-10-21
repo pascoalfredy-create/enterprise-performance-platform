@@ -37,14 +37,14 @@ A folha mensal de salários mantém a reconstrução das imagens anteriores: qua
 
 ## Limites de correspondência com as imagens
 
-A geometria não autoriza preencher dados ausentes ou acrescentar controlos fictícios. A implementação usa o que as APIs fornecem: o estudo atual tem pressupostos agregados, não um cadastro de produtos/serviços; as permissões são atribuídas por perfil, não por uma matriz avulsa de checkboxes; as aprovações da caixa de tarefas executam-se nos respetivos processos; a API de avaliações fornece pontuações e contagens, não o detalhe completo das metas congeladas. Os widgets das imagens que dependem dessas fontes não foram simulados.
+A geometria não autoriza preencher dados ausentes ou acrescentar controlos fictícios. A implementação usa o que as APIs fornecem: o estudo atual tem pressupostos agregados, não um cadastro de produtos/serviços; as permissões são atribuídas por perfil, não por uma matriz avulsa de checkboxes; as aprovações da caixa de tarefas executam-se nos respetivos processos; o detalhe das metas é agora lido das evidências imutáveis da avaliação; antes da submissão do gestor, os valores atuais são identificados como tal. Os widgets das imagens que dependem dessas fontes não foram simulados.
 
 Estes pontos devem ser distinguidos da validação do layout. Não há declaração de reprodução integral de todos os controlos presentes nas imagens.
 
 ## Verificações
 
 - Tipagem e build verificado.
-- Suite de 559 testes; os testes estáticos que exigiam slogans antigos foram atualizados para os novos títulos localizados, mantendo as verificações de APIs e comandos.
+- Suite de 561 testes; os testes estáticos que exigiam slogans antigos foram atualizados para os novos títulos localizados, mantendo as verificações de APIs e comandos.
 - Auditoria dos cinco idiomas: as seis ocorrências preexistentes, sem regressões.
 - Componentes React reais em JSDOM: todos os campos da ficha e valores mantidos entre seis separadores; nenhum POST por mudar de separador.
 - Estudo: cinco secções reais, resultados inalterados ao navegar, payload de gravação com a revisão original e bloqueios de leitura preservados.
@@ -63,3 +63,13 @@ O workflow deste ramo executa os testes e carrega exclusivamente uma versão com
 Ligação estável: https://pr-40-enterprise-performance-platform.pascoalfredy.workers.dev
 
 O PR permanece em rascunho. Antes de fazer merge/publicar, falta comparar a versão reconstruída no navegador com as referências e validar os downloads reais de Excel/PDF, impressão e regresso à origem. O navegador deste ambiente restringiu a continuação após a entrega nativa de credenciais; não foi contornada essa restrição. Os testes DOM não substituem a comparação visual exigida pelo utilizador.
+
+## Refinamento de avaliações — comparação de 21 de outubro
+
+Comparadas a referência `155424(1)` e a captura real `165619`: faltavam os dois níveis de separadores, as colunas de função/prazo e os objetivos; o desenvolvimento aparecia num bloco permanente e a grelha antiga somava espaçamento aos novos componentes.
+
+O ecrã usa agora Avaliações/Feedback/Desenvolvimento/Calibração e Resultados/Competências/Comentários/Plano de desenvolvimento. O componente assume a sua densidade, sem o `display:grid` e os intervalos herdados. O editor do gestor fica dentro da avaliação selecionada, sem repetir o título. Conserva classificação de competências, comentário, validações e submissão. Guardar rascunho guarda apenas na sessão do navegador; o estado informa que ainda não houve submissão. As pontuações agregadas anteriores continuam no separador de competências.
+
+A API de leitura passa a incluir o fim real do ciclo, a função/número/departamento apenas quando existe ligação explícita ao colaborador, comentários já existentes e objetivos com valores capturados. Sem fotografia, usam-se iniciais reais; sem função associada, apresenta-se um traço. O fim do ciclo é identificado como tal, sem inventar um prazo específico da avaliação. Não foram adicionadas migrações nem alteradas fórmulas de pontuação ou permissões.
+
+Dois testes de integração com todas as migrações SQLite verificam o isolamento por tenant/organização, leitura sem mutações, decisões exclusivas dos atores, pontuação original e preservação dos valores capturados após novos check-ins/cancelamento da meta. O teste DOM adicional verifica os dois níveis de separadores, contexto do colaborador, objetivos/comentários, filtros, rascunho sem POST, restauro, submissão para a avaliação correta e remoção do rascunho após sucesso. A comparação visual da nova versão no navegador permanece pendente.
