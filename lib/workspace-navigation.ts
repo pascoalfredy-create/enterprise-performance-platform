@@ -1,6 +1,7 @@
 import type {PlatformLocale} from './platform-i18n';
 type Five=readonly [string,string,string,string,string];
 export const workspaceCopy={
+ version:['Versão','Version','Versión','Version','Версия'],
  horizon:['Horizonte','Horizon','Horizonte','Horizon','Горизонт'],
  values:['Valores','Values','Valores','Valeurs','Значения'],
  thousands:['Milhares','Thousands','Miles','Milliers','Тысячи'],

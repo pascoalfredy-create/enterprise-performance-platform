@@ -1,5 +1,12 @@
 const L=(s:string)=>s.split('|');
 export const payrollSheetCopy={
+ previewInfo:L('Sobre os valores previstos|About expected amounts|Sobre los importes previstos|À propos des montants prévisionnels|О предварительных суммах'),
+ worksheetTitle:L('Folha mensal|Monthly payroll|Nómina mensual|Paie mensuelle|Месячная ведомость'),
+ sheetDeductions:L('Descontos do mês|Monthly deductions|Descuentos del mes|Retenues du mois|Удержания месяца'),
+ predictedNet:L('Líquido previsto|Expected net pay|Neto previsto|Net prévisionnel|Ожидаемая выплата'),
+ fiscalReview:L('Confirmar revisão fiscal para validar a folha|Confirm tax review to validate payroll|Confirmar revisión fiscal para validar la nómina|Confirmer la vérification fiscale pour valider la paie|Подтвердите налоговую проверку для валидации ведомости'),
+ fiscalConfirmed:L('Revisão fiscal confirmada|Tax review confirmed|Revisión fiscal confirmada|Vérification fiscale confirmée|Налоговая проверка подтверждена'),
+ editVariable:L('Editar variável|Edit variable|Editar variable|Modifier la variable|Изменить переменную'),
  allUnits:L('Todas as unidades|All units|Todas las unidades|Toutes les unités|Все подразделения'),
  advancedVariables:L('Outras rubricas, quantidades, taxas e observações|Other components, quantities, rates and notes|Otros conceptos, cantidades, tarifas y notas|Autres rubriques, quantités, tarifs et notes|Прочие статьи, количества, ставки и примечания'),
  unitsEvidence:L('Calculado pelas quantidades e taxas abaixo.|Calculated from quantities and rates below.|Calculado con las cantidades y tarifas inferiores.|Calculé selon les quantités et tarifs ci-dessous.|Рассчитано по количествам и ставкам ниже.'),
