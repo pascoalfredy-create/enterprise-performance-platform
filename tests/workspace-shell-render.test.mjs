@@ -65,8 +65,10 @@ test('analytics report targets remain accessible alongside the cross-module cent
 test('operation lists are natively collapsible and do not duplicate navigation above the canvas',()=>{
  const html=sidebar('FINANCE_FP&A','Investimento');
  assert(html.includes('<details class="workspace-group">'));
- assert(html.includes('aria-current="page">Modelagem Financeira</button>'));
- assert(html.includes('Drivers e plano de negócios'));
+ assert(html.includes('aria-current="page"')&&html.includes('Modelagem financeira'));
+ assert(html.includes('Plano de negócios mensal'));
+ assert(!html.includes('Drivers e plano de negócios'));
+ assert(!html.includes('Cash-flow e financiamento'));
  assert(!html.includes('<details open'));
  assert(!page.includes('WorkspaceAreaTabs'));
 });

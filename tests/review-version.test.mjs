@@ -5,6 +5,7 @@ const repository='pascoalfredy-create/enterprise-performance-platform';
 const event={pull_request:{number:40,head:{repo:{full_name:repository},ref:'feat/faithful-payroll-reports-20261020'}}};
 test('version uploads reject forks, unrelated branches and unrelated PRs',()=>{
  assert.equal(reviewContext(event,repository),'pr-40');
+ assert.equal(reviewContext({pull_request:{number:41,head:{repo:{full_name:repository},ref:'fix/canonical-workspaces-20261022'}}},repository),'pr-41');
  for(const head of [{...event.pull_request.head,repo:{full_name:'fork/repo'}},{...event.pull_request.head,ref:'main'}])
   assert.throws(()=>reviewContext({pull_request:{...event.pull_request,head}},repository));
  assert.throws(()=>reviewContext({pull_request:{...event.pull_request,number:41}},repository));
