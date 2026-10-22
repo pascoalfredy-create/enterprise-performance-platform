@@ -1,4 +1,5 @@
 "use client";
+import {AuditEventSummary} from './audit-event-summary';
 import {WorkspaceModuleBar,WorkspaceSidebar} from './workspace-navigation';
 import {accessibleWorkspaces,workspaceForTarget,workspaceText} from '../lib/workspace-navigation';
 import {SavedStudyReports} from './saved-study-reports';
@@ -857,6 +858,8 @@ type Employee = {
   status: string;
 };
 type AuditEvent = {
+  action?: string;
+  entity_type?: string;
   id: string;
   summary: string;
   actor: string;
@@ -1357,12 +1360,12 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
             dados.audit.map((a) => (
               <div key={a.id}>
                 <i>✓</i>
-                <span>
-                  <b>{a.summary}</b>
+                <div className="audit-event-content">
+                  <AuditEventSummary event={a}/>
                   <small>
                     {a.actor} · {new Date(a.created_at).toLocaleString("pt-PT")}
                   </small>
-                </span>
+                </div>
               </div>
             ))
           ) : (
@@ -3227,12 +3230,12 @@ function ActionPlans({embedded=false}:{embedded?:boolean}={}) {
             data.audit.map((a) => (
               <div key={a.id}>
                 <i>✓</i>
-                <span>
-                  <b>{a.summary}</b>
+                <div className="audit-event-content">
+                  <AuditEventSummary event={a}/>
                   <small>
                     {a.actor} · {new Date(a.created_at).toLocaleString("pt-AO")}
                   </small>
-                </span>
+                </div>
               </div>
             ))
           ) : (
@@ -6819,5 +6822,5 @@ function ApiContract() {
 function RecentAudit({decisions}:{decisions:boolean}) {
  const [events,setEvents]=useState<AuditEvent[]|null>(null),[error,setError]=useState("");
  useEffect(()=>{let active=true;apiFetch(decisions?"/api/v1/workflow":"/api/v1/setup",{cache:"no-store"}).then(async r=>{const data=await readApiJson<{audit?:AuditEvent[];history?:AuditEvent[];error?:string}>(r);if(!r.ok)throw new Error(data.error||"Não foi possível carregar a auditoria.");if(active)setEvents((decisions?data.history:data.audit)||[])}).catch(e=>{if(active)setError(e.message)});return()=>{active=false}},[decisions]);
- return <section className="cartao"><h1>{decisions?"Histórico de decisões":"Registo de auditoria"}</h1><p>Eventos recentes devolvidos pelo serviço, dentro do âmbito autorizado. Esta lista não representa o histórico completo.</p>{error?<p role="alert">{error}</p>:events===null?<p>A carregar eventos…</p>:events.length===0?<p>Sem eventos disponíveis neste âmbito.</p>:<table><thead><tr><th>Data</th><th>Autor</th><th>Evento</th></tr></thead><tbody>{events.map(e=><tr key={e.id}><td>{new Date(e.created_at).toLocaleString("pt-AO")}</td><td>{e.actor}</td><td>{e.summary}</td></tr>)}</tbody></table>}</section>;
+ return <section className="cartao"><h1>{decisions?"Histórico de decisões":"Registo de auditoria"}</h1><p>Eventos recentes devolvidos pelo serviço, dentro do âmbito autorizado. Esta lista não representa o histórico completo.</p>{error?<p role="alert">{error}</p>:events===null?<p>A carregar eventos…</p>:events.length===0?<p>Sem eventos disponíveis neste âmbito.</p>:<table><thead><tr><th>Data</th><th>Autor</th><th>Evento</th></tr></thead><tbody>{events.map(e=><tr key={e.id}><td>{new Date(e.created_at).toLocaleString("pt-AO")}</td><td>{e.actor}</td><td><AuditEventSummary event={e}/></td></tr>)}</tbody></table>}</section>;
 }
