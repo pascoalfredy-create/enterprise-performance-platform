@@ -1,11 +1,4 @@
 "use client";
-import {resultSign} from '../lib/feasibility-presentation';
-import {CardExplanation} from './feasibility-analysis';
-import {reportCopy} from "../lib/feasibility-report";
-import {type StudySummary} from "./feasibility-report";
-import {formatPaybackDuration} from "../lib/payback-duration";
-import {usePlatformLocale} from "./use-platform-locale";
-import {formatNumberValue} from "../lib/number-input";
 import {FeasibilityWorkspace} from "./feasibility-workspace";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../lib/api-client";
@@ -179,8 +172,6 @@ export function FinancialDiagnosticsWorkspace({
   initialView?: string;
   initialStudyId?: string;
 } = {}) {
-  const locale=usePlatformLocale(),copyIndex={pt:0,en:1,es:2,fr:3,ru:4}[locale],reportText=(key:keyof typeof reportCopy)=>reportCopy[key][copyIndex];
-  const [studySummary,setStudySummary]=useState<StudySummary>(null);
   const [data, setData] = useState<Data>(empty),
     [view, setView] = useState(initialView),
     [modal, setModal] = useState(""),
@@ -258,10 +249,10 @@ export function FinancialDiagnosticsWorkspace({
     critical = data.results.filter((x) => x.severity === "Crítica").length;
   return (
     <section className="diagnostics">
-      <header className="dg-top">
+      {view !== "Investimento" && <header className="dg-top">
         <div>
           <span>FINANÇAS E FP&A · DIAGNÓSTICO E INVESTIMENTO</span>
-          <h1>{view === "Investimento" ? "Modelagem Financeira" : "Da situação financeira à decisão de investimento"}</h1>
+          <h1>Da situação financeira à decisão de investimento</h1>
           <p>
             Rácios explicáveis, score configurável, recomendações, VPL, TIR,
             payback e sensibilidade.
@@ -275,13 +266,6 @@ export function FinancialDiagnosticsWorkspace({
             >
               Executar diagnóstico
             </button>
-          ) : view === "Investimento" ? (
-            <button
-              className="primario"
-              onClick={() => document.querySelector(".feasibility-workspace")?.scrollIntoView({behavior:"smooth",block:"start"})}
-            >
-              Premissas do estudo ↓
-            </button>
           ) : (
             <button
               className="primario"
@@ -291,13 +275,8 @@ export function FinancialDiagnosticsWorkspace({
             </button>
           )}
         </div>
-      </header>
-      {view === "Investimento" ? <section className="dg-kpis" aria-label={reportText('summary')}>{[
-        ['VAL / VPL',studySummary?formatNumberValue(studySummary.npv,locale)+' '+studySummary.currency:'—'],
-        [reportText('irr'),studySummary?.irr!=null?formatNumberValue(studySummary.irr,locale)+'%':'—'],
-        [reportText('payback'),studySummary?formatPaybackDuration(studySummary.payback,locale):'—'],
-        [reportText('discounted'),studySummary?formatPaybackDuration(studySummary.discountedPayback,locale):'—']
-      ].map(([label,value],n)=><article key={label}><span>{label}</span><strong className={studySummary?resultSign([studySummary.npv,studySummary.irr,studySummary.payback,studySummary.discountedPayback][n]):undefined}>{value}</strong><CardExplanation name={['npv','irr','payback','discountedPayback'][n]} locale={locale}/><small>{studySummary?(studySummary.name||reportText('newStudy'))+(studySummary.dirty?' · '+reportText('draft'):''):reportText('missing')}</small></article>)}</section> : <section className="dg-kpis">
+      </header>}
+      {view !== "Investimento" && <section className="dg-kpis">
         <article>
           <span>Score financeiro</span>
           <strong>
@@ -329,7 +308,7 @@ export function FinancialDiagnosticsWorkspace({
           <small>Payback {item?.payback_period ?? "—"} período(s)</small>
         </article>
       </section>}
-      <nav className="dg-tabs">
+      {view!=="Investimento"&&<nav className="dg-tabs">
         {["Diagnóstico", "Investimento", "Metodologia"].map((x) => (
           <button
             key={x}
@@ -339,7 +318,7 @@ export function FinancialDiagnosticsWorkspace({
             {x === "Investimento" ? "Modelagem Financeira" : x}
           </button>
         ))}
-      </nav>
+      </nav>}
       {view === "Diagnóstico" ? (
         <div className="dg-grid">
           <article className="cartao dg-results">
@@ -445,7 +424,7 @@ export function FinancialDiagnosticsWorkspace({
           </aside>
         </div>
       ) : view === "Investimento" ? (
-        <div><FeasibilityWorkspace initialStudyId={initialStudyId} onSummary={setStudySummary}/><details><summary>Casos anteriores · fluxos manuais e aprovações</summary><div className="dg-grid">
+        <div><FeasibilityWorkspace onDiagnostics={()=>setView("Diagnóstico")} initialStudyId={initialStudyId}/><details><summary>Casos anteriores · fluxos manuais e aprovações</summary><div className="dg-grid">
           <article className="cartao dg-investments">
             <div className="cab">
               <div>

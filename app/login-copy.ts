@@ -1,0 +1,18 @@
+export const loginCopy={
+ subtitle:['Plataforma de gestão','Management platform','Plataforma de gestión','Plateforme de gestion','Платформа управления'],
+ title:['Entrar na plataforma','Sign in to the platform','Entrar en la plataforma','Se connecter à la plateforme','Вход на платформу'],
+ intro:['Aceda ao espaço da sua empresa.','Access your company workspace.','Acceda al espacio de su empresa.','Accédez à l’espace de votre entreprise.','Войдите в рабочее пространство компании.'],
+ emailHint:['nome@empresa.ao','name@company.com','nombre@empresa.com','nom@entreprise.fr','name@company.ru'],
+ email:['E-mail','Email','Correo electrónico','E-mail','Электронная почта'],
+ password:['Palavra-passe','Password','Contraseña','Mot de passe','Пароль'],
+ recover:['Recuperar acesso','Recover access','Recuperar acceso','Récupérer l’accès','Восстановить доступ'],
+ enter:['Entrar','Sign in','Entrar','Se connecter','Войти'],
+ busy:['A validar…','Validating…','Validando…','Validation…','Проверка…'],
+ noAccount:['Ainda não tem conta?','Don’t have an account yet?','¿Aún no tiene cuenta?','Vous n’avez pas encore de compte ?','Ещё нет учётной записи?'],
+ register:['Criar conta','Create account','Crear cuenta','Créer un compte','Создать учётную запись'],
+ purpose:['Finanças · Pessoas · Estratégia','Finance · People · Strategy','Finanzas · Personas · Estrategia','Finance · Personnel · Stratégie','Финансы · Персонал · Стратегия'],
+ privacy:['Privacidade','Privacy','Privacidad','Confidentialité','Конфиденциальность'],
+ terms:['Termos','Terms','Términos','Conditions','Условия'],
+ help:['Apoio','Support','Ayuda','Assistance','Поддержка'],
+ language:['Idioma','Language','Idioma','Langue','Язык'],
+};

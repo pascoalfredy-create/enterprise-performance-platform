@@ -100,3 +100,16 @@ test('integrated studies with zero initial investment persist and reject negativ
  const r=await feasibilityApi(request(path,{name:'Services without initial CAPEX',organizationId:'a',currency:'AOA',assumptions}),db,maker);assert.equal(r.status,200,JSON.stringify(await r.clone().json()));assert.equal(JSON.parse((await r.json()).studies[0].assumptions_json).capex,0);
  assert.equal((await feasibilityApi(request(path,{name:'Invalid',organizationId:'a',currency:'AOA',assumptions:{...assumptions,capex:-1}}),db,maker)).status,400);sql.close();
 });
+
+test('study product lines persist with revision and scope checks and cannot save mismatched financial drivers',async()=>{
+ const {withActivityLines}=await import('../lib/study-activity.ts');const {sql,db}=setup(),path='/api/financial-data?resource=feasibility';
+ const assumptions=withActivityLines({...feasibilityDefaults,capex:1000,years:3},[{id:'service',description:'Serviço real',units:10,price:100,unitCost:40}]);
+ let response=await feasibilityApi(request(path,{name:'Product study',organizationId:'a',currency:'AOA',assumptions}),db,maker);assert.equal(response.status,200,await response.clone().text());let body=await response.json(),study=body.studies[0];assert.deepEqual(JSON.parse(study.assumptions_json).activityLines,assumptions.activityLines);
+ const update={id:study.id,revision:0,name:'Changed product study',organizationId:'a',currency:'AOA',assumptions:withActivityLines(assumptions,[{...assumptions.activityLines[0],price:120}])};
+ response=await feasibilityApi(request(path,update),db,maker);assert.equal(response.status,200);study=(await response.json()).studies[0];assert.equal(JSON.parse(study.assumptions_json).price,120);
+ assert.equal((await feasibilityApi(request(path,update),db,maker)).status,409);
+ assert.equal((await feasibilityApi(request(path,{...update,revision:1}),db,{...maker,role:'Leitura'})).status,403);
+ assert.equal((await feasibilityApi(request(path,{...update,revision:1}),db,{...maker,organizationId:'b'})).status,409);
+ assert.equal((await feasibilityApi(request(path,{...update,revision:1,assumptions:{...update.assumptions,price:999}}),db,maker)).status,400);
+ assert.equal(sql.prepare('SELECT revision FROM feasibility_studies WHERE id=?').get(study.id).revision,1);sql.close();
+});

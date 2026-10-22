@@ -1,5 +1,6 @@
 "use client";
-import {WorkspaceModuleBar,WorkspaceSidebar,WorkspaceAreaTabs} from './workspace-navigation';
+import {AuditEventSummary} from './audit-event-summary';
+import {WorkspaceModuleBar,WorkspaceSidebar} from './workspace-navigation';
 import {accessibleWorkspaces,workspaceForTarget,workspaceText} from '../lib/workspace-navigation';
 import {SavedStudyReports} from './saved-study-reports';
 import './approved-workspace.css';
@@ -227,6 +228,7 @@ export default function Home() {
     [documentOpen,setDocumentOpen] = useState(false),
     [reportTarget,setReportTarget] = useState<string|null>(null),
     [studyOriginId,setStudyOriginId] = useState<string|undefined>(undefined),
+    [studyReportSelection,setStudyReportSelection]=useState<{id:string;map:number}|null>(null),
     // Retain the current workspace for shared targets, including reports.
     // The sidebar follows navigation from search, cards and breadcrumbs.
     [openDomain, setOpenDomain] = useState(""),
@@ -258,8 +260,8 @@ export default function Home() {
       };
       tenants: Array<{ id: string; name: string; role: string }>;
     } | null>(null);
-  const setModulo=useCallback((target:string)=>{setReportTarget(null);setStudyOriginId(undefined);setCurrentModule(target)},[]);
-  const openReportTarget=(target:string)=>{setReportTarget(target);setCurrentModule(target);setMobileMenu(false)};
+  const setModulo=useCallback((target:string)=>{setReportTarget(null);setStudyOriginId(undefined);setStudyReportSelection(null);setCurrentModule(target)},[]);
+  const openReportTarget=(target:string)=>{setStudyReportSelection(null);setReportTarget(target);setCurrentModule(target);setMobileMenu(false)};
   useEffect(()=>{const handler=(e:Event)=>setDocumentOpen(!!(e as CustomEvent).detail?.open);window.addEventListener('ep:document',handler);return()=>window.removeEventListener('ep:document',handler)},[]);
   const openMonthly=useCallback(()=>setModulo("Processamentos"),[]);
   useEffect(() => {
@@ -288,7 +290,8 @@ export default function Home() {
     INTEGRATIONS: "module.integrations",
   };
   const availableWorkspaces=accessibleWorkspaces(moduleCatalog,sessao?.modules||[]);
-  const activeWorkspace=workspaceForTarget(availableWorkspaces,modulo,openDomain)||availableWorkspaces.find(d=>d.code===openDomain)||availableWorkspaces[0];
+  const sourceWorkspace=workspaceForTarget(availableWorkspaces,modulo,openDomain)||availableWorkspaces.find(d=>d.code===openDomain)||availableWorkspaces[0];
+  const activeWorkspace=(documentOpen||reportTarget)?availableWorkspaces.find(d=>d.code==='ANALYTICS_REPORTING')||sourceWorkspace:sourceWorkspace;
   const workspaceName=(code:string)=>code==='WORKFLOW'?workspaceText(locale,'workflow'):msg(moduleNameKey[code]);
   const selectWorkspace=(code:string)=>{const d=availableWorkspaces.find(d=>d.code===code);if(!d)return;setOpenDomain(code);setModulo(d.groups[0].targets[0]);setMobileMenu(false)};
   let breadcrumb: { domain: string; item: string } | null = null;
@@ -305,8 +308,12 @@ export default function Home() {
   useEffect(()=>{if(!sessao)return;const d=workspaceForTarget(accessibleWorkspaces(moduleCatalog,sessao.modules),modulo,openDomain);if(d)setOpenDomain(d.code)},[modulo,sessao?.modules]);
   useEffect(() => {
     apiFetch("/api/session")
-      .then(async (r) => ({ ok: r.ok, body: await r.json() }))
-      .then(({ ok, body }) => {
+      .then(async (r) => ({ ok: r.ok, status:r.status, body: await r.json() }))
+      .then(({ ok, status, body }) => {
+        if(status===401&&!new URLSearchParams(window.location.search).has("invite")){
+          window.location.replace("/entrar");
+          return;
+        }
         if (ok && body.role === "Colaborador") {
           window.location.assign("/portal");
           return;
@@ -417,11 +424,42 @@ export default function Home() {
       <PlatformLocalizedSurface>
       {inviteStatus && <div className="invite-feedback">{inviteStatus}</div>}
       <header className="topo"><button className="shell-menu-toggle" aria-label={msg("shell.subscribedModules")} aria-expanded={mobileMenu} aria-controls="platform-sidebar" onClick={()=>setMobileMenu(!mobileMenu)}>☰</button>
-        <div className="marca">
-          <b><img src="/brand-icon.png" alt="" /></b>
+        <button type="button" className="marca" onClick={()=>setModulo("Visão geral")}>
+          <b className="workspace-monogram" aria-hidden="true">EP</b>
           <span>Enterprise Performance</span>
-        </div>
+        </button>
+        <WorkspaceModuleBar domains={availableWorkspaces} active={activeWorkspace?.code||''} locale={locale} name={workspaceName} onDomain={selectWorkspace}/>
         <div className="acoes">
+        <div className="empresa">
+          <span>
+            {(sessao.tenantName || "EP")
+              .split(" ")
+              .map((x) => x[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()}
+          </span>
+          <label>
+            <small>
+              {sessao.organizationName
+                ? `Âmbito · ${sessao.organizationName}`
+                : "Empresa atual · Todo o tenant"}
+            </small>
+            <select
+              aria-label="Empresa atual"
+              value={sessao.tenantId}
+              onChange={(e) => mudarTenant(e.target.value)}
+            >
+              {sessao.tenants.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} · {t.role}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+          <details className="workspace-account-tools"><summary aria-label={workspaceText(locale,'options')}>•••{Boolean(notificationCount)&&<sup>{notificationCount}</sup>}</summary><div>
           <label className="locale-select" title="Idioma / Language">
             <span>◎</span>
             <select
@@ -455,6 +493,7 @@ export default function Home() {
               </strong>
             )}
           </button>
+          </div></details>
           <button
             className="perfil"
             title={sessao.email}
@@ -476,50 +515,17 @@ export default function Home() {
           </button>
         </div>
       </header>
-      <div className="subnav">
-        <div className="empresa">
-          <span>
-            {(sessao.tenantName || "EP")
-              .split(" ")
-              .map((x) => x[0])
-              .join("")
-              .slice(0, 2)
-              .toUpperCase()}
-          </span>
-          <label>
-            <small>
-              {sessao.organizationName
-                ? `Âmbito · ${sessao.organizationName}`
-                : "Empresa atual · Todo o tenant"}
-            </small>
-            <select
-              aria-label="Empresa atual"
-              value={sessao.tenantId}
-              onChange={(e) => mudarTenant(e.target.value)}
-            >
-              {sessao.tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} · {t.role}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <button className="ajuda" onClick={() => setCommandMode("help")}>
-          ? {msg("shell.help")}
-        </button>
-      </div>
       <div className="workspace-layout">
-        <button className={mobileMenu?"shell-backdrop visible":"shell-backdrop"} aria-label={msg("shell.subscribedModules")} onClick={()=>setMobileMenu(false)}/><aside id="platform-sidebar" role={mobileMenu?"dialog":undefined} aria-modal={mobileMenu||undefined} aria-label={workspaceText(locale,'menu')} className={mobileMenu?"module-sidebar menu-visible":"module-sidebar"}><button className="shell-menu-close" aria-label={automationCopy.closeMenu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} onClick={()=>setMobileMenu(false)}>×</button><WorkspaceModuleBar domains={availableWorkspaces} active={activeWorkspace?.code||''} locale={locale} name={workspaceName} onDomain={selectWorkspace}/><WorkspaceSidebar domain={activeWorkspace} target={modulo} locale={locale} name={activeWorkspace?workspaceName(activeWorkspace.code):workspaceText(locale,'general')} catalog={moduleCatalog.filter(d=>(d.accessCodes||[d.code]).some(code=>sessao.modules.includes(code)))} onNavigate={target=>{setModulo(target);setMobileMenu(false)}} onReports={()=>{setModulo('Central de Relatórios');setMobileMenu(false)}} onHome={()=>{setModulo('Visão geral');setMobileMenu(false)}} onHelp={()=>setCommandMode('help')}/></aside>
+        <button className={mobileMenu?"shell-backdrop visible":"shell-backdrop"} aria-label={msg("shell.subscribedModules")} onClick={()=>setMobileMenu(false)}/><aside id="platform-sidebar" role={mobileMenu?"dialog":undefined} aria-modal={mobileMenu||undefined} aria-label={workspaceText(locale,'menu')} className={mobileMenu?"module-sidebar menu-visible":"module-sidebar"}><button className="shell-menu-close" aria-label={automationCopy.closeMenu[{pt:0,en:1,es:2,fr:3,ru:4}[locale]]} onClick={()=>setMobileMenu(false)}>×</button><WorkspaceSidebar domain={activeWorkspace} target={documentOpen||reportTarget?'Relatórios':modulo} locale={locale} name={activeWorkspace?workspaceName(activeWorkspace.code):workspaceText(locale,'general')} catalog={moduleCatalog.filter(d=>(d.accessCodes||[d.code]).some(code=>sessao.modules.includes(code)))} onNavigate={target=>{setModulo(target);setMobileMenu(false)}} onReports={()=>{setModulo('Central de Relatórios');setMobileMenu(false)}} onHome={()=>{setModulo('Visão geral');setMobileMenu(false)}} onHelp={()=>setCommandMode('help')}/></aside>
         <main className="module-content"><div id="platform-report-root" hidden={!documentOpen}/><div className="workspace-source" hidden={documentOpen}>
-          {reportTarget&&<div className="workspace-document-toolbar"><button type="button" onClick={()=>setModulo('Central de Relatórios')}>← {workspaceText(locale,'back')}</button><button type="button" onClick={()=>setModulo(reportTarget)}>{workspaceText(locale,'origin')} ↗</button></div>}
+          {reportTarget&&<div className="workspace-document-toolbar"><button type="button" onClick={()=>setModulo('Central de Relatórios')}>← {workspaceText(locale,'back')}</button>{reportTarget!=="Investimento"&&<button type="button" onClick={()=>setModulo(reportTarget)}>{workspaceText(locale,'origin')} ↗</button>}</div>}
           {breadcrumb && modulo !== "Visão geral" && (
             <nav className="module-breadcrumb" aria-label={nav.breadcrumbAria}>
               <button onClick={() => setModulo("Visão geral")}>
                 {msg("shell.home")}
               </button>
               <span>/</span>
-              <span>{breadcrumb.domain}</span>
+              <span>{reportTarget?workspaceText(locale,'reports'):breadcrumb.domain}</span>
               <span>/</span>
               <span className="current">{breadcrumb.item}</span>
             </nav>
@@ -530,20 +536,8 @@ export default function Home() {
               onOpen={() => setModulo("Administração")}
             />
           )}
-          <details className="workspace-support"><summary>{workspaceText(locale,'demo')}</summary><DemoPortfolioLoader
-            eligible={
-              sessao.role === "Administrador" &&
-              (sessao.tenantId === "demo-tenant" ||
-                sessao.tenantName
-                  .toLocaleLowerCase("pt")
-                  .includes("cálculo sutil") ||
-                sessao.tenantName.toLowerCase().includes("calculo sutil"))
-            }
-          />
-          </details>
-          {!reportTarget&&<><WorkspaceAreaTabs domain={activeWorkspace} target={modulo} locale={locale} onNavigate={setModulo} catalog={moduleCatalog}/><details className="workspace-support"><summary>{workspaceText(locale,'support')}</summary><ModuleTransferToolbar key={modulo} module={moduleItemLabel(locale,modulo)} onNavigate={setModulo}/><EngineReadiness onNavigate={setModulo} locale={locale}/></details></>}
           {modulo === "Central de Relatórios" ? (
-            <ReportsHubWorkspace groups={reportsGroups} onNavigate={openReportTarget} />
+            <ReportsHubWorkspace groups={reportsGroups} onNavigate={openReportTarget} onOpenStudy={(id,map)=>{setStudyReportSelection({id,map});setReportTarget("Investimento");setCurrentModule("Investimento");setMobileMenu(false)}} />
           ) : modulo === "Ativação" ? (
             <CustomerActivationWorkspace onNavigate={setModulo} />
           ) : ["Administração","Utilizadores","Employee Master"].includes(modulo) ? (
@@ -581,7 +575,7 @@ export default function Home() {
           ) : modulo === "Diagnóstico" ? (
             <FinancialDiagnosticsWorkspace />
           ) : modulo === "Investimento" ? (
-            reportTarget?<SavedStudyReports onOrigin={id=>{setStudyOriginId(id);setReportTarget(null);setCurrentModule("Investimento")}}/>:<FinancialDiagnosticsWorkspace initialView="Investimento" initialStudyId={studyOriginId} />
+            reportTarget?<SavedStudyReports initialStudyId={studyReportSelection?.id} initialMap={studyReportSelection?.map} onOrigin={id=>{setStudyOriginId(id);setReportTarget(null);setCurrentModule("Investimento")}}/>:<FinancialDiagnosticsWorkspace initialView="Investimento" initialStudyId={studyOriginId} />
           ) : modulo === "Modelação" ? (
             <FinancialModelsWorkspace />
           ) : modulo === "Cash-flow" ? (
@@ -653,6 +647,19 @@ export default function Home() {
           ) : (
             <ModuleUnavailable />
           )}
+          {!reportTarget&&<details className="workspace-support"><summary>{workspaceText(locale,'support')}</summary><ModuleTransferToolbar key={modulo} module={moduleItemLabel(locale,modulo)} onNavigate={setModulo}/><EngineReadiness onNavigate={setModulo} locale={locale}/>
+          <details className="workspace-support"><summary>{workspaceText(locale,'demo')}</summary><DemoPortfolioLoader
+            eligible={
+              sessao.role === "Administrador" &&
+              (sessao.tenantId === "demo-tenant" ||
+                sessao.tenantName
+                  .toLocaleLowerCase("pt")
+                  .includes("cálculo sutil") ||
+                sessao.tenantName.toLowerCase().includes("calculo sutil"))
+            }
+          />
+          </details>
+          </details>}
         </div></main>
       </div>
       <NotificationsCenter
@@ -855,6 +862,8 @@ type Employee = {
   status: string;
 };
 type AuditEvent = {
+  action?: string;
+  entity_type?: string;
   id: string;
   summary: string;
   actor: string;
@@ -893,6 +902,7 @@ const vazio: SetupData = {
   dimensionMembers: [],
 };
 function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=false}:{initialStep?:number;autoOpenNewRecord?:boolean;payrollEnabled?:boolean}) {
+  const [selectedUser,setSelectedUser]=useState(''),[roleDraft,setRoleDraft]=useState('');
   const fileLocale=usePlatformLocale(),fileIndex={pt:0,en:1,es:2,fr:3,ru:4}[fileLocale];
   const [employeeFileId,setEmployeeFileId]=useState<string|null>(null);
   useEffect(()=>{if(employeeFileId)document.getElementById("administration-employee-file")?.focus();},[employeeFileId]);
@@ -1053,17 +1063,19 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
       );
     }
   }
+  const currentUser=dados.users.find(user=>user.id===selectedUser)||dados.users[0];
+  useEffect(()=>{setRoleDraft(currentUser?.role||'')},[currentUser?.id,currentUser?.role]);
   const total =
     dados.organizations.length +
     dados.users.length +
     dados.employees.length +
     dados.dimensions.length;
   return (
-    <section className="configuracao">
+    <section className="configuracao workspace-table-screen">
       <div className="config-top">
         <div>
           <span>CONFIGURAÇÃO BASE</span>
-          <h1>Estrutura governada e auditável</h1>
+          <h1>{etapa===2?workspaceText(fileLocale,'users'):etapa===3?payrollSheetCopy.newEmployee[fileIndex]:workspaceText(fileLocale,'organization')}</h1>
           <p>
             Crie a organização, atribua acessos e ligue cada colaborador ao seu
             âmbito.
@@ -1120,6 +1132,7 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
         ].map((x, i) => (
           <button
             key={x[1]}
+            title={x[2]+" · "+x[3]}
             className={etapa === i + 1 ? "passo ativo" : "passo"}
             onClick={() => {
               setEtapa(i + 1);
@@ -1205,7 +1218,7 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
               )}
             </div>
           ) : etapa === 2 ? (
-            <div className="user-list acessos">
+            <div className="access-workspace">
               {inviteDelivery && <p role="status">{inviteDelivery}</p>}
               {inviteLink && (
                 <div className="convite-link">
@@ -1220,40 +1233,12 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
                   </button>
                 </div>
               )}
-              {dados.users.length ? (
-                dados.users.map((u) => (
-                  <div key={u.id}>
-                    <i>
-                      {u.name
-                        .split(" ")
-                        .map((n: string) => n[0])
-                        .join("")
-                        .slice(0, 2)}
-                    </i>
-                    <span>
-                      <b>{u.name}</b>
-                      <small>{u.email}</small>
-                    </span>
-                    <select
-                      aria-label={`Função de ${u.name}`}
-                      value={u.role}
-                      disabled={aEnviar || u.status === "Removido"}
-                      onChange={(e) =>
-                        gerirUtilizador(u.id, "changeRole", e.target.value)
-                      }
-                    >
-                      <option>Administrador</option>
-                      <option>Financeiro</option>
-                      <option>Recursos Humanos</option>
-                      <option>Gestor</option>
-                      <option>Leitura</option>
-                    </select>
-                    <em>{u.status === "Convite enviado" ? "Aguarda aceitação" : u.status}</em>
-                    <div className="acoes-acesso">
-                      {u.status === "Ativo" ? (
+<div className="workspace-record-table"><table><thead><tr><th>{workspaceText(fileLocale,'user')}</th><th>E-mail</th><th>{workspaceText(fileLocale,'profile')}</th><th>{workspaceText(fileLocale,'scope')}</th><th>{workspaceText(fileLocale,'status')}</th></tr></thead><tbody>{dados.users.map(user=><tr key={user.id} className={currentUser?.id===user.id?'selected':''} onClick={()=>setSelectedUser(user.id)}><td><button type="button" className="workspace-row-select" onClick={()=>setSelectedUser(user.id)}>{user.name}</button></td><td>{user.email}</td><td>{user.role}</td><td>{dados.organizations.find(org=>org.id===user.organization_id)?.name||'—'}</td><td><span className={'workspace-status '+(user.status==='Ativo'?'good':'pending')}>{user.status==='Convite enviado'?'Aguarda aceitação':user.status}</span></td></tr>)}</tbody></table></div>
+ {currentUser&&<section className="workspace-detail"><header><div><h2>{currentUser.name}</h2><p>{currentUser.email}</p></div><div className="acoes-acesso">
+                      {currentUser.status === "Ativo" ? (
                         <button
                           disabled={aEnviar}
-                          onClick={() => gerirUtilizador(u.id, "remove")}
+                          onClick={() => gerirUtilizador(currentUser.id, "remove")}
                         >
                           Remover
                         </button>
@@ -1261,28 +1246,33 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
                         <>
                           <button
                             disabled={aEnviar}
-                            onClick={() => gerirUtilizador(u.id, "resend")}
+                            onClick={() => gerirUtilizador(currentUser.id, "resend")}
                           >
                             Reenviar convite por e-mail
                           </button>
-                          {u.status !== "Cancelado" && (
+                          {currentUser.status !== "Cancelado" && (
                             <button
                               disabled={aEnviar}
-                              onClick={() => gerirUtilizador(u.id, "cancel")}
+                              onClick={() => gerirUtilizador(currentUser.id, "cancel")}
                             >
                               Cancelar
                             </button>
                           )}
                         </>
                       )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <Vazio texto="Convide o primeiro utilizador." />
-              )}
-              {erro && <p className="erro-form erro-acesso">{erro}</p>}
-            </div>
+                    </div></header><div className="workspace-form-grid"><label>{workspaceText(fileLocale,'profile')}                    <select
+                      aria-label={`Função de ${currentUser.name}`}
+                      value={roleDraft}
+                      disabled={aEnviar || currentUser.status === "Removido"}
+                      onChange={(e)=>setRoleDraft(e.target.value)}
+                    >
+                      <option>Administrador</option>
+                      <option>Financeiro</option>
+                      <option>Recursos Humanos</option>
+                      <option>Gestor</option>
+                      <option>Leitura</option>
+                    </select></label><div className="workspace-record-actions"><button type="button" className="primario" disabled={aEnviar||currentUser.status==='Removido'||roleDraft===currentUser.role} onClick={()=>gerirUtilizador(currentUser.id,'changeRole',roleDraft)}>{workspaceText(fileLocale,'savePermissions')}</button></div></div></section>}
+ {!dados.users.length&&<Vazio texto="Convide o primeiro utilizador."/>}{erro&&<p className="erro-form erro-acesso">{erro}</p>}</div>
           ) : etapa === 3 ? (
             <div className="user-list">
               {dados.employees.length ? (
@@ -1367,19 +1357,19 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
             </div>
           )}
         </article>
-        <aside className="cartao controlos">
+        <details className="workspace-secondary-information controlos"><summary>{workspaceText(fileLocale,'audit')}</summary>
           <span>AUDITORIA RECENTE</span>
           <h2>Alterações rastreáveis</h2>
           {dados.audit.length ? (
             dados.audit.map((a) => (
               <div key={a.id}>
                 <i>✓</i>
-                <span>
-                  <b>{a.summary}</b>
+                <div className="audit-event-content">
+                  <AuditEventSummary event={a}/>
                   <small>
                     {a.actor} · {new Date(a.created_at).toLocaleString("pt-PT")}
                   </small>
-                </span>
+                </div>
               </div>
             ))
           ) : (
@@ -1393,7 +1383,7 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
               Tenant, autor, data e entidade são registados em cada criação.
             </p>
           </footer>
-        </aside>
+        </details>
       </div>
       {aberto && etapa === 4 && (
         <div className="modal-inline">
@@ -2707,6 +2697,8 @@ function WorkflowInbox({
 }: {
   onNavigate: (module: string) => void;
 }) {
+  const screenLocale=usePlatformLocale(),w=(key:Parameters<typeof workspaceText>[1])=>workspaceText(screenLocale,key);
+  const [selectedTask,setSelectedTask]=useState(''),[taskSearch,setTaskSearch]=useState('');
   const [data, setData] = useState<WorkflowData | null>(null),
     [domain, setDomain] = useState("Todos"),
     [error, setError] = useState("");
@@ -2722,25 +2714,14 @@ function WorkflowInbox({
     load();
   }, []);
   const tasks =
-    data?.tasks.filter((t) => domain === "Todos" || t.domain === domain) || [];
-  return (
-    <section className="workflow">
-      <div className="workflow-top">
-        <div>
-          <span>FLUXO DE TRABALHO E APROVAÇÕES</span>
-          <h1>Decisões pendentes num único lugar</h1>
-          <p>
-            A caixa de trabalho lê o estado real de cada motor; não duplica nem
-            altera a fonte de verdade.
-          </p>
-        </div>
-        <button className="secundario" onClick={load}>
-          ↻ Atualizar
-        </button>
-      </div>
-      {data && (
-        <>
-          <section className="workflow-kpis">
+    data?.tasks.filter((t) => domain === "Todos" || t.domain === domain).filter(t=>!taskSearch.trim()||`${t.title} ${t.subject} ${t.detail}`.toLocaleLowerCase(screenLocale).includes(taskSearch.trim().toLocaleLowerCase(screenLocale))) || [];
+  const currentTask=tasks.find(task=>task.domain+'-'+task.id===selectedTask)||tasks[0];
+  return (<section className="workflow workspace-table-screen"><header className="workspace-screen-heading"><h1>{w('inboxTitle')}</h1><button className="secundario" onClick={load}>↻ Atualizar</button></header>
+   <div className="workspace-context-bar"><select aria-label={w('area')} value={domain} onChange={event=>setDomain(event.target.value)}>{['Todos',...new Set(data?.tasks.map(task=>task.domain)||[])].map(value=><option key={value} value={value}>{value==='Todos'?w('all'):value}</option>)}</select><input type="search" aria-label={w('searchTasks')} placeholder={w('searchTasks')} value={taskSearch} onChange={event=>setTaskSearch(event.target.value)}/></div>
+   <div className="workspace-record-table"><table><thead><tr><th>{w('taskSubject')}</th><th>{w('area')}</th><th>{w('scope')}</th><th>{w('deadline')}</th><th>{w('priority')}</th></tr></thead><tbody>{tasks.map(task=><tr key={task.domain+'-'+task.id} className={currentTask===task?'selected':''} onClick={()=>setSelectedTask(task.domain+'-'+task.id)}><td><button type="button" className="workspace-row-select" onClick={()=>setSelectedTask(task.domain+'-'+task.id)}>{task.title}</button></td><td>{task.domain}</td><td>{task.subject}</td><td>{new Date(task.dueAt).toLocaleString(screenLocale)}</td><td><span className={'workspace-status '+(task.overdue?'risk':'pending')}>{task.priority}</span></td></tr>)}</tbody></table></div>
+   {!tasks.length&&data&&<Vazio texto="Não existem decisões pendentes neste filtro."/>}
+   {currentTask&&<section className="workspace-detail"><header><div><h2>{currentTask.title}</h2><p>{currentTask.subject} · {currentTask.domain}</p></div><button className="secundario" onClick={()=>onNavigate(currentTask.target)}>Abrir origem →</button></header><p>{currentTask.detail}</p><p>{currentTask.canAct?'Minha decisão':'Acompanhar'} · {new Date(currentTask.dueAt).toLocaleString(screenLocale)}</p></section>}
+   {data&&<details className="workspace-secondary-information"><summary>{w('info')}</summary><section className="workflow-kpis">
             <article>
               <span>Total pendente</span>
               <strong>{data.summary.total}</strong>
@@ -2761,56 +2742,7 @@ function WorkflowInbox({
               <strong>{data.summary.critical}</strong>
               <small>Prazo já ultrapassado</small>
             </article>
-          </section>
-          <div className="workflow-filter">
-            {["Todos", "HCM", "Finance", "Payroll"].map((x) => (
-              <button
-                key={x}
-                className={domain === x ? "active" : ""}
-                onClick={() => setDomain(x)}
-              >
-                {x}
-              </button>
-            ))}
-          </div>
-          <div className="workflow-grid">
-            <article className="cartao workflow-list">
-              <div className="cab">
-                <div>
-                  <span>CAIXA DE TRABALHO</span>
-                  <h2>Tarefas por prioridade e prazo</h2>
-                </div>
-                <em>{tasks.length} tarefa(s)</em>
-              </div>
-              {tasks.length ? (
-                tasks.map((t) => (
-                  <div className="workflow-row" key={`${t.domain}-${t.id}`}>
-                    <i className={t.priority.toLowerCase()}>
-                      {t.overdue ? "!" : "◷"}
-                    </i>
-                    <span>
-                      <b>{t.title}</b>
-                      <small>
-                        {t.domain} · {t.subject} · {t.detail}
-                      </small>
-                    </span>
-                    <p>
-                      <b>{t.priority}</b>
-                      <small>
-                        Prazo {new Date(t.dueAt).toLocaleString("pt-AO")}
-                      </small>
-                    </p>
-                    <em>{t.canAct ? "Minha decisão" : "Acompanhar"}</em>
-                    <button onClick={() => onNavigate(t.target)}>
-                      Abrir origem →
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <Vazio texto="Não existem decisões pendentes neste filtro." />
-              )}
-            </article>
-            <aside className="cartao workflow-history">
+          </section><aside className="cartao workflow-history">
               <span>HISTÓRICO</span>
               <h2>Decisões recentes</h2>
               {data.history.length ? (
@@ -2836,10 +2768,7 @@ function WorkflowInbox({
                   permissões, validações e audit trail.
                 </p>
               </footer>
-            </aside>
-          </div>
-        </>
-      )}
+            </aside></details>}
       {error && <p className="erro-global">{error}</p>}
     </section>
   );
@@ -2877,6 +2806,8 @@ type GoalsData = {
   audit: AuditEvent[];
 };
 function GoalsWorkspace() {
+  const screenLocale=usePlatformLocale(),w=(key:Parameters<typeof workspaceText>[1])=>workspaceText(screenLocale,key);
+  const [goalsView,setGoalsView]=useState('goals'),[selectedGoal,setSelectedGoal]=useState(''),[cycleFilter,setCycleFilter]=useState('');
   const [data, setData] = useState<GoalsData>({
       cycles: [],
       goals: [],
@@ -2939,30 +2870,13 @@ function GoalsWorkspace() {
       new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 3 }).format(
         n / s,
       );
-  return (
-    <section className="goals">
-      <div className="goals-top">
-        <div>
-          <span>PERFORMANCE MANAGEMENT · GOALS</span>
-          <h1>Objetivos mensuráveis, progresso verificável</h1>
-          <p>
-            Ciclos governados e check-ins append-only, sem avaliações subjetivas
-            no cálculo.
-          </p>
-        </div>
-        <div>
-          <button
-            className="secundario"
-            onClick={() => setModal("createCycle")}
-          >
-            ＋ Ciclo
-          </button>
-          <button className="primario" onClick={() => setModal("createGoal")}>
-            ＋ Objetivo
-          </button>
-        </div>
-      </div>
-      <section className="goals-kpis">
+  const visibleGoals=data.goals.filter(goal=>!cycleFilter||goal.cycle_id===cycleFilter),currentGoal=visibleGoals.find(goal=>goal.id===selectedGoal)||visibleGoals[0];
+  return (<section className="goals workspace-table-screen"><header className="workspace-screen-heading"><h1>{w('goals')}</h1><div className="workspace-record-actions"><label>{w('cycle')}<select value={cycleFilter} onChange={event=>setCycleFilter(event.target.value)}><option value="">{w('all')}</option>{data.cycles.map(cycle=><option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}</select></label><button className="secundario" onClick={()=>setModal('createCycle')}>＋ Ciclo</button><button className="primario" onClick={()=>setModal('createGoal')}>＋ Objetivo</button></div></header>
+   <nav className="workspace-flat-tabs">{(['goals','actionPlans','tracking'] as const).map(key=><button type="button" key={key} aria-current={goalsView===key?'page':undefined} onClick={()=>setGoalsView(key)}>{key==='goals'?w('reviewGoals'):w(key)}</button>)}</nav><div hidden={goalsView!=='goals'}>
+   <div className="workspace-record-table"><table><thead><tr><th>{w('reviewGoals')}</th><th>{w('owner')}</th><th>{w('current')} / {w('target')}</th><th>{w('cycle')}</th><th>{w('status')}</th></tr></thead><tbody>{visibleGoals.map(goal=><tr key={goal.id} className={currentGoal===goal?'selected':''} onClick={()=>setSelectedGoal(goal.id)}><td><button type="button" className="workspace-row-select" onClick={()=>setSelectedGoal(goal.id)}>{goal.title}</button></td><td>{data.owners.find(owner=>owner.email===goal.owner_email)?.name||goal.owner_email}</td><td>{fmt(goal.current_scaled,goal.scale)} / {fmt(goal.target_scaled,goal.scale)} {goal.unit}<progress max={10000} value={Math.max(0,Math.min(10000,goal.progress_bps))} aria-label={goal.metric_name}/></td><td>{data.cycles.find(cycle=>cycle.id===goal.cycle_id)?.name||'—'}</td><td><span className={'workspace-status '+(goal.status==='Concluído'?'good':'pending')}>{goal.status}</span></td></tr>)}</tbody></table></div>
+   {!visibleGoals.length&&<Vazio texto="Crie um ciclo e o primeiro objetivo."/>}
+   {currentGoal&&<section className="workspace-detail"><header><div><h2>{currentGoal.title}</h2><p>{currentGoal.organization_name} · {currentGoal.owner_email}</p></div><div className="workspace-record-actions">{currentGoal.status==='Ativo'&&<><button type="button" onClick={()=>{setGoalId(currentGoal.id);setModal('goalCheckin')}}>Check-in</button><button type="button" disabled={busy} onClick={()=>command({type:'completeGoal',goalId:currentGoal.id})}>Concluir</button></>}</div></header><dl className="workspace-detail-metrics"><div><dt>{currentGoal.metric_name}</dt><dd>{fmt(currentGoal.current_scaled,currentGoal.scale)} / {fmt(currentGoal.target_scaled,currentGoal.scale)} {currentGoal.unit}</dd></div><div><dt>{w('details')}</dt><dd>{currentGoal.direction} · {(currentGoal.weight_bps/100).toFixed(0)}% · {currentGoal.checkin_count} check-in(s)</dd></div></dl></section>}
+   </div>{goalsView==='actionPlans'&&<ActionPlans embedded/>}<div hidden={goalsView!=='tracking'}><details open className="workspace-secondary-information"><summary>{w('info')}</summary><section className="goals-kpis">
         <article>
           <span>Objetivos ativos</span>
           <strong>{active.length}</strong>
@@ -2985,73 +2899,7 @@ function GoalsWorkspace() {
           </strong>
           <small>Maker-checker aplicado</small>
         </article>
-      </section>
-      <div className="goals-grid">
-        <article className="cartao goals-list">
-          <div className="cab">
-            <div>
-              <span>OBJETIVOS</span>
-              <h2>Metas e check-ins</h2>
-            </div>
-            <em>{data.goals.length} objetivo(s)</em>
-          </div>
-          {data.goals.length ? (
-            data.goals.map((g) => (
-              <div className="goal-row" key={g.id}>
-                <div
-                  className="goal-ring"
-                  style={{
-                    background: `conic-gradient(#0f6e56 ${g.progress_bps / 100}%,#e5e3dc 0)`,
-                  }}
-                >
-                  <span>{(g.progress_bps / 100).toFixed(0)}%</span>
-                </div>
-                <span>
-                  <b>{g.title}</b>
-                  <small>
-                    {g.organization_name} · {g.owner_email} · peso{" "}
-                    {(g.weight_bps / 100).toFixed(0)}%
-                  </small>
-                </span>
-                <p>
-                  <b>
-                    {fmt(g.current_scaled, g.scale)} /{" "}
-                    {fmt(g.target_scaled, g.scale)} {g.unit}
-                  </b>
-                  <small>
-                    {g.metric_name} · {g.direction} · {g.checkin_count}{" "}
-                    check-in(s)
-                  </small>
-                </p>
-                <em>{g.status}</em>
-                <div>
-                  {g.status === "Ativo" && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setGoalId(g.id);
-                          setModal("goalCheckin");
-                        }}
-                      >
-                        Check-in
-                      </button>
-                      <button
-                        onClick={() =>
-                          command({ type: "completeGoal", goalId: g.id })
-                        }
-                      >
-                        Concluir
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))
-          ) : (
-            <Vazio texto="Crie um ciclo e o primeiro objetivo." />
-          )}
-        </article>
-        <aside className="cartao goal-cycles">
+      </section><aside className="cartao goal-cycles">
           <span>CICLOS</span>
           <h2>Governança</h2>
           {data.cycles.map((c) => (
@@ -3083,8 +2931,7 @@ function GoalsWorkspace() {
               check-in. A IA não intervém no cálculo.
             </p>
           </footer>
-        </aside>
-      </div>
+        </aside></details></div>
       {error && <p className="erro-global">{error}</p>}
       {modal && (
         <div className="modal-inline">
@@ -3279,7 +3126,9 @@ type ActionsData = {
   owners: Array<{ name: string; email: string; role: string }>;
   audit: AuditEvent[];
 };
-function ActionPlans() {
+function ActionPlans({embedded=false}:{embedded?:boolean}={}) {
+  const screenLocale=usePlatformLocale(),w=(key:Parameters<typeof workspaceText>[1])=>workspaceText(screenLocale,key);
+  const [selectedAction,setSelectedAction]=useState('');
   const [data, setData] = useState<ActionsData>({
       actions: [],
       organizations: [],
@@ -3349,22 +3198,11 @@ function ActionPlans() {
       (a) => a.due_date < new Date().toISOString().slice(0, 10),
     ),
     done = data.actions.filter((a) => a.status === "Concluída");
-  return (
-    <section className="actions">
-      <div className="actions-top">
-        <div>
-          <span>PERFORMANCE MANAGEMENT · ACTIONS</span>
-          <h1>Transformar explicação em responsabilidade</h1>
-          <p>
-            Cada ação mantém contexto, responsável, prazo, estado e evidência de
-            conclusão.
-          </p>
-        </div>
-        <button className="primario" onClick={() => setModal("create")}>
-          ＋ Novo plano de ação
-        </button>
-      </div>
-      <section className="actions-kpis">
+  const currentAction=data.actions.find(action=>action.id===selectedAction)||data.actions[0];
+  return (<section className="actions workspace-table-screen"><header className="workspace-screen-heading">{embedded?<h2>{w('actionPlans')}</h2>:<h1>{w('actionPlans')}</h1>}<button className="primario" disabled={Boolean(modal)||busy} onClick={()=>setModal('create')}>＋ Novo plano de ação</button></header><div className="workspace-record-table"><table><thead><tr><th>{w('actionPlans')}</th><th>{w('owner')}</th><th>{w('deadline')}</th><th>{w('priority')}</th><th>{w('status')}</th></tr></thead><tbody>{data.actions.map(action=><tr key={action.id} className={currentAction===action?'selected':''} onClick={()=>{if(!modal)setSelectedAction(action.id)}}><td><button type="button" className="workspace-row-select" disabled={Boolean(modal)} onClick={()=>{if(!modal)setSelectedAction(action.id)}}>{action.title}</button><small>{action.organization_name}</small></td><td>{data.owners.find(owner=>owner.email===action.owner_email)?.name||action.owner_email}</td><td>{action.due_date}</td><td>{action.priority}</td><td><span className={'workspace-status '+(action.status==='Concluída'?'good':'pending')}>{action.status}</span></td></tr>)}</tbody></table></div>
+   {!data.actions.length&&<Vazio texto="Crie o primeiro plano de ação de performance."/>}
+   {currentAction&&<section className="workspace-detail"><header><div><h2>{currentAction.title}</h2><p>{currentAction.owner_email} · {currentAction.due_date} · {currentAction.status}</p></div><div className="workspace-record-actions">{currentAction.status==='Aberta'&&<button disabled={busy} onClick={()=>command({type:'transitionAction',actionId:currentAction.id,status:'Em curso'})}>Iniciar</button>}{['Aberta','Em curso'].includes(currentAction.status)&&<button className="primario" disabled={busy} onClick={()=>{setSelected(currentAction.id);setModal('complete')}}>Concluir</button>}</div></header><p>{currentAction.description||'—'}</p><p>{currentAction.organization_name} · {currentAction.source_line_code||'Ação geral'} · {currentAction.period||'Sem período'}{currentAction.currency?' · '+currentAction.currency:''}</p>{currentAction.completion_evidence&&<p>{currentAction.completion_evidence}</p>}</section>}
+   <details className="workspace-secondary-information"><summary>{w('info')}</summary><section className="actions-kpis">
         <article>
           <span>Abertas</span>
           <strong>{open.length}</strong>
@@ -3389,82 +3227,19 @@ function ActionPlans() {
           </strong>
           <small>Sobre o total registado</small>
         </article>
-      </section>
-      <div className="actions-grid">
-        <article className="cartao actions-list">
-          <div className="cab">
-            <div>
-              <span>PLANOS DE AÇÃO</span>
-              <h2>Responsabilidade e execução</h2>
-            </div>
-            <em>{data.actions.length} registo(s)</em>
-          </div>
-          {data.actions.length ? (
-            data.actions.map((a) => (
-              <div className="action-row" key={a.id}>
-                <i className={a.priority.toLowerCase()}>
-                  {a.status === "Concluída" ? "✓" : "◎"}
-                </i>
-                <span>
-                  <b>{a.title}</b>
-                  <small>
-                    {a.organization_name} · {a.source_line_code || "Ação geral"}{" "}
-                    · {a.period || "Sem período"}
-                  </small>
-                </span>
-                <p>
-                  <b>{a.owner_email}</b>
-                  <small>
-                    Prazo {a.due_date} · {a.priority}
-                  </small>
-                </p>
-                <em>{a.status}</em>
-                <div>
-                  {a.status === "Aberta" && (
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        command({
-                          type: "transitionAction",
-                          actionId: a.id,
-                          status: "Em curso",
-                        })
-                      }
-                    >
-                      Iniciar
-                    </button>
-                  )}
-                  {["Aberta", "Em curso"].includes(a.status) && (
-                    <button
-                      disabled={busy}
-                      onClick={() => {
-                        setSelected(a.id);
-                        setModal("complete");
-                      }}
-                    >
-                      Concluir
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))
-          ) : (
-            <Vazio texto="Crie o primeiro plano de ação de performance." />
-          )}
-        </article>
-        <aside className="cartao actions-audit">
+      </section><aside className="cartao actions-audit">
           <span>AUDIT TRAIL</span>
           <h2>Evidência recente</h2>
           {data.audit.length ? (
             data.audit.map((a) => (
               <div key={a.id}>
                 <i>✓</i>
-                <span>
-                  <b>{a.summary}</b>
+                <div className="audit-event-content">
+                  <AuditEventSummary event={a}/>
                   <small>
                     {a.actor} · {new Date(a.created_at).toLocaleString("pt-AO")}
                   </small>
-                </span>
+                </div>
               </div>
             ))
           ) : (
@@ -3477,11 +3252,10 @@ function ActionPlans() {
               Dashboard ou dos motores financeiros.
             </p>
           </footer>
-        </aside>
-      </div>
+        </aside></details>
       {error && <p className="erro-global">{error}</p>}
       {modal && (
-        <div className="modal-inline">
+        <div className={modal==='complete'?'workspace-detail review-inline-form':'modal-inline'}>
           <form onSubmit={modal === "create" ? submit : complete}>
             <header>
               <div>
@@ -6650,59 +6424,29 @@ function IntegrityCenter({
   );
 }
 
+type ReviewGoal = {review_id:string;goal_id:string;title:string;metric_name:string;unit:string;scale:number;direction:string;start_scaled:number;target_scaled:number;value_scaled:number;weight_bps:number;progress_bps:number|null;captured_at:string|null};
 type Review = {
-  id: string;
-  cycle_id: string;
-  cycle_name: string;
-  organization_id: string;
-  organization_name: string;
-  subject_email: string;
-  subject_name: string;
-  reviewer_email: string;
-  reviewer_name: string;
-  status: string;
-  goal_score_bps?: number;
-  manager_competency_bps?: number;
-  calibrated_competency_bps?: number;
-  final_score_bps?: number;
-  snapshot_count: number;
+ id:string;cycle_id:string;cycle_name:string;cycle_end_date?:string;organization_id:string;organization_name:string;subject_email:string;subject_name:string;reviewer_email:string;reviewer_name:string;status:string;
+ subject_number?:string;subject_job_title?:string;department_name?:string;
+ self_competency_bps?:number;self_comment?:string;manager_comment?:string;calibration_reason?:string;
+ goal_score_bps?:number;manager_competency_bps?:number;calibrated_competency_bps?:number;final_score_bps?:number;snapshot_count:number;
 };
 type ReviewData = {
-  reviews: Review[];
-  cycles: Array<{ id: string; name: string; status: string }>;
-  people: Array<{
-    name: string;
-    email: string;
-    role: string;
-    organization_id?: string;
-  }>;
-  organizations: Array<{ id: string; code: string; name: string }>;
-  development: Array<{
-    id: string;
-    review_id: string;
-    title: string;
-    description?: string;
-    owner_email: string;
-    due_date: string;
-    status: string;
-    completion_evidence?: string;
-  }>;
-  audit: AuditEvent[];
+ reviews:Review[];goals?:ReviewGoal[];cycles:Array<{id:string;name:string;status:string;end_date?:string}>;
+ people:Array<{name:string;email:string;role:string;organization_id?:string}>;
+ organizations:Array<{id:string;code:string;name:string}>;
+ development:Array<{id:string;review_id:string;title:string;description?:string;owner_email:string;due_date:string;status:string;completion_evidence?:string}>;
+ audit:AuditEvent[];
 };
-const emptyReviews: ReviewData = {
-  reviews: [],
-  cycles: [],
-  people: [],
-  organizations: [],
-  development: [],
-  audit: [],
-};
-function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
-  const [data, setData] = useState<ReviewData>(emptyReviews),
-    [modal, setModal] = useState(""),
-    [selected, setSelected] = useState(""),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+const emptyReviews:ReviewData={reviews:[],cycles:[],people:[],organizations:[],development:[],audit:[],goals:[]};
+function ReviewsWorkspace({actor,role}:{actor:string;role:string}){
+ const screenLocale=usePlatformLocale(),w=(key:Parameters<typeof workspaceText>[1])=>workspaceText(screenLocale,key);
+ const [selectedReview,setSelectedReview]=useState(''),[cycleFilter,setCycleFilter]=useState(''),[departmentFilter,setDepartmentFilter]=useState(''),[stateFilter,setStateFilter]=useState('');
+ const [reviewTab,setReviewTab]=useState('reviews'),[detailTab,setDetailTab]=useState('results');
+ const [data,setData]=useState<ReviewData>(emptyReviews),[modal,setModal]=useState(''),[selected,setSelected]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [draft,setDraft]=useState<Record<string,string>>({}),[draftNotice,setDraftNotice]=useState('');
+ const reviewFormRef=useRef<HTMLFormElement>(null),draftKey=(kind:string,id:string)=>'ep-review-draft:'+actor.toLowerCase()+':'+id+':'+kind;
+ function saveDraft(){try{const fields=Object.fromEntries(new FormData(reviewFormRef.current!).entries());sessionStorage.setItem(draftKey(modal,selected),JSON.stringify(fields));setDraftNotice(w('reviewDraftSaved'))}catch{setDraftNotice(w('reviewDraftError'))}}
   const load = () =>
     apiFetch("/api/v1/reviews")
       .then(async (r) => {
@@ -6729,6 +6473,8 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
       return;
     }
     setData(b);
+    try{sessionStorage.removeItem(draftKey(modal,selected))}catch{}
+    setDraftNotice('');
     setModal("");
     setSelected("");
   }
@@ -6744,194 +6490,22 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
       >),
     });
   }
-  const pending = data.reviews.filter(
-      (x) => x.status !== "Finalizada" && x.status !== "Cancelada",
-    ),
-    finalized = data.reviews.filter((x) => x.status === "Finalizada"),
-    avg = finalized.length
-      ? Math.round(
-          finalized.reduce((n, x) => n + Number(x.final_score_bps || 0), 0) /
-            finalized.length /
-            100,
-        )
-      : 0,
-    open = (kind: string, id = "") => {
-      setError("");
-      setSelected(id);
-      setModal(kind);
-    },
-    canCalibrate = ["Administrador", "Recursos Humanos"].includes(role);
-  return (
-    <section className="reviews">
-      <div className="reviews-top">
-        <div>
-          <span>PERFORMANCE MANAGEMENT · REVIEWS</span>
-          <h1>Avaliar com evidência, calibrar com independência</h1>
-          <p>
-            Objetivos mensuráveis, competências e desenvolvimento numa decisão
-            rastreável.
-          </p>
-        </div>
-        <button className="primario" onClick={() => open("createReview")}>
-          ＋ Nova avaliação
-        </button>
-      </div>
-      <section className="review-kpis">
-        <article>
-          <span>Em curso</span>
-          <strong>{pending.length}</strong>
-          <small>Autoavaliação, gestor ou calibração</small>
-        </article>
-        <article>
-          <span>Finalizadas</span>
-          <strong>{finalized.length}</strong>
-          <small>Decisão protegida</small>
-        </article>
-        <article>
-          <span>Nota média</span>
-          <strong>{avg}%</strong>
-          <small>60% objetivos · 40% competências</small>
-        </article>
-        <article>
-          <span>Desenvolvimento</span>
-          <strong>
-            {data.development.filter((x) => x.status === "Aberta").length}
-          </strong>
-          <small>Ações abertas</small>
-        </article>
-      </section>
-      <div className="review-layout">
-        <article className="cartao review-list">
-          <div className="cab">
-            <div>
-              <span>AVALIAÇÕES</span>
-              <h2>Pipeline de decisão</h2>
-            </div>
-            <em>{data.reviews.length} avaliação(ões)</em>
-          </div>
-          {data.reviews.length ? (
-            data.reviews.map((r) => (
-              <div className="review-row" key={r.id}>
-                <i>
-                  {r.status === "Finalizada"
-                    ? "✓"
-                    : r.status === "Calibração"
-                      ? "◇"
-                      : "◷"}
-                </i>
-                <span>
-                  <b>{r.subject_name}</b>
-                  <small>
-                    {r.cycle_name} · {r.organization_name}
-                  </small>
-                  <small>Gestor: {r.reviewer_name}</small>
-                </span>
-                <div className="review-score">
-                  <b>
-                    {r.final_score_bps != null
-                      ? `${(r.final_score_bps / 100).toFixed(0)}%`
-                      : "—"}
-                  </b>
-                  <small>{r.snapshot_count || 0} metas congeladas</small>
-                </div>
-                <em>{r.status}</em>
-                <nav>
-                  {r.status === "Aguardando autoavaliação" &&
-                    r.subject_email.toLowerCase() === actor.toLowerCase() && (
-                      <button onClick={() => open("selfReview", r.id)}>
-                        Autoavaliar
-                      </button>
-                    )}
-                  {r.status === "Aguardando gestor" &&
-                    r.reviewer_email.toLowerCase() === actor.toLowerCase() && (
-                      <button onClick={() => open("managerReview", r.id)}>
-                        Avaliar
-                      </button>
-                    )}
-                  {r.status === "Calibração" &&
-                    canCalibrate &&
-                    ![r.subject_email, r.reviewer_email]
-                      .map((x) => x.toLowerCase())
-                      .includes(actor.toLowerCase()) && (
-                      <button onClick={() => open("calibrate", r.id)}>
-                        Calibrar
-                      </button>
-                    )}
-                  {r.status === "Finalizada" && (
-                    <button onClick={() => open("createDevelopment", r.id)}>
-                      ＋ Desenvolvimento
-                    </button>
-                  )}
-                </nav>
-              </div>
-            ))
-          ) : (
-            <Vazio texto="Crie a primeira avaliação a partir de um ciclo ativo com objetivos." />
-          )}
-        </article>
-        <aside className="cartao review-governance">
-          <span>MODELO DE PONTUAÇÃO</span>
-          <h2>Decisão reproduzível</h2>
-          <div>
-            <i>60</i>
-            <span>
-              <b>Objetivos</b>
-              <small>Progresso ponderado por peso</small>
-            </span>
-            <em>%</em>
-          </div>
-          <div>
-            <i>40</i>
-            <span>
-              <b>Competências</b>
-              <small>Escala calibrada de 1 a 5</small>
-            </span>
-            <em>%</em>
-          </div>
-          <footer>
-            <b>Segregação ativa</b>
-            <p>
-              Colaborador, gestor e calibrador têm responsabilidades separadas.
-              Os snapshots das metas são imutáveis.
-            </p>
-          </footer>
-        </aside>
-      </div>
-      <article className="cartao development-list">
-        <div className="cab">
-          <div>
-            <span>PLANOS DE DESENVOLVIMENTO</span>
-            <h2>Ações após a decisão</h2>
-          </div>
-          <em>{data.development.length} ação(ões)</em>
-        </div>
-        {data.development.length ? (
-          data.development.map((d) => (
-            <div key={d.id}>
-              <i>{d.status === "Concluída" ? "✓" : "↗"}</i>
-              <span>
-                <b>{d.title}</b>
-                <small>
-                  {d.owner_email} · prazo {d.due_date}
-                </small>
-              </span>
-              <em>{d.status}</em>
-              {d.status === "Aberta" && (
-                <button onClick={() => open("completeDevelopment", d.id)}>
-                  Concluir
-                </button>
-              )}
-            </div>
-          ))
-        ) : (
-          <Vazio texto="As ações surgem após avaliações finalizadas." />
-        )}
-      </article>
-      {error && !modal && <p className="erro-global">{error}</p>}
-      {modal && (
-        <div className="modal-inline">
-          <form onSubmit={submit}>
-            <header>
+
+ const pending=data.reviews.filter(x=>!['Finalizada','Cancelada'].includes(x.status)),finalized=data.reviews.filter(x=>x.status==='Finalizada'),avg=finalized.length?Math.round(finalized.reduce((n,x)=>n+Number(x.final_score_bps||0),0)/finalized.length/100):0;
+ const canCalibrate=['Administrador','Recursos Humanos'].includes(role),reviewEditing=['selfReview','managerReview','calibrate'].includes(modal);
+ function open(kind:string,id=''){
+  setError('');setDraftNotice('');setSelected(id);setModal(kind);setDraft({});
+  if(['selfReview','managerReview','calibrate'].includes(kind)){setDetailTab(kind==='calibrate'?'skills':'results');try{const saved=JSON.parse(sessionStorage.getItem(draftKey(kind,id))||'{}');setDraft(Object.fromEntries(['rating','comment','reason'].filter(key=>typeof saved[key]==='string').map(key=>[key,saved[key]])))}catch{}}
+ }
+ const visibleReviews=data.reviews.filter(review=>(!cycleFilter||review.cycle_id===cycleFilter)&&(!departmentFilter||review.department_name===departmentFilter)&&(!stateFilter||(stateFilter==='inProgress'?!['Finalizada','Cancelada'].includes(review.status):review.status===stateFilter))&&(reviewTab!=='calibration'||review.status==='Calibração'));
+ const currentReview=visibleReviews.find(review=>review.id===selectedReview)||visibleReviews[0],currentGoals=(data.goals||[]).filter(goal=>goal.review_id===currentReview?.id);
+ const initials=(name:string)=>name.trim().split(/\s+/).map(word=>word[0]).slice(0,2).join('').toUpperCase();
+ const number=(value:number)=>new Intl.NumberFormat(screenLocale,{maximumFractionDigits:2}).format(value),score=(value:number|undefined)=>typeof value==='number'?number(value/100)+'%':'—';
+ function developmentTable(reviewId?:string){const items=data.development.filter(item=>reviewId?item.review_id===reviewId:visibleReviews.some(review=>review.id===item.review_id));return <><div className="workspace-record-table review-development-table"><table><thead><tr><th>{w('goals')}</th><th>{w('owner')}</th><th>{w('deadline')}</th><th>{w('status')}</th><th>{w('open')}</th></tr></thead><tbody>{items.map(item=><tr key={item.id}><td><details><summary>{item.title}</summary>{item.description&&<p>{item.description}</p>}{item.completion_evidence&&<p>{item.completion_evidence}</p>}</details></td><td>{data.people.find(person=>person.email===item.owner_email)?.name||item.owner_email}</td><td>{item.due_date}</td><td>{item.status}</td><td>{item.status==='Aberta'&&<button disabled={Boolean(modal)} onClick={()=>open('completeDevelopment',item.id)}>Concluir</button>}</td></tr>)}</tbody></table></div>{!items.length&&<p className="review-empty">{w('reviewEmptyDevelopment')}</p>}</>}
+const form = modal ? (
+        <div className={["selfReview","managerReview","calibrate"].includes(modal)?"workspace-detail review-inline-form":"modal-inline"}>
+          <form key={modal+selected} ref={reviewFormRef} onSubmit={submit}>
+            {!reviewEditing&&<header>
               <div>
                 <small>PERFORMANCE REVIEWS</small>
                 <h2>
@@ -6951,14 +6525,14 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
               <button type="button" onClick={() => setModal("")}>
                 ×
               </button>
-            </header>
+            </header>}
             {modal === "createReview" ? (
               <>
                 <label>
                   Ciclo ativo
                   <select name="cycleId" required>
                     <option value="">Selecionar</option>
-                    {data.cycles.map((c) => (
+                    {data.cycles.filter(c=>c.status==='Ativo').map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
@@ -7039,7 +6613,7 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
               <>
                 <label>
                   Classificação de competências
-                  <select name="rating" required>
+                  <select name="rating" required defaultValue={draft.rating||''}>
                     <option value="">Selecionar</option>
                     {[1, 2, 3, 4, 5].map((n) => (
                       <option key={n} value={n}>
@@ -7060,25 +6634,27 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
                 {modal === "calibrate" ? (
                   <label>
                     Fundamentação da calibração
-                    <textarea name="reason" minLength={10} rows={4} required />
+                    <textarea name="reason" minLength={10} rows={4} required defaultValue={draft.reason||''} />
                   </label>
                 ) : (
                   <label>
-                    Comentário
-                    <textarea name="comment" minLength={3} rows={4} required />
+                    {modal==='managerReview'?w('reviewManagerComment'):w('reviewComments')}
+                    <textarea name="comment" minLength={3} rows={3} required defaultValue={draft.comment||''} />
                   </label>
                 )}
-                <aside className="review-note">
-                  <b>Cálculo protegido</b>
+                <details className="review-note">
+                  <summary>Cálculo protegido</summary>
                   <p>
                     A classificação não altera os 60% derivados dos snapshots
                     objetivos.
                   </p>
-                </aside>
+                </details>
               </>
             )}
             {error && <p className="erro-form">{error}</p>}
+            {draftNotice&&<p role="status" className="review-draft-notice">{draftNotice}</p>}
             <footer>
+              {reviewEditing&&<button type="button" className="secundario" disabled={busy} onClick={saveDraft}>{w('reviewDraft')}</button>}
               <button
                 type="button"
                 className="secundario"
@@ -7087,14 +6663,95 @@ function ReviewsWorkspace({ actor, role }: { actor: string; role: string }) {
                 Cancelar
               </button>
               <button className="primario" disabled={busy}>
-                {busy ? "A guardar…" : "Confirmar"}
+                {busy ? "A guardar…" : reviewEditing?w('reviewSubmit'):"Confirmar"}
               </button>
             </footer>
           </form>
         </div>
-      )}
-    </section>
-  );
+      ) : null;
+ return <section className="reviews workspace-table-screen review-approved">
+  <header className="workspace-screen-heading"><h1>{w('teamReviews')}</h1><div className="workspace-record-actions review-filters">
+   <label>{w('cycle')}<select aria-label={w('cycle')} disabled={Boolean(modal)} value={cycleFilter} onChange={event=>setCycleFilter(event.target.value)}><option value="">{w('all')}</option>{data.cycles.map(cycle=><option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}</select></label>
+   <label>{w('department')}<select aria-label={w('department')} disabled={Boolean(modal)} value={departmentFilter} onChange={event=>setDepartmentFilter(event.target.value)}><option value="">{w('reviewAllDepartments')}</option>{[...new Set(data.reviews.flatMap(review=>review.department_name?[review.department_name]:[]))].map(department=><option key={department}>{department}</option>)}</select></label>
+   <label>{w('status')}<select aria-label={w('status')} disabled={Boolean(modal)} value={stateFilter} onChange={event=>setStateFilter(event.target.value)}><option value="">{w('all')}</option><option value="inProgress">{w('reviewInProgress')}</option>{[...new Set(data.reviews.map(review=>review.status))].map(status=><option key={status}>{status}</option>)}</select></label>
+   <button className="primario" disabled={Boolean(modal)||busy} onClick={()=>open('createReview')}>＋ {w('reviewStart')}</button>
+  </div></header>
+  <nav className="workspace-flat-tabs review-primary-tabs" aria-label={w('reviewList')}>{[['reviews','reviewList'],['feedback','reviewFeedback'],['development','reviewDevelopment'],['calibration','reviewCalibration']].map(([tab,key])=><button type="button" key={tab} aria-current={reviewTab===tab?'page':undefined} disabled={Boolean(modal)} onClick={()=>{setReviewTab(tab);setDetailTab(tab==='feedback'?'comments':tab==='calibration'?'skills':'results')}}>{w(key as Parameters<typeof workspaceText>[1])}</button>)}</nav>
+  {reviewTab==='development'?<section className="review-development-overview">{developmentTable()}</section>:<>
+   <div className="workspace-record-table review-team-table"><table><thead><tr><th>{payrollSheetCopy.employee[{pt:0,en:1,es:2,fr:3,ru:4}[screenLocale]]}</th><th>{w('reviewJob')}</th><th>{w('reviewer')}</th><th>{w('reviewGoals')}</th><th>{w('status')}</th><th title={w('reviewCycleEnd')}>{w('deadline')}</th><th><span className="sr-only">{w('details')}</span></th></tr></thead><tbody>{visibleReviews.map(review=><tr key={review.id} className={currentReview===review?'selected':''} onClick={()=>{if(!modal){setSelectedReview(review.id);setDraftNotice('')}}}>
+    <td><button type="button" className="workspace-row-select review-person" disabled={Boolean(modal)} onClick={()=>{if(!modal)setSelectedReview(review.id)}}><span className="review-avatar" aria-hidden="true">{initials(review.subject_name)}</span><span>{review.subject_name}<small>{review.subject_number||review.subject_email}</small></span></button></td>
+    <td>{review.subject_job_title||'—'}</td><td><span className="review-person"><span className="review-avatar" aria-hidden="true">{initials(review.reviewer_name)}</span><span>{review.reviewer_name}</span></span></td><td className="review-goal-count">{(data.goals||[]).filter(goal=>goal.review_id===review.id).length||review.snapshot_count||0}</td><td><span className={'workspace-status '+(review.status==='Finalizada'?'good':review.status==='Aguardando autoavaliação'?'draft':'pending')}>{review.status}</span></td><td title={w('reviewCycleEnd')}>{review.cycle_end_date?new Date(review.cycle_end_date+'T12:00:00Z').toLocaleDateString(screenLocale,{day:'2-digit',month:'short',year:'numeric'}):'—'}</td><td><button type="button" className="review-row-more" disabled={Boolean(modal)} aria-label={w('details')+' · '+review.subject_name} onClick={()=>{setSelectedReview(review.id);setDetailTab('comments')}}>···</button></td>
+   </tr>)}</tbody></table></div>
+   {!visibleReviews.length&&<Vazio texto="Crie a primeira avaliação a partir de um ciclo ativo com objetivos."/>}
+   {currentReview&&<section className="workspace-detail review-selected-detail"><header><div><h2>{currentReview.subject_name} · {modal==='managerReview'?w('reviewManager'):modal==='selfReview'?w('reviewSelf'):modal==='calibrate'?w('reviewCalibration'):w('evaluation')}</h2><p>{currentReview.cycle_name} · {currentReview.organization_name}</p></div><nav>
+    {currentReview.status==='Aguardando autoavaliação'&&currentReview.subject_email.toLowerCase()===actor.toLowerCase()&&<button disabled={Boolean(modal)} onClick={()=>open('selfReview',currentReview.id)}>Autoavaliar</button>}
+    {currentReview.status==='Aguardando gestor'&&currentReview.reviewer_email.toLowerCase()===actor.toLowerCase()&&<button disabled={Boolean(modal)} onClick={()=>open('managerReview',currentReview.id)}>Avaliar</button>}
+    {currentReview.status==='Calibração'&&canCalibrate&&![currentReview.subject_email,currentReview.reviewer_email].map(email=>email.toLowerCase()).includes(actor.toLowerCase())&&<button disabled={Boolean(modal)} onClick={()=>open('calibrate',currentReview.id)}>Calibrar</button>}
+    {currentReview.status==='Finalizada'&&<button disabled={Boolean(modal)} onClick={()=>open('createDevelopment',currentReview.id)}>＋ Desenvolvimento</button>}
+   </nav></header>
+   <nav className="workspace-flat-tabs review-detail-tabs" aria-label={w('details')}>{[['results','reviewResults'],['skills','skills'],['comments','reviewComments'],['development','development']].map(([tab,key])=><button type="button" key={tab} disabled={Boolean(modal)} aria-current={detailTab===tab?'page':undefined} onClick={()=>setDetailTab(tab)}>{w(key as Parameters<typeof workspaceText>[1])}</button>)}</nav>
+   {detailTab==='results'&&<><div className="workspace-record-table review-goals-table"><table><thead><tr><th>{w('reviewGoals')}</th><th>{w('score')}</th><th>{w('target')}</th><th>{w('reviewAppraisal')}</th></tr></thead><tbody>{currentGoals.map(goal=>{const met=goal.direction==='Reduzir'?goal.value_scaled<=goal.target_scaled:goal.value_scaled>=goal.target_scaled;return <tr key={goal.goal_id}><th scope="row">{goal.title}<small>{goal.metric_name}</small></th><td>{number(goal.value_scaled/goal.scale)} {goal.unit}</td><td>{number(goal.target_scaled/goal.scale)} {goal.unit}</td><td><span className={'workspace-status '+(met?'good':'pending')}>{met?(goal.value_scaled===goal.target_scaled?w('reviewMet'):w('reviewExceeded')):w('reviewImprove')}</span></td></tr>})}</tbody></table></div>{!currentGoals.length&&<p className="review-empty">{w('reviewNoGoals')}</p>}{currentGoals.some(goal=>!goal.captured_at)&&<p className="review-source-note">{w('reviewLiveGoals')}</p>}
+    {!reviewEditing&&<section className="review-submitted-comment"><h3>{w('reviewManagerComment')}</h3><p>{currentReview.manager_comment||w('reviewNoComment')}</p></section>}
+   </>}
+   {detailTab==='skills'&&<div className="workspace-record-table review-scores-table"><table><thead><tr><th>{w('evaluation')}</th><th>{w('score')}</th></tr></thead><tbody>{[[w('reviewSelf'),currentReview.self_competency_bps],[w('reviewManager'),currentReview.manager_competency_bps],[w('reviewCalibrated'),currentReview.calibrated_competency_bps],[w('reviewGoals'),currentReview.goal_score_bps],[w('reviewResults'),currentReview.final_score_bps]].map(([label,value])=><tr key={String(label)}><th scope="row">{label}</th><td>{score(typeof value==='number'?value:undefined)}</td></tr>)}</tbody></table></div>}
+   {detailTab==='comments'&&<div className="review-comments">{[[w('reviewSelf'),currentReview.self_comment],[w('reviewManager'),currentReview.manager_comment],[w('reviewCalibration'),currentReview.calibration_reason]].map(([label,value])=><section key={label}><h3>{label}</h3><p>{value||w('reviewNoComment')}</p></section>)}</div>}
+   {detailTab==='development'&&developmentTable(currentReview.id)}
+   {reviewEditing&&form}
+   </section>}
+  </>}
+  <details className="workspace-secondary-information"><summary>{w('info')}</summary><section className="review-kpis">
+        <article>
+          <span>Em curso</span>
+          <strong>{pending.length}</strong>
+          <small>Autoavaliação, gestor ou calibração</small>
+        </article>
+        <article>
+          <span>Finalizadas</span>
+          <strong>{finalized.length}</strong>
+          <small>Decisão protegida</small>
+        </article>
+        <article>
+          <span>Nota média</span>
+          <strong>{avg}%</strong>
+          <small>60% objetivos · 40% competências</small>
+        </article>
+        <article>
+          <span>Desenvolvimento</span>
+          <strong>
+            {data.development.filter((x) => x.status === "Aberta").length}
+          </strong>
+          <small>Ações abertas</small>
+        </article>
+      </section><aside className="cartao review-governance">
+          <span>MODELO DE PONTUAÇÃO</span>
+          <h2>Decisão reproduzível</h2>
+          <div>
+            <i>60</i>
+            <span>
+              <b>Objetivos</b>
+              <small>Progresso ponderado por peso</small>
+            </span>
+            <em>%</em>
+          </div>
+          <div>
+            <i>40</i>
+            <span>
+              <b>Competências</b>
+              <small>Escala calibrada de 1 a 5</small>
+            </span>
+            <em>%</em>
+          </div>
+          <footer>
+            <b>Segregação ativa</b>
+            <p>
+              Colaborador, gestor e calibrador têm responsabilidades separadas.
+              Os snapshots das metas são imutáveis.
+            </p>
+          </footer>
+        </aside></details>
+  {error&&!modal&&<p className="erro-global">{error}</p>}
+  {!reviewEditing&&form}
+ </section>;
 }
 
 type OpenApiSpec = {
@@ -7169,5 +6826,5 @@ function ApiContract() {
 function RecentAudit({decisions}:{decisions:boolean}) {
  const [events,setEvents]=useState<AuditEvent[]|null>(null),[error,setError]=useState("");
  useEffect(()=>{let active=true;apiFetch(decisions?"/api/v1/workflow":"/api/v1/setup",{cache:"no-store"}).then(async r=>{const data=await readApiJson<{audit?:AuditEvent[];history?:AuditEvent[];error?:string}>(r);if(!r.ok)throw new Error(data.error||"Não foi possível carregar a auditoria.");if(active)setEvents((decisions?data.history:data.audit)||[])}).catch(e=>{if(active)setError(e.message)});return()=>{active=false}},[decisions]);
- return <section className="cartao"><h1>{decisions?"Histórico de decisões":"Registo de auditoria"}</h1><p>Eventos recentes devolvidos pelo serviço, dentro do âmbito autorizado. Esta lista não representa o histórico completo.</p>{error?<p role="alert">{error}</p>:events===null?<p>A carregar eventos…</p>:events.length===0?<p>Sem eventos disponíveis neste âmbito.</p>:<table><thead><tr><th>Data</th><th>Autor</th><th>Evento</th></tr></thead><tbody>{events.map(e=><tr key={e.id}><td>{new Date(e.created_at).toLocaleString("pt-AO")}</td><td>{e.actor}</td><td>{e.summary}</td></tr>)}</tbody></table>}</section>;
+ return <section className="cartao"><h1>{decisions?"Histórico de decisões":"Registo de auditoria"}</h1><p>Eventos recentes devolvidos pelo serviço, dentro do âmbito autorizado. Esta lista não representa o histórico completo.</p>{error?<p role="alert">{error}</p>:events===null?<p>A carregar eventos…</p>:events.length===0?<p>Sem eventos disponíveis neste âmbito.</p>:<table><thead><tr><th>Data</th><th>Autor</th><th>Evento</th></tr></thead><tbody>{events.map(e=><tr key={e.id}><td>{new Date(e.created_at).toLocaleString("pt-AO")}</td><td>{e.actor}</td><td><AuditEventSummary event={e}/></td></tr>)}</tbody></table>}</section>;
 }

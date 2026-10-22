@@ -2,6 +2,8 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../lib/api-client";
 import "./workforce-plans.css";
+import {usePlatformLocale} from "./use-platform-locale";
+import {workspaceText} from "../lib/workspace-navigation";
 type Plan = {
   id: string;
   name: string;
@@ -43,6 +45,8 @@ const empty: Data = {
   actual: { actual_headcount: 0, actual_monthly_base_minor: 0 },
 };
 export function WorkforcePlansWorkspace() {
+  const locale=usePlatformLocale(),w=(key:Parameters<typeof workspaceText>[1])=>workspaceText(locale,key);
+  const [tab,setTab]=useState('structure'),[department,setDepartment]=useState('');
   const [data, setData] = useState<Data>(empty),
     [period,setPeriod]=useState(new Date().toISOString().slice(0,7)),
     [selected, setSelected] = useState(""),
@@ -96,31 +100,26 @@ export function WorkforcePlansWorkspace() {
   }
   const plan = data.plans.find((x) => x.id === selected),
     money = (n: number, c: string) =>
-      new Intl.NumberFormat("pt-PT", {
+      new Intl.NumberFormat(locale, {
         style: "currency",
         currency: c,
-        maximumFractionDigits: 0,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       }).format(n / 100),
     variance =
       (plan?.planned_headcount || 0) -
       Number(data.actual?.actual_headcount || 0);
-  return (
-    <section className="headcount">
-      <label>Período dos indicadores<input type="month" value={period} onChange={e=>setPeriod(e.target.value)}/></label>
-      <header>
-        <div>
-          <span>PLANEAMENTO DE EFETIVOS · DOTAÇÃO</span>
-          <h1>Pessoas certas, custo previsto, decisão governada</h1>
-          <p>
-            Plano por função, departamento e período, comparado com o quadro e
-            perfis salariais atuais.
-          </p>
-        </div>
-        <button className="primario" onClick={() => setModal("createPlan")}>
-          ＋ Novo plano
-        </button>
-      </header>
-      <section className="hc-kpis">
+  useEffect(()=>{if(plan)setPeriod(current=>{return current<plan.start_period||current>plan.end_period?plan.start_period:current})},[plan?.id,plan?.start_period,plan?.end_period]);
+  const byDepartment=new Map<string,{headcount:number;entries:number;exits:number;cost:number;lines:number}>();
+  for(const line of data.lines.filter(line=>line.period===period)){const key=line.department_code||'—',item=byDepartment.get(key)||{headcount:0,entries:0,exits:0,cost:0,lines:0};item.headcount+=line.headcount;item.cost+=line.headcount*line.monthly_cost_minor;item.lines++;if(line.movement_type==='Nova contratação')item.entries+=line.headcount;if(line.movement_type==='Redução')item.exits+=line.headcount;byDepartment.set(key,item)}
+  const currentDepartment=byDepartment.has(department)?department:byDepartment.keys().next().value,visibleLines=tab==='movements'?data.lines:data.lines.filter(line=>line.period===period&&line.department_code===currentDepartment||line.period===period&&!line.department_code&&currentDepartment==='—');
+  return (<section className="headcount workspace-table-screen"><header className="workspace-screen-heading"><div><h1>{plan?.name||w('workforce')}</h1><p>{plan?w('version')+' '+plan.version_number+' · '+plan.status+' · '+plan.currency:'—'}</p></div><div className="workspace-record-actions"><label>{w('scope')}<select disabled={Boolean(modal)||busy} value={selected} onChange={event=>setSelected(event.target.value)}><option value="">Selecionar</option>{data.plans.map(item=><option key={item.id} value={item.id}>{item.name} · v{item.version_number}</option>)}</select></label><label>{w('horizon')}<input type="month" disabled={Boolean(modal)||busy} value={period} onChange={event=>setPeriod(event.target.value)}/></label><button className="secundario" disabled={Boolean(modal)||busy} onClick={()=>setModal('createPlan')}>＋ Novo plano</button>{plan?.status==='Rascunho'&&<button className="primario" disabled={busy} onClick={()=>command({type:'submitPlan',planId:plan.id})}>Submeter</button>}{plan?.status==='Submetido'&&<button className="primario" disabled={busy} onClick={()=>command({type:'approvePlan',planId:plan.id})}>Aprovar</button>}</div></header>
+   <nav className="workspace-flat-tabs">{(['structure','movements','costs','versions'] as const).map(key=><button type="button" key={key} aria-current={tab===key?'page':undefined} disabled={Boolean(modal)} onClick={()=>setTab(key)}>{w(key)}</button>)}</nav>
+   {tab==='versions'?<div className="workspace-record-table"><table><thead><tr><th>{w('workforce')}</th><th>{w('scope')}</th><th>{w('version')}</th><th>{w('horizon')}</th><th>{w('status')}</th></tr></thead><tbody>{data.plans.map(item=><tr key={item.id} className={selected===item.id?'selected':''}><td><button type="button" className="workspace-row-select" onClick={()=>{setSelected(item.id);setTab('structure')}}>{item.name}</button></td><td>{item.organization_name}</td><td>{item.version_number}</td><td>{item.start_period} → {item.end_period}</td><td>{item.status}</td></tr>)}</tbody></table></div>:<>
+    {tab!=='movements'&&<div className="workspace-record-table"><table><thead><tr><th>{w('department')}</th><th>{w('plannedEntries')}</th><th>{w('plannedExits')}</th><th>{w('plannedHeadcount')}</th><th>{w('monthlyCost')} ({plan?.currency||'AOA'})</th></tr></thead><tbody>{[...byDepartment].map(([key,item])=><tr key={key} className={currentDepartment===key?'selected':''} onClick={()=>{if(!modal)setDepartment(key)}}><td><button type="button" className="workspace-row-select" disabled={Boolean(modal)} onClick={()=>{if(!modal)setDepartment(key)}}>{key}</button></td><td>{item.entries}</td><td>{item.exits}</td><td>{item.headcount}</td><td>{money(item.cost,plan?.currency||'AOA')}</td></tr>)}</tbody><tfoot><tr><th>Total</th><td>{[...byDepartment.values()].reduce((sum,item)=>sum+item.entries,0)}</td><td>{[...byDepartment.values()].reduce((sum,item)=>sum+item.exits,0)}</td><td>{plan?.planned_headcount??'—'}</td><td>{plan?money(plan.planned_monthly_cost_minor,plan.currency):'—'}</td></tr></tfoot></table></div>}
+    <section className="workspace-detail"><header><div><h2>{tab==='movements'?w('movements'):(currentDepartment||w('department'))+' · '+w('movements')}</h2>{plan&&<p>{plan.organization_name} · {plan.start_period} → {plan.end_period}</p>}</div>{plan?.status==='Rascunho'&&<button className="primario" disabled={busy} onClick={()=>setModal('addPlanLine')}>＋ {w('addMovement')}</button>}</header><div className="workspace-record-table"><table><thead><tr><th>Função</th><th>Período</th><th>{w('movements')}</th><th>{w('plannedHeadcount')}</th><th>Custo unit.</th><th>{w('monthlyCost')}</th><th>{w('assumptions')}</th></tr></thead><tbody>{visibleLines.map(line=><tr key={line.id}><td><b>{line.job_title}</b><small>{line.department_code||'—'}</small></td><td>{line.period}</td><td>{line.movement_type}</td><td>{line.headcount}</td><td>{money(line.monthly_cost_minor,plan?.currency||'AOA')}</td><td>{money(line.headcount*line.monthly_cost_minor,plan?.currency||'AOA')}</td><td>{line.assumption_note}</td></tr>)}</tbody></table></div>{!visibleLines.length&&<p className="hc-empty">Crie ou selecione um plano e registe as necessidades por período.</p>}</section>
+   </>}
+   <details className="workspace-secondary-information"><summary>{w('info')}</summary><section className="hc-kpis">
         <article>
           <span>Headcount atual</span>
           <strong>{data.actual?.actual_headcount || 0}</strong>
@@ -146,99 +145,7 @@ export function WorkforcePlansWorkspace() {
           </strong>
           <small>Headcount × custo unitário</small>
         </article>
-      </section>
-      <div className="hc-grid">
-        <article className="cartao hc-lines">
-          <div className="cab">
-            <div>
-              <span>PLANO</span>
-              <h2>Funções e movimentos</h2>
-            </div>
-            <select
-              value={selected}
-              onChange={(e) => setSelected(e.target.value)}
-            >
-              <option value="">Selecionar</option>
-              {data.plans.map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.name} · v{x.version_number} · {x.status}
-                </option>
-              ))}
-            </select>
-          </div>
-          {plan && (
-            <div className="hc-plan-head">
-              <span>
-                <b>{plan.organization_name}</b>
-                <small>
-                  {plan.start_period} → {plan.end_period}
-                </small>
-              </span>
-              <em>{plan.status}</em>
-              <nav>
-                {plan.status === "Rascunho" && (
-                  <>
-                    <button onClick={() => setModal("addPlanLine")}>
-                      ＋ Linha
-                    </button>
-                    <button
-                      onClick={() =>
-                        command({ type: "submitPlan", planId: plan.id })
-                      }
-                    >
-                      Submeter
-                    </button>
-                  </>
-                )}
-                {plan.status === "Submetido" && (
-                  <button
-                    onClick={() =>
-                      command({ type: "approvePlan", planId: plan.id })
-                    }
-                  >
-                    Aprovar
-                  </button>
-                )}
-              </nav>
-            </div>
-          )}
-          {data.lines.length ? (
-            <table>
-              <thead>
-                <tr>
-                  <th>Período</th>
-                  <th>Função</th>
-                  <th>Movimento</th>
-                  <th>HC</th>
-                  <th>Custo unit.</th>
-                  <th>Pressuposto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.lines.map((x) => (
-                  <tr key={x.id}>
-                    <td>{x.period}</td>
-                    <td>
-                      <b>{x.job_title}</b>
-                      <small>{x.department_code || "Geral"}</small>
-                    </td>
-                    <td>{x.movement_type}</td>
-                    <td>{x.headcount}</td>
-                    <td>
-                      {money(x.monthly_cost_minor, plan?.currency || "AOA")}
-                    </td>
-                    <td>{x.assumption_note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="hc-empty">
-              Crie ou selecione um plano e registe as necessidades por período.
-            </p>
-          )}
-        </article>
-        <aside className="cartao hc-control">
+      </section><aside className="cartao hc-control">
           <span>GOVERNAÇÃO</span>
           <h2>Controlo do plano</h2>
           <dl>
@@ -262,11 +169,10 @@ export function WorkforcePlansWorkspace() {
             Custos usam valores inteiros em minor units. Country Packs definem
             encargos legais; o Core não presume impostos ou regras laborais.
           </footer>
-        </aside>
-      </div>
+        </aside></details>
       {error && <p className="erro-global">{error}</p>}
       {modal && (
-        <div className="modal-inline">
+        <div className={modal==='addPlanLine'?'workspace-detail workforce-inline-form':'modal-inline'}>
           <form onSubmit={submit}>
             <header>
               <div>

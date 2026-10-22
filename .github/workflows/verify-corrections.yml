@@ -21,3 +21,19 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+
+      # A version upload does not activate a production deployment.
+      # Restrict credential access to this repository's explicitly approved review branch.
+      - name: Prepare PR 40 version configuration
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 40 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'feat/faithful-payroll-reports-20261020' }}
+        run: node scripts/patch-production-wrangler.mjs
+        env:
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+
+      - name: Upload review version without production activation
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 40 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'feat/faithful-payroll-reports-20261020' }}
+        run: node scripts/upload-review-version.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}

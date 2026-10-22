@@ -1,3 +1,4 @@
+import {studyActivityCopy} from './study-activity-copy';
 import {buildPlanningModel,studySheets,planningDreRows,planningBalanceRows,planningCashRows,planningMetricRows,type StudyAssumptions,type PlanningResult} from './feasibility-planning';
 import {StudyModel,address,column,formula,add,sub,mul,div,pow,max,min,round,when,eq,lt,le,expr,type Expr} from './study-model';
 import {feasibility} from './feasibility-engine';
@@ -10,7 +11,7 @@ export type StudyDocument={name:string;organization:string;currency:string;id?:s
 function cellValue(cell:XlsxCell|undefined){return typeof cell==='object'&&cell!==null?cell.value:cell??''}
 export function workbookPreview(sheets:SheetInput[],years:number){return sheets.map((sheet,i)=>{const periodic=i!==0&&i!==4&&i!==11,start=i===0||i===4||i===11?0:43;const entries=sheet.rows.slice(start).map((row,n)=>({values:row.slice(0,i===0?5:i===11?3:years+3).map(cellValue),styles:row.slice(0,i===0?5:i===11?3:years+3).map(c=>typeof c==='object'&&c!==null?c.style??0:0),annotation:sheet.rowNotes?.[n+start+1]})).filter(row=>row.values.some(v=>v!==''));const notes=periodic?entries.filter(r=>r.values.length===1).map(r=>String(r.values[0])):[],table=periodic?entries.filter(r=>r.values.length!==1):entries;return {name:sheet.name,rows:table.map(r=>r.values),styles:table.map(r=>r.styles),annotations:table.map(r=>r.annotation),notes}})}
 export function studyWorkbook(input:StudyAssumptions,meta:StudyDocument,index=0,provided?:PlanningResult|null):SheetInput[]{
- if(!input.planning)return legacyWorkbook(input,meta,index);
+ if(!input.planning){const sheets=legacyWorkbook(input,meta,index);attachActivityInputs(sheets,input,index);return sheets;}
  const p=provided||buildPlanningModel(input),analysis=financialAnalysis(p),names=[...studySheets,...analysisSheets];const labels:Record<string,number>[]=[{},planningDreRows,planningBalanceRows,planningCashRows,planningMetricRows],sheets:SheetInput[]=names.map((name,i)=>({name,rows:[[i===0?meta.name:name,meta.organization,meta.currency,meta.id||'',meta.dirty?'Draft':'Saved'],[],[]],protect:true,hiddenColumns:i===0?[5,6]:undefined,hiddenRows:i===3?[36,37,38,40,41,42,43]:i===2?[28]:undefined,freeze:i!==4,widths:i===0?[30,65,20,20,75]:i===4?[58,24,72]:[50,22,...Array(361).fill(16)]}));
  const write=(i:number,row:number,col:number,v:XlsxCell)=>{while(sheets[i].rows.length<row)sheets[i].rows.push([]);sheets[i].rows[row-1][col]=v};
  for(const [key,e] of p.model.cells){const match=key.match(/^'([^']+)'!([A-Z]+)(\d+)$/)!;const i=names.indexOf(match[1]),col=[...match[2]].reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)-1;write(i,Number(match[3]),col,typeof e==='number'?{value:e,style:i===0?2:1}:{formula:formula(e),value:p.model.get(key),style:1});}
@@ -47,7 +48,7 @@ export function studyWorkbook(input:StudyAssumptions,meta:StudyDocument,index=0,
  for(const [n,row] of analysis.summaryRows.entries())write(4,row,0,['VAL FCFF / WACC','VAL FCFF / Ke','VAL FCFE / Ke','TIR FCFE (%)','Payback FCFE','Payback FCFE / Ke','Payback FCFF / WACC','Payback FCFF / Ke'][n]);
  sheets[0].validations=p.inputRows.map(entry=>{const v=inputValidation(entry.key,'C'+entry.row);if(entry.key==='graceMonths')v.max='$C$'+p.inputRows.find(r=>r.key==='debtMonths')!.row+'-1';if(entry.key==='residual')v.max='$C$'+p.inputRows.find(r=>r.key==='capex')!.row;return v});for(let i=0;i<24;i++)sheets[0].validations.push({range:'C'+(p.eventStart+i),type:'whole',min:0,max:360},{range:'D'+(p.eventStart+i),type:'decimal',min:0,max:1000000000000});
  const notes=[integratedCopy.previewNote[index],integratedCopy.method[index],integratedCopy.exitNote[index],integratedCopy.coverageNote[index],integratedCopy.valuationNote[index]];for(const [i,note] of notes.entries())write(4,23+i,0,note);
- write(4,28,0,'Model 3 · '+meta.name+' · '+meta.currency);applyResultColors(sheets);return sheets;
+ write(4,28,0,'Model 3 · '+meta.name+' · '+meta.currency);applyResultColors(sheets);attachActivityInputs(sheets,input,index);return sheets;
 }
 // The established annual model remains mathematically identical, including its
 // initial working capital convention. Its workbook also has five live sheets.
@@ -87,4 +88,21 @@ function applyResultColors(sheets:SheetInput[]){
    if(row.length<3)return;const range='C'+(n+1)+':'+column(row.length-1)+(n+1);(typeof first==='object'&&first.style===7?sheet.signedTotalRanges!:sheet.signedRanges!).push(range);
   });
  }
+}
+
+function attachActivityInputs(sheets:SheetInput[],input:StudyAssumptions,index:number){
+ if(input.activityLines===undefined)return;
+ const sheet=sheets[0],copy=studyActivityCopy,start=sheet.rows.length+3;
+ while(sheet.rows.length<start-1)sheet.rows.push([]);
+ sheet.rows.push([{value:copy.products[index],style:3},'','','','','','ACTIVITY_MODE']);
+ sheet.rows.push([copy.description[index],copy.units[index],copy.price[index],copy.cost[index]].map(value=>({value,style:3})));
+ const references=input.activityLines.map((line,n)=>{
+  const row=start+2+n;sheet.rows.push([{value:line.description,style:2},{value:line.units,style:2},{value:line.price,style:2},{value:line.unitCost,style:2},'',line.id,'ACTIVITY_LINE']);
+  return {row,units:address(studySheets[0],row,1),price:address(studySheets[0],row,2),cost:address(studySheets[0],row,3)};
+ });
+ const units=add(...references.map(line=>line.units)),revenue=add(...references.map(line=>mul(line.units,line.price))),cost=add(...references.map(line=>mul(line.units,line.cost)));
+ const expressions={units,price:when(eq(units,0),0,div(revenue,units)),unitCost:when(eq(units,0),0,div(cost,units))};
+ sheet.validations=(sheet.validations||[]).filter(validation=>!sheet.rows.some((row,n)=>['units','price','unitCost'].includes(String(row[6]))&&validation.range==='C'+(n+1)));
+ for(const [n,row] of sheet.rows.entries()){const key=String(row[6]);if(key==='units'||key==='price'||key==='unitCost')row[2]={formula:formula(expressions[key]),value:input[key],style:1};}
+ for(const line of references)for(const column of ['B','C','D'])sheet.validations.push({range:column+line.row,type:'decimal',min:0,max:1000000000000});
 }

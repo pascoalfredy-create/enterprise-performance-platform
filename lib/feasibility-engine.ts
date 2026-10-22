@@ -1,6 +1,7 @@
+import {validateActivityDrivers,type StudyActivityLine} from './study-activity.ts';
 // Nominal annual project cash flows; cash flows discounted at year end, investment at t=0.
 export type FeasibilityInput={years:number;capex:number;residual:number;units:number;price:number;unitCost:number;fixedCosts:number;volumeGrowth:number;priceGrowth:number;costGrowth:number;taxRate:number;discountRate:number;receivableDays:number;inventoryDays:number;payableDays:number};
-export type FeasibilityAssumptions=FeasibilityInput&{activityPeriod?:'year'|'month'};
+export type FeasibilityAssumptions=FeasibilityInput&{activityPeriod?:'year'|'month';activityLines?:StudyActivityLine[]};
 export const feasibilityDefaults:FeasibilityInput={years:5,capex:0,residual:0,units:0,price:0,unitCost:0,fixedCosts:0,volumeGrowth:0,priceGrowth:0,costGrowth:0,taxRate:0,discountRate:12,receivableDays:0,inventoryDays:0,payableDays:0};
 export function netPresentValue(flows:number[],rate:number){
  if(!flows.length||!Number.isFinite(rate)||rate<=-1||flows.some(v=>!Number.isFinite(v)))throw new Error('Premissa inválida: fluxos ou taxa de desconto.');
@@ -15,6 +16,7 @@ export function internalRateOfReturn(flows:number[]){
  const result=(lo+hi)/2*100;return Number.isFinite(result)?Math.abs(result)<1e-10?0:result:null;
 }
 export function feasibility(input:FeasibilityAssumptions,options:{allowZeroInvestment?:boolean}={}){
+ validateActivityDrivers(input);
  for(const key of Object.keys(feasibilityDefaults) as (keyof FeasibilityInput)[])if(typeof input[key]!=='number'||!Number.isFinite(input[key]))throw new Error('Premissa inválida ou em falta: '+key);
  if(input.activityPeriod!==undefined&&!['year','month'].includes(input.activityPeriod))throw new Error('Premissa inválida: período dos dados.');
  if(!Number.isInteger(input.years)||input.years<1||input.years>30||input.capex<(options.allowZeroInvestment?0:0.01)||input.residual<0||input.residual>input.capex||['units','price','unitCost','fixedCosts'].some(key=>input[key as keyof FeasibilityInput]<0)||input.taxRate<0||input.taxRate>100||input.discountRate<0||input.discountRate>100||[input.volumeGrowth,input.priceGrowth,input.costGrowth].some(x=>x<=-100||x>100)||[input.receivableDays,input.inventoryDays,input.payableDays].some(x=>x<0||x>365))throw new Error(options.allowZeroInvestment?'Reveja as premissas: horizonte 1–30 anos, investimento não negativo, residual até ao investimento, taxas e prazos dentro dos limites.':'Reveja as premissas: horizonte 1–30 anos, investimento mínimo de 0,01, taxas e prazos dentro dos limites.');

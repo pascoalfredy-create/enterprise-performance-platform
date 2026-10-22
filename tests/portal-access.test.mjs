@@ -42,7 +42,7 @@ test("portal navigation is driven by entitlements", () => {
     assert.match(page, new RegExp(code));
   assert.match(page, /sessao\.modules\.includes/);
 });
-test("the whole platform inherits only the 10 12 14 enterprise UI scale", () => {
+test("legacy typography stays outside the approved workspace", () => {
   assert.match(layout, /ui-typography\.css/);
   assert.match(layout, /ui-scale/);
   for (const size of ["10px", "12px", "14px"])
@@ -57,7 +57,9 @@ test("the whole platform inherits only the 10 12 14 enterprise UI scale", () => 
     "30px",
   ])
     assert.doesNotMatch(typography, new RegExp(`:${forbidden}`));
-  assert.match(typography, /ui-scale\.ui-scale\.ui-scale/);
+  assert.match(typography, /ui-scale:not\(:has\(\.workspace-approved\)\)/);
+  const approved = fs.readFileSync(new URL("../app/approved-workspace.css", import.meta.url), "utf8");
+  assert.match(approved, /font:14px/);
 });
 test("enterprise cards share one responsive geometry system", () => {
   assert.match(layout, /enterprise-layout\.css/);
@@ -140,13 +142,13 @@ test("absence management is a functional governed HCM workspace", () => {
 });
 test("workflow is a real cross-engine decision inbox", () => {
   assert.match(page, /WorkflowInbox/);
-  assert.match(page, /Decisões pendentes num único lugar/);
+  assert.match(page, /w\('inboxTitle'\)/);
   assert.match(page, /Abrir origem/);
   assert.doesNotMatch(page, /label:"Tarefas e aprovações",future:true/);
 });
 test("performance action plans are operational and evidence governed", () => {
   assert.match(page, /ActionPlans/);
-  assert.match(page, /Transformar explicação em responsabilidade/);
+  assert.match(page, /w\('actionPlans'\)/);
   assert.match(page, /completion_evidence/);
   assert.doesNotMatch(page, /label:"Planos de ação",future:true/);
 });
@@ -158,13 +160,13 @@ test("forecast and scenarios are a functional FP&A workspace", () => {
 });
 test("performance goals are measurable and check-in governed", () => {
   assert.match(page, /GoalsWorkspace/);
-  assert.match(page, /Objetivos mensuráveis, progresso verificável/);
+  assert.match(page, /w\('goals'\)/);
   assert.match(page, /goalCheckin/);
   assert.doesNotMatch(page, /label:"Objetivos",future:true/);
 });
 test("performance reviews expose governed evaluation and development", () => {
   assert.match(page, /ReviewsWorkspace/);
-  assert.match(page, /Avaliar com evidência, calibrar com independência/);
+  assert.match(page, /w\('teamReviews'\)/);
   assert.match(page, /60% objetivos · 40% competências/);
   assert.doesNotMatch(page, /label:"Avaliações",future:true/);
 });
@@ -275,7 +277,7 @@ test("headcount planning is operational and no longer future", () => {
   );
   assert.match(page, /WorkforcePlansWorkspace/);
   assert.doesNotMatch(page, /label:"Headcount plan",future:true/);
-  assert.match(workspace, /Pessoas certas, custo previsto, decisão governada/);
+  assert.match(workspace, /workspace-record-table/);
   assert.match(workspace, /submitPlan/);
   assert.match(workspace, /approvePlan/);
 });
@@ -339,7 +341,7 @@ test("integration hub orchestrates governed sources mappings and runs", () => {
     );
   assert.match(page, /IntegrationsWorkspace/);
   assert.doesNotMatch(page, /label:"Fontes de dados",future:true/);
-  assert.match(workspace, /Dados conectados, validação antes da verdade/);
+  assert.match(workspace, /w\('monitoringTitle'\)/);
   assert.match(api, /idempotencyKey/);
   assert.match(api, /validateRun/);
   assert.match(api, /decideRun/);
@@ -422,7 +424,7 @@ test("enterprise shell exposes search profile help and legal trust surfaces", ()
 });
 test("redundant top shortcuts bar is gone, help and command palette remain", () => {
   assert.doesNotMatch(page, /className="atalhos"/);
-  assert.match(page, /setCommandMode\("help"\)/);
+  assert.match(page, /setCommandMode\(['"]help['"]\)/);
   assert.match(page, /ctrlKey\s*\|\|\s*e\.metaKey/);
 });
 test("RH presents Payroll as a governed submodule", () => {
