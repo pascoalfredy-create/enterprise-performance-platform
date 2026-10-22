@@ -27,7 +27,8 @@ const escape=s=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>',
 test('module bar shows main areas above the workspace and keeps all others in More',()=>{
  const html=render(WorkspaceModuleBar,{domains,active:'INTEGRATIONS',locale:'pt',name:code=>code,onDomain:noop});
  for(const d of domains)assert(html.includes(escape(d.code)),d.code);
- assert(html.includes('value="INTEGRATIONS" selected=""'));
+ assert(html.includes('value="" selected=""'),'More stays a compact launcher while the sidebar identifies the current module');
+ assert(html.includes('value="INTEGRATIONS"'),'The current module remains reachable from More');
  assert(html.includes('workspace-modules'));
  assert(html.includes('Mais módulos'));
  assert(!html.includes('workspace-module-picker'));
