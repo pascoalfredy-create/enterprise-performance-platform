@@ -214,9 +214,9 @@ test("business planning connects drivers results financing and cash flow", () =>
     "utf8",
   );
   assert.match(page, /FinancialModelsWorkspace/);
-  assert.match(page, /Drivers e plano de negócios/);
-  assert.match(page, /Cash-flow e financiamento/);
-  assert.match(workspace, /Do pressuposto à liquidez/);
+  assert.match(page, /Plano de negócios mensal/);
+  assert.match(workspace, /"Cash-flow"/);
+  assert.match(workspace, /planningWorkspaceCopy/);
   assert.match(workspace, /calculateModel/);
   assert.match(workspace, /approveModel/);
 });

@@ -1,5 +1,7 @@
 const L=(s:string)=>s.split('|');
 export const payrollSheetCopy={
+ salaryDimension:L('Dimensão de imputação|Cost allocation dimension|Dimensión de imputación|Dimension d’affectation|Аналитика отнесения затрат'),
+ noSalaryDimension:L('Sem dimensão|No dimension|Sin dimensión|Sans dimension|Без аналитики'),
  contractNumber:L('Número do contrato|Contract number|Número de contrato|Numéro du contrat|Номер договора'),
  contractType:L('Tipo de contrato|Contract type|Tipo de contrato|Type de contrat|Тип договора'),
  workSchedule:L('Horário de trabalho|Work schedule|Horario de trabajo|Horaire de travail|График работы'),

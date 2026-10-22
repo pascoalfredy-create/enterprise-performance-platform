@@ -132,12 +132,7 @@ const moduleCatalog: Array<{
         target: "Investimento",
         document: true,
       },
-      { label: "Drivers e plano de negócios", target: "Modelação" },
-      {
-        label: "Cash-flow e financiamento",
-        target: "Cash-flow",
-        document: true,
-      },
+      { label: "Plano de negócios mensal", target: "Modelação" },
       { label: "Consolidação e câmbio", target: "Consolidação" },
     ],
   },
@@ -540,8 +535,10 @@ export default function Home() {
             <ReportsHubWorkspace groups={reportsGroups} onNavigate={openReportTarget} onOpenStudy={(id,map)=>{setStudyReportSelection({id,map});setReportTarget("Investimento");setCurrentModule("Investimento");setMobileMenu(false)}} />
           ) : modulo === "Ativação" ? (
             <CustomerActivationWorkspace onNavigate={setModulo} />
-          ) : ["Administração","Utilizadores","Employee Master"].includes(modulo) ? (
-            <ConfiguracaoReal initialStep={modulo === "Utilizadores" ? 2 : modulo === "Employee Master" ? 3 : 1} autoOpenNewRecord={modulo === "Employee Master"} payrollEnabled={sessao.modules.includes("PAYROLL")} />
+          ) : modulo === "Employee Master" ? (
+            <ConfiguracaoReal key="employee-directory" initialStep={3} payrollEnabled={sessao.modules.includes("PAYROLL")} />
+          ) : ["Administração","Utilizadores"].includes(modulo) ? (
+            <ConfiguracaoReal key="organization-settings" initialStep={modulo === "Utilizadores" ? 2 : 1} payrollEnabled={sessao.modules.includes("PAYROLL")} />
           ) : modulo === "Documentos" ? (
             <DocumentHubWorkspace />
           ) : modulo === "Extratos bancários" ? (
@@ -576,10 +573,8 @@ export default function Home() {
             <FinancialDiagnosticsWorkspace />
           ) : modulo === "Investimento" ? (
             reportTarget?<SavedStudyReports initialStudyId={studyReportSelection?.id} initialMap={studyReportSelection?.map} onOrigin={id=>{setStudyOriginId(id);setReportTarget(null);setCurrentModule("Investimento")}}/>:<FinancialDiagnosticsWorkspace initialView="Investimento" initialStudyId={studyOriginId} />
-          ) : modulo === "Modelação" ? (
-            <FinancialModelsWorkspace />
-          ) : modulo === "Cash-flow" ? (
-            <FinancialModelsWorkspace initialView="Cash-flow" />
+          ) : ["Modelação","Cash-flow"].includes(modulo) ? (
+            <FinancialModelsWorkspace initialView={modulo === "Cash-flow" ? "Cash-flow" : "Plano de negócios"} onNavigate={setModulo} />
           ) : modulo === "Consolidação" ? (
             <ConsolidationWorkspace />
           ) : modulo === "Ficha do colaborador" ? (
@@ -902,6 +897,7 @@ const vazio: SetupData = {
   dimensionMembers: [],
 };
 function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=false}:{initialStep?:number;autoOpenNewRecord?:boolean;payrollEnabled?:boolean}) {
+  const employeeWorkspace=initialStep===3;
   const [selectedUser,setSelectedUser]=useState(''),[roleDraft,setRoleDraft]=useState('');
   const fileLocale=usePlatformLocale(),fileIndex={pt:0,en:1,es:2,fr:3,ru:4}[fileLocale];
   const [employeeFileId,setEmployeeFileId]=useState<string|null>(null);
@@ -1074,12 +1070,9 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
     <section className="configuracao workspace-table-screen">
       <div className="config-top">
         <div>
-          <span>CONFIGURAÇÃO BASE</span>
-          <h1>{etapa===2?workspaceText(fileLocale,'users'):etapa===3?payrollSheetCopy.newEmployee[fileIndex]:workspaceText(fileLocale,'organization')}</h1>
-          <p>
-            Crie a organização, atribua acessos e ligue cada colaborador ao seu
-            âmbito.
-          </p>
+          <span>{employeeWorkspace?workspaceText(fileLocale,'modulePeople'):'CONFIGURAÇÃO BASE'}</span>
+          <h1>{etapa===2?workspaceText(fileLocale,'users'):etapa===3?workspaceText(fileLocale,'employeeDirectory'):workspaceText(fileLocale,'organization')}</h1>
+          <p>{employeeWorkspace?workspaceText(fileLocale,'employeeDirectoryIntro'):workspaceText(fileLocale,'organizationIntro')}</p>
         </div>
         <b>{total} registos ativos</b>
       </div>
@@ -1129,22 +1122,20 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
             "Eixos e hierarquias",
             `${dados.dimensions.length} dimensões`,
           ],
-        ].map((x, i) => (
+        ].filter(x=>employeeWorkspace?x[0]==='3':x[0]!=='3').map((x) => (
           <button
             key={x[1]}
             title={x[2]+" · "+x[3]}
-            className={etapa === i + 1 ? "passo ativo" : "passo"}
+            className={etapa === Number(x[0]) ? "passo ativo" : "passo"}
             onClick={() => {
-              setEtapa(i + 1);
+              setEtapa(Number(x[0]));
               setAberto(false);
               setErro("");
             }}
           >
             <i>
               {dados[
-                ["organizations", "users", "employees", "dimensions"][
-                  i
-                ] as keyof SetupData
+                ["organizations", "users", "employees", "dimensions"][Number(x[0])-1] as keyof SetupData
               ].length
                 ? "✓"
                 : x[0]}
@@ -5180,7 +5171,8 @@ function PayrollFoundation({initialView="Perfis salariais",onMonthly}:{initialVi
       {calculoRun&&<div className="pay-calculation-modal" role="dialog" aria-modal="true" aria-label="Cálculo do processamento" onKeyDown={e=>{if(e.key==="Escape")setCalculoRun(null)}}><article><header><h2>Memória do processamento</h2><button autoFocus onClick={()=>setCalculoRun(null)}>Fechar</button></header>{(dados.lines||[]).filter(l=>l.run_id===calculoRun).map(l=><div key={l.id}><h3>{l.employee_name}</h3><PayrollCalculation snapshot={l.input_snapshot} currency={dados.runs.find(r=>r.id===calculoRun)?.currency}/></div>)}{!(dados.lines||[]).some(l=>l.run_id===calculoRun)&&<p>Não existem linhas disponíveis neste âmbito.</p>}</article></div>}
       {reviewComponent&&<div className="modal-inline" role="dialog" aria-modal="true" aria-label="Rever incidência"><form onSubmit={async e=>{e.preventDefault();setAEnviar(true);setErro("");try{const payload=Object.fromEntries(new FormData(e.currentTarget));const res=await apiFetch("/api/payroll",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...payload,type:"reviewPayrollComponent",componentId:reviewComponent.id})});const body=await res.json();if(!res.ok)throw new Error(body.error);setDados(body);setReviewComponent(null);}catch(error){setErro(error instanceof Error?error.message:"Falha na revisão")}finally{setAEnviar(false)}}}><header><h2>{reviewComponent.code} · Incidência</h2></header><label>Tratamento da rubrica<select name="treatment" required defaultValue={reviewComponent.treatment||""}><option value="">Selecionar</option>{Object.entries(payrollTreatments).filter(([key])=>validatePayrollTreatment(reviewComponent.category,key)).map(([key,label])=><option value={key} key={key}>{label}</option>)}</select></label><p className="pay-incidence-hint">A revisão aplica-se aos próximos cálculos. Os processamentos anteriores preservam a evidência original. Impostos e contribuições manuais são incompatíveis com o regime automático.</p>{erro&&<p role="alert">{erro}</p>}<footer><button type="button" onClick={()=>setReviewComponent(null)}>Cancelar</button><button disabled={aEnviar}>Guardar revisão</button></footer></form></div>}
       {erro && <p className="erro-global">{erro}</p>}
-      {modal && (
+      {modal==='salaryProfile'&&<div className="modal-inline" role="dialog" aria-modal="true" aria-label={payrollSheetCopy.file[monthlyIndex]}><article className="cartao"><header><button type="button" onClick={()=>setModal('')}>{payrollSheetCopy.close[monthlyIndex]}</button></header><EmployeePayrollFile initialSection="salary" onChanged={carregar}/></article></div>}
+      {modal && modal!=='salaryProfile' && (
         <div className="modal-inline">
           <form onSubmit={enviar}>
             <header>
@@ -5198,65 +5190,7 @@ function PayrollFoundation({initialView="Perfis salariais",onMonthly}:{initialVi
                 ×
               </button>
             </header>
-            {modal === "salaryProfile" ? (
-              <>
-                <label>
-                  Colaborador
-                  <select name="employeeId" required>
-                    <option value="">Selecionar</option>
-                    {dados.employees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.employee_number} · {e.first_name} {e.last_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div>
-                  <label>
-                    Salário base
-                    <input
-                      name="baseAmount"
-                      required
-                      inputMode="decimal"
-                      placeholder="0,00"
-                    />
-                  </label>
-                  <label>
-                    Moeda
-                    <input
-                      name="currency"
-                      required
-                      maxLength={3}
-                      defaultValue="AOA"
-                    />
-                  </label>
-                </div>
-                <div>
-                  <label>
-                    Periodicidade
-                    <select name="periodicity">
-                      <option>Mensal</option>
-                      
-                    </select>
-                  </label>
-                  <label>
-                    Vigência
-                    <input name="effectiveFrom" type="date" required />
-                  </label>
-                </div>
-                <label>
-                  Dimensão financeira
-                  <select name="dimensionMemberId">
-                    <option value="">Sem dimensão</option>
-                    {dados.members.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.dimension_name} · {m.code} · {m.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            ) : modal === "payrollComponent" ? (
+            {modal === "payrollComponent" ? (
               <>
                 <label>
                   Atribuir ao colaborador

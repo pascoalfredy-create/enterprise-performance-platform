@@ -6,9 +6,10 @@ import {pathToFileURL} from 'node:url';
 
 export function reviewContext(event,repository){
   const pr=event.pull_request;
-  if(pr?.number!==40||pr.head?.repo?.full_name!==repository||pr.head?.ref!=='feat/faithful-payroll-reports-20261020')
-    throw new Error('Only the same-repository PR #40 review branch may upload this version.');
-  return 'pr-40';
+  const allowed=new Map([[40,'feat/faithful-payroll-reports-20261020'],[41,'fix/canonical-workspaces-20261022']]);
+  if(!pr||pr.head?.repo?.full_name!==repository||allowed.get(pr.number)!==pr.head?.ref)
+    throw new Error('Only explicitly approved same-repository review branches may upload a version.');
+  return `pr-${pr.number}`;
 }
 export function checkReviewConfig(config,databaseId){
   if(!databaseId||config.name!=='enterprise-performance-platform'||config.keep_vars!==true||
@@ -35,7 +36,7 @@ async function main(){
   }
   const before=await snapshot();
   const output=execFileSync(process.execPath,['node_modules/wrangler/bin/wrangler.js','versions','upload',
-    '--config',configPath,'--preview-alias',alias,'--message','PR #40 — visual review, no production activation'],
+    '--config',configPath,'--preview-alias',alias,'--message',`${alias} — visual review, no production activation`],
     {encoding:'utf8',maxBuffer:8*1024*1024,env:{...process.env,WRANGLER_SEND_METRICS:'false'}});
   process.stdout.write(output);
   const clean=output.replace(/\u001b\[[0-9;]*m/g,'');
@@ -44,7 +45,7 @@ async function main(){
   const after=await snapshot();
   if(before!==after)throw new Error('The active deployment changed during review upload. Inspect before continuing; no rollback was attempted.');
   if(process.env.GITHUB_STEP_SUMMARY)appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-    `\n## PR #40 — review version\n\n${url}\n\nActive production deployment unchanged. This version shares the existing runtime resources and permissions; it is not an isolated test database. No migrations or production activation were performed.\n`);
+    `\n## ${alias} — review version\n\n${url}\n\nActive production deployment unchanged. This version shares the existing runtime resources and permissions; it is not an isolated test database. No migrations or production activation were performed.\n`);
   console.log('Verified: active production deployment unchanged.');
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)

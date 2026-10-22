@@ -2,6 +2,8 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../lib/api-client";
 import "./financial-models.css";
+import {usePlatformLocale} from './use-platform-locale';
+import {planningWorkspaceCopy} from '../lib/planning-workspace-copy';
 
 type Model = {
   id: string;
@@ -76,10 +78,11 @@ const money = (value: number, currency: string) =>
   }).format(value / 100);
 
 export function FinancialModelsWorkspace({
-  initialView = "Plano de negócios",
+  initialView = "Plano de negócios",onNavigate,
 }: {
-  initialView?: string;
+  initialView?: string;onNavigate?:(target:string)=>void;
 }) {
+  const locale=usePlatformLocale(),copyIndex={pt:0,en:1,es:2,fr:3,ru:4}[locale],copy=(key:keyof typeof planningWorkspaceCopy)=>planningWorkspaceCopy[key][copyIndex];
   const [data, setData] = useState<Data>(empty),
     [selected, setSelected] = useState(""),
     [view, setView] = useState(initialView),
@@ -154,16 +157,14 @@ export function FinancialModelsWorkspace({
       <header className="fm-top">
         <div>
           <span>FINANÇAS E FP&A · PLANEAMENTO DE NEGÓCIO</span>
-          <h1>Do pressuposto à liquidez, sem caixas negras</h1>
-          <p>
-            Plano de negócios mensal, drivers, resultados, CAPEX, financiamento
-            e cash-flow na mesma versão governada.
-          </p>
+          <h1>{copy('title')}</h1>
+          <p>{copy('intro')}</p>
         </div>
         <button className="primario" onClick={() => setModal("createModel")}>
           ＋ Novo plano
         </button>
       </header>
+      <p className="fm-scope-note">{copy('scope')}{onNavigate&&<> <button type="button" onClick={()=>onNavigate('Mapa Orçamental Anual')}>{copy('budget')}</button> <button type="button" onClick={()=>onNavigate('Investimento')}>{copy('viability')}</button></>}</p>
       <section className="fm-kpis">
         <article>
           <span>Receita projetada</span>
@@ -199,7 +200,7 @@ export function FinancialModelsWorkspace({
             className={view === x ? "active" : ""}
             onClick={() => setView(x)}
           >
-            {x}
+            {x==='Plano de negócios'?copy('results'):x==='Drivers'?copy('assumptions'):x==='Cash-flow'?copy('cash'):x}
           </button>
         ))}
       </nav>

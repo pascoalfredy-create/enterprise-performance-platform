@@ -2,14 +2,8 @@
 // pressupostos (budget assumptions). No function here reads or writes
 // anything — worker/budget-annual-map.ts owns all persistence.
 //
-// periodAdd/compoundStep/applyBps are deliberately COPIED (not imported)
-// from worker/financial-models.ts's private helpers, which were verified
-// generic (pure period/BigInt-percentage arithmetic, no CAPEX-specific
-// coupling) before copying. financial-models.ts is left untouched — its
-// `signed()` helper (forces Custo/CAPEX/Imposto negative) was NOT copied:
-// that one IS CAPEX-specific (its hardcoded type list doesn't match
-// financial_line_catalog's broader classification set) and the budget
-// engine has its own, separate sign handling if it ever needs one.
+import {periodAdd,compoundMinor,applyBps} from './financial-arithmetic.ts';
+export {periodAdd,applyBps} from './financial-arithmetic.ts';
 
 export type GrowthMode = "Simples" | "Composto";
 export type GrowthCadence = "Mensal" | "Trimestral" | "Anual" | "Pontual";
@@ -27,26 +21,9 @@ export type AssumptionMethod =
 
 export const MONTHS_IN_YEAR = 12;
 
-export function periodAdd(period: string, months: number): string {
-  const [year, month] = period.split("-").map(Number),
-    index = year * 12 + month - 1 + months;
-  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
-}
-
-// Precise integer-minor-unit compounding: base compounded `steps` times at
-// growthBps/10000 per step. BigInt throughout to avoid float drift on money.
-export function compoundStep(base: number, growthBps: number, steps: number): number {
-  let value = BigInt(Math.trunc(base));
-  const numerator = BigInt(10000 + Math.trunc(growthBps)),
-    denominator = 10000n;
-  for (let i = 0; i < steps; i++) {
-    const product = value * numerator;
-    value =
-      product >= 0n
-        ? (product + denominator / 2n) / denominator
-        : -((-product + denominator / 2n) / denominator);
-  }
-  return Number(value);
+// Preserve the budget engine's existing normalization before shared arithmetic.
+export function compoundStep(base:number,growthBps:number,steps:number):number{
+ return compoundMinor(Math.trunc(base),Math.trunc(growthBps),steps);
 }
 
 // Linear (non-compounding) growth: base * (1 + growthBps/10000 * steps).
@@ -60,12 +37,6 @@ export function simpleStep(base: number, growthBps: number, steps: number): numb
       ? (product + denominator / 2n) / denominator
       : -((-product + denominator / 2n) / denominator),
   );
-}
-
-export function applyBps(amount: number, bps: number): number {
-  const n = BigInt(Math.trunc(amount)) * BigInt(Math.trunc(bps)),
-    d = 10000n;
-  return Number(n >= 0n ? (n + d / 2n) / d : -((-n + d / 2n) / d));
 }
 
 // r_m = (1+r_a)^(1/12) - 1, in basis points. Only ever called when the

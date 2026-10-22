@@ -1,6 +1,9 @@
 import type {PlatformLocale} from './platform-i18n';
 type Five=readonly [string,string,string,string,string];
 export const workspaceCopy={
+ employeeDirectory:['Colaboradores','Employees','Empleados','Salariés','Сотрудники'],
+ employeeDirectoryIntro:['Cadastre os colaboradores no RH e mantenha os dados e vínculos na mesma ficha.','Register employees in HR and maintain their data and relationships in the same file.','Registre empleados en RR. HH. y mantenga sus datos y vínculos en la misma ficha.','Enregistrez les salariés dans les RH et conservez leurs données et liens dans la même fiche.','Регистрируйте сотрудников в кадровом модуле и храните данные и связи в одной карточке.'],
+ organizationIntro:['Configure a estrutura da empresa, os acessos e as dimensões partilhadas.','Configure company structure, access and shared dimensions.','Configure la estructura empresarial, los accesos y las dimensiones compartidas.','Configurez la structure de l’entreprise, les accès et les dimensions partagées.','Настройте структуру компании, доступ и общие аналитические измерения.'],
  reviewDevelopment:['Desenvolvimento','Development','Desarrollo','Développement','Развитие'],
  reviewList:['Avaliações','Reviews','Evaluaciones','Évaluations','Оценки'],
  reviewFeedback:['Feedback','Feedback','Comentarios','Feedback','Обратная связь'],
@@ -163,9 +166,9 @@ export type WorkspaceDomain={code:string;label:WorkspaceLabel;groups:WorkspaceGr
 export const workspaceDomains:WorkspaceDomain[]=[
  {code:'FINANCE_FP&A',label:'analysis',groups:[
   {id:'analysis',targets:['Cockpit CFO','Demonstrações','Performance Financeira','Desvios Financeiros','Rentabilidade','Diagnóstico']},
-  {id:'budget',targets:['Mapa Orçamental Anual','Planeamento','Cenários']},
-  {id:'model',targets:['Investimento','Modelação']},
-  {id:'liquidity',targets:['Tesouraria','Working Capital','Cash-flow','Extratos bancários']},
+  {id:'budget',targets:['Mapa Orçamental Anual','Planeamento','Cenários','Modelação']},
+  {id:'model',targets:['Investimento']},
+  {id:'liquidity',targets:['Tesouraria','Working Capital','Extratos bancários']},
   {id:'consolidation',targets:['Consolidação']},
   {id:'data',targets:['Dados financeiros','Catálogo de Rubricas','Automatização','Administração'],support:true}]},
  {code:'HCM',label:'people',groups:[{id:'overview',targets:['RH Dashboard']},{id:'people',targets:['Ficha do colaborador','Employee Master','Pessoas']},{id:'time',targets:['Assiduidade','Ausências']},{id:'payroll',targets:['Processamentos','Operações','Simulador Salarial','Histórico salarial','Empréstimos','Retroativos']},{id:'talent',targets:['Recrutamento']}]},
