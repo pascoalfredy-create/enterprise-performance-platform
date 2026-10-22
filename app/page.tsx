@@ -308,8 +308,12 @@ export default function Home() {
   useEffect(()=>{if(!sessao)return;const d=workspaceForTarget(accessibleWorkspaces(moduleCatalog,sessao.modules),modulo,openDomain);if(d)setOpenDomain(d.code)},[modulo,sessao?.modules]);
   useEffect(() => {
     apiFetch("/api/session")
-      .then(async (r) => ({ ok: r.ok, body: await r.json() }))
-      .then(({ ok, body }) => {
+      .then(async (r) => ({ ok: r.ok, status:r.status, body: await r.json() }))
+      .then(({ ok, status, body }) => {
+        if(status===401&&!new URLSearchParams(window.location.search).has("invite")){
+          window.location.replace("/entrar");
+          return;
+        }
         if (ok && body.role === "Colaborador") {
           window.location.assign("/portal");
           return;
