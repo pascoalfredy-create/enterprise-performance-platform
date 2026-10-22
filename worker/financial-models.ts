@@ -1,3 +1,4 @@
+import {periodAdd,compoundMinor as compound,applyBps} from '../lib/financial-arithmetic';
 import type {D1Database} from "../worker-configuration";
 import { classifyDataError } from "../lib/api-error";
 import { parseMoneyMinor } from "../lib/money";
@@ -18,31 +19,8 @@ const sha = async (value: string) =>
   )
     .map((x) => x.toString(16).padStart(2, "0"))
     .join("");
-const periodAdd = (period: string, months: number) => {
-  const [year, month] = period.split("-").map(Number),
-    index = year * 12 + month - 1 + months;
-  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
-};
-const compound = (base: number, growthBps: number, sequence: number) => {
-  let value = BigInt(base);
-  const numerator = BigInt(10000 + growthBps),
-    denominator = 10000n;
-  for (let i = 0; i < sequence; i++) {
-    const product = value * numerator;
-    value =
-      product >= 0n
-        ? (product + denominator / 2n) / denominator
-        : -((-product + denominator / 2n) / denominator);
-  }
-  return Number(value);
-};
 const signed = (type: string, amount: number) =>
   ["Custo", "CAPEX", "Imposto"].includes(type) ? -Math.abs(amount) : amount;
-const applyBps = (amount: number, bps: number) => {
-  const n = BigInt(Math.trunc(amount)) * BigInt(Math.trunc(bps)),
-    d = 10000n;
-  return Number(n >= 0n ? (n + d / 2n) / d : -((-n + d / 2n) / d));
-};
 const fail = (error: unknown) => {
   const x = classifyDataError(
     error,

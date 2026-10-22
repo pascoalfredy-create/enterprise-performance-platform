@@ -33,3 +33,14 @@ test('shared administration target retains deliberate context but defaults to ad
 test('all grouped navigation has authored labels in the five platform languages',()=>{
  for(const d of workspaceDomains)for(const g of d.groups)for(const locale of ['pt','en','es','fr','ru'])assert(workspaceText(locale,g.id)?.length>1);
 });
+
+test('monthly business plan has one planning owner and cash flow stays inside that plan',()=>{
+ const finance=accessibleWorkspaces(catalog,all).find(d=>d.code==='FINANCE_FP&A');
+ assert(finance.groups.find(g=>g.id==='budget').targets.includes('Modelação'));
+ assert.deepEqual(finance.groups.find(g=>g.id==='model').targets,['Investimento']);
+ assert(!finance.groups.flatMap(g=>g.targets).includes('Cash-flow'));
+ assert.equal(catalog.flatMap(d=>d.items).filter(i=>i.target==='Modelação').length,1);
+ assert(!catalog.flatMap(d=>d.items).some(i=>i.target==='Cash-flow'));
+ assert(catalog.find(d=>d.code==='HCM').items.some(i=>i.target==='Employee Master'));
+ assert(!catalog.find(d=>d.code==='CORE').items.some(i=>i.target==='Employee Master'));
+});
