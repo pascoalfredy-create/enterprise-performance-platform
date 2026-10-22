@@ -10,7 +10,7 @@ export function WorkspaceModuleBar({domains,active,locale,name,onDomain}:Props){
  const others=domains.filter(d=>!main.includes(d.code));
  return <nav className="workspace-modules" aria-label={workspaceText(locale,'module')}>
  {domains.filter(d=>main.includes(d.code)).map(d=><button key={d.code} type="button" aria-current={d.code===active?'page':undefined} title={name(d.code)} onClick={()=>onDomain(d.code)}>{workspaceText(locale,topLabels[d.code])}</button>)}
- {Boolean(others.length)&&<select aria-label={workspaceText(locale,'more')} value={others.some(d=>d.code===active)?active:''} onChange={e=>{if(e.target.value)onDomain(e.target.value)}}><option value="">{workspaceText(locale,'moreShort')}</option>{others.map(d=><option key={d.code} value={d.code}>{name(d.code)}</option>)}</select>}
+ {Boolean(others.length)&&<select aria-label={workspaceText(locale,'more')} value="" onChange={e=>{if(e.target.value)onDomain(e.target.value)}}><option value="">{workspaceText(locale,'moreShort')}</option>{others.map(d=><option key={d.code} value={d.code}>{name(d.code)}</option>)}</select>}
  </nav>;
 }
 export function WorkspaceSidebar({domain,target,locale,name,onNavigate,onHome,onReports,onHelp,catalog}:{domain?:WorkspaceDomain;target:string;locale:PlatformLocale;name:string;onNavigate:(target:string)=>void;onHome:()=>void;onReports:()=>void;onHelp:()=>void;catalog:NavigationCatalog}){
