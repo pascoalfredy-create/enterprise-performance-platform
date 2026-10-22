@@ -13,7 +13,7 @@ export type DynamicOption={value:string;label:string};
 type FieldProps={group:ProfileTabKey;values?:Record<string,string|null>;setTab?:(t:ProfileTabKey)=>void;costCenterOptions?:DynamicOption[];departmentOptions?:DynamicOption[];names?:readonly string[];exclude?:readonly string[]};
 export function EmployeeProfileFields({group,values,setTab,costCenterOptions,departmentOptions,names,exclude}:FieldProps){
  const locale=usePlatformLocale(),index={pt:0,en:1,es:2,fr:3,ru:4}[locale],t=(k:keyof typeof payrollSheetCopy)=>payrollSheetCopy[k][index];
- const onInvalid=(event:React.InvalidEvent<HTMLInputElement|HTMLSelectElement>)=>{let parent=event.currentTarget.parentElement;while(parent){if(parent.tagName==='DETAILS')(parent as HTMLDetailsElement).open=true;parent=parent.parentElement;}setTab?.(group)};
+ const onInvalid=(event:React.InvalidEvent<HTMLInputElement|HTMLSelectElement>)=>{const input=event.currentTarget;let parent=input.parentElement;while(parent){if(parent.tagName==='DETAILS')(parent as HTMLDetailsElement).open=true;parent=parent.parentElement;}const first=Array.from(input.form?.elements||[]).find(element=>{const control=element as HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement;return control.willValidate&&!control.validity.valid});if(!first||first===input){setTab?.(group);requestAnimationFrame(()=>input.focus())}};
  const dynamicOptions:Record<string,DynamicOption[]>={costCenter:costCenterOptions||[],department:departmentOptions||[]};
  const fields=names?names.map(name=>profileFieldGroups[group].find(f=>f.name===name)!).filter(Boolean):profileFieldGroups[group].filter(f=>!exclude?.includes(f.name));
  return <>{fields.map(f=>
