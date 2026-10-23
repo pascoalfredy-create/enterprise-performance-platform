@@ -2,12 +2,12 @@
 
 ## Fonte e limites
 
-O adaptador lê exclusivamente `financial_models` aprovados, as suas linhas e as projeções mensais persistidas. Não recalcula nem altera o plano de negócio, as fórmulas de viabilidade, os salários ou os documentos importados. A organização, moeda, período e sinal vêm da origem. Não existe conversão cambial implícita nem distribuição fictícia por departamentos.
+O adaptador lê exclusivamente `financial_models` aprovados, as suas linhas e as projeções mensais persistidas. Não recalcula nem altera o plano de negócio, as fórmulas de viabilidade, os salários ou os documentos importados. A organização, moeda e período vêm da origem. O plano mensal assina custos/investimentos como saídas; o orçamento económico usa magnitudes positivas de custo/ativo, tal como RH e os pressupostos manuais. O adaptador normaliza essas duas finalidades com valor absoluto e conserva o montante original no fingerprint. Caixa preserva sempre o sinal da origem. Não existe conversão cambial implícita nem distribuição fictícia por departamentos.
 
 | Finalidade escolhida | Origem permitida | Valor / período | Destino |
 |---|---|---|---|
-| Investimento por competência | `CAPEX` | `statement_amount_minor` / `period` | Rubrica analítica Ativo / Investimento, no mapa económico |
-| Depreciação mensal | `Custo`, com confirmação explícita de que representa depreciação | `statement_amount_minor` / `period` | Rubrica analítica de Custo, no mapa económico |
+| Investimento por competência | `CAPEX` | `abs(statement_amount_minor)` / `period` | Rubrica analítica Ativo / Investimento, no mapa económico |
+| Depreciação mensal | `Custo`, com confirmação explícita de que representa depreciação | `abs(statement_amount_minor)` / `period` | Rubrica analítica de Custo, no mapa económico |
 | Pagamento do investimento | `CAPEX` | `cash_amount_minor` / `cash_period` | Rubrica Caixa / Investimento, em contribuições financeiras separadas |
 | Entrada ou reembolso de financiamento | `Financiamento` | `cash_amount_minor` / `cash_period` | Rubrica Caixa / Financiamento, em contribuições financeiras separadas |
 
