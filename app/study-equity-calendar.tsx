@@ -1,0 +1,10 @@
+"use client";
+import type {PlanningInput} from '../lib/feasibility-planning';
+import type {NumberLocale} from '../lib/number-input';
+import {selectEquityMode} from '../lib/feasibility-presentation';
+import {equityCalendarCopy} from '../lib/study-equity-copy';
+import {LocalizedNumberInput} from './localized-number-input';
+export function StudyEquityCalendar({value,locale,computedEquity,onChange}:{value:PlanningInput;locale:NumberLocale;computedEquity?:number|null;onChange:(p:PlanningInput)=>void}){
+ const i={pt:0,en:1,es:2,fr:3,ru:4}[locale],t=(k:keyof typeof equityCalendarCopy)=>equityCalendarCopy[k][i],events=value.equityEvents;
+ return <details className="study-settings"><summary>{t('title')}</summary><p>{t('help')}</p><label className="study-check"><input type="checkbox" checked={events!==undefined} onChange={e=>{const next=selectEquityMode(value,false,computedEquity);if(e.target.checked)next.equityEvents=[];else delete next.equityEvents;onChange(next)}}/>{t('enable')}</label>{events!==undefined&&<>{value.equityAuto&&<p role="status">{t('inactive')}</p>}<div className="table-scroll"><table><thead><tr><th>{t('month')}</th><th>{t('amount')}</th><th></th></tr></thead><tbody>{events.map((event,n)=><tr key={n}><td><LocalizedNumberInput aria-label={t('month')+' · '+(n+1)} disabled={value.equityAuto} value={event.month} decimals={0} minimumDecimals={0} onValueChange={month=>onChange({...value,equityEvents:events.map((e,i)=>i===n?{...e,month}:e)})}/></td><td><LocalizedNumberInput aria-label={t('amount')+' · '+(n+1)} disabled={value.equityAuto} value={event.amount} onValueChange={amount=>onChange({...value,equityEvents:events.map((e,i)=>i===n?{...e,amount}:e)})}/></td><td><button type="button" disabled={value.equityAuto} onClick={()=>onChange({...value,equityEvents:events.filter((_,i)=>i!==n)})}>{t('remove')}</button></td></tr>)}</tbody></table></div><button type="button" disabled={events.length>=24||value.equityAuto} onClick={()=>onChange({...value,equityEvents:[...events,{month:1,amount:0}]})}>{t('add')}</button></>}</details>;
+}

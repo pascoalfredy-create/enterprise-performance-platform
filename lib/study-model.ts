@@ -41,6 +41,7 @@ export class StudyModel{
 
 export function signChanges(flows:number[]){let previous=0,count=0;for(const value of flows){const sign=Math.sign(value);if(sign!==0){if(previous!==0&&previous!==sign)count++;previous=sign}}return count}
 export function conventionalMonthlyIrr(flows:number[]):number|null{
+ const first=flows.findIndex(v=>v!==0);if(first<0)return null;flows=flows.slice(first);
  if(flows.length<2||flows[0]>=0||flows.some(v=>!Number.isFinite(v))||signChanges(flows)!==1)return null;
  let lo=-.9999,hi=1;while(netPresentValue(flows,hi)>0&&hi<1e12)hi*=2;if(netPresentValue(flows,lo)<=0||netPresentValue(flows,hi)>0)return null;
  for(let i=0;i<180;i++){const mid=(lo+hi)/2;if(netPresentValue(flows,mid)>0)lo=mid;else hi=mid}const value=(lo+hi)/2;return Number.isFinite(value)?value:null;

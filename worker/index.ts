@@ -57,6 +57,7 @@ import {
   getCellOrigin,
 } from "./budget-integration";
 import { workforceIntegrationApi } from "./workforce-budget-integration";
+import { studyBudgetApi } from './study-budget-integration';
 import { investmentBudgetApi } from './investment-budget-integration';
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
@@ -6481,7 +6482,7 @@ const worker = {
                     ? write
                       ? "payroll:write"
                       : "payroll:read"
-                  : ["/api/performance", "/api/budget-annual-map", "/api/budget-integration", "/api/workforce-integration", "/api/investment-budget"].includes(apiPath)
+                  : ["/api/performance", "/api/budget-annual-map", "/api/budget-integration", "/api/workforce-integration", "/api/investment-budget", "/api/study-budget"].includes(apiPath)
                     ? write
                       ? "performance:write"
                       : "performance:read"
@@ -6613,6 +6614,7 @@ const worker = {
                   "/api/budget-integration",
                   "/api/workforce-integration",
                   "/api/investment-budget",
+                  "/api/study-budget",
                   "/api/scenarios",
                   "/api/consolidation",
                   "/api/financial-models",
@@ -6735,6 +6737,10 @@ const worker = {
         return budgetIntegrationApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/workforce-integration")
         return workforceIntegrationRoute(request, env.DB, tenantId, organizationId);
+      if (apiPath === '/api/study-budget') {
+        if (!hasPermission(security.permissions, 'financial-data:read'))return Response.json({error:'A origem exige acesso aos dados financeiros.'},{status:403});
+        return studyBudgetApi(request,env.DB,tenantId,organizationId,actorEmail(request)||'utilizador autenticado',hasPermission(security.permissions, 'performance:write'));
+      }
       if (apiPath === '/api/investment-budget') {
         if (!hasPermission(security.permissions, 'financial-model:read'))
           return Response.json({error:'A consulta da origem exige acesso aos planos financeiros.'},{status:403});
