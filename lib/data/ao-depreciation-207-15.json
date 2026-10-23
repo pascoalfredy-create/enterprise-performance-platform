@@ -1,0 +1,731 @@
+[
+  {
+    "id": "AO207-15-G-1.1",
+    "code": "1.1",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Edifícios industriais",
+    "annualRateBps": 400,
+    "publishedLifeYears": 25.0
+  },
+  {
+    "id": "AO207-15-G-1.2",
+    "code": "1.2",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Edifícios industriais sujeitos a corrosão",
+    "annualRateBps": 500,
+    "publishedLifeYears": 20.0
+  },
+  {
+    "id": "AO207-15-G-1.3",
+    "code": "1.3",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Edifícios comerciais e administrativos",
+    "annualRateBps": 400,
+    "publishedLifeYears": 25.0
+  },
+  {
+    "id": "AO207-15-G-1.4",
+    "code": "1.4",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Edifícios habitacionais",
+    "annualRateBps": 200,
+    "publishedLifeYears": 50.0
+  },
+  {
+    "id": "AO207-15-G-1.5",
+    "code": "1.5",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Edifícios destinados exclusivamente a serviços de saúde, de ensino, e a serviços recreativos de ensino, e a serviços recreativos e culturais",
+    "annualRateBps": 400,
+    "publishedLifeYears": 25.0
+  },
+  {
+    "id": "AO207-15-G-1.6",
+    "code": "1.6",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Construções ligeiras em fibrocimento, madeira, metais, etc.",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-1.7",
+    "code": "1.7",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Obras hidráulicas, incluindo poços de água",
+    "annualRateBps": 1000,
+    "publishedLifeYears": 10.0
+  },
+  {
+    "id": "AO207-15-G-1.8",
+    "code": "1.8",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Obras de pavimentação (em pedra, cimento, betão, asfalto, etc.)",
+    "annualRateBps": 1000,
+    "publishedLifeYears": 10.0
+  },
+  {
+    "id": "AO207-15-G-1.9",
+    "code": "1.9",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Pontes e aquedutos em betão ou alvenaria",
+    "annualRateBps": 333,
+    "publishedLifeYears": 30.0
+  },
+  {
+    "id": "AO207-15-G-1.10",
+    "code": "1.10",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Pontes e aquedutos metálicos",
+    "annualRateBps": 833,
+    "publishedLifeYears": 12.0
+  },
+  {
+    "id": "AO207-15-G-1.11",
+    "code": "1.11",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Pontes e aquedutos em madeira",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-1.12",
+    "code": "1.12",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Silos, reservatórios e outros depósitos",
+    "annualRateBps": 500,
+    "publishedLifeYears": 20.0
+  },
+  {
+    "id": "AO207-15-G-1.13",
+    "code": "1.13",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Muros",
+    "annualRateBps": 667,
+    "publishedLifeYears": 15.0
+  },
+  {
+    "id": "AO207-15-G-1.14",
+    "code": "1.14",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Vedações ligeiras (madeira. arame. etc.)",
+    "annualRateBps": 2500,
+    "publishedLifeYears": 4.0
+  },
+  {
+    "id": "AO207-15-G-1.15",
+    "code": "1.15",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Arranjos urbanísticos",
+    "annualRateBps": 2500,
+    "publishedLifeYears": 4.0
+  },
+  {
+    "id": "AO207-15-G-1.16",
+    "code": "1.16",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Via-férrea (actividade ferroviária)",
+    "annualRateBps": 200,
+    "publishedLifeYears": 50.0
+  },
+  {
+    "id": "AO207-15-G-1.17",
+    "code": "1.17",
+    "category": "1. Edifícios e outras construções",
+    "subcategory": "",
+    "label": "Pontes e obras de arte (actividade ferroviária)",
+    "annualRateBps": 250,
+    "publishedLifeYears": 40.0
+  },
+  {
+    "id": "AO207-15-G-2.1",
+    "code": "2.1",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "De água, electricidade, ar comprimido e refrigeração central (inclui centrais de cogeração de energia eléctrica)",
+    "annualRateBps": 1000,
+    "publishedLifeYears": 10.0
+  },
+  {
+    "id": "AO207-15-G-2.2",
+    "code": "2.2",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Redes de cabos aéreos e respectivos suportes",
+    "annualRateBps": 667,
+    "publishedLifeYears": 15.0
+  },
+  {
+    "id": "AO207-15-G-2.3",
+    "code": "2.3",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Postos de transformação",
+    "annualRateBps": 1000,
+    "publishedLifeYears": 10.0
+  },
+  {
+    "id": "AO207-15-G-2.4",
+    "code": "2.4",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Ascensores, monta-cargas e escadas mecânicas",
+    "annualRateBps": 1000,
+    "publishedLifeYears": 10.0
+  },
+  {
+    "id": "AO207-15-G-2.5",
+    "code": "2.5",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "De captação e distribuição de água (instalações privativas)",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-2.6",
+    "code": "2.6",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "De carga, descarga e embarque (instalações privativas)",
+    "annualRateBps": 714,
+    "publishedLifeYears": 14.0
+  },
+  {
+    "id": "AO207-15-G-2.7",
+    "code": "2.7",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Centrais telefónicas e outras comunicações (radiofónicas, radiotelegráficas e de televisão)",
+    "annualRateBps": 1666,
+    "publishedLifeYears": 6.0
+  },
+  {
+    "id": "AO207-15-G-2.8",
+    "code": "2.8",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "De distribuição de combustíveis líquidos",
+    "annualRateBps": 1000,
+    "publishedLifeYears": 10.0
+  },
+  {
+    "id": "AO207-15-G-2.9",
+    "code": "2.9",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "De segurança, detecção e extinção de incêndios",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-2.10",
+    "code": "2.10",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Instalações divisórias em escritórios",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-2.11.1",
+    "code": "2.11.1",
+    "category": "2. Instalações",
+    "subcategory": "2.11 Instalações de armazenagem e de depósito",
+    "label": "De betão",
+    "annualRateBps": 500,
+    "publishedLifeYears": 20.0
+  },
+  {
+    "id": "AO207-15-G-2.11.2",
+    "code": "2.11.2",
+    "category": "2. Instalações",
+    "subcategory": "2.11 Instalações de armazenagem e de depósito",
+    "label": "De madeira",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-2.11.3",
+    "code": "2.11.3",
+    "category": "2. Instalações",
+    "subcategory": "2.11 Instalações de armazenagem e de depósito",
+    "label": "Metálicas",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-2.12",
+    "code": "2.12",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Reservatórios para combustíveis líquidos",
+    "annualRateBps": 666,
+    "publishedLifeYears": 15.0
+  },
+  {
+    "id": "AO207-15-G-2.13",
+    "code": "2.13",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Refeitórios e cozinhas privativas",
+    "annualRateBps": 1000,
+    "publishedLifeYears": 10.0
+  },
+  {
+    "id": "AO207-15-G-2.14",
+    "code": "2.14",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Vitrinas e estantes fixas",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-2.15",
+    "code": "2.15",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Vitrinas, estantes e expositores móveis",
+    "annualRateBps": 3333,
+    "publishedLifeYears": 3.0
+  },
+  {
+    "id": "AO207-15-G-2.16",
+    "code": "2.16",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Estações (actividade ferroviária)",
+    "annualRateBps": 400,
+    "publishedLifeYears": 25.0
+  },
+  {
+    "id": "AO207-15-G-2.17",
+    "code": "2.17",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Apeadeiros (actividade ferroviária)",
+    "annualRateBps": 400,
+    "publishedLifeYears": 25.0
+  },
+  {
+    "id": "AO207-15-G-2.18",
+    "code": "2.18",
+    "category": "2. Instalações",
+    "subcategory": "",
+    "label": "Não especificadas",
+    "annualRateBps": 1000,
+    "publishedLifeYears": 10.0
+  },
+  {
+    "id": "AO207-15-G-3.1",
+    "code": "3.1",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Computadores e outros equipamentos para tratamento de informação",
+    "annualRateBps": 3333,
+    "publishedLifeYears": 3.0
+  },
+  {
+    "id": "AO207-15-G-3.2",
+    "code": "3.2",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Equipamentos electrónicos destinados a automatização, regulação e supervisão de maquinas, processos industriais, comerciais e de serviços",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-3.3",
+    "code": "3.3",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Máquinas e equipamentos de cópia (fotocopiadoras, «scanners», telecopiadores (vulgo fax), etc.)",
+    "annualRateBps": 2500,
+    "publishedLifeYears": 4.0
+  },
+  {
+    "id": "AO207-15-G-3.4",
+    "code": "3.4",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Impressoras",
+    "annualRateBps": 3333,
+    "publishedLifeYears": 3.0
+  },
+  {
+    "id": "AO207-15-G-3.5",
+    "code": "3.5",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Televisores, plasmas, monitores, projectores de vídeo («datashow»), etc.",
+    "annualRateBps": 2500,
+    "publishedLifeYears": 4.0
+  },
+  {
+    "id": "AO207-15-G-3.6",
+    "code": "3.6",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Outras máquinas e equipamentos electrónicos",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-3.7",
+    "code": "3.7",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Máquinas e equipamentos de conservação e manutenção",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-3.8",
+    "code": "3.8",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Motores, incluindo geradores",
+    "annualRateBps": 2500,
+    "publishedLifeYears": 4.0
+  },
+  {
+    "id": "AO207-15-G-3.9",
+    "code": "3.9",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Máquinas-ferramentas ligeiras",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-3.10",
+    "code": "3.10",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Máquinas-ferramentas pesadas",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-3.11",
+    "code": "3.11",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Material contra incêndios (extintores e outros)",
+    "annualRateBps": 2500,
+    "publishedLifeYears": 4.0
+  },
+  {
+    "id": "AO207-15-G-3.12",
+    "code": "3.12",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Aparelhos de ar condicionado e de ventilação",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-3.13",
+    "code": "3.13",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Aparelhos de laboratório e precisão",
+    "annualRateBps": 1428,
+    "publishedLifeYears": 7.0
+  },
+  {
+    "id": "AO207-15-G-3.14",
+    "code": "3.14",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Aparelhos de medida e controlo",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-3.15",
+    "code": "3.15",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Telefones fixos",
+    "annualRateBps": 1667,
+    "publishedLifeYears": 6.0
+  },
+  {
+    "id": "AO207-15-G-3.16",
+    "code": "3.16",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Telefones móveis",
+    "annualRateBps": 3333,
+    "publishedLifeYears": 3.0
+  },
+  {
+    "id": "AO207-15-G-3.17",
+    "code": "3.17",
+    "category": "3. Máquinas, equipamentos e aparelhos",
+    "subcategory": "",
+    "label": "Máquinas, equipamentos e aparelhos não especificados",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-4.1.1",
+    "code": "4.1.1",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "4.1 Veículos automóveis:",
+    "label": "Pesados",
+    "annualRateBps": 1667,
+    "publishedLifeYears": 6.0
+  },
+  {
+    "id": "AO207-15-G-4.1.2",
+    "code": "4.1.2",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "4.1 Veículos automóveis:",
+    "label": "Ligeiros",
+    "annualRateBps": 2500,
+    "publishedLifeYears": 4.0
+  },
+  {
+    "id": "AO207-15-G-4.1.3",
+    "code": "4.1.3",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "4.1 Veículos automóveis:",
+    "label": "Mistos",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-4.2",
+    "code": "4.2",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "",
+    "label": "Veículos funerários",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-4.3",
+    "code": "4.3",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "",
+    "label": "Tractores e atrelados, empilhadores e camiões basculantes",
+    "annualRateBps": 1428,
+    "publishedLifeYears": 7.0
+  },
+  {
+    "id": "AO207-15-G-4.4",
+    "code": "4.4",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "",
+    "label": "Bicicletas e motociclos",
+    "annualRateBps": 2500,
+    "publishedLifeYears": 4.0
+  },
+  {
+    "id": "AO207-15-G-4.5",
+    "code": "4.5",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "",
+    "label": "Barcos de ferro",
+    "annualRateBps": 714,
+    "publishedLifeYears": 14.0
+  },
+  {
+    "id": "AO207-15-G-4.6",
+    "code": "4.6",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "",
+    "label": "Barcos de madeira",
+    "annualRateBps": 1000,
+    "publishedLifeYears": 10.0
+  },
+  {
+    "id": "AO207-15-G-4.7",
+    "code": "4.7",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "",
+    "label": "Barcos de borracha",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-4.8",
+    "code": "4.8",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "",
+    "label": "Barcos de fibra de vidro",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-4.9",
+    "code": "4.9",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "",
+    "label": "Locomotivas e automotoras",
+    "annualRateBps": 500,
+    "publishedLifeYears": 20.0
+  },
+  {
+    "id": "AO207-15-G-4.10",
+    "code": "4.10",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "",
+    "label": "Vagões",
+    "annualRateBps": 400,
+    "publishedLifeYears": 25.0
+  },
+  {
+    "id": "AO207-15-G-4.11",
+    "code": "4.11",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "",
+    "label": "Vias-férreas",
+    "annualRateBps": 400,
+    "publishedLifeYears": 25.0
+  },
+  {
+    "id": "AO207-15-G-4.12",
+    "code": "4.12",
+    "category": "4. Veículos e outros meios de transporte",
+    "subcategory": "",
+    "label": "Aeronaves",
+    "annualRateBps": 500,
+    "publishedLifeYears": 20.0
+  },
+  {
+    "id": "AO207-15-G-5.1",
+    "code": "5.1",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "",
+    "label": "Artigos de conforto e decoração",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-5.2",
+    "code": "5.2",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "",
+    "label": "Equipamento publicitário colocado na via pública",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-5.3",
+    "code": "5.3",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "",
+    "label": "Filmes, discos e cassetes",
+    "annualRateBps": 2500,
+    "publishedLifeYears": 4.0
+  },
+  {
+    "id": "AO207-15-G-5.4",
+    "code": "5.4",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "",
+    "label": "Material de desenho e topografia",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-5.5.1",
+    "code": "5.5.1",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "5.5 Mobiliário",
+    "label": "Mobiliário de madeira",
+    "annualRateBps": 1667,
+    "publishedLifeYears": 6.0
+  },
+  {
+    "id": "AO207-15-G-5.5.2",
+    "code": "5.5.2",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "5.5 Mobiliário",
+    "label": "Mobiliário de outros materiais",
+    "annualRateBps": 1250,
+    "publishedLifeYears": 8.0
+  },
+  {
+    "id": "AO207-15-G-5.6",
+    "code": "5.6",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "",
+    "label": "Moldes, matrizes, formas e cunhos",
+    "annualRateBps": 2500,
+    "publishedLifeYears": 4.0
+  },
+  {
+    "id": "AO207-15-G-5.7",
+    "code": "5.7",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "",
+    "label": "Taras, vasilhame e outras embalagens de madeira",
+    "annualRateBps": 2000,
+    "publishedLifeYears": 5.0
+  },
+  {
+    "id": "AO207-15-G-5.8",
+    "code": "5.8",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "",
+    "label": "Taras, vasilhame e outras embalagens de metal",
+    "annualRateBps": 1428,
+    "publishedLifeYears": 7.0
+  },
+  {
+    "id": "AO207-15-G-5.9",
+    "code": "5.9",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "",
+    "label": "Contentores",
+    "annualRateBps": 833,
+    "publishedLifeYears": 12.0
+  },
+  {
+    "id": "AO207-15-G-5.10",
+    "code": "5.10",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "",
+    "label": "Encerados",
+    "annualRateBps": 5000,
+    "publishedLifeYears": 2.0
+  },
+  {
+    "id": "AO207-15-G-5.11",
+    "code": "5.11",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "",
+    "label": "Ferramentas e utensílios de oficinas",
+    "annualRateBps": 1428,
+    "publishedLifeYears": 7.0
+  },
+  {
+    "id": "AO207-15-G-5.12",
+    "code": "5.12",
+    "category": "5. Mobiliário, ferramentas e utensílios",
+    "subcategory": "",
+    "label": "Outras ferramentas e utensílios",
+    "annualRateBps": 2500,
+    "publishedLifeYears": 4.0
+  }
+]

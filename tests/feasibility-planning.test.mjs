@@ -55,3 +55,25 @@ test('IAPMEI presentation reconciles income, balance and treasury without changi
  const sheets=studyWorkbook(input,{name:'IAPMEI adapted',organization:'A',currency:'AOA'},0,p);assert.ok(sheets[1].hiddenRows.includes(4));assert.equal(sheets[1].rows[43][0].value,'Rubrica');assert.ok(sheets[1].rows.slice(44).some(r=>r[0]?.value==='Resultado líquido do período'&&r[0].style===7));near(sheets[4].rows[7][1].value,p.metrics.npv);const {workbookPreview}=await import('../lib/feasibility-workbook.ts'),view=workbookPreview(sheets,input.years)[1];assert.ok(view.notes.some(n=>n.includes('pressupostos do estudo')));assert.ok(view.rows.every(r=>r.length>1));
  }
 });
+
+test('published category rate drives monthly maps and keeps independent reinvestment caps',()=>{
+ const input=sample({depreciationAnnualRate:33.33,depreciationCategoryId:'AO207-15-G-3.1',closeProject:false,capexEvents:[{month:24,amount:1000}]},{years:5,capex:12000,residual:1200}),p=buildPlanningModel(input);
+ near(p.monthly[1].dre.depreciation,299.97);
+ near(p.monthly[36].dre.depAccum,10798.92+361.08);
+ near(p.monthly.at(-1).dre.depAccum,11800);
+ near(p.monthly.at(-1).dre.bookBefore,1200);
+ near(p.metrics.balanceCheck,0);near(p.metrics.cashCheck,0);
+ const legacy=buildPlanningModel(sample({closeProject:false},{years:5,capex:12000,residual:1200}));
+ assert.equal(p.monthly[1].cash.capex,legacy.monthly[1].cash.capex);
+ assert.throws(()=>validatePlanning({...planningDefaults,depreciationAnnualRate:25,depreciationCategoryId:'AO207-15-G-3.1'}));
+ for(const rate of [-1,101,NaN,33.333])assert.throws(()=>validatePlanning({...planningDefaults,depreciationAnnualRate:rate}));
+});
+test('published-rate workbook roundtrip preserves the reference only while the rate matches',async()=>{
+ const {parseStudyAssumptions}=await import('../lib/feasibility-input-import.ts');
+ const input=sample({depreciationAnnualRate:25,depreciationCategoryId:'AO207-15-G-4.1.2'});
+ const sheets=studyWorkbook(input,{name:'Rates',organization:'A',currency:'AOA'}),table=sheets[0].rows.map(row=>(row||[]).map(cell=>String(cell&&typeof cell==='object'?cell.value:cell??'')));
+ assert.deepEqual(parseStudyAssumptions(table,'AOA').planning,input.planning);
+ const edited=table.map(row=>row[6]==='depreciationAnnualRate'?[...row.slice(0,2),'20',...row.slice(3)]:row);
+ const p=parseStudyAssumptions(edited,'AOA').planning;assert.equal(p.depreciationAnnualRate,20);assert.equal(p.depreciationCategoryId,undefined);
+ assert.ok(JSON.stringify(sheets[11]).includes('207/15'));
+});
