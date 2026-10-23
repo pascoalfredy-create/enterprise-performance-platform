@@ -9,6 +9,9 @@ test('version uploads reject forks, unrelated branches and unrelated PRs',()=>{
  for(const head of [{...event.pull_request.head,repo:{full_name:'fork/repo'}},{...event.pull_request.head,ref:'main'}])
   assert.throws(()=>reviewContext({pull_request:{...event.pull_request,head}},repository));
  assert.throws(()=>reviewContext({pull_request:{...event.pull_request,number:41}},repository));
+ assert.equal(reviewContext({pull_request:{number:42,head:{repo:{full_name:repository},ref:'fix/budget-reconciliation-20261023'}}},repository),'pr-42');
+ assert.throws(()=>reviewContext({pull_request:{number:42,head:{repo:{full_name:'fork/repo'},ref:'fix/budget-reconciliation-20261023'}}},repository));
+ assert.throws(()=>reviewContext({pull_request:{number:43,head:{repo:{full_name:repository},ref:'fix/budget-reconciliation-20261023'}}},repository));
  assert.throws(()=>reviewContext({},repository));
 });
 test('review configuration must preserve dashboard variables and expected bindings',()=>{

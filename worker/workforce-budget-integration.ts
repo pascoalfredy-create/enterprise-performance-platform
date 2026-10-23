@@ -22,6 +22,7 @@ import {
   setMappingStatus,
   checkForUpdates,
   applyMapping,
+  confirmMovements,
   type SourceValue,
 } from "./budget-integration";
 
@@ -261,6 +262,7 @@ async function ensureDepartmentMappings(
   },
 ) {
   const { groups, pendingDepartments } = await buildWorkforceSourceGroups(db, tenantId, input.plan);
+  if(input.supersedes&&pendingDepartments.length)return Response.json({error:"Resolva os departamentos pendentes do novo plano antes de substituir a versão.",pendingDepartments},{status:409});
   const existing = await findActiveRhMappings(db, tenantId, input.plan.organization_id, input.lineId, input.plan.id);
   const existingByDimension = new Map(existing.map((m) => [m.dimension_member_id || "", m.id]));
 
@@ -291,7 +293,17 @@ async function ensureDepartmentMappings(
       mappingId = created.data.id;
     }
     createdByDimension[dimensionKey || "(sem dimensão)"] = mappingId;
-    await checkForUpdates(db, tenantId, mappingId, values);
+    const synced=await checkForUpdates(db, tenantId, mappingId, values,{fromPeriod:input.plan.start_period,toPeriod:input.plan.end_period});
+    if(!synced.ok)return synced;
+  }
+
+  // A changed department decision can empty an existing dimension without
+  // changing the plan version. Reconcile its declared coverage as well.
+  for(const old of existing){
+    if(!groups.has(old.dimension_member_id||"")){
+      const synced=await checkForUpdates(db,tenantId,old.id,[],{fromPeriod:input.plan.start_period,toPeriod:input.plan.end_period});
+      if(!synced.ok)return synced;
+    }
   }
 
   // Dimensions the OLD plan covered but the new one no longer resolves to
@@ -304,7 +316,7 @@ async function ensureDepartmentMappings(
     }
   }
 
-  return Response.json({ mappingsByDimension: createdByDimension, pendingDepartments, errors });
+  return Response.json({ mappingsByDimension: createdByDimension, pendingDepartments, errors,...(errors.length?{error:errors.join(" ")}: {}) },{status:errors.length?409:200});
 }
 
 export async function createWorkforceIntegration(
@@ -319,6 +331,7 @@ export async function createWorkforceIntegration(
   if (!planId || !lineId) return Response.json({ error: "Plano e rubrica são obrigatórios." }, { status: 400 });
   const approved = await requireApprovedPlan(db, tenantId, scopeOrganizationId, planId);
   if (approved.error) return approved.error;
+  if(body.organizationId&&body.organizationId!==approved.plan.organization_id)return Response.json({error:"O plano pertence a outra empresa."},{status:400});
   const otherActive = await findActiveRhMappings(db, tenantId, approved.plan.organization_id, lineId);
   const conflicting = otherActive.find((m) => planIdFromSourceReference(m.source_reference) !== planId);
   if (conflicting)
@@ -426,7 +439,33 @@ export async function applyWorkforceIntegration(db: D1Database, tenantId: string
     applied += result.data.applied;
     blocked += result.data.blocked;
   }
+  // Removing a dimension in a newer plan must also retire its contribution
+  // from this draft. Approved versions are guarded by applyMapping itself.
+  const retired=await db.prepare("SELECT DISTINCT m.id FROM financial_line_catalog_mappings m JOIN budget_integration_values v ON v.mapping_id=m.id AND v.tenant_id=m.tenant_id WHERE m.tenant_id=? AND m.organization_id=? AND m.line_id=? AND m.source_module='RH' AND m.status='Inativo' AND v.version_id=?").bind(tenantId,organizationId,lineId,versionId).all<{id:string}>();
+  for(const mapping of retired.results){
+    const result=await jsonOf<{applied:number;blocked:number}>(await applyMapping(db,tenantId,actor,{mappingId:mapping.id,versionId,retire:true}));
+    if(!result.ok)return result.response;
+    applied+=result.data.applied;blocked+=result.data.blocked;
+  }
   return Response.json({ applied, blocked, mappings: active.length });
+}
+
+export async function workforceIntegrationStatus(db:D1Database,tenantId:string,organizationId:string,lineId:string){
+  const mappings=await findActiveRhMappings(db,tenantId,organizationId,lineId);
+  if(!mappings.length)return Response.json({error:"Nenhuma integração RH ativa."},{status:404});
+  const approved=await requireApprovedPlan(db,tenantId,organizationId,planIdFromSourceReference(mappings[0].source_reference));
+  if(approved.error)return approved.error;
+  const {pendingDepartments}=await buildWorkforceSourceGroups(db,tenantId,approved.plan);
+  const movements=await db.prepare("SELECT m.id,m.mapping_id,m.period,m.component_label,m.amount_minor,m.pending_amount_minor,m.pending_source_status FROM budget_integration_movements m JOIN financial_line_catalog_mappings f ON f.id=m.mapping_id AND f.tenant_id=m.tenant_id WHERE f.tenant_id=? AND f.organization_id=? AND f.line_id=? AND f.source_module='RH' AND f.status='Ativo' AND m.sync_state='PendenteConfirmacao' ORDER BY m.period,m.component_label").bind(tenantId,organizationId,lineId).all();
+  return Response.json({plan:approved.plan,mappings,pendingDepartments,pendingMovements:movements.results});
+}
+
+export async function confirmWorkforceIntegration(db:D1Database,tenantId:string,organizationId:string,lineId:string){
+  const mappings=await findActiveRhMappings(db,tenantId,organizationId,lineId);
+  if(!mappings.length)return Response.json({error:"Nenhuma integração RH ativa."},{status:404});
+  let confirmed=0;
+  for(const m of mappings){const r=await jsonOf<{confirmed:number}>(await confirmMovements(db,tenantId,m.id,null));if(!r.ok)return r.response;confirmed+=r.data.confirmed;}
+  return Response.json({confirmed});
 }
 
 export async function listApprovedWorkforcePlans(db: D1Database, tenantId: string, organizationId: string | null) {
@@ -460,11 +499,12 @@ export async function workforceIntegrationApi(
     const scopedOrg = (claimed: string | null) => organizationId || claimed;
     if (request.method === "GET") {
       const action = url.searchParams.get("action") || "";
-      if (action === "candidates") return listApprovedWorkforcePlans(db, tenantId, organizationId);
+      if (action === "candidates") return listApprovedWorkforcePlans(db, tenantId, scopedOrg(url.searchParams.get("organizationId")));
       if (action === "departments") return workforcePlanDepartments(db, tenantId, organizationId, url.searchParams.get("planId") || "");
       if (action === "preview") return previewWorkforceIntegration(db, tenantId, organizationId, url.searchParams.get("planId") || "");
       if (action === "versionUpdate")
         return checkWorkforceVersionUpdate(db, tenantId, scopedOrg(url.searchParams.get("organizationId")) || "", url.searchParams.get("lineId") || "");
+      if(action==="status")return workforceIntegrationStatus(db,tenantId,scopedOrg(url.searchParams.get("organizationId"))||"",url.searchParams.get("lineId")||"");
       return Response.json({ error: "Acção não suportada." }, { status: 400 });
     }
     if (request.method !== "POST") return Response.json({ error: "Método não permitido." }, { status: 405 });
@@ -475,6 +515,7 @@ export async function workforceIntegrationApi(
     if (body.type === "syncIntegration") return syncWorkforceIntegration(db, tenantId, actor, body);
     if (body.type === "applyIntegration") return applyWorkforceIntegration(db, tenantId, actor, body);
     if (body.type === "switchVersion") return switchWorkforceVersion(db, tenantId, actor, body);
+    if(body.type==="confirmIntegration")return confirmWorkforceIntegration(db,tenantId,String(body.organizationId||""),String(body.lineId||""));
     return Response.json({ error: "Operação de integração RH não suportada." }, { status: 400 });
   } catch (error) {
     return fail(error);

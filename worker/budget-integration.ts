@@ -27,8 +27,7 @@ export type SyncState = "Atualizado" | "PendenteConfirmacao" | "Obsoleto" | "Con
 export type SourceModule = "RH" | "Investimentos" | "Financeiro" | "Forecast";
 
 // The contract every real adapter (Fase 3.2+) must implement. Nothing in
-// this file calls a real module — only the synthetic adapter used by tests
-// implements this today.
+// this file calls a real module; the workforce adapter owns its source read.
 export type SourceValue = {
   organizationId: string;
   sourceModule: SourceModule;
@@ -191,10 +190,11 @@ export async function listMappings(db: D1Database, tenantId: string, organizatio
 // place. Never writes to performance_entries. A movement present before but
 // absent from this batch (for a period this batch actually covers) is
 // marked Obsoleto, never deleted, preserving the audit trail.
-export async function checkForUpdates(db: D1Database, tenantId: string, mappingId: string, values: SourceValue[]) {
+export async function checkForUpdates(db: D1Database, tenantId: string, mappingId: string, values: SourceValue[], coverage?: {fromPeriod:string;toPeriod:string}) {
   const mapping = await db.prepare("SELECT * FROM financial_line_catalog_mappings WHERE id=? AND tenant_id=?").bind(mappingId, tenantId).first<MappingRow>();
   if (!mapping) return Response.json({ error: "Mapeamento não encontrado." }, { status: 404 });
   if (mapping.status !== "Ativo") return Response.json({ error: "O mapeamento está inactivo." }, { status: 409 });
+  if(coverage&&(!/^\d{4}-(0[1-9]|1[0-2])$/.test(coverage.fromPeriod)||!/^\d{4}-(0[1-9]|1[0-2])$/.test(coverage.toPeriod)||coverage.fromPeriod>coverage.toPeriod))return Response.json({error:"Cobertura da sincronização inválida."},{status:400});
 
   const now = new Date().toISOString();
   const existing = await db
@@ -228,10 +228,14 @@ export async function checkForUpdates(db: D1Database, tenantId: string, mappingI
       skipped++;
       continue;
     }
+    if(!Number.isSafeInteger(v.amountMinor)||v.dimensionMemberId!==mapping.dimension_member_id||(coverage&&(v.period<coverage.fromPeriod||v.period>coverage.toPeriod)))return Response.json({error:"Movimento fora do âmbito da sincronização."},{status:400});
     const key = `${v.sourceReference}|${v.period}|${v.dimensionMemberId || ""}`;
+    if(seen.has(key))return Response.json({error:"Movimento repetido na sincronização."},{status:400});
     seen.add(key);
     const prior = byKey.get(key);
     if (prior && prior.source_fingerprint === v.sourceFingerprint) {
+      // A source can revert a pending edit or restore a previously removed row.
+      if(prior.sync_state!=="Atualizado")statements.push(db.prepare("UPDATE budget_integration_movements SET sync_state='Atualizado',pending_amount_minor=NULL,pending_source_status=NULL,pending_fingerprint=NULL,updated_at=? WHERE id=? AND tenant_id=?").bind(now,prior.id,tenantId));
       unchanged++;
       continue;
     }
@@ -290,12 +294,18 @@ export async function checkForUpdates(db: D1Database, tenantId: string, mappingI
     }
   }
   let obsoleted = 0;
+  // A declared full refresh must never erase confirmed rows because part
+  // of the input belonged to another company/currency or was malformed.
+  if(coverage&&skipped)return Response.json({error:"A atualização completa contém movimentos inválidos."},{status:400});
   for (const [key, prior] of byKey) {
     if (seen.has(key)) continue;
-    if (!periodsInBatch.has(prior.period)) continue;
+    if (!(coverage?prior.period>=coverage.fromPeriod&&prior.period<=coverage.toPeriod:periodsInBatch.has(prior.period))) continue;
     if (prior.sync_state === "Obsoleto") continue;
     obsoleted++;
-    statements.push(db.prepare("UPDATE budget_integration_movements SET sync_state='Obsoleto',updated_at=? WHERE id=? AND tenant_id=?").bind(now, prior.id, tenantId));
+    if(mapping.sync_policy==="ComConfirmacao"){
+      pendingConfirmation++;
+      statements.push(db.prepare("UPDATE budget_integration_movements SET sync_state='PendenteConfirmacao',pending_amount_minor=0,pending_source_status='Obsoleto',pending_fingerprint=?,updated_at=? WHERE id=? AND tenant_id=?").bind("removed:"+prior.source_fingerprint,now,prior.id,tenantId));
+    }else statements.push(db.prepare("UPDATE budget_integration_movements SET sync_state='Obsoleto',pending_amount_minor=NULL,pending_source_status=NULL,pending_fingerprint=NULL,updated_at=? WHERE id=? AND tenant_id=?").bind(now, prior.id, tenantId));
   }
   if (statements.length) await db.batch(statements);
   return Response.json({ created, updated, unchanged, skipped, pendingConfirmation, obsoleted });
@@ -309,7 +319,7 @@ export async function confirmMovements(db: D1Database, tenantId: string, mapping
   const now = new Date().toISOString();
   const result = await db
     .prepare(
-      "UPDATE budget_integration_movements SET amount_minor=pending_amount_minor,source_status=pending_source_status,source_fingerprint=pending_fingerprint,sync_state='Atualizado',pending_amount_minor=NULL,pending_source_status=NULL,pending_fingerprint=NULL,updated_at=? WHERE tenant_id=? AND mapping_id=? AND sync_state='PendenteConfirmacao' AND (? IS NULL OR period=?)",
+      "UPDATE budget_integration_movements SET amount_minor=pending_amount_minor,source_status=pending_source_status,source_fingerprint=pending_fingerprint,sync_state=CASE WHEN pending_source_status='Obsoleto' THEN 'Obsoleto' ELSE 'Atualizado' END,pending_amount_minor=NULL,pending_source_status=NULL,pending_fingerprint=NULL,updated_at=? WHERE tenant_id=? AND mapping_id=? AND sync_state='PendenteConfirmacao' AND (? IS NULL OR period=?)",
     )
     .bind(now, tenantId, mappingId, period, period)
     .run();
@@ -324,13 +334,14 @@ export async function confirmMovements(db: D1Database, tenantId: string, mapping
 // means today. Respects a cell's adjustment_mode: Bloquear is skipped entirely;
 // Substituir/Adicionar compose with manual_adjustment_minor; a plain
 // integration-managed cell (no mode) is simply replaced.
-export async function applyMapping(db: D1Database, tenantId: string, actor: string, input: { mappingId: string; versionId: string }) {
+export async function applyMapping(db: D1Database, tenantId: string, actor: string, input: { mappingId: string; versionId: string; retire?:boolean }) {
   const draft = await requireDraftVersion(db, tenantId, input.versionId);
   if (draft.error) return draft.error;
   const version = draft.version!;
   const mapping = await db.prepare("SELECT * FROM financial_line_catalog_mappings WHERE id=? AND tenant_id=?").bind(input.mappingId, tenantId).first<MappingRow>();
   if (!mapping) return Response.json({ error: "Mapeamento não encontrado." }, { status: 404 });
-  if (mapping.status !== "Ativo") return Response.json({ error: "O mapeamento está inactivo." }, { status: 409 });
+  if (mapping.status !== "Ativo"&&!input.retire) return Response.json({ error: "O mapeamento está inactivo." }, { status: 409 });
+  if(input.retire&&mapping.status!=="Inativo")return Response.json({error:"A origem ainda está ativa."},{status:409});
   // performance_entries has no financial_nature column — it is, today, an
   // economic (competência) budget only. Applying a "Financeiro" (caixa)
   // mapping here would silently land on the exact same cell as an
@@ -345,7 +356,7 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
       { status: 409 },
     );
 
-  if (mapping.relation_policy !== "Soma") {
+  if (!input.retire&&mapping.relation_policy !== "Soma") {
     const conflict = await findExclusivityConflict(db, tenantId, {
       lineId: mapping.line_id,
       organizationId: mapping.organization_id,
@@ -368,6 +379,7 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
     .bind(tenantId, mapping.id, mapping.dimension_member_id, periods[0], periods[11])
     .all<{ period: string; amount_minor: number;source_movement_reference:string;component_label:string;source_status:string;source_fingerprint:string;sync_state:string;pending_amount_minor:number|null }>();
   const sumByPeriod = new Map<string, { sum: number; count: number }>();
+  if(input.retire)movements.results=[];
   for (const m of movements.results) {
     const row = sumByPeriod.get(m.period) || { sum: 0, count: 0 };
     row.sum += m.amount_minor;
@@ -378,10 +390,10 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
 
   const existingEntries = await db
     .prepare(
-      "SELECT id,period,amount_minor,integration_value_id,manual_adjustment_minor,adjustment_mode FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code=? AND organization_id=? AND currency=? AND dimension_member_id IS ?",
+      "SELECT id,period,amount_minor,integration_value_id,integration_amount_minor,manual_override,manual_adjustment_minor,adjustment_mode FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code=? AND organization_id=? AND currency=? AND dimension_member_id IS ?",
     )
     .bind(tenantId, input.versionId, line.code, mapping.organization_id, mapping.currency, mapping.dimension_member_id)
-    .all<{ id: string; period: string; amount_minor: number; integration_value_id:string|null;manual_adjustment_minor: number; adjustment_mode: string | null }>();
+    .all<{ id: string; period: string; amount_minor: number; integration_value_id:string|null;integration_amount_minor:number|null;manual_override:number;manual_adjustment_minor: number; adjustment_mode: string | null }>();
   const entryByPeriod = new Map(existingEntries.results.map((row) => [row.period, row]));
 
   const existingValues = await db
@@ -402,7 +414,8 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
   for (const period of periods) {
     const agg = sumByPeriod.get(period) || { sum: 0, count: 0 };
     const existing = entryByPeriod.get(period);
-    if (existing?.adjustment_mode === "Bloquear") {
+    if(input.retire&&!existing)continue;
+    if (existing?.adjustment_mode === "Bloquear"||(existing?.manual_override&&existing.integration_amount_minor===null)) {
       blocked++;
       continue;
     }
@@ -546,7 +559,9 @@ export async function getCellOrigin(
  db:D1Database,tenantId:string,
  input:{versionId:string;lineId:string;organizationId:string;dimensionMemberId:string|null;period:string;currency?:string},
 ){
- const line=await db.prepare("SELECT code FROM financial_line_catalog WHERE id=? AND tenant_id=?").bind(input.lineId,tenantId).first<{code:string}>();
+ const frozen=await db.prepare("SELECT s.code FROM budget_version_line_snapshots s JOIN budget_versions v ON v.id=s.version_id AND v.tenant_id=s.tenant_id WHERE s.line_id=? AND s.tenant_id=? AND s.version_id=? AND v.status='Aprovado'").bind(input.lineId,tenantId,input.versionId).first<{code:string}>();
+ let line=frozen||await db.prepare("SELECT code FROM financial_line_catalog WHERE id=? AND tenant_id=?").bind(input.lineId,tenantId).first<{code:string}>();
+ if(!line&&input.lineId.startsWith("legacy:")&&await db.prepare("SELECT id FROM budget_versions WHERE id=? AND tenant_id=? AND status='Aprovado'").bind(input.versionId,tenantId).first())line={code:input.lineId.slice(7)};
  if(!line)return Response.json({error:"Rubrica não encontrada."},{status:404});
  const matches=await db.prepare("SELECT amount_minor,integration_amount_minor,manual_adjustment_minor,adjustment_mode,integration_value_id,source,currency FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code=? AND period=? AND organization_id=? AND dimension_member_id IS ? AND (? IS NULL OR currency=?)").bind(tenantId,input.versionId,line.code,input.period,input.organizationId,input.dimensionMemberId,input.currency||null,input.currency||null).all<{amount_minor:number;integration_amount_minor:number|null;manual_adjustment_minor:number;adjustment_mode:string|null;integration_value_id:string|null;source:string;currency:string}>();
  if(matches.results.length>1)return Response.json({error:"Origem ambígua. Selecione uma moeda e uma célula única."},{status:409});

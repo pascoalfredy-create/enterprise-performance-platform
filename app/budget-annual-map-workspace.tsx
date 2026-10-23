@@ -4,6 +4,8 @@ import { apiFetch, readApiJson } from "../lib/api-client";
 import { usePlatformLocale } from "./use-platform-locale";
 import { mapCopy } from "./budget-annual-map-copy";
 import { buildXlsxBlob, parseXlsxFile } from "../lib/xlsx";
+import { parseMoneyMinor } from "../lib/money";
+import { parseBudgetMapImport,budgetMinorDecimal } from "../lib/budget-map-import";
 import { downloadBlob } from "../lib/module-export";
 import "./budget-annual-map.css";
 
@@ -21,6 +23,7 @@ type LineRow = {
   children: LineRow[];
 };
 type Snapshot = {
+  historicalStructureMissing?:boolean;
   version: { id: string; name: string; fiscal_year: number; status: string };
   periods: string[];
   tree: LineRow[];
@@ -46,6 +49,7 @@ type RhUpdateInfo = {
   currentTotalMinor?: number;
   latestTotalMinor?: number;
 };
+type RhStatus = {plan:RhPlanOption;mappings:{id:string}[];pendingDepartments:{departmentCode:string;totalCostMinor:number}[];pendingMovements:{id:string;period:string;component_label:string;amount_minor:number;pending_amount_minor:number;pending_source_status:string}[]};
 type RhPreview = {
   byDimension: Record<string, Record<string, number>>;
   pendingDepartments: { departmentCode: string; lineCount: number; totalCostMinor: number }[];
@@ -127,6 +131,8 @@ export function BudgetAnnualMapWorkspace() {
     [rhRelationPolicy, setRhRelationPolicy] = useState("Exclusiva"),
     [rhBusy, setRhBusy] = useState(false),
     [rhMessage, setRhMessage] = useState(""),
+    [rhStatus,setRhStatus]=useState<RhStatus|null>(null),
+    [rhRefresh,setRhRefresh]=useState(0),
     [cellOrigin, setCellOrigin] = useState<{ nodeId: string; period: string; data: Record<string, unknown> | null } | null>(null);
 
   useEffect(() => {
@@ -161,6 +167,8 @@ export function BudgetAnnualMapWorkspace() {
   const isApproved = data?.version?.status === "Aprovado";
   const readOnlyCells=isApproved||!dimensionMemberId;
   const writeDimension=dimensionMemberId==="__NONE__"?null:dimensionMemberId||null;
+  useEffect(()=>{setCellOrigin(null);setImportRows(null);},[versionId,organizationId,dimensionMemberId,currency]);
+  useEffect(()=>{setRhMessage("");setRhPlanId("");},[selectedLineId,organizationId]);
 
   function setEdit(node: LineRow, period: string, value: string) {
     const key = `${node.id}|${period}`,
@@ -252,12 +260,12 @@ export function BudgetAnnualMapWorkspace() {
   async function removeAssumption(id: string) {
     setBusy(true);
     try {
-      await apiFetch("/api/v1/budget-annual-map", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "deleteAssumption", id }),
+      const r=await apiFetch("/api/v1/budget-annual-map", {
+        method: "POST",headers: { "content-type": "application/json" },body: JSON.stringify({ type: "deleteAssumption", id }),
       });
+      const j=await readApiJson<{error?:string}>(r);if(!r.ok){setError(j.error||t("rhError"));return;}
       setReload((n) => n + 1);
+    } catch(e){setError(e instanceof Error?e.message:t("rhError"));
     } finally {
       setBusy(false);
     }
@@ -269,10 +277,9 @@ export function BudgetAnnualMapWorkspace() {
   // Integração (worker/workforce-budget-integration.ts) — sync, apply,
   // and version-switch.
   useEffect(() => {
-    setRhPlanId("");
     setRhDepartments([]);
     setRhPreview(null);
-    setRhMessage("");
+    setRhStatus(null);
     if (!selectedLineId || !organizationId) {
       setRhPlans([]);
       setRhHasIntegration(false);
@@ -296,128 +303,55 @@ export function BudgetAnnualMapWorkspace() {
           setRhUpdateInfo(null);
           return;
         }
-        setRhHasIntegration(true);
-        setRhUpdateInfo(await readApiJson<RhUpdateInfo>(r));
+        const j=await readApiJson<RhUpdateInfo&{error?:string}>(r);
+        if(!r.ok)throw new Error(j.error||t("rhError"));
+        if(!cancelled){setRhHasIntegration(true);setRhUpdateInfo(j);}
       })
       .catch(() => {
         if (!cancelled) setRhUpdateInfo(null);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedLineId, organizationId]);
+    apiFetch(`/api/v1/workforce-integration?action=status&organizationId=${organizationId}&lineId=${selectedLineId}`)
+      .then(async r=>{if(cancelled)return;if(r.status===404){setRhStatus(null);return;}const j=await readApiJson<RhStatus&{error?:string}>(r);if(!r.ok)throw new Error(j.error||t("rhError"));if(!cancelled){setRhStatus(j);setRhPlanId(current=>current||j.plan.id);}})
+      .catch(e=>{if(!cancelled)setRhMessage(e instanceof Error?e.message:t("rhError"));});
+    return () => {cancelled=true;};
+  }, [selectedLineId, organizationId,rhRefresh]);
 
-  function reloadRhPlanDetail(planId: string) {
-    if (!planId) return;
-    apiFetch(`/api/v1/workforce-integration?action=departments&planId=${planId}`)
-      .then(readApiJson<{ departments: RhDepartmentRow[] }>)
-      .then((j) => setRhDepartments(j.departments || []));
-    apiFetch(`/api/v1/workforce-integration?action=preview&planId=${planId}`)
-      .then(readApiJson<RhPreview>)
-      .then(setRhPreview)
-      .catch(() => setRhPreview(null));
-  }
   useEffect(() => {
-    if (rhPlanId) reloadRhPlanDetail(rhPlanId);
-  }, [rhPlanId]);
+    if(!rhPlanId)return;
+    let cancelled=false;
+    apiFetch(`/api/v1/workforce-integration?action=departments&planId=${rhPlanId}`)
+      .then(async r=>{const j=await readApiJson<{departments?:RhDepartmentRow[];error?:string}>(r);if(!r.ok)throw new Error(j.error||t("rhError"));if(!cancelled)setRhDepartments(j.departments||[]);})
+      .catch(e=>{if(!cancelled)setRhMessage(e instanceof Error?e.message:t("rhError"));});
+    apiFetch(`/api/v1/workforce-integration?action=preview&planId=${rhPlanId}`)
+      .then(async r=>{const j=await readApiJson<RhPreview&{error?:string}>(r);if(!r.ok)throw new Error(j.error||t("rhError"));if(!cancelled)setRhPreview(j);})
+      .catch(()=>{if(!cancelled)setRhPreview(null);});
+    return()=>{cancelled=true;};
+  }, [rhPlanId,rhRefresh]);
 
-  async function recordRhDecision(departmentCode: string, decision: "Mapeado" | "SemDimensao", dimensionMemberId: string | null) {
-    setRhBusy(true);
-    try {
-      await apiFetch("/api/v1/workforce-integration", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "recordDepartmentDecision", departmentCode, decision, dimensionMemberId }),
-      });
-      reloadRhPlanDetail(rhPlanId);
-    } finally {
-      setRhBusy(false);
-    }
+  async function rhAction(body:Record<string,unknown>,success:keyof typeof mapCopy){
+    setRhBusy(true);setRhMessage("");
+    try{
+      const r=await apiFetch("/api/v1/workforce-integration",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...body,organizationId})});
+      const j=await readApiJson<{error?:string;errors?:string[]}>(r);
+      if(!r.ok||j.errors?.length)throw new Error(j.error||j.errors?.join(" ")||t("rhError"));
+      setRhMessage(t(success));setRhRefresh(n=>n+1);setReload(n=>n+1);
+    }catch(e){setRhMessage(e instanceof Error?e.message:t("rhError"));}
+    finally{setRhBusy(false);}
   }
-
-  async function createRhIntegration() {
-    if (!rhPlanId || !selectedLineId || !organizationId) return;
-    setRhBusy(true);
-    setRhMessage("");
-    try {
-      const r = await apiFetch("/api/v1/workforce-integration", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          type: "createIntegration",
-          planId: rhPlanId,
-          lineId: selectedLineId,
-          organizationId,
-          syncPolicy: rhSyncPolicy,
-          relationPolicy: rhRelationPolicy,
-        }),
-      });
-      const j = await readApiJson<{ error?: string }>(r);
-      if (!r.ok) {
-        setRhMessage(j.error || t("rhError"));
-        return;
-      }
-      setRhHasIntegration(true);
-      setRhMessage(t("rhCreated"));
-    } finally {
-      setRhBusy(false);
-    }
+  async function recordRhDecision(departmentCode:string,decision:"Mapeado"|"SemDimensao",dimensionMemberId:string|null){
+    await rhAction({type:"recordDepartmentDecision",departmentCode,decision,dimensionMemberId},"rhSynced");
   }
-
-  async function syncRhIntegration() {
-    if (!selectedLineId || !organizationId) return;
-    setRhBusy(true);
-    setRhMessage("");
-    try {
-      const r = await apiFetch("/api/v1/workforce-integration", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "syncIntegration", organizationId, lineId: selectedLineId }),
-      });
-      const j = await readApiJson<{ error?: string }>(r);
-      setRhMessage(r.ok ? t("rhSynced") : j.error || t("rhError"));
-    } finally {
-      setRhBusy(false);
-    }
+  async function createRhIntegration(){
+    if(rhPlanId&&selectedLineId&&organizationId)await rhAction({type:"createIntegration",planId:rhPlanId,lineId:selectedLineId,syncPolicy:rhSyncPolicy,relationPolicy:rhRelationPolicy},"rhCreated");
   }
-
-  async function applyRhIntegration() {
-    if (!selectedLineId || !organizationId || !versionId) return;
-    setRhBusy(true);
-    setRhMessage("");
-    try {
-      const r = await apiFetch("/api/v1/workforce-integration", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "applyIntegration", organizationId, lineId: selectedLineId, versionId }),
-      });
-      const j = await readApiJson<{ error?: string }>(r);
-      if (!r.ok) {
-        setRhMessage(j.error || t("rhError"));
-        return;
-      }
-      setRhMessage(t("rhApplied"));
-      setReload((n) => n + 1);
-    } finally {
-      setRhBusy(false);
-    }
+  async function syncRhIntegration(){
+    await rhAction({type:"syncIntegration",lineId:selectedLineId},"rhSynced");
   }
-
-  async function switchRhVersion() {
-    if (!selectedLineId || !organizationId || !rhUpdateInfo?.latestPlanId) return;
-    setRhBusy(true);
-    setRhMessage("");
-    try {
-      await apiFetch("/api/v1/workforce-integration", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "switchVersion", organizationId, lineId: selectedLineId, newPlanId: rhUpdateInfo.latestPlanId }),
-      });
-      setRhMessage(t("rhSwitched"));
-      setRhUpdateInfo(null);
-    } finally {
-      setRhBusy(false);
-    }
+  async function applyRhIntegration(){
+    await rhAction({type:"applyIntegration",lineId:selectedLineId,versionId},"rhApplied");
+  }
+  async function switchRhVersion(){
+    if(rhUpdateInfo?.latestPlanId)await rhAction({type:"switchVersion",lineId:selectedLineId,newPlanId:rhUpdateInfo.latestPlanId},"rhSwitched");
   }
 
   async function viewCellOrigin(node: LineRow, period: string) {
@@ -425,8 +359,19 @@ export function BudgetAnnualMapWorkspace() {
     const params = new URLSearchParams({ versionId, lineId: node.id, organizationId, period, currency });
     if (writeDimension) params.set("dimensionMemberId", writeDimension);
     const r = await apiFetch(`/api/v1/budget-integration?action=origin&${params.toString()}`);
-    const j = await readApiJson<{ origin: Record<string, unknown> | null }>(r);
+    const j = await readApiJson<{ origin: Record<string, unknown> | null;error?:string }>(r);
+    if(!r.ok){setError(j.error||t("rhError"));return;}
     setCellOrigin({ nodeId: node.id, period, data: j.origin });
+  }
+
+  async function saveCellAdjustment(event:React.FormEvent<HTMLFormElement>){
+    event.preventDefault();if(!cellOrigin||readOnlyCells)return;
+    const form=new FormData(event.currentTarget);setBusy(true);setError("");
+    try{
+      const r=await apiFetch("/api/v1/budget-integration",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"setAdjustment",versionId,lineId:cellOrigin.nodeId,organizationId,dimensionMemberId:writeDimension,currency,period:cellOrigin.period,mode:form.get("mode"),manualAdjustmentMinor:parseMoneyMinor(String(form.get("amount")||"0"))})});
+      const j=await readApiJson<{error?:string}>(r);if(!r.ok)throw new Error(j.error||t("rhError"));
+      setNotice(t("rhAdjustmentSaved"));setReload(n=>n+1);const node=flat.find(x=>x.node.id===cellOrigin.nodeId)?.node;if(node)await viewCellOrigin(node,cellOrigin.period);
+    }catch(e){setError(e instanceof Error?e.message:t("rhError"));}finally{setBusy(false);}
   }
 
   async function recalc(lineId: string) {
@@ -458,34 +403,26 @@ export function BudgetAnnualMapWorkspace() {
     if (!data) return;
     const header = ["Código", "Nome", ...data.periods, "Total"];
     const rows = flat.map(({ node }) => {
-      const monthly = data.periods.map((_, i) => formatAmount(rollup(node, i, edits)));
+      const monthly = data.periods.map((_, i) => budgetMinorDecimal(rollup(node, i, edits)));
       const total = data.periods.reduce((sum, _, i) => sum + rollup(node, i, edits), 0);
-      return [node.code, node.name, ...monthly, formatAmount(total)];
+      return [node.code, node.name, ...monthly, budgetMinorDecimal(total)];
     });
     const blob = buildXlsxBlob([{ name: "Mapa Anual", rows: [header, ...rows] }]);
     downloadBlob(blob, `mapa-orcamental-${data.version.fiscal_year}.xlsx`);
   }
 
   async function handleImportFile(file: File) {
-    const rows = await parseXlsxFile(file);
-    setImportRows(rows.slice(1)); // drop header row
+    try{const rows=await parseXlsxFile(file);if(!data) return;
+      parseBudgetMapImport(rows,data.periods,flat.map(({node})=>({...node,leaf:!node.children.length})),currency,writeDimension);
+      setImportRows(rows);setError("");
+    }catch{setImportRows(null);setError(t("importInvalid"));}
   }
 
   async function confirmImport() {
     if (!importRows || !data || !organizationId || readOnlyCells) return;
-    const cells = importRows
-      .filter((row) => row[0]?.trim())
-      .flatMap((row) => {
-        const [code, name, ...monthsAndTotal] = row;
-        return data.periods.map((period, i) => ({
-          code,
-          lineName: name || code,
-          dimensionMemberId: writeDimension,
-          period,
-          currency,
-          amount: monthsAndTotal[i] || "0",
-        }));
-      });
+    let cells;
+    try{cells=parseBudgetMapImport(importRows,data.periods,flat.map(({node})=>({...node,leaf:!node.children.length})),currency,writeDimension).cells;}
+    catch{setError(t("importInvalid"));return;}
     setBusy(true);
     setError("");
     try {
@@ -576,6 +513,7 @@ export function BudgetAnnualMapWorkspace() {
       {notice ? <p className="budget-map-notice">{notice}</p> : null}
       {!dimensionMemberId&&!isApproved?<p className="budget-map-approved">{t("aggregateReadOnly")}</p>:null}
       {isApproved ? <p className="budget-map-approved">{t("approvedNotice")}</p> : null}
+      {data?.historicalStructureMissing ? <p className="budget-map-approved">{t("legacyStructure")}</p>:null}
       {edits.size > 0 && !isApproved ? <p className="budget-map-unsaved">{t("unsavedNotice")}</p> : null}
       {!versionId ? (
         <p className="budget-map-empty">{t("noVersion")}</p>
@@ -651,7 +589,7 @@ export function BudgetAnnualMapWorkspace() {
                               node.automatic && !monthly.manualOverride ? "budget-map-automatic-cell" : ""
                             }
                           />
-                          {node.automatic ? (
+                          {dimensionMemberId ? (
                             <button
                               type="button"
                               className="budget-map-origin-btn"
@@ -923,7 +861,7 @@ export function BudgetAnnualMapWorkspace() {
           ) : null}
         </aside>
       ) : null}
-      {selectedLine ? (
+      {selectedLine&&!selectedLine.id.startsWith("legacy:") ? (
         <aside className="budget-map-assumptions-panel budget-map-rh-panel">
           <header>
             <h3>{t("rhTitle")}</h3>
@@ -1034,11 +972,28 @@ export function BudgetAnnualMapWorkspace() {
             </>
           ) : (
             <div className="budget-map-actions">
+              {rhStatus ? <section className="budget-map-rh-status" aria-live="polite">
+                <p>{t("rhCurrentPlan")}: <strong>{rhStatus.plan.name} · v{rhStatus.plan.version_number} · {rhStatus.plan.currency}</strong></p>
+                <label>{t("rhReviewPlan")}<select value={rhPlanId} onChange={e=>setRhPlanId(e.target.value)} disabled={rhBusy}>{rhPlans.map(p=><option key={p.id} value={p.id}>{p.name} · v{p.version_number} · {p.currency}</option>)}</select></label>
+                {rhStatus.pendingDepartments.map(d=><p key={d.departmentCode}>{d.departmentCode}: {t("rhPending")} · {formatAmount(d.totalCostMinor)}</p>)}
+                {rhDepartments.filter(d=>d.department_code).map(d=><label key={d.department_code}>{d.department_code}
+                  <select aria-label={d.department_code||""} value={d.decision==="SemDimensao"?"__none__":d.dimension_member_id||""} disabled={rhBusy} onChange={e=>{if(d.department_code&&e.target.value)recordRhDecision(d.department_code,e.target.value==="__none__"?"SemDimensao":"Mapeado",e.target.value==="__none__"?null:e.target.value);}}>
+                    <option value="">{t("rhPending")}</option><option value="__none__">{t("rhNoDimension")}</option>
+                    {(data?.members||[]).map(m=><option key={m.id} value={m.id}>{m.dimension_name} · {m.code} · {m.name}</option>)}
+                  </select>
+                </label>)}
+                {rhStatus.pendingMovements.length ? <>
+                  <h4>{t("rhPendingChanges")} ({rhStatus.pendingMovements.length})</h4><p>{t("rhPendingHold")}</p>
+                  <table><thead><tr><th>{t("rhPeriod")}</th><th>{t("rhComponent")}</th><th>{t("rhBefore")}</th><th>{t("rhAfter")}</th></tr></thead>
+                    <tbody>{rhStatus.pendingMovements.map(m=><tr key={m.id}><td>{m.period}</td><td>{m.component_label}</td><td>{formatAmount(m.amount_minor)}</td><td>{formatAmount(m.pending_amount_minor)}</td></tr>)}</tbody></table>
+                  <button onClick={()=>rhAction({type:"confirmIntegration",lineId:selectedLineId},"rhConfirmed")} disabled={rhBusy}>{t("rhConfirm")}</button>
+                </>:null}
+              </section>:null}
               <button onClick={syncRhIntegration} disabled={rhBusy}>
                 {t("rhSync")}
               </button>
               {!isApproved ? (
-                <button className="primario" onClick={applyRhIntegration} disabled={rhBusy}>
+                <button className="primario" onClick={applyRhIntegration} disabled={rhBusy||!rhStatus||!!rhStatus.pendingMovements.length||!!rhStatus.pendingDepartments.length}>
                   {t("rhApply")}
                 </button>
               ) : null}
@@ -1072,10 +1027,21 @@ export function BudgetAnnualMapWorkspace() {
                   {String((cellOrigin.data.integration as Record<string, unknown>).syncState)}
                 </li>
               ) : null}
+              {cellOrigin.data.integration ? <li><details><summary>{t("rhDetails")}</summary>
+                {((cellOrigin.data.integration as {contributions?:{mappingId:string;sourceModule:string;sourceReference:string;amountMinor:number;movements?:Record<string,unknown>[]}[]}).contributions||[]).map(c=><section key={c.mappingId}><p>{c.sourceModule} · {c.sourceReference} · {formatAmount(c.amountMinor)}</p>
+                  <ul>{(c.movements||[]).map((m,i)=><li key={i}>{String(m.period||cellOrigin.period)} · {String(m.component_label||m.source_movement_reference||"")} · {formatAmount(Number(m.amount_minor||0))} · {String(m.source_status||"")}</li>)}</ul>
+                </section>)}
+              </details></li>:null}
             </ul>
           ) : (
-            <p className="budget-map-empty">{t("rhNone")}</p>
+            <p className="budget-map-empty">{t("cellNoOrigin")}</p>
           )}
+          {!readOnlyCells&&cellOrigin.data ? <form className="budget-map-assumption-form" key={`${versionId}|${organizationId}|${currency}|${dimensionMemberId}|${cellOrigin.nodeId}|${cellOrigin.period}`} onSubmit={saveCellAdjustment}>
+            <h4>{t("rhAdjustment")}</h4>
+            <select name="mode" defaultValue={String(cellOrigin.data.adjustmentMode||"Substituir")} aria-label={t("rhAdjustment")}><option value="Substituir">{t("rhReplace")}</option><option value="Adicionar">{t("rhAdd")}</option><option value="Bloquear">{t("rhBlock")}</option></select>
+            <input name="amount" aria-label={t("rhAdjustment")} defaultValue={(Number(cellOrigin.data.manualAdjustmentMinor||0)/100).toFixed(2)} inputMode="decimal" required/>
+            <button disabled={busy}>{t("rhAdjust")}</button>
+          </form>:null}
         </aside>
       ) : null}
     </section>

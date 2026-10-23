@@ -120,11 +120,14 @@ export async function buildApprovalLineSnapshotStatements(
     }
   }
   const now = new Date().toISOString();
+  const personnel=await db.prepare("SELECT DISTINCT line_id,organization_id FROM financial_line_catalog_mappings WHERE tenant_id=? AND source_module='RH' AND status='Ativo'").bind(tenantId).all<{line_id:string;organization_id:string}>();
+  const personnelOrgs=new Map<string,string[]>();
+  for(const r of personnel.results){const orgs=personnelOrgs.get(r.line_id)||[];orgs.push(r.organization_id);personnelOrgs.set(r.line_id,orgs);}
   return Array.from(toSnapshot.values()).map((line) => {
     const parent = line.parent_id ? byId.get(line.parent_id) : undefined;
     return db
       .prepare(
-        "INSERT OR IGNORE INTO budget_version_line_snapshots (id,tenant_id,version_id,line_id,code,name,parent_code,level,display_order,classification,cash_flow_category,sign_mode,line_kind,hidden,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT OR IGNORE INTO budget_version_line_snapshots (id,tenant_id,version_id,line_id,code,name,parent_code,level,display_order,classification,cash_flow_category,sign_mode,line_kind,hidden,created_at,personnel_organizations_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       )
       .bind(
         uid(),
@@ -142,6 +145,7 @@ export async function buildApprovalLineSnapshotStatements(
         line.line_kind,
         line.hidden,
         now,
+        JSON.stringify(personnelOrgs.get(line.id)||[]),
       );
   });
 }
@@ -223,7 +227,7 @@ export async function budgetAnnualMapSnapshot(
           .all<FinancialLineRow>(),
     db
       .prepare(
-        "SELECT line_code,period,amount_minor,manual_override FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND currency=? AND (? IS NULL OR organization_id=?) AND ((?='__NONE__' AND dimension_member_id IS NULL) OR (?<>'__NONE__' AND dimension_member_id=?) OR ? IS NULL) AND period BETWEEN ? AND ?",
+        "SELECT line_code,line_name,period,amount_minor,manual_override FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND currency=? AND (? IS NULL OR organization_id=?) AND ((?='__NONE__' AND dimension_member_id IS NULL) OR (?<>'__NONE__' AND dimension_member_id=?) OR ? IS NULL) AND period BETWEEN ? AND ?",
       )
       .bind(
         tenantId,
@@ -238,7 +242,7 @@ export async function budgetAnnualMapSnapshot(
         periods[0],
         periods[11],
       )
-      .all<{ line_code: string; period: string; amount_minor: number; manual_override: number }>(),
+      .all<{ line_code: string; line_name:string;period: string; amount_minor: number; manual_override: number }>(),
     db
       .prepare(
         "SELECT * FROM budget_assumptions WHERE tenant_id=? AND version_id=? AND currency=? AND (? IS NULL OR organization_id=?) AND ((?='__NONE__' AND dimension_member_id IS NULL) OR (?<>'__NONE__' AND dimension_member_id=?) OR ? IS NULL) ORDER BY precedence",
@@ -271,6 +275,17 @@ export async function budgetAnnualMapSnapshot(
   const lineRows: FinancialLineRow[] = isApproved
     ? snapshotRowsToLineRows(lines.results as unknown as SnapshotLineRow[])
     : (lines.results as FinancialLineRow[]);
+  let historicalStructureMissing=false;
+  if(isApproved){
+    const known=new Set(lineRows.map(l=>l.code));
+    for(const e of entries.results){
+      if(known.has(e.line_code))continue;
+      known.add(e.line_code);historicalStructureMissing=true;
+      // Only the saved entry's code/name/amount is historical evidence.
+      // Do not borrow today's hierarchy, classifications or formulas.
+      lineRows.push({id:`legacy:${e.line_code}`,tenant_id:tenantId,code:e.line_code,name:e.line_name||e.line_code,parent_id:null,level:1,display_order:lineRows.length,classification:"Não documentada",cash_flow_category:"Não documentada",sign_mode:"Natural",line_kind:"Analítica",hidden:0,status:"Ativa",source_type:"Manual",manual_adjustment_allowed:0,description:"",formula_expression:null,template_id:null,created_by:"",created_at:""});
+    }
+  }
   const rows: (FinancialLineRow & {
     monthly: { period: string; amountMinor: number; manualOverride: boolean }[];
     automatic: number[] | null;
@@ -303,6 +318,7 @@ export async function budgetAnnualMapSnapshot(
     version,
     periods,
     tree: buildCatalogTree(rows as unknown as FinancialLineRow[]),
+    historicalStructureMissing,
     organizations: organizations.results,
     members: members.results,
     versions: versions.results,
@@ -333,9 +349,14 @@ export async function batchSaveBudgetCells(
     return Response.json({ error: "Organização inválida." }, { status: 400 });
   if (!input.cells.length) return Response.json({ error: "Nenhuma célula para gravar." }, { status: 400 });
   const seenCells=new Set<string>();
+  const catalog=await db.prepare("SELECT code,line_kind,status FROM financial_line_catalog WHERE tenant_id=?").bind(tenantId).all<{code:string;line_kind:string;status:string}>();
+  const catalogByCode=new Map(catalog.results.map(r=>[r.code,r]));
   for (const cell of input.cells) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(cell.period) || !cell.code?.trim() || !cell.currency?.match(/^[A-Za-z]{3}$/))
       return Response.json({ error: "Célula orçamental inválida." }, { status: 400 });
+    const rubric=catalogByCode.get(cell.code.trim().toUpperCase());
+    if(!rubric||rubric.line_kind!=="Analítica"||rubric.status!=="Ativa")return Response.json({error:"Só podem ser gravadas rubricas analíticas ativas do catálogo."},{status:400});
+    if(cell.dimensionMemberId&&!await db.prepare("SELECT id FROM dimension_members WHERE id=? AND tenant_id=? AND status='Ativo'").bind(cell.dimensionMemberId,tenantId).first())return Response.json({error:"Dimensão inválida."},{status:400});
     if(!cell.period.startsWith(String(draft.version!.fiscal_year)+"-"))return Response.json({error:"Período fora do exercício orçamental."},{status:400});
     const identity=cell.currency.toUpperCase()+"|"+cell.code.trim().toUpperCase()+"|"+cell.period+"|"+(cell.dimensionMemberId||"");
     if(seenCells.has(identity))return Response.json({error:"Célula repetida no mesmo pedido."},{status:400});seenCells.add(identity);

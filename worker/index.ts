@@ -3466,7 +3466,7 @@ async function budgetIntegrationApi(
     if (body.type === "setMappingStatus")
       return setMappingStatus(db, tenantId, String(body.mappingId || ""), body.status === "Inativo" ? "Inativo" : "Ativo");
     if (body.type === "checkForUpdates")
-      return checkForUpdates(db, tenantId, String(body.mappingId || ""), Array.isArray(body.values) ? (body.values as never[]) : []);
+      return checkForUpdates(db, tenantId, String(body.mappingId || ""), Array.isArray(body.values) ? (body.values as never[]) : [],body.coverage as {fromPeriod:string;toPeriod:string}|undefined);
     if (body.type === "confirmMovements")
       return confirmMovements(db, tenantId, String(body.mappingId || ""), body.period ? String(body.period) : null);
     if (body.type === "applyMapping")
