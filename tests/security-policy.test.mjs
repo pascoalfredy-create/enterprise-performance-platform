@@ -492,13 +492,13 @@ test("the universal line-catalog actions live inside setupApi, so they inherit t
   assert.match(setupBlock,new RegExp(`body\\.type === "${type}"`),`${type} should be handled inside setupApi`);
 });
 test("the budget annual map, the budget integration engine and the RH workforce adapter share /api/performance's permission gate (performance:write/performance:read) instead of a new, separate one",()=>{
- assert.match(compact,/\["\/api\/performance","\/api\/budget-annual-map","\/api\/budget-integration","\/api\/workforce-integration","\/api\/investment-budget"\]\.includes\(apiPath\)\?write\?"performance:write":"performance:read"/);
+ assert.match(compact,/\["\/api\/performance","\/api\/budget-annual-map","\/api\/budget-integration","\/api\/workforce-integration","\/api\/investment-budget","\/api\/study-budget"\]\.includes\(apiPath\)\?write\?"performance:write":"performance:read"/);
  assert.match(source,/apiPath === "\/api\/budget-annual-map"\)\s*\n\s*return budgetAnnualMapApi/);
  assert.match(source,/apiPath === "\/api\/budget-integration"\)\s*\n\s*return budgetIntegrationApi/);
  assert.match(source,/apiPath === "\/api\/workforce-integration"\)\s*\n\s*return workforceIntegrationRoute/);
 });
 test("the RH workforce adapter requires FINANCE_FP&A like the rest of the budget stack, and never lets a claimed organizationId override the caller's own security-context scope",()=>{
- assert.match(compact,/"\/api\/budget-integration","\/api\/workforce-integration","\/api\/investment-budget","\/api\/scenarios"/);
+ assert.match(compact,/"\/api\/budget-integration","\/api\/workforce-integration","\/api\/investment-budget","\/api\/study-budget","\/api\/scenarios"/);
  const adapterSrc=fs.readFileSync(new URL("../worker/workforce-budget-integration.ts",import.meta.url),"utf8");
  assert.match(adapterSrc,/const scopedOrg = \(claimed: string \| null\) => organizationId \|\| claimed/);
  assert.match(adapterSrc,/WHERE id=\? AND tenant_id=\? AND \(\? IS NULL OR organization_id=\?\)/);
@@ -528,3 +528,5 @@ test("Mapa Anual writes (batch save, pressupostos) are refused once the budget v
  const occurrences=(src.match(/requireDraftVersion\(/g)||[]).length;
  assert.ok(occurrences>=4,"requireDraftVersion should gate batchSave, create/update, delete and recalculate");
 });
+
+test('study source access additionally requires financial-data read permission before routing',()=>{const start=rawSource.indexOf("if (apiPath === '/api/study-budget')");const end=rawSource.indexOf("if (apiPath === '/api/investment-budget')",start);const route=rawSource.slice(start,end);assert.match(route,/hasPermission\(security.permissions, 'financial-data:read'\)/);assert.match(route,/hasPermission\(security.permissions, 'performance:write'\)/);assert.ok(route.indexOf("financial-data:read")<route.indexOf('return studyBudgetApi'));});

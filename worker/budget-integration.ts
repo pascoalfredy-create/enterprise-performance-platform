@@ -334,7 +334,7 @@ export async function confirmMovements(db: D1Database, tenantId: string, mapping
 // means today. Respects a cell's adjustment_mode: Bloquear is skipped entirely;
 // Substituir/Adicionar compose with manual_adjustment_minor; a plain
 // integration-managed cell (no mode) is simply replaced.
-export async function applyMapping(db: D1Database, tenantId: string, actor: string, input: { mappingId: string; versionId: string; retire?:boolean }) {
+export async function applyMapping(db: D1Database, tenantId: string, actor: string, input: { mappingId: string; versionId: string; retire?:boolean;requireAllCells?:boolean;sourceSnapshotHash?:string }) {
   const draft = await requireDraftVersion(db, tenantId, input.versionId);
   if (draft.error) return draft.error;
   const version = draft.version!;
@@ -494,6 +494,8 @@ export async function applyMapping(db: D1Database, tenantId: string, actor: stri
     }
     applied++;
   }
+  if(input.requireAllCells&&blocked)return Response.json({error:"A proposta contém células bloqueadas ou manuais. Reconcilie-as antes de aplicar."},{status:409});
+  if(input.sourceSnapshotHash){statements.unshift(db.prepare("INSERT INTO budget_cell_write_checks(matches_revision) SELECT 0 WHERE NOT EXISTS(SELECT 1 FROM financial_line_catalog_mappings WHERE id=? AND tenant_id=? AND status='Ativo') OR (SELECT COUNT(*) FROM budget_integration_movements WHERE tenant_id=? AND mapping_id=? AND dimension_member_id IS ? AND period BETWEEN ? AND ? AND sync_state IN ('Atualizado','PendenteConfirmacao'))<>? OR EXISTS(SELECT 1 FROM budget_integration_movements WHERE tenant_id=? AND mapping_id=? AND dimension_member_id IS ? AND period BETWEEN ? AND ? AND sync_state IN ('Atualizado','PendenteConfirmacao') AND json_extract(CASE WHEN json_valid(source_fingerprint) THEN source_fingerprint ELSE '{}' END,'$.inputSnapshotHash') IS NOT ?)").bind(mapping.id,tenantId,tenantId,mapping.id,mapping.dimension_member_id,periods[0],periods[11],movements.results.length,tenantId,mapping.id,mapping.dimension_member_id,periods[0],periods[11],input.sourceSnapshotHash));}
   try{await db.batch(statements);}catch(error){if(String(error).includes("matches_revision"))return Response.json({error:"Uma célula foi alterada em paralelo. Atualize e volte a aplicar."},{status:409});throw error;}
   return Response.json({ applied, blocked, periods: periods.length });
 }
