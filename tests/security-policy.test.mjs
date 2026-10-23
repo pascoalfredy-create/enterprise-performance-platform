@@ -492,16 +492,23 @@ test("the universal line-catalog actions live inside setupApi, so they inherit t
   assert.match(setupBlock,new RegExp(`body\\.type === "${type}"`),`${type} should be handled inside setupApi`);
 });
 test("the budget annual map, the budget integration engine and the RH workforce adapter share /api/performance's permission gate (performance:write/performance:read) instead of a new, separate one",()=>{
- assert.match(compact,/\["\/api\/performance","\/api\/budget-annual-map","\/api\/budget-integration","\/api\/workforce-integration"\]\.includes\(apiPath\)\?write\?"performance:write":"performance:read"/);
+ assert.match(compact,/\["\/api\/performance","\/api\/budget-annual-map","\/api\/budget-integration","\/api\/workforce-integration","\/api\/investment-budget"\]\.includes\(apiPath\)\?write\?"performance:write":"performance:read"/);
  assert.match(source,/apiPath === "\/api\/budget-annual-map"\)\s*\n\s*return budgetAnnualMapApi/);
  assert.match(source,/apiPath === "\/api\/budget-integration"\)\s*\n\s*return budgetIntegrationApi/);
  assert.match(source,/apiPath === "\/api\/workforce-integration"\)\s*\n\s*return workforceIntegrationRoute/);
 });
 test("the RH workforce adapter requires FINANCE_FP&A like the rest of the budget stack, and never lets a claimed organizationId override the caller's own security-context scope",()=>{
- assert.match(compact,/"\/api\/budget-integration","\/api\/workforce-integration","\/api\/scenarios"/);
+ assert.match(compact,/"\/api\/budget-integration","\/api\/workforce-integration","\/api\/investment-budget","\/api\/scenarios"/);
  const adapterSrc=fs.readFileSync(new URL("../worker/workforce-budget-integration.ts",import.meta.url),"utf8");
  assert.match(adapterSrc,/const scopedOrg = \(claimed: string \| null\) => organizationId \|\| claimed/);
  assert.match(adapterSrc,/WHERE id=\? AND tenant_id=\? AND \(\? IS NULL OR organization_id=\?\)/);
+ const investmentSrc=fs.readFileSync(new URL("../worker/investment-budget-integration.ts",import.meta.url),"utf8");
+ assert.match(investmentSrc,/budgetOrganizationAccess\(db,tenant,scope/);
+ assert.match(investmentSrc,/budgetResourceAccess\(db,tenant,scope,'mapping'/);
+ assert.match(investmentSrc,/requireDraftVersion\(db,tenant,versionId\)/);
+ const route=rawSource.slice(rawSource.indexOf("if (apiPath === '/api/investment-budget')"),rawSource.indexOf('if (apiPath === "/api/scenarios")',rawSource.indexOf("if (apiPath === '/api/investment-budget')")));
+ assert.match(route,/hasPermission\(security.permissions, 'financial-model:read'\)/);
+ assert.ok(route.indexOf("hasPermission")<route.indexOf("return investmentBudgetApi"));
 });
 test("budget integration writes (applyMapping, setAdjustment) are gated to draft versions; mapping configuration itself is not, so approving a budget never blocks a mapping from evolving",()=>{
  const src=fs.readFileSync(new URL("../worker/budget-integration.ts",import.meta.url),"utf8");

@@ -57,6 +57,7 @@ import {
   getCellOrigin,
 } from "./budget-integration";
 import { workforceIntegrationApi } from "./workforce-budget-integration";
+import { investmentBudgetApi } from './investment-budget-integration';
 import { reviewsApi } from "./reviews";
 import { competenciesApi } from "./competencies";
 import { controlPlaneApi, ensureFirstOperator } from "./control-plane";
@@ -6480,7 +6481,7 @@ const worker = {
                     ? write
                       ? "payroll:write"
                       : "payroll:read"
-                  : ["/api/performance", "/api/budget-annual-map", "/api/budget-integration", "/api/workforce-integration"].includes(apiPath)
+                  : ["/api/performance", "/api/budget-annual-map", "/api/budget-integration", "/api/workforce-integration", "/api/investment-budget"].includes(apiPath)
                     ? write
                       ? "performance:write"
                       : "performance:read"
@@ -6611,6 +6612,7 @@ const worker = {
                   "/api/budget-annual-map",
                   "/api/budget-integration",
                   "/api/workforce-integration",
+                  "/api/investment-budget",
                   "/api/scenarios",
                   "/api/consolidation",
                   "/api/financial-models",
@@ -6733,6 +6735,11 @@ const worker = {
         return budgetIntegrationApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/workforce-integration")
         return workforceIntegrationRoute(request, env.DB, tenantId, organizationId);
+      if (apiPath === '/api/investment-budget') {
+        if (!hasPermission(security.permissions, 'financial-model:read'))
+          return Response.json({error:'A consulta da origem exige acesso aos planos financeiros.'},{status:403});
+        return investmentBudgetApi(request,env.DB,tenantId,organizationId,actorEmail(request)||'utilizador autenticado');
+      }
       if (apiPath === "/api/scenarios")
         return scenariosApi(request, env.DB, security);
       if (apiPath === "/api/consolidation")

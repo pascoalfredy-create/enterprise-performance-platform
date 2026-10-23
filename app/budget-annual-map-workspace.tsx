@@ -8,6 +8,7 @@ import { parseMoneyMinor } from "../lib/money";
 import { parseBudgetMapImport,budgetMinorDecimal } from "../lib/budget-map-import";
 import { downloadBlob } from "../lib/module-export";
 import "./budget-annual-map.css";
+import { BudgetInvestmentsPanel } from './budget-investments-panel';
 
 type Monthly = { period: string; amountMinor: number; manualOverride: boolean };
 type LineRow = {
@@ -610,6 +611,7 @@ export function BudgetAnnualMapWorkspace() {
           </table>
         </div>
       )}
+      {versionId&&organizationId?<BudgetInvestmentsPanel key={`${versionId}|${organizationId}|${dimensionMemberId}|${currency}|${selectedLine?.id||''}`} versionId={versionId} organizationId={organizationId} dimensionMemberId={dimensionMemberId} currency={currency} approved={isApproved} line={selectedLine} onApplied={()=>setReload(n=>n+1)}/>:null}
       {importRows ? (
         <div className="budget-map-import-preview">
           <h3>{t("importPreview")}</h3>
