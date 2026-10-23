@@ -506,6 +506,9 @@ test("the RH workforce adapter requires FINANCE_FP&A like the rest of the budget
  assert.match(investmentSrc,/budgetOrganizationAccess\(db,tenant,scope/);
  assert.match(investmentSrc,/budgetResourceAccess\(db,tenant,scope,'mapping'/);
  assert.match(investmentSrc,/requireDraftVersion\(db,tenant,versionId\)/);
+ const route=rawSource.slice(rawSource.indexOf("if (apiPath === '/api/investment-budget')"),rawSource.indexOf('if (apiPath === "/api/scenarios")',rawSource.indexOf("if (apiPath === '/api/investment-budget')")));
+ assert.match(route,/hasPermission\(security.permissions, 'financial-model:read'\)/);
+ assert.ok(route.indexOf("hasPermission")<route.indexOf("return investmentBudgetApi"));
 });
 test("budget integration writes (applyMapping, setAdjustment) are gated to draft versions; mapping configuration itself is not, so approving a budget never blocks a mapping from evolving",()=>{
  const src=fs.readFileSync(new URL("../worker/budget-integration.ts",import.meta.url),"utf8");

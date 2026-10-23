@@ -15,7 +15,7 @@ Sem uma linha mensal aprovada que represente depreciações, não se calcula dep
 
 ## Integração e evidência
 
-O novo `/api/investment-budget` usa a mesma autorização de orçamento e o mesmo módulo financeiro. Valida âmbito da empresa em todos os acessos e ids de ligação. A configuração escolhe origem, finalidade, rubrica, dimensão e políticas. Uma projeção completa só pode alimentar um destino ativo por finalidade, incluindo entre dimensões; não é um mecanismo de repartição de custos.
+O novo `/api/investment-budget` exige a autorização de orçamento, o mesmo módulo financeiro e acesso de leitura aos planos financeiros (`financial-model:read`). Valida âmbito da empresa em todos os acessos e ids de ligação. A configuração escolhe origem, finalidade, rubrica, dimensão e políticas. Uma projeção completa só pode alimentar um destino ativo por finalidade, incluindo entre dimensões; não é um mecanismo de repartição de custos.
 
 As leituras da fonte geram movimentos idempotentes no motor comum. A competência usa a aplicação económica já existente, com os mesmos ajustes e bloqueios manuais. A natureza financeira é aplicada apenas em `budget_integration_values`, sem inserir `performance_entries`, sem contaminar receitas/custos e sem fabricar saldo de caixa. A migração 0085 reforça a unicidade da origem ativa na base, preservando os contratos dos adaptadores RH e genéricos.
 

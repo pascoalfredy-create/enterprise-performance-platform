@@ -6735,8 +6735,11 @@ const worker = {
         return budgetIntegrationApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/workforce-integration")
         return workforceIntegrationRoute(request, env.DB, tenantId, organizationId);
-      if (apiPath === '/api/investment-budget')
+      if (apiPath === '/api/investment-budget') {
+        if (!hasPermission(security.permissions, 'financial-model:read'))
+          return Response.json({error:'A consulta da origem exige acesso aos planos financeiros.'},{status:403});
         return investmentBudgetApi(request,env.DB,tenantId,organizationId,actorEmail(request)||'utilizador autenticado');
+      }
       if (apiPath === "/api/scenarios")
         return scenariosApi(request, env.DB, security);
       if (apiPath === "/api/consolidation")
