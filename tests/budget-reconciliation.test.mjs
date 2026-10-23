@@ -109,3 +109,12 @@ test('RH status exposes pending movements and its confirmation action promotes t
  const r=await confirmWorkforceIntegration(f.db,'t1','o1','l1');assert.equal((await r.json()).confirmed,1);
  await applyWorkforceIntegration(f.db,'t1','u',{organizationId:'o1',lineId:'l1',versionId:'v1'});assert.deepEqual(read(f).map(r=>[r.dimension_member_id,r.amount_minor]),[['com',200]]);f.sqlite.close();
 });
+test('an approved zero-headcount successor clears every old department in a draft, while unresolved successors preserve the current integration',async()=>{
+ const f=await rhFixture(),id=plan(f.sqlite,'t1','o1');planLine(f.sqlite,'t1',id,{departmentCode:'FIN',headcount:2,monthlyCostMinor:100});finalizePlan(f.sqlite,'t1',id);await decide(f.db,'t1','FIN','Mapeado','fin');
+ await createWorkforceIntegration(f.db,'t1','u',null,{planId:id,lineId:'l1'});await applyWorkforceIntegration(f.db,'t1','u',{organizationId:'o1',lineId:'l1',versionId:'v1'});
+ const unresolved=plan(f.sqlite,'t1','o1',{versionNumber:2});planLine(f.sqlite,'t1',unresolved,{departmentCode:'UNKNOWN'});finalizePlan(f.sqlite,'t1',unresolved);
+ assert.equal((await switchWorkforceVersion(f.db,'t1','u',{organizationId:'o1',lineId:'l1',newPlanId:unresolved})).status,409);assert.equal(read(f)[0].amount_minor,200);
+ const empty=plan(f.sqlite,'t1','o1',{versionNumber:3});planLine(f.sqlite,'t1',empty,{headcount:0,monthlyCostMinor:100,movementType:'Redução'});finalizePlan(f.sqlite,'t1',empty);
+ assert.equal((await switchWorkforceVersion(f.db,'t1','u',{organizationId:'o1',lineId:'l1',newPlanId:empty})).status,200);
+ assert.equal((await applyWorkforceIntegration(f.db,'t1','u',{organizationId:'o1',lineId:'l1',versionId:'v1'})).status,200);assert.equal(read(f).length,0);f.sqlite.close();
+});

@@ -230,4 +230,6 @@ missingHistoricalEvidence:["O detalhe histórico desta origem não foi preservad
   rhBlock: ["Bloquear atualização", "Block updates", "Bloquear actualización", "Bloquer les mises à jour", "Заблокировать обновление"],
   rhAdjustmentSaved: ["Ajuste guardado", "Adjustment saved", "Ajuste guardado", "Ajustement enregistré", "Корректировка сохранена"],
   rhDetails: ["Contribuições e movimentos de origem", "Source contributions and movements", "Contribuciones y movimientos de origen", "Contributions et mouvements sources", "Вклады и движения источника"],
+  rhReviewPlan: ["Rever departamentos do plano", "Review plan departments", "Revisar departamentos del plan", "Examiner les départements du plan", "Проверить отделы плана"],
+  cellNoOrigin: ["Não existe um valor guardado nesta célula.", "There is no saved amount in this cell.", "No hay un importe guardado en esta celda.", "Aucun montant enregistré dans cette cellule.", "В этой ячейке нет сохранённой суммы."],
 };

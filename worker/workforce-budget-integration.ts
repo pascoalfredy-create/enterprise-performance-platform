@@ -262,6 +262,7 @@ async function ensureDepartmentMappings(
   },
 ) {
   const { groups, pendingDepartments } = await buildWorkforceSourceGroups(db, tenantId, input.plan);
+  if(input.supersedes&&pendingDepartments.length)return Response.json({error:"Resolva os departamentos pendentes do novo plano antes de substituir a versão.",pendingDepartments},{status:409});
   const existing = await findActiveRhMappings(db, tenantId, input.plan.organization_id, input.lineId, input.plan.id);
   const existingByDimension = new Map(existing.map((m) => [m.dimension_member_id || "", m.id]));
 
