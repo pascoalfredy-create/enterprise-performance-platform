@@ -120,11 +120,14 @@ export async function buildApprovalLineSnapshotStatements(
     }
   }
   const now = new Date().toISOString();
+  const personnel=await db.prepare("SELECT DISTINCT line_id,organization_id FROM financial_line_catalog_mappings WHERE tenant_id=? AND source_module='RH' AND status='Ativo'").bind(tenantId).all<{line_id:string;organization_id:string}>();
+  const personnelOrgs=new Map<string,string[]>();
+  for(const r of personnel.results){const orgs=personnelOrgs.get(r.line_id)||[];orgs.push(r.organization_id);personnelOrgs.set(r.line_id,orgs);}
   return Array.from(toSnapshot.values()).map((line) => {
     const parent = line.parent_id ? byId.get(line.parent_id) : undefined;
     return db
       .prepare(
-        "INSERT OR IGNORE INTO budget_version_line_snapshots (id,tenant_id,version_id,line_id,code,name,parent_code,level,display_order,classification,cash_flow_category,sign_mode,line_kind,hidden,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT OR IGNORE INTO budget_version_line_snapshots (id,tenant_id,version_id,line_id,code,name,parent_code,level,display_order,classification,cash_flow_category,sign_mode,line_kind,hidden,created_at,personnel_organizations_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       )
       .bind(
         uid(),
@@ -142,6 +145,7 @@ export async function buildApprovalLineSnapshotStatements(
         line.line_kind,
         line.hidden,
         now,
+        JSON.stringify(personnelOrgs.get(line.id)||[]),
       );
   });
 }
@@ -333,9 +337,14 @@ export async function batchSaveBudgetCells(
     return Response.json({ error: "Organização inválida." }, { status: 400 });
   if (!input.cells.length) return Response.json({ error: "Nenhuma célula para gravar." }, { status: 400 });
   const seenCells=new Set<string>();
+  const catalog=await db.prepare("SELECT code,line_kind,status FROM financial_line_catalog WHERE tenant_id=?").bind(tenantId).all<{code:string;line_kind:string;status:string}>();
+  const catalogByCode=new Map(catalog.results.map(r=>[r.code,r]));
   for (const cell of input.cells) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(cell.period) || !cell.code?.trim() || !cell.currency?.match(/^[A-Za-z]{3}$/))
       return Response.json({ error: "Célula orçamental inválida." }, { status: 400 });
+    const rubric=catalogByCode.get(cell.code.trim().toUpperCase());
+    if(!rubric||rubric.line_kind!=="Analítica"||rubric.status!=="Ativa")return Response.json({error:"Só podem ser gravadas rubricas analíticas ativas do catálogo."},{status:400});
+    if(cell.dimensionMemberId&&!await db.prepare("SELECT id FROM dimension_members WHERE id=? AND tenant_id=? AND status='Ativo'").bind(cell.dimensionMemberId,tenantId).first())return Response.json({error:"Dimensão inválida."},{status:400});
     if(!cell.period.startsWith(String(draft.version!.fiscal_year)+"-"))return Response.json({error:"Período fora do exercício orçamental."},{status:400});
     const identity=cell.currency.toUpperCase()+"|"+cell.code.trim().toUpperCase()+"|"+cell.period+"|"+(cell.dimensionMemberId||"");
     if(seenCells.has(identity))return Response.json({error:"Célula repetida no mesmo pedido."},{status:400});seenCells.add(identity);
