@@ -23,6 +23,7 @@ type LineRow = {
   children: LineRow[];
 };
 type Snapshot = {
+  historicalStructureMissing?:boolean;
   version: { id: string; name: string; fiscal_year: number; status: string };
   periods: string[];
   tree: LineRow[];
@@ -512,6 +513,7 @@ export function BudgetAnnualMapWorkspace() {
       {notice ? <p className="budget-map-notice">{notice}</p> : null}
       {!dimensionMemberId&&!isApproved?<p className="budget-map-approved">{t("aggregateReadOnly")}</p>:null}
       {isApproved ? <p className="budget-map-approved">{t("approvedNotice")}</p> : null}
+      {data?.historicalStructureMissing ? <p className="budget-map-approved">{t("legacyStructure")}</p>:null}
       {edits.size > 0 && !isApproved ? <p className="budget-map-unsaved">{t("unsavedNotice")}</p> : null}
       {!versionId ? (
         <p className="budget-map-empty">{t("noVersion")}</p>
@@ -859,7 +861,7 @@ export function BudgetAnnualMapWorkspace() {
           ) : null}
         </aside>
       ) : null}
-      {selectedLine ? (
+      {selectedLine&&!selectedLine.id.startsWith("legacy:") ? (
         <aside className="budget-map-assumptions-panel budget-map-rh-panel">
           <header>
             <h3>{t("rhTitle")}</h3>

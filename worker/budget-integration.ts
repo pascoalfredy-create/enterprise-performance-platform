@@ -560,7 +560,8 @@ export async function getCellOrigin(
  input:{versionId:string;lineId:string;organizationId:string;dimensionMemberId:string|null;period:string;currency?:string},
 ){
  const frozen=await db.prepare("SELECT s.code FROM budget_version_line_snapshots s JOIN budget_versions v ON v.id=s.version_id AND v.tenant_id=s.tenant_id WHERE s.line_id=? AND s.tenant_id=? AND s.version_id=? AND v.status='Aprovado'").bind(input.lineId,tenantId,input.versionId).first<{code:string}>();
- const line=frozen||await db.prepare("SELECT code FROM financial_line_catalog WHERE id=? AND tenant_id=?").bind(input.lineId,tenantId).first<{code:string}>();
+ let line=frozen||await db.prepare("SELECT code FROM financial_line_catalog WHERE id=? AND tenant_id=?").bind(input.lineId,tenantId).first<{code:string}>();
+ if(!line&&input.lineId.startsWith("legacy:")&&await db.prepare("SELECT id FROM budget_versions WHERE id=? AND tenant_id=? AND status='Aprovado'").bind(input.versionId,tenantId).first())line={code:input.lineId.slice(7)};
  if(!line)return Response.json({error:"Rubrica não encontrada."},{status:404});
  const matches=await db.prepare("SELECT amount_minor,integration_amount_minor,manual_adjustment_minor,adjustment_mode,integration_value_id,source,currency FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND line_code=? AND period=? AND organization_id=? AND dimension_member_id IS ? AND (? IS NULL OR currency=?)").bind(tenantId,input.versionId,line.code,input.period,input.organizationId,input.dimensionMemberId,input.currency||null,input.currency||null).all<{amount_minor:number;integration_amount_minor:number|null;manual_adjustment_minor:number;adjustment_mode:string|null;integration_value_id:string|null;source:string;currency:string}>();
  if(matches.results.length>1)return Response.json({error:"Origem ambígua. Selecione uma moeda e uma célula única."},{status:409});

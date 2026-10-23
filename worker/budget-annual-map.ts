@@ -227,7 +227,7 @@ export async function budgetAnnualMapSnapshot(
           .all<FinancialLineRow>(),
     db
       .prepare(
-        "SELECT line_code,period,amount_minor,manual_override FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND currency=? AND (? IS NULL OR organization_id=?) AND ((?='__NONE__' AND dimension_member_id IS NULL) OR (?<>'__NONE__' AND dimension_member_id=?) OR ? IS NULL) AND period BETWEEN ? AND ?",
+        "SELECT line_code,line_name,period,amount_minor,manual_override FROM performance_entries WHERE tenant_id=? AND scenario='Budget' AND version_id=? AND currency=? AND (? IS NULL OR organization_id=?) AND ((?='__NONE__' AND dimension_member_id IS NULL) OR (?<>'__NONE__' AND dimension_member_id=?) OR ? IS NULL) AND period BETWEEN ? AND ?",
       )
       .bind(
         tenantId,
@@ -242,7 +242,7 @@ export async function budgetAnnualMapSnapshot(
         periods[0],
         periods[11],
       )
-      .all<{ line_code: string; period: string; amount_minor: number; manual_override: number }>(),
+      .all<{ line_code: string; line_name:string;period: string; amount_minor: number; manual_override: number }>(),
     db
       .prepare(
         "SELECT * FROM budget_assumptions WHERE tenant_id=? AND version_id=? AND currency=? AND (? IS NULL OR organization_id=?) AND ((?='__NONE__' AND dimension_member_id IS NULL) OR (?<>'__NONE__' AND dimension_member_id=?) OR ? IS NULL) ORDER BY precedence",
@@ -275,6 +275,17 @@ export async function budgetAnnualMapSnapshot(
   const lineRows: FinancialLineRow[] = isApproved
     ? snapshotRowsToLineRows(lines.results as unknown as SnapshotLineRow[])
     : (lines.results as FinancialLineRow[]);
+  let historicalStructureMissing=false;
+  if(isApproved){
+    const known=new Set(lineRows.map(l=>l.code));
+    for(const e of entries.results){
+      if(known.has(e.line_code))continue;
+      known.add(e.line_code);historicalStructureMissing=true;
+      // Only the saved entry's code/name/amount is historical evidence.
+      // Do not borrow today's hierarchy, classifications or formulas.
+      lineRows.push({id:`legacy:${e.line_code}`,tenant_id:tenantId,code:e.line_code,name:e.line_name||e.line_code,parent_id:null,level:1,display_order:lineRows.length,classification:"Não documentada",cash_flow_category:"Não documentada",sign_mode:"Natural",line_kind:"Analítica",hidden:0,status:"Ativa",source_type:"Manual",manual_adjustment_allowed:0,description:"",formula_expression:null,template_id:null,created_by:"",created_at:""});
+    }
+  }
   const rows: (FinancialLineRow & {
     monthly: { period: string; amountMinor: number; manualOverride: boolean }[];
     automatic: number[] | null;
@@ -307,6 +318,7 @@ export async function budgetAnnualMapSnapshot(
     version,
     periods,
     tree: buildCatalogTree(rows as unknown as FinancialLineRow[]),
+    historicalStructureMissing,
     organizations: organizations.results,
     members: members.results,
     versions: versions.results,

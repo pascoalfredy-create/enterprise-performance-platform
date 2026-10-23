@@ -118,3 +118,11 @@ test('an approved zero-headcount successor clears every old department in a draf
  assert.equal((await switchWorkforceVersion(f.db,'t1','u',{organizationId:'o1',lineId:'l1',newPlanId:empty})).status,200);
  assert.equal((await applyWorkforceIntegration(f.db,'t1','u',{organizationId:'o1',lineId:'l1',versionId:'v1'})).status,200);assert.equal(read(f).length,0);f.sqlite.close();
 });
+test('legacy approved amounts remain visible without inventing a historical catalog or changing stored data',async()=>{
+ const f=await generic();await ingest(f,[mv('a',100)]);await apply(f);f.sqlite.exec("UPDATE budget_versions SET status='Aprovado',approved_at='now' WHERE id='v1'; UPDATE financial_line_catalog SET code='RENAMED',name='New name',hidden=1 WHERE id='l1';");
+ const before=f.sqlite.prepare("SELECT * FROM performance_entries WHERE version_id='v1'").all();
+ const snapshot=await budgetAnnualMapSnapshot(f.db,'t1',{versionId:'v1',organizationId:'o1',dimensionMemberId:'__NONE__',currency:'AOA'});
+ assert.equal(snapshot.historicalStructureMissing,true);assert.equal(snapshot.tree.length,1);assert.equal(snapshot.tree[0].id,'legacy:03.01.01');assert.equal(snapshot.tree[0].code,'03.01.01');assert.equal(snapshot.tree[0].monthly[0].amountMinor,100);assert.equal(snapshot.tree[0].classification,'Não documentada');
+ const origin=await (await getCellOrigin(f.db,'t1',{versionId:'v1',lineId:'legacy:03.01.01',organizationId:'o1',dimensionMemberId:null,period:'2026-01',currency:'AOA'})).json();assert.equal(origin.origin.amountMinor,100);assert.equal(f.sqlite.prepare("SELECT SUM(amount_minor) n FROM performance_entries WHERE tenant_id='t1' AND version_id='v1' AND line_code IN "+PERSONNEL_COST_LINE_CODES_SUBQUERY).get('t1','t1','o1','o1').n,100);
+ assert.deepEqual(f.sqlite.prepare("SELECT * FROM performance_entries WHERE version_id='v1'").all(),before);f.sqlite.close();
+});
