@@ -66,7 +66,7 @@ test('operation lists are natively collapsible and do not duplicate navigation a
  const html=sidebar('FINANCE_FP&A','Investimento');
  assert(html.includes('<details class="workspace-group">'));
  assert(html.includes('aria-current="page"')&&html.includes('Modelagem financeira'));
- assert(html.includes('Plano de negócios mensal'));
+ assert(html.includes('Pressupostos operacionais mensais'));
  assert(!html.includes('Drivers e plano de negócios'));
  assert(!html.includes('Cash-flow e financiamento'));
  assert(!html.includes('<details open'));

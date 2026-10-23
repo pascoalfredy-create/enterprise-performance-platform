@@ -156,7 +156,7 @@ export function FinancialModelsWorkspace({
       {!!data.outOfHorizonCashMinor&&<p role="status">Fluxos de caixa fora do horizonte: {data.outOfHorizonCashMinor/100}. Amplie o horizonte para os incluir.</p>}
       <header className="fm-top">
         <div>
-          <span>FINANÇAS E FP&A · PLANEAMENTO DE NEGÓCIO</span>
+          <span>{copy('area')}</span>
           <h1>{copy('title')}</h1>
           <p>{copy('intro')}</p>
         </div>

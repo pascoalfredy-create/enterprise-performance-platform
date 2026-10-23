@@ -1,0 +1,110 @@
+[
+  {
+    "code": "A",
+    "label": "Agricultura, pecuária, silvicultura, aquicultura, avicultura e piscatória"
+  },
+  {
+    "code": "B",
+    "label": "Pesca"
+  },
+  {
+    "code": "C",
+    "label": "Indústrias extractivas, excepto indústria petrolífera e indústria mineira"
+  },
+  {
+    "code": "DA",
+    "label": "Indústrias alimentares, das bebidas e do tabaco"
+  },
+  {
+    "code": "DB",
+    "label": "Indústria têxtil"
+  },
+  {
+    "code": "DC",
+    "label": "Indústria do couro e de produtos de couro"
+  },
+  {
+    "code": "DD",
+    "label": "Indústrias da madeira e da cortiça e suas obras"
+  },
+  {
+    "code": "DE",
+    "label": "Industrias de pasta de papel, de papel e cartão e seus artigos; Edição e impressão"
+  },
+  {
+    "code": "DF",
+    "label": "Fabricação de coque e de produtos petrolíferos refinados"
+  },
+  {
+    "code": "DG",
+    "label": "Fabricação de produtos químicos e de fibras sintéticas ou artificiais"
+  },
+  {
+    "code": "DH",
+    "label": "Fabricação de artigos de borracha e de matérias plásticas"
+  },
+  {
+    "code": "DI",
+    "label": "Fabricação de outros produtos minerais não metálicos"
+  },
+  {
+    "code": "DJ",
+    "label": "Indústrias metalúrgicos de base e de produtos metálicos"
+  },
+  {
+    "code": "DK",
+    "label": "Fabricação de máquinas e de equipamentos não especificados"
+  },
+  {
+    "code": "DL",
+    "label": "Fabricação de equipamento eléctrico e de óptica"
+  },
+  {
+    "code": "DM",
+    "label": "Fabricação de material de transporte -"
+  },
+  {
+    "code": "DN",
+    "label": "Indústrias transformadoras n. e"
+  },
+  {
+    "code": "E",
+    "label": "Produção e distribuição de electricidade, de gás e de água"
+  },
+  {
+    "code": "F",
+    "label": "Construção"
+  },
+  {
+    "code": "G",
+    "label": "Comércio, serviços gerais e elementos comuns"
+  },
+  {
+    "code": "H",
+    "label": "Alojamento e restauração (restaurantes e similares)"
+  },
+  {
+    "code": "I",
+    "label": "Transportes, armazenagem e comunicações"
+  },
+  {
+    "code": "J",
+    "label": "Telecomunicações e tecnologias de informação"
+  },
+  {
+    "code": "K",
+    "label": "Actividades financeiras"
+  },
+  {
+    "code": "L",
+    "label": "Saúde e acção social"
+  },
+  {
+    "code": "M",
+    "label": "Outras actividades de serviços colectivos, sociais e pessoais"
+  },
+  {
+    "code": "N",
+    "label": "Activo incorpóreo"
+  }
+]

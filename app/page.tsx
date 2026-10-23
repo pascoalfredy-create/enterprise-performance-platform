@@ -132,7 +132,7 @@ const moduleCatalog: Array<{
         target: "Investimento",
         document: true,
       },
-      { label: "Plano de negócios mensal", target: "Modelação" },
+      { label: "Pressupostos operacionais mensais", target: "Modelação" },
       { label: "Consolidação e câmbio", target: "Consolidação" },
     ],
   },

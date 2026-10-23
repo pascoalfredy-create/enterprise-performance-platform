@@ -77,3 +77,15 @@ test('published-rate workbook roundtrip preserves the reference only while the r
  const p=parseStudyAssumptions(edited,'AOA').planning;assert.equal(p.depreciationAnnualRate,20);assert.equal(p.depreciationCategoryId,undefined);
  assert.ok(JSON.stringify(sheets[11]).includes('207/15'));
 });
+
+test('sector depreciation follows the shared model and Excel preserves actual sector provenance',async()=>{
+ const {parseStudyAssumptions}=await import('../lib/feasibility-input-import.ts');
+ const {buildXlsxBlob,parseXlsxFile}=await import('../lib/xlsx.ts');
+ const input=sample({depreciationAnnualRate:7.14,depreciationCategoryId:'AO207-15-B-1.2'}),result=buildPlanningModel(input);
+ near(result.monthly[1].dre.depreciation,59.5);near(result.metrics.balanceCheck,0);near(result.metrics.cashCheck,0);
+ const sheets=studyWorkbook(input,{name:'Fishing',organization:'A',currency:'AOA'});
+ assert.ok(sheets[0].rows.some(r=>r.some(c=>typeof c==='string'&&c.includes('· B 1.2'))));
+ const parsed=parseStudyAssumptions(await parseXlsxFile(new File([buildXlsxBlob(sheets)],'sector.xlsx')),'AOA');
+ assert.equal(parsed.planning.depreciationCategoryId,'AO207-15-B-1.2');assert.equal(parsed.planning.depreciationAnnualRate,7.14);
+ for(const id of ['AO207-15-B-4.1','AO207-15-J-1.19','AO207-15-M-3.5','AO207-15-F-1'])assert.throws(()=>validatePlanning({...planningDefaults,depreciationAnnualRate:id.includes('B-4.1')?3.33:id.includes('J-')?6.66:id.includes('M-')?4:12.5,depreciationCategoryId:id}),/referência/);
+});

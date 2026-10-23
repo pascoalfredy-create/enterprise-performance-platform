@@ -1,6 +1,8 @@
+import sectorTable from './data/ao-depreciation-207-15-sector.json' with {type: 'json'};
+import sectorNames from './data/ao-depreciation-207-15-sectors.json' with {type: 'json'};
 import generalTable from './data/ao-depreciation-207-15.json' with {type: 'json'};
 
-/** General table G only. A sector-specific item takes precedence (article 6).
+/** Published general and sector tables. A sector-specific item takes precedence (article 6).
  * Values are the published percentages, not 100 / rounded published life.
  * This reference is not a determination of tax deductibility or legal currency.
  */
@@ -12,7 +14,13 @@ export const depreciationReference = {
   pages: [3862, 3863, 3864],
   source: 'https://files.lex.ao/presidente-da-republica/2015/decreto-presidencial-n-o-207-15-de-05-de-novembro/download/decreto-presidencial-n-o-207-15-de-05-de-novembro_presidente-da-republica_lex-ao.pdf',
 } as const;
-export const depreciationCategories = Object.freeze(generalTable.map(row => Object.freeze({...row})));
+export type DepreciationCategory = {id:string;sector:string;code:string;category:string;subcategory:string;label:string;annualRateBps:number;publishedLifeYears:number|null;publishedLifeText:string;reviewReason:string};
+export const depreciationSectors = Object.freeze(sectorNames.map(row => Object.freeze({...row})));
+export const depreciationCategories:readonly Readonly<DepreciationCategory>[] = Object.freeze([
+ ...generalTable.map(row => Object.freeze({...row,sector:'G',publishedLifeText:String(row.publishedLifeYears),reviewReason:''})),
+ ...sectorTable.map(row => Object.freeze({...row})),
+]);
+export function depreciationReferenceId(category:Pick<DepreciationCategory,'sector'>) {return category.sector==='G'?depreciationReference.id:'AO-DP-207-15-'+category.sector+'-v1';}
 
 export type DepreciationPlanInput = {
   categoryId: string;
@@ -35,6 +43,7 @@ function periodLabel(value: number) { return `${Math.floor(value / 12)}-${String
 export function depreciationPlan(input: DepreciationPlanInput) {
   const category = depreciationCategories.find(row => row.id === input.categoryId);
   if (!category) throw new Error('Unknown depreciation category');
+  if (category.reviewReason) throw new Error('Published reference requires review');
   if (![input.costMinor, input.residualMinor].every(n => Number.isSafeInteger(n) && n >= 0) || input.residualMinor > input.costMinor) throw new Error('Invalid depreciable amount');
   if (!Number.isInteger(input.months) || input.months < 1 || input.months > 360) throw new Error('Invalid horizon');
   const start = periodNumber(input.inServicePeriod), from = periodNumber(input.fromPeriod);
@@ -49,5 +58,5 @@ export function depreciationPlan(input: DepreciationPlanInput) {
     const before = accumulated(elapsed - 1), after = accumulated(elapsed);
     return {period: periodLabel(period), depreciationMinor: Number(after - before), accumulatedMinor: Number(after), netBookMinor: input.costMinor - Number(after)};
   });
-  return {referenceId: depreciationReference.id, category: {...category}, baseMinor: Number(base), rows};
+  return {referenceId: depreciationReferenceId(category), category: {...category}, baseMinor: Number(base), rows};
 }

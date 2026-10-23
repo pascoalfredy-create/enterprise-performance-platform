@@ -8,6 +8,7 @@ import { parseMoneyMinor } from "../lib/money";
 import { parseBudgetMapImport,budgetMinorDecimal } from "../lib/budget-map-import";
 import { downloadBlob } from "../lib/module-export";
 import "./budget-annual-map.css";
+import { BudgetStudyBridge } from './budget-study-bridge';
 import { BudgetInvestmentsPanel } from './budget-investments-panel';
 
 type Monthly = { period: string; amountMinor: number; manualOverride: boolean };
@@ -16,6 +17,8 @@ type LineRow = {
   code: string;
   name: string;
   line_kind: string;
+  classification?:string;
+  cash_flow_category?:string;
   hidden: number;
   status: string;
   monthly: Monthly[];
@@ -611,7 +614,8 @@ export function BudgetAnnualMapWorkspace() {
           </table>
         </div>
       )}
-      {versionId&&organizationId?<BudgetInvestmentsPanel key={`${versionId}|${organizationId}|${dimensionMemberId}|${currency}|${selectedLine?.id||''}`} versionId={versionId} organizationId={organizationId} dimensionMemberId={dimensionMemberId} currency={currency} approved={isApproved} line={selectedLine} onApplied={()=>setReload(n=>n+1)}/>:null}
+      {data?.version&&organizationId?<BudgetStudyBridge key={`study-bridge|${versionId}|${organizationId}|${dimensionMemberId}|${currency}|${selectedLine?.id||''}`} organizationId={organizationId} currency={currency} dimensionMemberId={dimensionMemberId} unsaved={edits.size>0} line={selectedLine?{...selectedLine,monthly:selectedLine.monthly.map((row,n)=>({...row,amountMinor:displayedValue(selectedLine,n,new Map())}))}:null}/>:null}
+      {versionId&&organizationId?<BudgetInvestmentsPanel key={`investments|${versionId}|${organizationId}|${dimensionMemberId}|${currency}|${selectedLine?.id||''}`} versionId={versionId} organizationId={organizationId} dimensionMemberId={dimensionMemberId} currency={currency} approved={isApproved} line={selectedLine} onApplied={()=>setReload(n=>n+1)}/>:null}
       {importRows ? (
         <div className="budget-map-import-preview">
           <h3>{t("importPreview")}</h3>

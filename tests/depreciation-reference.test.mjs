@@ -4,14 +4,15 @@ import {depreciationCategories, depreciationPlan, depreciationReference} from '.
 const plan = (extra = {}) => depreciationPlan({categoryId:'AO207-15-G-4.1.2',costMinor:12000000,residualMinor:0,inServicePeriod:'2026-03',fromPeriod:'2026-01',months:12,...extra});
 
 test('general table preserves 81 distinct published rates and reference', () => {
- assert.equal(depreciationCategories.length,81);
- assert.equal(new Set(depreciationCategories.map(c=>c.id)).size,81);
+ const general=depreciationCategories.filter(c=>c.sector==='G');
+ assert.equal(general.length,81);
+ assert.equal(new Set(depreciationCategories.map(c=>c.id)).size,477);
  assert.match(depreciationReference.instrument,/207\/15/);
  for(const [code,rate,life] of [['3.1',3333,3],['4.1.1',1667,6],['4.1.2',2500,4],['3.15',1667,6],['2.7',1666,6],['1.4',200,50],['5.5.1',1667,6],['5.12',2500,4]]) {
-  const item=depreciationCategories.find(c=>c.code===code);
+  const item=general.find(c=>c.code===code);
   assert.equal(item?.annualRateBps,rate);assert.equal(item?.publishedLifeYears,life);
  }
- assert.equal(new Set(depreciationCategories.map(c=>c.category)).size,5);
+ assert.equal(new Set(general.map(c=>c.category)).size,5);
 });
 test('monthly quotas start in service month and do not generate cash',()=>{
  const result=plan();
@@ -45,4 +46,19 @@ test('large valid amounts retain exact cumulative cent conservation',()=>{
  const result=plan({costMinor:Number.MAX_SAFE_INTEGER,residualMinor:123,months:120});
  assert.equal(result.rows.reduce((s,r)=>s+BigInt(r.depreciationMinor),0n),BigInt(Number.MAX_SAFE_INTEGER)-123n);
  assert.equal(result.rows.at(-1).netBookMinor,123);
+});
+
+test('sector references preserve published rates, distinct duplicate codes and review gates',()=>{
+ assert.equal(depreciationCategories.length,477);
+ assert.equal(new Set(depreciationCategories.map(c=>c.sector)).size,27);
+ const fishing=depreciationCategories.find(c=>c.id==='AO207-15-B-1.2');
+ assert.equal(fishing.annualRateBps,714);
+ const result=plan({categoryId:fishing.id,months:180});
+ assert.equal(result.referenceId,'AO-DP-207-15-B-v1');
+ assert.equal(result.rows.at(-1).netBookMinor,0);
+ for(const id of ['AO207-15-B-4.1','AO207-15-J-1.19','AO207-15-M-3.5','AO207-15-F-1','AO207-15-F-1-2']){
+  assert.ok(depreciationCategories.find(c=>c.id===id)?.reviewReason,id);
+  assert.throws(()=>plan({categoryId:id}),/requires review/);
+ }
+ assert.equal(depreciationCategories.find(c=>c.id==='AO207-15-J-1.19').publishedLifeYears,null);
 });
