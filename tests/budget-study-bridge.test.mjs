@@ -30,3 +30,5 @@ test('second model year is never silently presented as the first budget year and
  const r=compareStudyYearOne(source,target,'2026-01','revenue');assert.ok(r.rows.every(row=>row.studyMinor===null));assert.equal(r.outsideMonths.length,12);
  const missing=compareStudyYearOne({...source,monthly:model.monthly.filter(m=>m.month!==2)},target,'2027-01','revenue');assert.equal(missing.rows[1].studyMinor,null);
 });
+
+test('rejects differences outside exact minor-unit arithmetic',()=>{assert.throws(()=>compareStudyYearOne({...source,monthly:[{month:1,dre:{revenue:Number.MAX_SAFE_INTEGER/100}}]},{...target,monthly:[{period:'2027-01',amountMinor:-Number.MAX_SAFE_INTEGER}]},'2027-01','revenue'),/Unsafe/);});

@@ -614,8 +614,8 @@ export function BudgetAnnualMapWorkspace() {
           </table>
         </div>
       )}
-      {data?.version&&organizationId?<BudgetStudyBridge key={`${versionId}|${organizationId}|${dimensionMemberId}|${currency}|${selectedLine?.id||''}`} organizationId={organizationId} currency={currency} dimensionMemberId={dimensionMemberId} unsaved={edits.size>0} line={selectedLine?{...selectedLine,monthly:selectedLine.monthly.map((row,n)=>({...row,amountMinor:displayedValue(selectedLine,n,new Map())}))}:null}/>:null}
-      {versionId&&organizationId?<BudgetInvestmentsPanel key={`${versionId}|${organizationId}|${dimensionMemberId}|${currency}|${selectedLine?.id||''}`} versionId={versionId} organizationId={organizationId} dimensionMemberId={dimensionMemberId} currency={currency} approved={isApproved} line={selectedLine} onApplied={()=>setReload(n=>n+1)}/>:null}
+      {data?.version&&organizationId?<BudgetStudyBridge key={`study-bridge|${versionId}|${organizationId}|${dimensionMemberId}|${currency}|${selectedLine?.id||''}`} organizationId={organizationId} currency={currency} dimensionMemberId={dimensionMemberId} unsaved={edits.size>0} line={selectedLine?{...selectedLine,monthly:selectedLine.monthly.map((row,n)=>({...row,amountMinor:displayedValue(selectedLine,n,new Map())}))}:null}/>:null}
+      {versionId&&organizationId?<BudgetInvestmentsPanel key={`investments|${versionId}|${organizationId}|${dimensionMemberId}|${currency}|${selectedLine?.id||''}`} versionId={versionId} organizationId={organizationId} dimensionMemberId={dimensionMemberId} currency={currency} approved={isApproved} line={selectedLine} onApplied={()=>setReload(n=>n+1)}/>:null}
       {importRows ? (
         <div className="budget-map-import-preview">
           <h3>{t("importPreview")}</h3>
