@@ -1,0 +1,9 @@
+"use client";
+import type {PlanningInput} from '../lib/feasibility-planning';
+import type {NumberLocale} from '../lib/number-input';
+import {debtDrawdownCopy} from '../lib/study-debt-copy';
+import {LocalizedNumberInput} from './localized-number-input';
+export function StudyDebtDrawdowns({value,locale,onChange}:{value:PlanningInput;locale:NumberLocale;onChange:(value:PlanningInput)=>void}){
+ const i={pt:0,en:1,es:2,fr:3,ru:4}[locale],t=(key:keyof typeof debtDrawdownCopy)=>debtDrawdownCopy[key][i],events=value.debtDrawdowns;
+ return <details className="study-settings"><summary>{t('title')}</summary><p>{t('help')}</p><label className="study-check"><input type="checkbox" checked={events!==undefined} onChange={e=>{const next={...value};if(e.target.checked)next.debtDrawdowns=[];else delete next.debtDrawdowns;onChange(next)}}/>{t('enable')}</label>{events!==undefined&&<>{value.graceMonths<1&&<p role="status">{t('grace')}</p>}<div className="table-scroll"><table><thead><tr><th>{t('month')}</th><th>{t('amount')}</th><th></th></tr></thead><tbody>{events.map((event,n)=><tr key={n}><td><LocalizedNumberInput aria-label={t('month')+' · '+(n+1)} value={event.month} decimals={0} minimumDecimals={0} onValueChange={month=>onChange({...value,debtDrawdowns:events.map((e,i)=>i===n?{...e,month}:e)})}/></td><td><LocalizedNumberInput aria-label={t('amount')+' · '+(n+1)} value={event.amount} onValueChange={amount=>onChange({...value,debtDrawdowns:events.map((e,i)=>i===n?{...e,amount}:e)})}/></td><td><button type="button" onClick={()=>onChange({...value,debtDrawdowns:events.filter((_,i)=>i!==n)})}>{t('remove')}</button></td></tr>)}</tbody></table></div><button type="button" disabled={events.length>=24||value.graceMonths<1} onClick={()=>onChange({...value,debtDrawdowns:[...events,{month:1,amount:0}]})}>{t('add')}</button></>}</details>;
+}

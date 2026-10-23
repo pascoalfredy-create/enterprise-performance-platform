@@ -16,7 +16,7 @@ export function statementLayouts(p:PlanningResult){
  // Use live input references and horizon conditions in exported formulas.
  const P=(key:string)=>address(studySheets[0],p.inputRows.find(r=>r.key===key)!.row,2);
  const terminal=(y:number):Expr=>({op:'IF',args:[mul({op:'=',args:[y,P('years')]},P('closeProject')),P('residual'),0]});
- const debt=(y:number):Expr=>y===0?P('debt'):0;
+ const debt=(y:number):Expr=>y===0?P('debt'):add(...Array.from({length:12},(_,j)=>at('balance','drawdown',(y-1)*12+j+1)));
  const finance=(y:number)=>sub(add(c('equityInjection',y),debt(y)),add(c('principal',y),c('interestPaid',y),c('financingFees',y),c('distribution',y)));
  const invest=(y:number)=>sub(terminal(y),d('assetCost',y));
  const movement=(y:number)=>add(op(y),finance(y),invest(y));
