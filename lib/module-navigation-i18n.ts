@@ -2,7 +2,7 @@ import type { PlatformLocale } from "./platform-i18n";
 
 type Five=[string,string,string,string,string];
 const labels:Record<string,Five>={
-"Plano de negócios mensal":["Plano de negócios mensal","Monthly business plan","Plan de negocio mensual","Plan d’affaires mensuel","Помесячный бизнес-план"],
+"Pressupostos operacionais mensais":["Pressupostos operacionais mensais","Monthly operating assumptions","Supuestos operativos mensuales","Hypothèses opérationnelles mensuelles","Помесячные операционные предпосылки"],
 "Ficha do colaborador":["Ficha do colaborador","Employee file","Ficha del empleado","Fiche du salarié","Карточка сотрудника"],
 "Automatização da análise":["Automatização da análise","Analysis automation","Automatización del análisis","Automatisation de l’analyse","Автоматизация анализа"],
 "Catálogo Universal de Rubricas":["Catálogo Universal de Rubricas","Universal Budget Catalog","Catálogo Universal de Rúbricas","Catalogue universel des rubriques","Универсальный каталог статей"],

@@ -6,7 +6,7 @@ import {pathToFileURL} from 'node:url';
 
 export function reviewContext(event,repository){
   const pr=event.pull_request;
-  const allowed=new Map([[40,'feat/faithful-payroll-reports-20261020'],[41,'fix/canonical-workspaces-20261022'],[42,'fix/budget-reconciliation-20261023'],[43,'feat/budget-capex-20261023'],[45,'feat/treasury-depreciation-20261023']]);
+  const allowed=new Map([[40,'feat/faithful-payroll-reports-20261020'],[41,'fix/canonical-workspaces-20261022'],[42,'fix/budget-reconciliation-20261023'],[43,'feat/budget-capex-20261023'],[45,'feat/treasury-depreciation-20261023'],[46,'feat/budget-model-boundaries-sector-rates-20261023']]);
   if(!pr||pr.head?.repo?.full_name!==repository||allowed.get(pr.number)!==pr.head?.ref)
     throw new Error('Only explicitly approved same-repository review branches may upload a version.');
   return `pr-${pr.number}`;
