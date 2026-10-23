@@ -12,7 +12,8 @@ export function statementLayouts(p:PlanningResult){
  const sum=(part:'dre'|'cash',key:string,y:number):Expr=>y===0?at(part,key,0):add(...Array.from({length:12},(_,j)=>at(part,key,(y-1)*12+j+1)));
  const d=(k:string,y:number)=>sum('dre',k,y),c=(k:string,y:number)=>sum('cash',k,y),b=(k:string,y:number)=>at('balance',k,y*12);
  const line=(id:string,label:Labels,value?:StatementLine['value'],kind:StatementLine['kind']='line'):StatementLine=>({id,label,value,kind});
- const op=(y:number):Expr=>y===0?mul(-1,b('nwc',0)):sub(sub(d('ebitda',y),d('tax',y)),c('wcChange',y));
+ const paidTax=(y:number):Expr=>y===0?b('taxPaid',0):add(...Array.from({length:12},(_,j)=>at('balance','taxPaid',(y-1)*12+j+1)));
+ const op=(y:number):Expr=>y===0?mul(-1,b('nwc',0)):sub(sub(d('ebitda',y),paidTax(y)),c('wcChange',y));
  // Use live input references and horizon conditions in exported formulas.
  const P=(key:string)=>address(studySheets[0],p.inputRows.find(r=>r.key===key)!.row,2);
  const terminal=(y:number):Expr=>({op:'IF',args:[mul({op:'=',args:[y,P('years')]},P('closeProject')),P('residual'),0]});
@@ -51,11 +52,13 @@ export function statementLayouts(p:PlanningResult){
  line('retained',['Resultados transitados e afetações','Retained earnings and appropriations','Resultados acumulados y aplicaciones','Report à nouveau et affectations','Накопленная прибыль и распределения'],y=>sub(b('retained',y),d('net',y))),
  line('net',['Resultado líquido do período','Net profit for the period','Resultado neto','Résultat net','Чистая прибыль'],y=>d('net',y)),
  line('liability',['PASSIVO','LIABILITIES','PASIVO','PASSIF','ОБЯЗАТЕЛЬСТВА'],undefined,'section'),
- line('long',['Passivo não corrente','Non-current liabilities','Pasivo no corriente','Passif non courant','Долгосрочные обязательства'],y=>b('longDebt',y),'subtotal'),
+ line('long',['Passivo não corrente','Non-current liabilities','Pasivo no corriente','Passif non courant','Долгосрочные обязательства'],y=>add(b('longDebt',y),sub(b('taxPayable',y),b('currentTaxPayable',y))),'subtotal'),
  line('longDebt',['Financiamentos obtidos — médio e longo prazo','Long-term borrowings','Financiación a largo plazo','Emprunts à long terme','Долгосрочные займы'],y=>b('longDebt',y)),
- line('short',['Passivo corrente','Current liabilities','Pasivo corriente','Passif courant','Краткосрочные обязательства'],y=>add(b('payables',y),b('vatPayable',y),b('currentDebt',y)),'subtotal'),
+ line('longTaxPayable',['Imposto sobre o rendimento a pagar — não corrente','Non-current income tax payable','Impuesto a pagar no corriente','Impôt à payer non courant','Долгосрочный налог к уплате'],y=>sub(b('taxPayable',y),b('currentTaxPayable',y))),
+ line('short',['Passivo corrente','Current liabilities','Pasivo corriente','Passif courant','Краткосрочные обязательства'],y=>add(b('payables',y),b('vatPayable',y),b('currentTaxPayable',y),b('currentDebt',y)),'subtotal'),
  line('payables',['Fornecedores','Suppliers','Proveedores','Fournisseurs','Поставщики'],y=>b('payables',y)),
- line('vatPayable',['Estado e outros entes públicos — a pagar','Tax payables','Impuestos a pagar','Dettes fiscales','Налоги к уплате'],y=>b('vatPayable',y)),
+ line('vatPayable',['IVA a pagar','VAT payable','IVA a pagar','TVA à payer','НДС к уплате'],y=>b('vatPayable',y)),
+ line('incomeTaxPayable',['Imposto sobre o rendimento a pagar — corrente','Current income tax payable','Impuesto a pagar corriente','Impôt à payer courant','Текущий налог к уплате'],y=>b('currentTaxPayable',y)),
  line('currentDebt',['Financiamentos obtidos — curto prazo','Short-term borrowings','Financiación a corto plazo','Emprunts à court terme','Краткосрочные займы'],y=>b('currentDebt',y)),
  line('liabilities',['TOTAL DO PASSIVO','TOTAL LIABILITIES','TOTAL PASIVO','TOTAL PASSIF','ИТОГО ОБЯЗАТЕЛЬСТВА'],y=>b('liabilities',y),'total'),
  line('equityLiabilities',['TOTAL DO CAPITAL PRÓPRIO E PASSIVO','TOTAL EQUITY AND LIABILITIES','TOTAL PATRIMONIO Y PASIVO','TOTAL CAPITAUX PROPRES ET PASSIF','ИТОГО КАПИТАЛ И ОБЯЗАТЕЛЬСТВА'],y=>add(b('equity',y),b('liabilities',y)),'total'),
@@ -64,7 +67,7 @@ export function statementLayouts(p:PlanningResult){
  {id:'cash',title:['Mapa de tesouraria projetado','Projected treasury statement','Tesorería proyectada','Trésorerie prévisionnelle','Прогноз казначейства'] as Labels,lines:[
  line('operation',['FLUXOS DAS ATIVIDADES OPERACIONAIS','OPERATING CASH FLOWS','FLUJOS OPERATIVOS','FLUX OPÉRATIONNELS','ОПЕРАЦИОННЫЕ ПОТОКИ'],undefined,'section'),
  line('ebitda',['EBITDA','EBITDA','EBITDA','EBITDA','EBITDA'],y=>d('ebitda',y)),
- line('tax',['Imposto sobre o rendimento (−)','Income tax (−)','Impuesto (−)','Impôt (−)','Налог (−)'],y=>mul(-1,d('tax',y))),
+ line('tax',['Imposto sobre o rendimento pago (−)','Income tax paid (−)','Impuesto pagado (−)','Impôt payé (−)','Уплаченный налог (−)'],y=>mul(-1,paidTax(y))),
  line('wc',['Investimento / variação do fundo de maneio (−)','Working capital investment / change (−)','Variación del circulante (−)','Variation du fonds de roulement (−)','Изменение оборотного капитала (−)'],y=>mul(-1,y===0?b('nwc',0):c('wcChange',y))),
  line('operating',['Cash flow operacional','Operating cash flow','Flujo operativo','Flux opérationnel','Операционный денежный поток'],op,'subtotal'),
  line('financing',['FLUXOS DAS ATIVIDADES DE FINANCIAMENTO','FINANCING CASH FLOWS','FLUJOS DE FINANCIACIÓN','FLUX DE FINANCEMENT','ФИНАНСОВЫЕ ПОТОКИ'],undefined,'section'),
