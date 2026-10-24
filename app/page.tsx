@@ -1,6 +1,6 @@
 "use client";
 import {BiWorkspace} from './bi-workspace';
-import {isBiDestination} from '../lib/bi-workspace';
+import {isBiDestination,workspaceLanding} from '../lib/bi-workspace';
 import {PeopleHealthWorkspace} from './people-health-workspace';
 import {TreasuryWorkspace} from './treasury-workspace';
 import {AuditEventSummary} from './audit-event-summary';
@@ -293,7 +293,7 @@ export default function Home() {
   const sourceWorkspace=workspaceForTarget(availableWorkspaces,modulo,openDomain)||availableWorkspaces.find(d=>d.code===openDomain)||availableWorkspaces[0];
   const activeWorkspace=(documentOpen||reportTarget)?availableWorkspaces.find(d=>d.code==='ANALYTICS_REPORTING')||sourceWorkspace:sourceWorkspace;
   const workspaceName=(code:string)=>code==='WORKFLOW'?workspaceText(locale,'workflow'):msg(moduleNameKey[code]);
-  const selectWorkspace=(code:string)=>{const d=availableWorkspaces.find(d=>d.code===code);if(!d)return;setOpenDomain(code);setModulo(d.groups[0].targets[0]);setMobileMenu(false)};
+  const selectWorkspace=(code:string)=>{const d=availableWorkspaces.find(d=>d.code===code);if(!d)return;setOpenDomain(code);setModulo(workspaceLanding(d));setMobileMenu(false)};
   let breadcrumb: { domain: string; item: string } | null = null;
   for (const domain of moduleCatalog) {
     const item = domain.items.find((i) => i.target === modulo);

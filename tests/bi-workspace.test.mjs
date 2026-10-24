@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
-import {availableBiPanels,biPanels,isBiDestination,biWorkTarget} from '../lib/bi-workspace.ts';
+import {availableBiPanels,biPanels,isBiDestination,biWorkTarget,workspaceLanding} from '../lib/bi-workspace.ts';
 const domain=(code,targets)=>({code,label:'analysis',groups:[{id:'analysis',targets}]});
 test('BI is limited by the same accessible source destinations as workspaces',()=>{
  assert.deepEqual(availableBiPanels([]),[]);
@@ -33,4 +33,12 @@ test('BI renders the requested authorized real panel and never renders an unauth
 test('each analytical family returns to the correct operational process',()=>{
  const expected={'bi:budget':'Mapa Orçamental Anual','bi:study':'Investimento','bi:consolidation':'Consolidação','bi:bank':'Extratos bancários','bi:treasury':'Tesouraria','RH Dashboard':'Pessoas','Análises':'Headcount','Working Capital':'Tesouraria','Cockpit CFO':'Dados financeiros'};
  for(const [id,target] of Object.entries(expected))assert.equal(biWorkTarget(biPanels.find(panel=>panel.id===id)),target);
+});
+
+test('entering a work module never traps the user in BI or chooses an unauthorized landing',()=>{
+ assert.equal(workspaceLanding(domain('FINANCE_FP&A',['Cockpit CFO','Dados financeiros','Mapa Orçamental Anual'])),'Dados financeiros');
+ assert.equal(workspaceLanding(domain('HCM',['RH Dashboard','Pessoas'])),'Pessoas');
+ assert.equal(workspaceLanding(domain('HCM',['RH Dashboard','Ficha do colaborador'])),'Ficha do colaborador');
+ assert.equal(workspaceLanding(domain('FINANCE_FP&A',['Cockpit CFO','Tesouraria'])),'Tesouraria');
+ assert.equal(workspaceLanding(domain('ANALYTICS_REPORTING',['Visão geral'])),'Visão geral');
 });

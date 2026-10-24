@@ -25,3 +25,8 @@ export function biWorkTarget(panel:BiPanel){
  const targets:Record<string,string>={'RH Dashboard':'Pessoas','Análises':'Headcount','bi:bank':'Extratos bancários','bi:treasury':'Tesouraria','bi:budget':'Mapa Orçamental Anual','bi:study':'Investimento','bi:consolidation':'Consolidação'};
  return targets[panel.id]||(panel.group==='liquidity'?'Tesouraria':'Dados financeiros');
 }
+export function workspaceLanding(domain:WorkspaceDomain){
+ const targets=domain.groups.flatMap(group=>group.targets);
+ const preferred:Record<string,string[]>={'FINANCE_FP&A':['Dados financeiros','Mapa Orçamental Anual','Investimento','Tesouraria'],HCM:['Pessoas','Ficha do colaborador','Employee Master']};
+ return (preferred[domain.code]||[]).find(target=>targets.includes(target))||targets.find(target=>!isBiDestination(target))||targets[0];
+}
