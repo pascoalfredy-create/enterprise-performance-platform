@@ -37,7 +37,7 @@ export const workspaceCopy={
  user:['Utilizador','User','Usuario','Utilisateur','Пользователь'],
  profile:['Perfil de acesso','Access profile','Perfil de acceso','Profil d’accès','Профиль доступа'],
  savePermissions:['Guardar permissões','Save permissions','Guardar permisos','Enregistrer les autorisations','Сохранить разрешения'],
- monitoringTitle:['Monitorização de dados','Data monitoring','Supervisión de datos','Suivi des données','Мониторинг данных'],
+ monitoringTitle:['Importar de outros sistemas','Import from other systems','Importar de otros sistemas','Importer depuis d’autres systèmes','Импорт из других систем'],
  records:['Registos','Records','Registros','Enregistrements','Записи'],
  accepted:['Aceites','Accepted','Aceptados','Acceptés','Принято'],
  rejected:['Rejeitados','Rejected','Rechazados','Rejetés','Отклонено'],

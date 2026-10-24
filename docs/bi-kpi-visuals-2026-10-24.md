@@ -1,0 +1,11 @@
+# Graphical KPIs and explanations
+
+The executive finance, imported/recorded Actual and people dashboards use a shared KpiVisual card. Every primary indicator retains its precise value, now with an SVG bar chart, explicitly labelled current/comparison periods, a visible explanatory note, and expandable exact values/calculation/source. The complete print report uses the same content, including notes and charts.
+
+Charts compare the actual values supplied by the existing engines. There are no invented targets, health scores, sector benchmarks or prior values. When the recorded-Actual view lacks a prior period, revenue is contextualised against recorded costs and costs/result against revenue from that same period; the measure labels and an explicit same-period notice distinguish this from historical comparison. The zero baseline is explicit; signed values extend to either side with a common axis inside each card. Zero uses a point instead of a false-height bar. Missing/non-finite current values do not generate a chart. The individual scale is explicitly identified so bars from different metrics are not mistaken for a shared benchmark.
+
+Money input remains in minor units for the calculations; axis labels alone divide by 100. Percentage points, ratios and headcounts retain their existing units. All full values remain accessible in text and the expanded data. Negative bar and legend colours agree. Financial interpretation notes distinguish management result, accounting profit and cash; HR notes match the actual exits/average-headcount turnover formula and paid-employee payroll denominator. Every existing financial ratio and primary HR measure has its own explanatory concept in all five locales. Original exact formulas remain available, with additional group-specific interpretation context.
+
+No calculation, data source, permission or export-engine changes. New explanatory and interface copy is authored in Portuguese, English, Spanish, French and Russian. The operational screens are unaffected.
+
+Validation includes signed/zero/missing/non-finite charts, money-axis scaling, five locales, note semantics and full executive print rendering. Actual browser review is still required before production publication; the previously recorded browser-runtime observation blocker remains open.

@@ -1,4 +1,8 @@
 "use client";
+import {BiWorkspace} from './bi-workspace';
+import {isBiDestination,workspaceLanding} from '../lib/bi-workspace';
+import {PeopleHealthWorkspace} from './people-health-workspace';
+import {TreasuryWorkspace} from './treasury-workspace';
 import {AuditEventSummary} from './audit-event-summary';
 import {WorkspaceModuleBar,WorkspaceSidebar} from './workspace-navigation';
 import {accessibleWorkspaces,workspaceForTarget,workspaceText} from '../lib/workspace-navigation';
@@ -220,6 +224,7 @@ const moduleCatalog: Array<{
 
 export default function Home() {
   const [modulo, setCurrentModule] = useState("Visão geral"),
+    [biPanel,setBiPanel] = useState(""),
     [documentOpen,setDocumentOpen] = useState(false),
     [reportTarget,setReportTarget] = useState<string|null>(null),
     [studyOriginId,setStudyOriginId] = useState<string|undefined>(undefined),
@@ -255,7 +260,7 @@ export default function Home() {
       };
       tenants: Array<{ id: string; name: string; role: string }>;
     } | null>(null);
-  const setModulo=useCallback((target:string)=>{setReportTarget(null);setStudyOriginId(undefined);setStudyReportSelection(null);setCurrentModule(target)},[]);
+  const setModulo=useCallback((target:string)=>{setReportTarget(null);setStudyOriginId(undefined);setStudyReportSelection(null);setBiPanel(isBiDestination(target)?target:"");setCurrentModule(isBiDestination(target)?"Visão geral":target)},[]);
   const openReportTarget=(target:string)=>{setStudyReportSelection(null);setReportTarget(target);setCurrentModule(target);setMobileMenu(false)};
   useEffect(()=>{const handler=(e:Event)=>setDocumentOpen(!!(e as CustomEvent).detail?.open);window.addEventListener('ep:document',handler);return()=>window.removeEventListener('ep:document',handler)},[]);
   const openMonthly=useCallback(()=>setModulo("Processamentos"),[]);
@@ -288,7 +293,7 @@ export default function Home() {
   const sourceWorkspace=workspaceForTarget(availableWorkspaces,modulo,openDomain)||availableWorkspaces.find(d=>d.code===openDomain)||availableWorkspaces[0];
   const activeWorkspace=(documentOpen||reportTarget)?availableWorkspaces.find(d=>d.code==='ANALYTICS_REPORTING')||sourceWorkspace:sourceWorkspace;
   const workspaceName=(code:string)=>code==='WORKFLOW'?workspaceText(locale,'workflow'):msg(moduleNameKey[code]);
-  const selectWorkspace=(code:string)=>{const d=availableWorkspaces.find(d=>d.code===code);if(!d)return;setOpenDomain(code);setModulo(d.groups[0].targets[0]);setMobileMenu(false)};
+  const selectWorkspace=(code:string)=>{const d=availableWorkspaces.find(d=>d.code===code);if(!d)return;setOpenDomain(code);setModulo(workspaceLanding(d));setMobileMenu(false)};
   let breadcrumb: { domain: string; item: string } | null = null;
   for (const domain of moduleCatalog) {
     const item = domain.items.find((i) => i.target === modulo);
@@ -414,6 +419,19 @@ export default function Home() {
         .map((item) => ({ label: moduleItemLabel(locale, item.label), target: item.target! })),
     }))
     .filter((group) => group.items.length > 0);
+  function renderBiPanel(target:string){
+    const financeViews:Record<string,"Cockpit CFO"|"Demonstrações"|"Performance"|"Desvios"|"Working Capital"|"Rentabilidade">={"Cockpit CFO":"Cockpit CFO","Demonstrações":"Demonstrações","Performance Financeira":"Performance","Desvios Financeiros":"Desvios","Working Capital":"Working Capital","Rentabilidade":"Rentabilidade"};
+    if(financeViews[target])return <FinanceSuite presentation="analysis" initialView={financeViews[target]} onNavigate={setModulo}/>;
+    if(target==='bi:budget')return <FinanceSuite presentation="analysis" initialView="Desvios" onNavigate={setModulo}/>;
+    if(target==='bi:study')return <SavedStudyReports onOrigin={id=>{setStudyOriginId(id);setReportTarget(null);setCurrentModule('Investimento')}}/>;
+    if(target==='bi:consolidation')return <ConsolidationWorkspace presentation="analysis"/>;
+    if(target==='RH Dashboard')return <PeopleHealthWorkspace/>;
+    if(target==='Análises')return <WorkforceCost/>;
+    const query="?period="+new Date().toISOString().slice(0,7)+"&currency=AOA";
+    if(target==='bi:bank')return <BankStatementsWorkspace presentation="analysis" query={query}/>;
+    if(target==='bi:treasury')return <TreasuryWorkspace presentation="analysis" query={query} organizations={[]}/>;
+    return null;
+  }
   return (
     <div className="site workspace-approved" data-workspace-target={modulo} data-report-open={documentOpen||!!reportTarget}>
       <PlatformLocalizedSurface>
@@ -542,7 +560,7 @@ export default function Home() {
           ) : modulo === "Documentos" ? (
             <DocumentHubWorkspace />
           ) : modulo === "Extratos bancários" ? (
-            <BankStatementsWorkspace query={"?period="+new Date().toISOString().slice(0,7)+"&currency=AOA"}/>
+            <BankStatementsWorkspace presentation={reportTarget?"analysis":"work"} query={"?period="+new Date().toISOString().slice(0,7)+"&currency=AOA"}/>
           ) : modulo === "Automatização" ? (
             <AnalysisAutomationWorkspace />
           ) : modulo === "Dados financeiros" ? (
@@ -560,7 +578,7 @@ export default function Home() {
           ) : modulo === "Desvios Financeiros" ? (
             <FinanceSuite initialView="Desvios" onNavigate={setModulo} />
           ) : modulo === "Tesouraria" ? (
-            <FinanceSuite initialView="Tesouraria" onNavigate={setModulo} />
+            <FinanceSuite initialView="Tesouraria" presentation={reportTarget?"analysis":"work"} onNavigate={setModulo} />
           ) : modulo === "Working Capital" ? (
             <FinanceSuite initialView="Working Capital" onNavigate={setModulo} />
           ) : modulo === "Rentabilidade" ? (
@@ -611,7 +629,7 @@ export default function Home() {
           ) : modulo === "Centro Comercial" ? (
             <CommercialSuite onNavigate={setModulo} />
           ) : modulo === "Cockpits por perfil" ? (
-            <AnalyticsSuite initialView="profiles" />
+            <BiWorkspace domains={availableWorkspaces} onNavigate={setModulo} renderPanel={panel=>renderBiPanel(panel.id)}/>
           ) : modulo === "Catálogo Analytics" ? (
             <AnalyticsSuite initialView="reports" />
           ) : modulo === "Relatórios" ? (
@@ -627,9 +645,9 @@ export default function Home() {
           ) : modulo === "Competências" ? (
             <CompetenciesWorkspace actor={sessao.email} role={sessao.role} />
           ) : modulo === "Integrações" ? (
-            <IntegrationsWorkspace onNavigate={setModulo} />
+            <IntegrationsWorkspace canImportFinancial={sessao.modules.includes("FINANCE_FP&A")&&sessao.permissions.includes("financial-data:write")} onNavigate={setModulo} />
           ) : modulo === "Fontes de integração" || modulo === "Mappings de integração" ? (
-            <IntegrationsWorkspace initialView={modulo === "Fontes de integração" ? "Fontes" : "Mappings"} onNavigate={setModulo} />
+            <IntegrationsWorkspace canImportFinancial={sessao.modules.includes("FINANCE_FP&A")&&sessao.permissions.includes("financial-data:write")} initialView={modulo === "Fontes de integração" ? "Fontes" : "Mappings"} onNavigate={setModulo} />
           ) : modulo === "Auditoria" || modulo === "Histórico de decisões" ? (
             <RecentAudit key={modulo} decisions={modulo === "Histórico de decisões"} />
           ) : modulo === "Controlo" ? (
@@ -638,7 +656,7 @@ export default function Home() {
               <ApiContract />
             </>
           ) : modulo === "Visão geral" ? (
-            <AnalyticsSuite initialView="executive" />
+            <BiWorkspace domains={availableWorkspaces} initialPanel={biPanel} onNavigate={setModulo} renderPanel={panel=>renderBiPanel(panel.id)}/>
           ) : (
             <ModuleUnavailable />
           )}
@@ -1086,13 +1104,9 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
       <div className="progresso">
         <i
           style={{
-            width: dados.organizations.length
-              ? dados.users.length
-                ? dados.employees.length
-                  ? "100%"
-                  : "67%"
-                : "34%"
-              : "8%",
+            width: employeeWorkspace
+              ? (dados.employees.length ? "100%" : "0%")
+              : `${([dados.organizations.length,dados.users.length,dados.dimensions.length].filter(Boolean).length / 3) * 100}%`,
           }}
         />
       </div>
@@ -1224,7 +1238,7 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
                   </button>
                 </div>
               )}
-<div className="workspace-record-table"><table><thead><tr><th>{workspaceText(fileLocale,'user')}</th><th>E-mail</th><th>{workspaceText(fileLocale,'profile')}</th><th>{workspaceText(fileLocale,'scope')}</th><th>{workspaceText(fileLocale,'status')}</th></tr></thead><tbody>{dados.users.map(user=><tr key={user.id} className={currentUser?.id===user.id?'selected':''} onClick={()=>setSelectedUser(user.id)}><td><button type="button" className="workspace-row-select" onClick={()=>setSelectedUser(user.id)}>{user.name}</button></td><td>{user.email}</td><td>{user.role}</td><td>{dados.organizations.find(org=>org.id===user.organization_id)?.name||'—'}</td><td><span className={'workspace-status '+(user.status==='Ativo'?'good':'pending')}>{user.status==='Convite enviado'?'Aguarda aceitação':user.status}</span></td></tr>)}</tbody></table></div>
+<div className="workspace-record-table"><table><thead><tr><th>{workspaceText(fileLocale,'user')}</th><th>E-mail</th><th>{workspaceText(fileLocale,'profile')}</th><th>{workspaceText(fileLocale,'scope')}</th><th>{workspaceText(fileLocale,'status')}</th></tr></thead><tbody>{dados.users.map(user=><tr key={user.id} className={currentUser?.id===user.id?'selected':''} onClick={()=>setSelectedUser(user.id)}><td><button type="button" className="workspace-row-select" onClick={()=>setSelectedUser(user.id)}>{user.name}</button></td><td>{user.email}</td><td>{user.role}</td><td>{dados.organizations.find(org=>org.id===user.organization_id)?.name||'—'}</td><td><span className={'workspace-status '+(user.status==='Ativo'?'good':'pending')}>{['Convite enviado','Convite preparado'].includes(user.status)?'Aguarda aceitação':user.status}</span></td></tr>)}</tbody></table></div>
  {currentUser&&<section className="workspace-detail"><header><div><h2>{currentUser.name}</h2><p>{currentUser.email}</p></div><div className="acoes-acesso">
                       {currentUser.status === "Ativo" ? (
                         <button
