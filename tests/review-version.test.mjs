@@ -12,6 +12,7 @@ test('version uploads reject forks, unrelated branches and unrelated PRs',()=>{
  assert.equal(reviewContext({pull_request:{number:42,head:{repo:{full_name:repository},ref:'fix/budget-reconciliation-20261023'}}},repository),'pr-42');
  assert.throws(()=>reviewContext({pull_request:{number:42,head:{repo:{full_name:'fork/repo'},ref:'fix/budget-reconciliation-20261023'}}},repository));
  assert.throws(()=>reviewContext({pull_request:{number:43,head:{repo:{full_name:repository},ref:'fix/budget-reconciliation-20261023'}}},repository));
+ assert.equal(reviewContext({pull_request:{number:50,head:{repo:{full_name:repository},ref:'feat/bi-workspace-separation-20261023'}}},repository),'pr-50');
  assert.equal(reviewContext({pull_request:{number:49,head:{repo:{full_name:repository},ref:'feat/study-tax-calendar-20261023'}}},repository),'pr-49');
  assert.equal(reviewContext({pull_request:{number:48,head:{repo:{full_name:repository},ref:'feat/study-debt-drawdowns-20261023'}}},repository),'pr-48');
  assert.equal(reviewContext({pull_request:{number:47,head:{repo:{full_name:repository},ref:'feat/financial-planning-foundation-20261023'}}},repository),'pr-47');

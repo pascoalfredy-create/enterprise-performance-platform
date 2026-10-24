@@ -1,4 +1,8 @@
 "use client";
+import {BiWorkspace} from './bi-workspace';
+import {isBiDestination} from '../lib/bi-workspace';
+import {PeopleHealthWorkspace} from './people-health-workspace';
+import {TreasuryWorkspace} from './treasury-workspace';
 import {AuditEventSummary} from './audit-event-summary';
 import {WorkspaceModuleBar,WorkspaceSidebar} from './workspace-navigation';
 import {accessibleWorkspaces,workspaceForTarget,workspaceText} from '../lib/workspace-navigation';
@@ -220,6 +224,7 @@ const moduleCatalog: Array<{
 
 export default function Home() {
   const [modulo, setCurrentModule] = useState("Visão geral"),
+    [biPanel,setBiPanel] = useState(""),
     [documentOpen,setDocumentOpen] = useState(false),
     [reportTarget,setReportTarget] = useState<string|null>(null),
     [studyOriginId,setStudyOriginId] = useState<string|undefined>(undefined),
@@ -255,7 +260,7 @@ export default function Home() {
       };
       tenants: Array<{ id: string; name: string; role: string }>;
     } | null>(null);
-  const setModulo=useCallback((target:string)=>{setReportTarget(null);setStudyOriginId(undefined);setStudyReportSelection(null);setCurrentModule(target)},[]);
+  const setModulo=useCallback((target:string)=>{setReportTarget(null);setStudyOriginId(undefined);setStudyReportSelection(null);setBiPanel(isBiDestination(target)?target:"");setCurrentModule(isBiDestination(target)?"Visão geral":target)},[]);
   const openReportTarget=(target:string)=>{setStudyReportSelection(null);setReportTarget(target);setCurrentModule(target);setMobileMenu(false)};
   useEffect(()=>{const handler=(e:Event)=>setDocumentOpen(!!(e as CustomEvent).detail?.open);window.addEventListener('ep:document',handler);return()=>window.removeEventListener('ep:document',handler)},[]);
   const openMonthly=useCallback(()=>setModulo("Processamentos"),[]);
@@ -414,6 +419,19 @@ export default function Home() {
         .map((item) => ({ label: moduleItemLabel(locale, item.label), target: item.target! })),
     }))
     .filter((group) => group.items.length > 0);
+  function renderBiPanel(target:string){
+    const financeViews:Record<string,"Cockpit CFO"|"Demonstrações"|"Performance"|"Desvios"|"Working Capital"|"Rentabilidade">={"Cockpit CFO":"Cockpit CFO","Demonstrações":"Demonstrações","Performance Financeira":"Performance","Desvios Financeiros":"Desvios","Working Capital":"Working Capital","Rentabilidade":"Rentabilidade"};
+    if(financeViews[target])return <FinanceSuite presentation="analysis" initialView={financeViews[target]} onNavigate={setModulo}/>;
+    if(target==='bi:budget')return <FinanceSuite presentation="analysis" initialView="Desvios" onNavigate={setModulo}/>;
+    if(target==='bi:study')return <SavedStudyReports onOrigin={id=>{setStudyOriginId(id);setReportTarget(null);setCurrentModule('Investimento')}}/>;
+    if(target==='bi:consolidation')return <ConsolidationWorkspace presentation="analysis"/>;
+    if(target==='RH Dashboard')return <PeopleHealthWorkspace/>;
+    if(target==='Análises')return <WorkforceCost/>;
+    const query="?period="+new Date().toISOString().slice(0,7)+"&currency=AOA";
+    if(target==='bi:bank')return <BankStatementsWorkspace presentation="analysis" query={query}/>;
+    if(target==='bi:treasury')return <TreasuryWorkspace presentation="analysis" query={query} organizations={[]}/>;
+    return null;
+  }
   return (
     <div className="site workspace-approved" data-workspace-target={modulo} data-report-open={documentOpen||!!reportTarget}>
       <PlatformLocalizedSurface>
@@ -542,7 +560,7 @@ export default function Home() {
           ) : modulo === "Documentos" ? (
             <DocumentHubWorkspace />
           ) : modulo === "Extratos bancários" ? (
-            <BankStatementsWorkspace query={"?period="+new Date().toISOString().slice(0,7)+"&currency=AOA"}/>
+            <BankStatementsWorkspace presentation={reportTarget?"analysis":"work"} query={"?period="+new Date().toISOString().slice(0,7)+"&currency=AOA"}/>
           ) : modulo === "Automatização" ? (
             <AnalysisAutomationWorkspace />
           ) : modulo === "Dados financeiros" ? (
@@ -560,7 +578,7 @@ export default function Home() {
           ) : modulo === "Desvios Financeiros" ? (
             <FinanceSuite initialView="Desvios" onNavigate={setModulo} />
           ) : modulo === "Tesouraria" ? (
-            <FinanceSuite initialView="Tesouraria" onNavigate={setModulo} />
+            <FinanceSuite initialView="Tesouraria" presentation={reportTarget?"analysis":"work"} onNavigate={setModulo} />
           ) : modulo === "Working Capital" ? (
             <FinanceSuite initialView="Working Capital" onNavigate={setModulo} />
           ) : modulo === "Rentabilidade" ? (
@@ -611,7 +629,7 @@ export default function Home() {
           ) : modulo === "Centro Comercial" ? (
             <CommercialSuite onNavigate={setModulo} />
           ) : modulo === "Cockpits por perfil" ? (
-            <AnalyticsSuite initialView="profiles" />
+            <BiWorkspace domains={availableWorkspaces} onNavigate={setModulo} renderPanel={panel=>renderBiPanel(panel.id)}/>
           ) : modulo === "Catálogo Analytics" ? (
             <AnalyticsSuite initialView="reports" />
           ) : modulo === "Relatórios" ? (
@@ -638,7 +656,7 @@ export default function Home() {
               <ApiContract />
             </>
           ) : modulo === "Visão geral" ? (
-            <AnalyticsSuite initialView="executive" />
+            <BiWorkspace domains={availableWorkspaces} initialPanel={biPanel} onNavigate={setModulo} renderPanel={panel=>renderBiPanel(panel.id)}/>
           ) : (
             <ModuleUnavailable />
           )}

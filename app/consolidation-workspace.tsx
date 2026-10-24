@@ -91,7 +91,7 @@ const empty: Data = {
   ownership: [],
   organizations: [],
 };
-export function ConsolidationWorkspace() {
+export function ConsolidationWorkspace({presentation="work"}:{presentation?:"work"|"analysis"}={}) {
   const [data, setData] = useState<Data>(empty),
     [view, setView] = useState("Consolidações"),
     [modal, setModal] = useState(""),
@@ -171,16 +171,16 @@ export function ConsolidationWorkspace() {
             Câmbio versionado, conversão rastreável e eliminações documentadas.
           </p>
         </div>
-        <div>
+        {presentation==='work'&&<div>
           <button className="secundario" onClick={() => open("createRateSet")}>
             ＋ Taxas
           </button>
           <button className="primario" onClick={() => open("calculateRun")}>
             ▶ Consolidar
           </button>
-        </div>
+        </div>}
       </div>
-      <section className="consolidation-kpis">
+      {presentation==='analysis'&&<section className="consolidation-kpis">
         <article>
           <span>Último período</span>
           <strong>{latest?.period || "—"}</strong>
@@ -226,9 +226,9 @@ export function ConsolidationWorkspace() {
               : "Sem consolidação"}
           </small>
         </article>
-      </section>
+      </section>}
       <nav className="consolidation-tabs">
-        {["Consolidações", "Taxas de câmbio", "Participação", "Drill-down"].map((x) => (
+        {(presentation==='analysis'?["Consolidações","Drill-down"]:["Consolidações", "Taxas de câmbio", "Participação", "Drill-down"]).map((x) => (
           <button
             key={x}
             className={view === x ? "active" : ""}
@@ -345,7 +345,7 @@ export function ConsolidationWorkspace() {
                   >
                     Abrir
                   </button>
-                  {r.status === "Calculado" && (
+                  {presentation==='work'&&r.status === "Calculado" && (
                     <>
                       <button onClick={() => open("addAdjustment", r.id)}>
                         ＋ Ajuste
