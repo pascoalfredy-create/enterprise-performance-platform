@@ -15,3 +15,9 @@ This is the shared BI foundation and first operational separation. Recruitment, 
 ## Validation
 
 Permission filtering, independent work routes, authorized and unauthorized rendering are covered by tests/bi-workspace.test.mjs. A separate actual-React fixture exercises work/analysis presentation in five languages, panel switching and return to source without production writes. Authenticated browser QA of the review version remains mandatory before activation.
+
+## Review browser observations
+
+Authenticated review browsing confirmed the BI/module/area selector, operational finance landing, work treasury account and import controls, and bank import controls without chart cards. The financial BI view loaded the real August 2026 aggregate: revenue 36,214,600 AOA, recognized costs 19,600,000 AOA and recorded management result 16,614,600 AOA. No production data were edited. Treasury lacks balances for the chosen date; bank statements are absent in the selected scope, so nonempty forecast/bank views and their Excel export were verified with isolated React fixtures instead of invented production records.
+
+The real executive PDF attempt timed out. The browser runtime then refused observation because its native credential state could not resume; explicit navigation to the retained origin did not recover access. This is an unresolved browser/PDF validation blocker, not evidence of a PDF calculation defect. Do not activate the release until this check and final-version browser verification are completed.
