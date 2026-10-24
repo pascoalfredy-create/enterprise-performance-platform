@@ -9,7 +9,7 @@ test('BI is limited by the same accessible source destinations as workspaces',()
  assert.deepEqual(availableBiPanels([]),[]);
  assert.deepEqual(availableBiPanels([domain('HCM',['Pessoas'])]),[]);
  const panels=availableBiPanels([domain('HCM',['RH Dashboard']),domain('FINANCE_FP&A',['Tesouraria'])]);
- assert.deepEqual(panels.map(panel=>panel.id),['bi:treasury','RH Dashboard']);
+ assert.deepEqual(panels.map(panel=>panel.id),['bi:treasury','bi:bank','RH Dashboard']);
  assert(!panels.some(panel=>panel.id==='Cockpit CFO'||panel.id==='Análises'));
 });
 test('operational treasury, bank imports and payroll keep independent work destinations',()=>{

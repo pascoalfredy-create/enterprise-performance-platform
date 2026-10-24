@@ -1,5 +1,5 @@
 import type {WorkspaceDomain} from './workspace-navigation';
-export type BiPanel={id:string;source:string;group:string};
+export type BiPanel={id:string;source:string;group:string;label?:string};
 export const biPanels:readonly BiPanel[]=[
  {id:'Cockpit CFO',source:'Cockpit CFO',group:'analysis'},
  {id:'Demonstrações',source:'Demonstrações',group:'analysis'},
@@ -11,7 +11,7 @@ export const biPanels:readonly BiPanel[]=[
  {id:'bi:consolidation',source:'Consolidação',group:'consolidation'},
  {id:'Working Capital',source:'Working Capital',group:'liquidity'},
  {id:'bi:treasury',source:'Tesouraria',group:'liquidity'},
- {id:'bi:bank',source:'Extratos bancários',group:'liquidity'},
+ {id:'bi:bank',source:'Tesouraria',group:'liquidity',label:'Extratos bancários'},
  {id:'RH Dashboard',source:'RH Dashboard',group:'people'},
  {id:'Análises',source:'Análises',group:'cost'},
 ];
