@@ -645,9 +645,9 @@ export default function Home() {
           ) : modulo === "Competências" ? (
             <CompetenciesWorkspace actor={sessao.email} role={sessao.role} />
           ) : modulo === "Integrações" ? (
-            <IntegrationsWorkspace onNavigate={setModulo} />
+            <IntegrationsWorkspace canImportFinancial={sessao.modules.includes("FINANCE_FP&A")&&sessao.permissions.includes("financial-data:write")} onNavigate={setModulo} />
           ) : modulo === "Fontes de integração" || modulo === "Mappings de integração" ? (
-            <IntegrationsWorkspace initialView={modulo === "Fontes de integração" ? "Fontes" : "Mappings"} onNavigate={setModulo} />
+            <IntegrationsWorkspace canImportFinancial={sessao.modules.includes("FINANCE_FP&A")&&sessao.permissions.includes("financial-data:write")} initialView={modulo === "Fontes de integração" ? "Fontes" : "Mappings"} onNavigate={setModulo} />
           ) : modulo === "Auditoria" || modulo === "Histórico de decisões" ? (
             <RecentAudit key={modulo} decisions={modulo === "Histórico de decisões"} />
           ) : modulo === "Controlo" ? (
@@ -1104,13 +1104,9 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
       <div className="progresso">
         <i
           style={{
-            width: dados.organizations.length
-              ? dados.users.length
-                ? dados.employees.length
-                  ? "100%"
-                  : "67%"
-                : "34%"
-              : "8%",
+            width: employeeWorkspace
+              ? (dados.employees.length ? "100%" : "0%")
+              : `${([dados.organizations.length,dados.users.length,dados.dimensions.length].filter(Boolean).length / 3) * 100}%`,
           }}
         />
       </div>
@@ -1242,7 +1238,7 @@ function ConfiguracaoReal({initialStep=1,autoOpenNewRecord=false,payrollEnabled=
                   </button>
                 </div>
               )}
-<div className="workspace-record-table"><table><thead><tr><th>{workspaceText(fileLocale,'user')}</th><th>E-mail</th><th>{workspaceText(fileLocale,'profile')}</th><th>{workspaceText(fileLocale,'scope')}</th><th>{workspaceText(fileLocale,'status')}</th></tr></thead><tbody>{dados.users.map(user=><tr key={user.id} className={currentUser?.id===user.id?'selected':''} onClick={()=>setSelectedUser(user.id)}><td><button type="button" className="workspace-row-select" onClick={()=>setSelectedUser(user.id)}>{user.name}</button></td><td>{user.email}</td><td>{user.role}</td><td>{dados.organizations.find(org=>org.id===user.organization_id)?.name||'—'}</td><td><span className={'workspace-status '+(user.status==='Ativo'?'good':'pending')}>{user.status==='Convite enviado'?'Aguarda aceitação':user.status}</span></td></tr>)}</tbody></table></div>
+<div className="workspace-record-table"><table><thead><tr><th>{workspaceText(fileLocale,'user')}</th><th>E-mail</th><th>{workspaceText(fileLocale,'profile')}</th><th>{workspaceText(fileLocale,'scope')}</th><th>{workspaceText(fileLocale,'status')}</th></tr></thead><tbody>{dados.users.map(user=><tr key={user.id} className={currentUser?.id===user.id?'selected':''} onClick={()=>setSelectedUser(user.id)}><td><button type="button" className="workspace-row-select" onClick={()=>setSelectedUser(user.id)}>{user.name}</button></td><td>{user.email}</td><td>{user.role}</td><td>{dados.organizations.find(org=>org.id===user.organization_id)?.name||'—'}</td><td><span className={'workspace-status '+(user.status==='Ativo'?'good':'pending')}>{['Convite enviado','Convite preparado'].includes(user.status)?'Aguarda aceitação':user.status}</span></td></tr>)}</tbody></table></div>
  {currentUser&&<section className="workspace-detail"><header><div><h2>{currentUser.name}</h2><p>{currentUser.email}</p></div><div className="acoes-acesso">
                       {currentUser.status === "Ativo" ? (
                         <button

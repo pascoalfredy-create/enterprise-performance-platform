@@ -53,7 +53,7 @@ export async function customerActivationApi(
           .first(),
         db
           .prepare(
-            "SELECT (SELECT COUNT(*) FROM organizations WHERE tenant_id=? AND status='Ativa') organizations,(SELECT COUNT(*) FROM platform_users WHERE tenant_id=? AND status='Ativo') users,(SELECT COUNT(*) FROM employees WHERE tenant_id=? AND status='Ativo') employees,(SELECT COUNT(*) FROM financial_dimensions WHERE tenant_id=? AND status='Ativa') dimensions,(SELECT COUNT(*) FROM performance_entries WHERE tenant_id=?) financial_entries,(SELECT COUNT(*) FROM payroll_runs WHERE tenant_id=?) payroll_runs,(SELECT COUNT(*) FROM management_reports WHERE tenant_id=?) reports,(SELECT COUNT(*) FROM integration_runs WHERE tenant_id=?) integration_runs,(SELECT COUNT(*) FROM module_documents WHERE tenant_id=?) documents,(SELECT COUNT(*) FROM workflow_tasks WHERE tenant_id=?) workflow_tasks",
+            "SELECT (SELECT COUNT(*) FROM organizations WHERE tenant_id=? AND status='Ativa') organizations,(SELECT COUNT(*) FROM platform_users WHERE tenant_id=? AND status='Ativo') users,(SELECT COUNT(*) FROM employees WHERE tenant_id=? AND status='Ativo') employees,(SELECT COUNT(*) FROM financial_dimensions WHERE tenant_id=? AND status='Ativa') dimensions,(SELECT COUNT(*) FROM performance_entries WHERE tenant_id=?) financial_entries,(SELECT COUNT(*) FROM payroll_runs WHERE tenant_id=?) payroll_runs,(SELECT COUNT(*) FROM management_reports WHERE tenant_id=?) reports,(SELECT COUNT(*) FROM integration_runs WHERE tenant_id=? AND status='Aprovada') integration_runs,(SELECT COUNT(*) FROM module_documents WHERE tenant_id=?) documents,(SELECT COUNT(*) FROM workflow_tasks WHERE tenant_id=?) workflow_tasks",
           )
           .bind(
             tenant,
@@ -109,7 +109,7 @@ export async function customerActivationApi(
       },
       {
         code: "integration",
-        name: "Integração validada",
+        name: "Contagens de integração aprovadas",
         complete: n("integration_runs") > 0,
         evidence: `${n("integration_runs")} execução(ões)`,
         target: "Integrações",

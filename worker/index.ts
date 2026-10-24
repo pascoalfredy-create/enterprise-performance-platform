@@ -1,3 +1,4 @@
+import { setupVisibility } from "../lib/setup-visibility";
 import {budgetOrganizationAccess,budgetResourceAccess} from './budget-authorization';
 import {employeePayrollFile} from './payroll-employee-file.ts';
 import { sendInvitationEmail, type InvitationEmailEnv, type InvitationDelivery } from "./invitation-email";
@@ -1749,7 +1750,9 @@ async function setupSnapshot(
   db: D1Database,
   tenantId: string,
   organizationId: string | null = null,
+  permissions: readonly string[] = [],
 ) {
+  const visibility = setupVisibility(permissions);
   const [
     organizations,
     users,
@@ -1812,9 +1815,9 @@ async function setupSnapshot(
     ]);
   return {
     organizations: organizations.results,
-    users: users.results,
-    employees: employees.results,
-    audit: audit.results,
+    users: visibility.users ? users.results : [],
+    employees: visibility.employees ? employees.results : [],
+    audit: visibility.audit ? audit.results : [],
     dimensions: dimensions.results,
     dimensionMembers: dimensionMembers.results,
     financialLineCatalog: financialLineCatalog.results,
@@ -1827,11 +1830,12 @@ async function setupApi(
   tenantId: string,
   organizationId: string | null = null,
   emailEnv: InvitationEmailEnv = {},
+  permissions: readonly string[] = [],
 ) {
   try {
     await ensureSetupSchema(db);
     if (request.method === "GET") {
-      const snapshot = await setupSnapshot(db, tenantId, organizationId);
+      const snapshot = await setupSnapshot(db, tenantId, organizationId, permissions);
       const catalogPeriod = new URL(request.url).searchParams.get("catalogPeriod");
       if (!catalogPeriod) return Response.json(snapshot);
       const params = new URL(request.url).searchParams;
@@ -1890,6 +1894,8 @@ async function setupApi(
         )
         .run();
     } else if (body.type === "user") {
+      if (!["Administrador","Financeiro","Recursos Humanos","Gestor","Leitura"].includes(body.role || "Gestor"))
+        return Response.json({error:"Função inválida."},{status:400});
       if (!body.name?.trim() || !/^\S+@\S+\.\S+$/.test(body.email || ""))
         return Response.json(
           { error: "Indique um nome e um email válido." },
@@ -1920,7 +1926,7 @@ async function setupApi(
           body.email.trim().toLowerCase(),
           body.role || "Gestor",
           body.organizationId || null,
-          "Convite enviado",
+          "Convite preparado",
           created,
         )
         .run();
@@ -1990,7 +1996,7 @@ async function setupApi(
           );
         await db
           .prepare(
-            "UPDATE platform_users SET status='Convite enviado',created_at=? WHERE id=? AND tenant_id=?",
+            "UPDATE platform_users SET status='Convite preparado',created_at=? WHERE id=? AND tenant_id=?",
           )
           .bind(created, body.userId, tenantId)
           .run();
@@ -2464,7 +2470,7 @@ async function setupApi(
       .run();
     return Response.json(
       {
-        ...(await setupSnapshot(db, tenantId, organizationId)),
+        ...(await setupSnapshot(db, tenantId, organizationId, permissions)),
         ...(issuedInvite ? { invite: {...issuedInvite, delivery:emailDelivery} } : {}),
       },
       { status: 201 },
@@ -6696,7 +6702,7 @@ const worker = {
       if (apiPath === "/api/tenants")
         return tenantsApi(request, env.DB, security);
       if (apiPath === "/api/setup")
-        return setupApi(request, env.DB, tenantId, organizationId, env);
+        return setupApi(request, env.DB, tenantId, organizationId, env, security.permissions);
       if (apiPath === "/api/hcm")
         return hcmApi(request, env.DB, tenantId, organizationId);
       if (apiPath === "/api/hr-cockpit")
